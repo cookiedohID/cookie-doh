@@ -4,6 +4,65 @@ import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BOX_PRICES, FLAVORS, formatIDR } from "@/lib/catalog";
+import Image from "next/image";
+
+function Meter({ value = 0 }: { value?: number }) {
+  const filled = Math.max(0, Math.min(5, value));
+  return (
+    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <span
+          key={i}
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 999,
+            display: "inline-block",
+            border: "1px solid rgba(0,0,0,0.18)",
+            background: i < filled ? "rgba(0,0,0,0.85)" : "transparent",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function BadgePill({ text }: { text: string }) {
+  return (
+    <span
+      style={{
+        padding: "5px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 800,
+        border: "1px solid rgba(0,0,0,0.12)",
+        background: "rgba(0,0,0,0.04)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
+function TagChip({ text }: { text: string }) {
+  return (
+    <span
+      style={{
+        padding: "4px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        border: "1px solid rgba(0,0,0,0.10)",
+        background: "rgba(0,0,0,0.02)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
+
 
 type CartItem = {
   boxSize: number;
@@ -139,74 +198,180 @@ export default function BuildSizePage() {
         </div>
       </div>
 
+<div
+  style={{
+    marginTop: 18,
+    display: "grid",
+    gap: 12,
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  }}
+>
+  {FLAVORS.map((f) => {
+    const q = qtyByFlavor[f.id] || 0;
+    const disabledPlus = remaining <= 0;
+
+    return (
       <div
+        key={f.id}
         style={{
-          marginTop: 18,
-          display: "grid",
-          gap: 12,
-          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          border: "1px solid #eee",
+          borderRadius: 16,
+          overflow: "hidden",
+          background: "#fff",
         }}
       >
-        {FLAVORS.map((f) => {
-          const q = qtyByFlavor[f.id] || 0;
-          return (
+        {/* Image header */}
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: 150,
+            background: "rgba(0,0,0,0.04)",
+          }}
+        >
+          {f.image ? (
+            <Image
+              src={f.image}
+              alt={f.name}
+              fill
+              sizes="(max-width: 768px) 100vw, 33vw"
+              style={{ objectFit: "cover" }}
+              priority={false}
+            />
+          ) : (
             <div
-              key={f.id}
               style={{
-                border: "1px solid #eee",
-                borderRadius: 12,
-                padding: 14,
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
+                height: "100%",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 800,
+                color: "rgba(0,0,0,0.45)",
               }}
             >
-              <div style={{ fontWeight: 800 }}>{f.name}</div>
-              {f.description && <div style={{ color: "#444", fontSize: 14 }}>{f.description}</div>}
+              {f.name}
+            </div>
+          )}
 
-              <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: "auto" }}>
-                <button
-                  type="button"
-                  onClick={() => dec(f.id)}
-                  disabled={q === 0}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    border: "1px solid #ddd",
-                    background: "#fff",
-                    cursor: q === 0 ? "not-allowed" : "pointer",
-                    opacity: q === 0 ? 0.5 : 1,
-                    fontWeight: 900,
-                  }}
-                >
-                  −
-                </button>
+          {/* Badges (top-left) */}
+          {!!f.badges?.length && (
+            <div style={{ position: "absolute", top: 10, left: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {f.badges.slice(0, 2).map((b) => (
+                <BadgePill key={b} text={b} />
+              ))}
+            </div>
+          )}
+        </div>
 
-                <div style={{ minWidth: 24, textAlign: "center", fontWeight: 800 }}>{q}</div>
+        {/* Body */}
+        <div style={{ padding: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 900, fontSize: 16, lineHeight: 1.2 }}>{f.name}</div>
+              {f.description && (
+                <div style={{ marginTop: 6, color: "#444", fontSize: 13, lineHeight: 1.35 }}>
+                  {f.description}
+                </div>
+              )}
+            </div>
 
-                <button
-                  type="button"
-                  onClick={() => inc(f.id)}
-                  disabled={remaining <= 0}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 10,
-                    border: "1px solid #ddd",
-                    background: "#fff",
-                    cursor: remaining <= 0 ? "not-allowed" : "pointer",
-                    opacity: remaining <= 0 ? 0.5 : 1,
-                    fontWeight: 900,
-                  }}
-                >
-                  +
-                </button>
+            {/* Quantity pill */}
+            <div
+              style={{
+                minWidth: 38,
+                height: 32,
+                borderRadius: 999,
+                border: "1px solid rgba(0,0,0,0.12)",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 900,
+              }}
+              title="Selected"
+            >
+              {q}
+            </div>
+          </div>
+
+          {/* Tags */}
+          {!!f.tags?.length && (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {f.tags.slice(0, 4).map((t) => (
+                <TagChip key={t} text={t} />
+              ))}
+            </div>
+          )}
+
+          {/* Intensity meters */}
+          {(f.intensity?.chocolate || f.intensity?.sweetness) && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 10,
+                padding: 10,
+                borderRadius: 12,
+                background: "rgba(0,0,0,0.03)",
+                border: "1px solid rgba(0,0,0,0.06)",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Chocolate</div>
+                <Meter value={f.intensity?.chocolate ?? 0} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Sweetness</div>
+                <Meter value={f.intensity?.sweetness ?? 0} />
               </div>
             </div>
-          );
-        })}
+          )}
+
+          {/* Controls */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 2 }}>
+            <button
+              type="button"
+              onClick={() => dec(f.id)}
+              disabled={q === 0}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                border: "1px solid #ddd",
+                background: "#fff",
+                cursor: q === 0 ? "not-allowed" : "pointer",
+                opacity: q === 0 ? 0.5 : 1,
+                fontWeight: 900,
+                fontSize: 18,
+              }}
+            >
+              −
+            </button>
+
+            <button
+              type="button"
+              onClick={() => inc(f.id)}
+              disabled={disabledPlus}
+              style={{
+                flex: 1,
+                height: 40,
+                borderRadius: 12,
+                border: "none",
+                background: "var(--brand-blue)",
+                color: "#fff",
+                fontWeight: 900,
+                cursor: disabledPlus ? "not-allowed" : "pointer",
+                opacity: disabledPlus ? 0.55 : 1,
+              }}
+            >
+              Add +
+            </button>
+          </div>
+        </div>
       </div>
+    );
+  })}
+</div>
+
+
+
     </main>
   );
 }
