@@ -1,4 +1,4 @@
-  COOKIE DOH LIVE TEST
+
 
 import Image from "next/image";
 
