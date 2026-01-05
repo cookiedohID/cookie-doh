@@ -1,0 +1,160 @@
+"use client";
+
+import { FLAVORS, formatIDR, FREE_SHIPPING_THRESHOLD } from "@/lib/catalog";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+
+type CartItem = {
+  boxSize: number;
+  items: { flavorId: string; qty: number }[];
+  price: number;
+  createdAt: number;
+  giftNote?: string;
+};
+
+export default function CartPage() {
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [gift, setGift] = useState(false);
+  const [giftNote, setGiftNote] = useState("");
+
+  useEffect(() => {
+    const raw = localStorage.getItem("cookieDohCart");
+    setCart(raw ? JSON.parse(raw) : []);
+  }, []);
+
+  const subtotal = useMemo(
+    () => cart.reduce((s, it) => s + (it.price || 0), 0),
+    [cart]
+  );
+
+  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : 20000; // placeholder
+  const total = subtotal + shipping;
+
+  function clearCart() {
+    localStorage.removeItem("cookieDohCart");
+    setCart([]);
+  }
+
+  return (
+    <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
+      <h1>Your cart</h1>
+
+      {cart.length === 0 ? (
+        <>
+          <p>Your cookie box is feeling lonely.</p>
+          <Link href="/build/6">Build a box</Link>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "grid", gap: 14 }}>
+            {cart.map((it, idx) => (
+              <div key={it.createdAt + "-" + idx} style={{ border: "1px solid #eee", borderRadius: 12, padding: 16 }}>
+                <div style={{ fontWeight: 800 }}>Box of {it.boxSize}</div>
+                <div style={{ marginTop: 10 }}>
+                  {it.items.map((x) => {
+                    const f = FLAVORS.find((ff) => ff.id === x.flavorId);
+                    return (
+                      <div key={x.flavorId}>
+                        {x.qty}× {f?.name ?? x.flavorId}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop: 10, fontWeight: 800 }}>
+                  IDR {formatIDR(it.price)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 18, borderTop: "1px solid #eee", paddingTop: 18 }}>
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="checkbox" checked={gift} onChange={(e) => setGift(e.target.checked)} />
+              <span style={{ fontWeight: 700 }}>This is a gift</span>
+            </label>
+
+            {gift && (
+              <div style={{ marginTop: 12 }}>
+                <textarea
+                  value={giftNote}
+                  onChange={(e) => setGiftNote(e.target.value)}
+                  placeholder="Write a little note (we’ll handwrite it)"
+                  maxLength={200}
+                  style={{ width: "100%", minHeight: 90, padding: 12, borderRadius: 10, border: "1px solid #ddd" }}
+                />
+                <div className="font-dearjoe" style={{ marginTop: 8 }}>
+                  Made with love, always.
+                </div>
+              </div>
+            )}
+
+            <div style={{ marginTop: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Subtotal</span>
+                <strong>IDR {formatIDR(subtotal)}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                <span>Shipping</span>
+                <strong>{shipping === 0 ? "Free" : `IDR ${formatIDR(shipping)}`}</strong>
+              </div>
+
+              {subtotal < FREE_SHIPPING_THRESHOLD && (
+                <div style={{ marginTop: 10, color: "#444" }}>
+                  Just IDR {formatIDR(FREE_SHIPPING_THRESHOLD - subtotal)} more to enjoy free shipping 😌
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 18 }}>
+                <span>Total</span>
+                <strong>IDR {formatIDR(total)}</strong>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, marginTop: 18, flexWrap: "wrap" }}>
+              <Link
+                href="/build/6"
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "1px solid #ddd",
+                  textDecoration: "none",
+                }}
+              >
+                Add another box
+              </Link>
+
+              <button
+                onClick={clearCart}
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Clear cart
+              </button>
+
+              <button
+                style={{
+                  marginLeft: "auto",
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "var(--brand-blue)",
+                  color: "#fff",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+                onClick={() => alert("Next step: Midtrans checkout (we’ll wire this next).")}
+              >
+                Checkout
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </main>
+  );
+}
