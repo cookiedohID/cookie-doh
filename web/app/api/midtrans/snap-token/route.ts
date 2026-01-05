@@ -55,8 +55,14 @@ export async function POST(req: Request) {
       token: transaction.token,
       redirect_url: transaction.redirect_url,
     });
-  } catch (err: any) {
-    console.error("snap-token error:", err);
-    return NextResponse.json({ error: "Failed to create token" }, { status: 500 });
-  }
+
+} catch (err: any) {
+  console.error("snap-token error:", err);
+  return NextResponse.json(
+    { error: err?.message ?? String(err) },
+    { status: 500 }
+  );
+}
+
+
 }

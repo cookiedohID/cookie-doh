@@ -150,7 +150,14 @@ export default function CheckoutPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to create Snap token.");
+      
+
+      if (!res.ok) {
+         const msg = data?.error ? String(data.error) : `Token API failed (${res.status})`;
+          throw new Error(msg);
+      }
+
+
 
       const { token, order_id } = data as { token: string; order_id: string };
 

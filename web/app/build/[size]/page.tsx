@@ -81,6 +81,39 @@ function TagChip({ text }: { text: string }) {
   );
 }
 
+const SIZES: Array<1 | 3 | 6> = [1, 3, 6];
+
+function SizeSwitcher({ current }: { current: 1 | 3 | 6 }) {
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {SIZES.map((s) => {
+        const active = s === current;
+        return (
+          <Link
+            key={s}
+            href={`/build/${s}`}
+            prefetch={false}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 999,
+              border: active ? "1px solid rgba(0,0,0,0.25)" : "1px solid #ddd",
+              textDecoration: "none",
+              fontWeight: 900,
+              fontSize: 13,
+              color: "inherit",
+              background: active ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.02)",
+              cursor: "pointer",
+            }}
+          >
+            Box {s}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
+
 export default function BuildSizePage() {
   const router = useRouter();
   const params = useParams();
@@ -162,7 +195,29 @@ export default function BuildSizePage() {
     <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ marginBottom: 6 }}>Box of {size}</h1>
+       
+<div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+  <h1 style={{ marginBottom: 0 }}>Box of {size}</h1>
+
+  <Link
+    href="/build"
+    style={{
+      padding: "6px 12px",
+      borderRadius: 999,
+      border: "1px solid #ddd",
+      textDecoration: "none",
+      fontSize: 13,
+      fontWeight: 700,
+      color: "inherit",
+      background: "rgba(0,0,0,0.02)",
+    }}
+  >
+    Change box size
+  </Link>
+</div>
+
+
+
           <div style={{ color: "#444" }}>
             Price: <strong>IDR {formatIDR(BOX_PRICES[size])}</strong>
           </div>
