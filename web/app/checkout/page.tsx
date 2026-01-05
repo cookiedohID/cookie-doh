@@ -1,6 +1,7 @@
 "use client";
 
 import Script from "next/script";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FLAVORS, formatIDR as formatIDRFromCatalog, FREE_SHIPPING_THRESHOLD } from "@/lib/catalog";
@@ -210,7 +211,7 @@ export default function CheckoutPage() {
               <div style={{ padding: 12, opacity: 0.75 }}>
                 Your cart is empty.{" "}
                
-               import Link from "next/link";
+
 
 <Link
   href="/build/6"
