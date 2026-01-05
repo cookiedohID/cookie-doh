@@ -1,3 +1,7 @@
+<p className="font-dearjoe" style={{ marginTop: 10, fontSize: 18 }}>
+  (We tested it.)
+</p>
+
 export default function Hero() {
   return (
     <section style={{ padding: "80px 24px", textAlign: "center" }}>
