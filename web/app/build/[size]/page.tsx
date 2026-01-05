@@ -21,19 +21,30 @@ export default function BuildIndex() {
           <Link
             key={s}
             href={`/build/${s}`}
+            prefetch={false}
             style={{
+              display: "block",
               border: "1px solid #eee",
               borderRadius: 12,
               padding: 18,
               textDecoration: "none",
               color: "inherit",
+              cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
             }}
           >
             <div style={{ fontWeight: 800, fontSize: 18 }}>Box of {s}</div>
             <div style={{ marginTop: 6, color: "#444" }}>
               IDR {formatIDR(BOX_PRICES[s])}
             </div>
-            <div style={{ marginTop: 10, color: "var(--brand-blue)", fontWeight: 700 }}>
+            <div
+              style={{
+                marginTop: 10,
+                color: "var(--brand-blue)",
+                fontWeight: 700,
+                pointerEvents: "none", // ensures the whole card click goes to the Link
+              }}
+            >
               Choose this →
             </div>
           </Link>
