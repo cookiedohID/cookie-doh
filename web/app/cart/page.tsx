@@ -67,7 +67,7 @@ export default function CartPage() {
       <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
         <h1>Your cart</h1>
         <p>Your cookie box is feeling lonely.</p>
-        <Link href="/build">Build a box</Link>
+        <Link href="/build/6">Build a box</Link>
       </main>
     );
   }
@@ -194,7 +194,7 @@ export default function CartPage() {
         }}
       >
         <Link
-          href="/build"
+          href="/build/6"
           style={{
             padding: "12px 14px",
             borderRadius: 10,

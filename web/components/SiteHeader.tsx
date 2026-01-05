@@ -26,7 +26,7 @@ export default function SiteHeader() {
         </Link>
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
-          <Link href="/build" style={{ textDecoration: "none", color: "inherit" }}>
+          <Link href="/build/6" style={{ textDecoration: "none", color: "inherit" }}>
             Build a box
           </Link>
           <Link href="/cart" style={{ textDecoration: "none", color: "inherit" }}>

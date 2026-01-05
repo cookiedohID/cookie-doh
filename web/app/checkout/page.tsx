@@ -209,19 +209,24 @@ export default function CheckoutPage() {
             {midtransItems.length === 0 ? (
               <div style={{ padding: 12, opacity: 0.75 }}>
                 Your cart is empty.{" "}
-                <button
-                  type="button"
-                  onClick={() => router.push("/build")}
-                  style={{
-                    border: "none",
-                    background: "transparent",
-                    textDecoration: "underline",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  Build a box
-                </button>
+               
+               import Link from "next/link";
+
+<Link
+  href="/build/6"
+  style={{
+    border: "none",
+    background: "transparent",
+    textDecoration: "underline",
+    cursor: "pointer",
+    padding: 0,
+    color: "inherit",
+  }}
+>
+  Build a box
+</Link>
+
+
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
