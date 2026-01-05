@@ -13,16 +13,37 @@ type CartItem = {
   giftNote?: string;
 };
 
+const CART_KEY = "cookieDohCart";
+
 export default function CartPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [gift, setGift] = useState(false);
   const [giftNote, setGiftNote] = useState("");
 
+  // Load cart from localStorage on first mount (safe parse)
   useEffect(() => {
-    const raw = localStorage.getItem("cookieDohCart");
-    setCart(raw ? JSON.parse(raw) : []);
+    try {
+      const raw = localStorage.getItem(CART_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      setCart(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setCart([]);
+    }
   }, []);
+
+  // Persist cart + gift note into localStorage whenever they change
+  useEffect(() => {
+    try {
+      const nextCart = cart.map((it) => ({
+        ...it,
+        giftNote: gift ? giftNote : undefined,
+      }));
+      localStorage.setItem(CART_KEY, JSON.stringify(nextCart));
+    } catch {
+      // ignore write errors
+    }
+  }, [cart, gift, giftNote]);
 
   const subtotal = useMemo(
     () => cart.reduce((s, it) => s + (it.price || 0), 0),
@@ -33,8 +54,12 @@ export default function CartPage() {
   const total = subtotal + shipping;
 
   function clearCart() {
-    localStorage.removeItem("cookieDohCart");
+    try {
+      localStorage.removeItem(CART_KEY);
+    } catch {}
     setCart([]);
+    setGift(false);
+    setGiftNote("");
   }
 
   if (cart.length === 0) {
@@ -160,7 +185,14 @@ export default function CartPage() {
       </section>
 
       {/* Actions */}
-      <section style={{ display: "flex", gap: 12, marginTop: 18, flexWrap: "wrap" }}>
+      <section
+        style={{
+          display: "flex",
+          gap: 12,
+          marginTop: 18,
+          flexWrap: "wrap",
+        }}
+      >
         <Link
           href="/build"
           style={{
