@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import midtransClient from "midtrans-client";
 
-export const runtime = "nodejs"; // important: midtrans client runs on node runtime
+export const runtime = "nodejs";
 
 type Item = {
   id: string;
   name: string;
-  price: number;
+  price: number; // IDR integer
   quantity: number;
 };
 
@@ -14,23 +14,44 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // Expecting: { items: Item[], customer?: { first_name, last_name, email, phone } }
     const items: Item[] = Array.isArray(body?.items) ? body.items : [];
+
+    if (!process.env.MIDTRANS_SERVER_KEY) {
+      return NextResponse.json(
+        { error: "Missing MIDTRANS_SERVER_KEY env var" },
+        { status: 500 }
+      );
+    }
 
     if (!items.length) {
       return NextResponse.json({ error: "No items" }, { status: 400 });
     }
 
-    // IMPORTANT: In production, do NOT trust client price.
-    // You should re-price items from your server-side product list / DB.
-    const gross_amount = items.reduce((sum, it) => sum + it.price * it.quantity, 0);
+    // sanitize items (Midtrans expects integers)
+    const safeItems = items.map((it) => ({
+      id: String(it.id),
+      name: String(it.name).slice(0, 50), // Midtrans has name length limits; keep safe
+      price: Math.max(0, Math.round(Number(it.price) || 0)),
+      quantity: Math.max(1, Math.round(Number(it.quantity) || 1)),
+    }));
 
-    // Generate unique order_id
+    const gross_amount = safeItems.reduce(
+      (sum, it) => sum + it.price * it.quantity,
+      0
+    );
+
+    if (gross_amount <= 0) {
+      return NextResponse.json(
+        { error: "Invalid gross_amount (must be > 0)" },
+        { status: 400 }
+      );
+    }
+
     const order_id = `CD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     const snap = new midtransClient.Snap({
       isProduction: process.env.MIDTRANS_IS_PRODUCTION === "true",
-      serverKey: process.env.MIDTRANS_SERVER_KEY as string,
+      serverKey: process.env.MIDTRANS_SERVER_KEY,
     });
 
     const parameter = {
@@ -38,16 +59,10 @@ export async function POST(req: Request) {
         order_id,
         gross_amount,
       },
-      item_details: items.map((it) => ({
-        id: it.id,
-        name: it.name,
-        price: it.price,
-        quantity: it.quantity,
-      })),
+      item_details: safeItems,
       customer_details: body?.customer ?? undefined,
     };
 
-    // You can use createTransaction (returns token + redirect_url)
     const transaction = await snap.createTransaction(parameter);
 
     return NextResponse.json({
@@ -55,14 +70,16 @@ export async function POST(req: Request) {
       token: transaction.token,
       redirect_url: transaction.redirect_url,
     });
+  } catch (err: any) {
+    console.error("snap-token error:", err);
 
-} catch (err: any) {
-  console.error("snap-token error:", err);
-  return NextResponse.json(
-    { error: err?.message ?? String(err) },
-    { status: 500 }
-  );
-}
+    // midtrans-client sometimes nests errors
+    const message =
+      err?.message ||
+      err?.ApiResponse?.status_message ||
+      err?.status_message ||
+      String(err);
 
-
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
