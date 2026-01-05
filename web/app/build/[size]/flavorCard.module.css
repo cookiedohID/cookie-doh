@@ -6,6 +6,7 @@
   transform: translateY(0);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
   will-change: transform;
+  position: relative;
 }
 
 .card:hover {
@@ -68,7 +69,7 @@
   }
   40% {
     transform: scale(1.12);
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
   }
   100% {
     transform: scale(1);
@@ -105,4 +106,33 @@
 }
 
 .primaryBtn {
-  transition: transform 120ms eas
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+.primaryBtn:active {
+  transform: translateY(1px);
+}
+
+.primaryBtnEnabled {
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.10);
+}
+
+.successToast {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  background: rgba(0, 0, 0, 0.78);
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.showToast {
+  opacity: 1;
+  transform: translateY(0);
+}
