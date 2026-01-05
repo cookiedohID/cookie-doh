@@ -47,7 +47,7 @@ export const FLAVORS: Flavor[] = [
     id: "matcha-magic",
     name: "Matcha Magic",
     description: "Like a serene Japanese garden in cookie form : vibrant mathca, sweet chocolate clouds and pure melt-in-your mouth magic",
-    image: "/flavors/matcha.jpg",
+    image: "/flavors/matcha-magic.jpg",
     badges: ["Fan Favorite"],
     tags: ["Earthy", "Creamy"],
     intensity: { chocolate: 2, sweetness: 3 },
