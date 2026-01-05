@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BOX_PRICES, FLAVORS, formatIDR } from "@/lib/catalog";
 import Image from "next/image";
+import styles from "./flavorCard.module.css";
+
 
 function Meter({ value = 0 }: { value?: number }) {
   const filled = Math.max(0, Math.min(5, value));
@@ -87,6 +89,9 @@ export default function BuildSizePage() {
   const size = clampSize(params?.size);
 
   const [qtyByFlavor, setQtyByFlavor] = useState<Record<string, number>>({});
+
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
+
 
   const pickedCount = useMemo(() => {
     return Object.values(qtyByFlavor).reduce((sum, n) => sum + (Number(n) || 0), 0);

@@ -1,0 +1,108 @@
+.card {
+  border: 1px solid #eee;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  transform: translateY(0);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  will-change: transform;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+}
+
+@media (hover: none) {
+  .card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+.imageWrap {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.badges {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  z-index: 2;
+}
+
+.body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.qtyPill {
+  min-width: 38px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  position: relative;
+  overflow: hidden;
+}
+
+.pulse {
+  animation: pulse 420ms ease-out;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  }
+  40% {
+    transform: scale(1.12);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+  }
+}
+
+.bump {
+  animation: bump 260ms ease-out;
+}
+
+@keyframes bump {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+  100% { transform: translateY(0); }
+}
+
+.shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.35) 30%,
+    rgba(255,255,255,0) 60%
+  );
+  transform: translateX(-120%);
+  transition: transform 520ms ease;
+}
+
+.card:hover .shine {
+  transform: translateX(120%);
+}
+
+.primaryBtn {
+  transition: transform 120ms eas
