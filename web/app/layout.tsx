@@ -10,7 +10,7 @@ const poppins = Poppins({
 });
 
 const dearJoe = localFont({
-  src: "../public/fonts/dearjoe-5-casual.woff2",
+  src: "../public/fonts/dearjoe-5-casual.otf",
   variable: "--font-dearjoe",
   display: "swap",
 });
