@@ -4,7 +4,7 @@ let client: SupabaseClient | null = null;
 
 /**
  * Server-only Supabase client (Service Role).
- * Only use inside Route Handlers / server code.
+ * Use ONLY in Route Handlers / server code.
  */
 export function supabaseServer() {
   if (client) return client;
