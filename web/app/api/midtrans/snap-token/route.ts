@@ -18,14 +18,17 @@ export async function POST(req: Request) {
     const items: Item[] = Array.isArray(body?.items) ? body.items : [];
 
     if (!process.env.MIDTRANS_SERVER_KEY) {
-      return NextResponse.json({ error: "Missing MIDTRANS_SERVER_KEY env var" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Missing MIDTRANS_SERVER_KEY env var" },
+        { status: 500 }
+      );
     }
 
     if (!items.length) {
       return NextResponse.json({ error: "No items" }, { status: 400 });
     }
 
-    // sanitize items (Midtrans expects integers)
+    // sanitize items (Midtrans expects ints)
     const safeItems = items.map((it) => ({
       id: String(it.id),
       name: String(it.name).slice(0, 50),
@@ -33,18 +36,39 @@ export async function POST(req: Request) {
       quantity: Math.max(1, Math.round(Number(it.quantity) || 1)),
     }));
 
-    const gross_amount = safeItems.reduce((sum, it) => sum + it.price * it.quantity, 0);
+    const gross_amount = safeItems.reduce(
+      (sum, it) => sum + it.price * it.quantity,
+      0
+    );
 
     if (gross_amount <= 0) {
-      return NextResponse.json({ error: "Invalid gross_amount (must be > 0)" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid gross_amount (must be > 0)" },
+        { status: 400 }
+      );
     }
 
-    // IMPORTANT: this order_id is the "join key" across:
-    // Supabase orders table <-> Midtrans <-> webhook <-> Biteship shipment
-    const midtrans_order_id = `CD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    // Join key across Supabase <-> Midtrans <-> webhook <-> Biteship
+    const midtrans_order_id = `CD-${Date.now()}-${Math.floor(
+      Math.random() * 1000
+    )}`;
 
-    // Save order to Supabase (so you can see it immediately)
     const supabase = supabaseServer();
+
+    // IMPORTANT: store courier choice here so webhook is deterministic
+    // Expected fields in body.shipping:
+    // - destination_area_id, destination_area_label, address, courier_company, courier_type, courier_service
+    const courier_company =
+      body?.shipping?.courier_company ??
+      body?.shipping?.courierCompany ??
+      null;
+    const courier_type =
+      body?.shipping?.courier_type ?? body?.shipping?.courierType ?? null;
+    const courier_service =
+      body?.shipping?.courier_service ??
+      body?.shipping?.courierService ??
+      null;
+
     const { data: orderRow, error: dbErr } = await supabase
       .from("orders")
       .insert({
@@ -54,7 +78,13 @@ export async function POST(req: Request) {
         items_json: safeItems,
         customer_json: body?.customer ?? null,
         shipping_json: body?.shipping ?? null,
+
+        courier_company,
+        courier_type,
+        courier_service,
+
         midtrans_status: "created",
+        shipment_status: "not_created",
       })
       .select("id, midtrans_order_id")
       .single();
@@ -81,15 +111,18 @@ export async function POST(req: Request) {
     const transaction = await snap.createTransaction(parameter);
 
     return NextResponse.json({
-      order_id: orderRow.midtrans_order_id, // return midtrans order id
+      id: orderRow.id, // supabase order id (optional)
+      order_id: orderRow.midtrans_order_id, // midtrans order id
       token: transaction.token,
       redirect_url: transaction.redirect_url,
     });
   } catch (err: any) {
     console.error("snap-token error:", err);
-
     const message =
-      err?.message || err?.ApiResponse?.status_message || err?.status_message || String(err);
+      err?.message ||
+      err?.ApiResponse?.status_message ||
+      err?.status_message ||
+      String(err);
 
     return NextResponse.json({ error: message }, { status: 500 });
   }
