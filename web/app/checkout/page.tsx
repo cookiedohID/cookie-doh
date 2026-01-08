@@ -28,7 +28,7 @@ type ShippingForm = {
   receiver_phone: string;
   receiver_email: string;
 
-  address: string; // from Google autocomplete
+  address: string; // from Google autocomplete OR manual edits
   notes: string;
 
   area_id: string; // Biteship area id
@@ -158,7 +158,9 @@ export default function CheckoutPage() {
   const [snapReady, setSnapReady] = useState(false);
   const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY;
   const isProduction = process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === "true";
-  const snapSrc = isProduction ? "https://app.midtrans.com/snap/snap.js" : "https://app.sandbox.midtrans.com/snap/snap.js";
+  const snapSrc = isProduction
+    ? "https://app.midtrans.com/snap/snap.js"
+    : "https://app.sandbox.midtrans.com/snap/snap.js";
 
   // Google Places
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -213,6 +215,14 @@ export default function CheckoutPage() {
     }
   }, [isJakarta, shipping.area_label]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Helper: keep DOM input value in sync when we programmatically change shipping.address
+  // (since the address field is now UNCONTROLLED)
+  useEffect(() => {
+    const el = addressInputRef.current;
+    if (!el) return;
+    if (el.value !== shipping.address) el.value = shipping.address;
+  }, [shipping.address]);
+
   // Init Google autocomplete
   useEffect(() => {
     if (!mapsReady) return;
@@ -238,11 +248,13 @@ export default function CheckoutPage() {
         if (c?.types?.includes("postal_code")) postal = c?.long_name ?? "";
       }
 
+      // ✅ Always update the state AND the input stays editable
       setShipping((prev) => ({
         ...prev,
         address: formatted,
         lat,
         lng,
+        // If user already typed postal, keep it; else use Google result
         postal_code: prev.postal_code || postal,
       }));
     });
@@ -438,14 +450,29 @@ export default function CheckoutPage() {
 
                 <div style={{ display: "grid", gap: 6 }}>
                   <FieldLabel>Exact address (Google suggestions)</FieldLabel>
+
+                  {/* ✅ UNCONTROLLED input to prevent Google vs React locking */}
                   <InputBase
                     ref={addressInputRef}
-                    value={shipping.address}
-                    onChange={(e: any) => setShipping((p) => ({ ...p, address: e.target.value }))}
+                    defaultValue={shipping.address}
+                    onChange={(e: any) =>
+                      setShipping((p) => ({
+                        ...p,
+                        address: e.target.value,
+                        // If user edits manually, we no longer trust the pin
+                        lat: p.lat,
+                        lng: p.lng,
+                      }))
+                    }
                     placeholder={mapsReady ? "Type your address…" : "Loading Google…"}
                   />
+
                   <div style={{ fontSize: 12, opacity: 0.65 }}>
                     Pin: {shipping.lat ?? "—"}, {shipping.lng ?? "—"}
+                  </div>
+
+                  <div style={{ fontSize: 12, opacity: 0.55 }}>
+                    Tip: after selecting a suggestion, you can still edit unit / floor manually.
                   </div>
                 </div>
 
@@ -525,14 +552,9 @@ export default function CheckoutPage() {
               </div>
             </SectionCard>
 
-            <SectionCard
-              title="Courier"
-              subtitle="Jakarta: choose Lalamove or Paxel. Outside Jakarta: Paxel only."
-            >
+            <SectionCard title="Courier" subtitle="Jakarta: choose Lalamove or Paxel. Outside Jakarta: Paxel only.">
               {!shipping.area_label ? (
-                <div style={{ fontSize: 13, opacity: 0.75 }}>
-                  Select Kecamatan/Kelurahan first to unlock courier options.
-                </div>
+                <div style={{ fontSize: 13, opacity: 0.75 }}>Select Kecamatan/Kelurahan first to unlock courier options.</div>
               ) : isJakarta ? (
                 <div style={{ display: "grid", gap: 10 }}>
                   <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
@@ -631,19 +653,8 @@ export default function CheckoutPage() {
           </div>
 
           {/* Right column summary */}
-          <aside
-            style={{
-              position: "sticky",
-              top: 18,
-              alignSelf: "start",
-              display: "grid",
-              gap: 12,
-            }}
-          >
-            <SectionCard
-              title="Summary"
-              subtitle="Secure payment powered by Midtrans. You’ll see a payment popup."
-            >
+          <aside style={{ position: "sticky", top: 18, alignSelf: "start", display: "grid", gap: 12 }}>
+            <SectionCard title="Summary" subtitle="Secure payment powered by Midtrans. You’ll see a payment popup.">
               <div style={{ display: "grid", gap: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ opacity: 0.75 }}>Boxes</span>
