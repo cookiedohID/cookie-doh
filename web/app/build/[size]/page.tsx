@@ -1,419 +1,208 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import styles from "./flavorCard.module.css";
+import React, { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { addCartItem } from "@/lib/cart";
 
-import { BOX_PRICES, FLAVORS, formatIDR } from "@/lib/catalog";
-
-type CartItem = {
-  boxSize: number;
-  items: { flavorId: string; qty: number }[];
-  price: number;
-  createdAt: number;
-  giftNote?: string;
+type Flavor = {
+  id: string;
+  name: string;
+  price: number; // IDR per cookie (MVP)
 };
 
-const CART_KEY = "cookieDohCart";
+// ✅ MVP flavour list (edit later if you want)
+const FLAVORS: Flavor[] = [
+  { id: "choco-bliss", name: "Choco Bliss", price: 25000 },
+  { id: "comfort-oat-raisin", name: "The Comfort (Oat & Raisin)", price: 23000 },
+  { id: "matcha-magic", name: "Matcha Magic", price: 26000 },
+  { id: "red-velvet", name: "Red Velvet", price: 26000 },
+  { id: "double-choco", name: "Double Choco", price: 27000 },
+  { id: "salted-caramel", name: "Salted Caramel", price: 27000 },
+];
 
-function clampSize(v: string | string[] | undefined): 1 | 3 | 6 | null {
-  const s = Array.isArray(v) ? v[0] : v;
-  const n = Number(s);
-  if (n === 1 || n === 3 || n === 6) return n;
-  return null;
-}
-
-function Meter({ value = 0 }: { value?: number }) {
-  const filled = Math.max(0, Math.min(5, value));
-  return (
-    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <span
-          key={i}
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: 999,
-            display: "inline-block",
-            border: "1px solid rgba(0,0,0,0.18)",
-            background: i < filled ? "rgba(0,0,0,0.85)" : "transparent",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function BadgePill({ text }: { text: string }) {
-  return (
-    <span
-      style={{
-        padding: "5px 10px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 800,
-        border: "1px solid rgba(0,0,0,0.12)",
-        background: "rgba(0,0,0,0.04)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {text}
-    </span>
-  );
-}
-
-function TagChip({ text }: { text: string }) {
-  return (
-    <span
-      style={{
-        padding: "4px 10px",
-        borderRadius: 999,
-        fontSize: 12,
-        border: "1px solid rgba(0,0,0,0.10)",
-        background: "rgba(0,0,0,0.02)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {text}
-    </span>
-  );
-}
-
-const SIZES: Array<1 | 3 | 6> = [1, 3, 6];
-
-function SizeSwitcher({ current }: { current: 1 | 3 | 6 }) {
-  return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-      {SIZES.map((s) => {
-        const active = s === current;
-        return (
-          <Link
-            key={s}
-            href={`/build/${s}`}
-            prefetch={false}
-            style={{
-              padding: "8px 12px",
-              borderRadius: 999,
-              border: active ? "1px solid rgba(0,0,0,0.25)" : "1px solid #ddd",
-              textDecoration: "none",
-              fontWeight: 900,
-              fontSize: 13,
-              color: "inherit",
-              background: active ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.02)",
-              cursor: "pointer",
-            }}
-          >
-            Box {s}
-          </Link>
-        );
-      })}
-    </div>
-  );
-}
-
-
-export default function BuildSizePage() {
-  const router = useRouter();
-  const params = useParams();
-  const size = clampSize(params?.size);
-
-  const [qtyByFlavor, setQtyByFlavor] = useState<Record<string, number>>({});
-  const [justAddedId, setJustAddedId] = useState<string | null>(null);
-
-  const pickedCount = useMemo(
-    () => Object.values(qtyByFlavor).reduce((sum, n) => sum + (Number(n) || 0), 0),
-    [qtyByFlavor]
-  );
-
-  const remaining = (size ?? 0) - pickedCount;
-
-  const selections = useMemo(() => {
-    return Object.entries(qtyByFlavor)
-      .filter(([, q]) => (q || 0) > 0)
-      .map(([flavorId, qty]) => ({ flavorId, qty }));
-  }, [qtyByFlavor]);
-
-  function inc(flavorId: string) {
-    if (!size) return;
-    if (remaining <= 0) return;
-
-    setQtyByFlavor((prev) => ({ ...prev, [flavorId]: (prev[flavorId] || 0) + 1 }));
-
-    // Premium animation trigger
-    setJustAddedId(flavorId);
-    window.setTimeout(() => {
-      setJustAddedId((cur) => (cur === flavorId ? null : cur));
-    }, 650);
+function formatIDR(n: number) {
+  try {
+    return new Intl.NumberFormat("id-ID").format(n);
+  } catch {
+    return String(n);
   }
+}
 
-  function dec(flavorId: string) {
-    setQtyByFlavor((prev) => {
-      const next = { ...prev };
-      const cur = next[flavorId] || 0;
-      if (cur <= 1) delete next[flavorId];
-      else next[flavorId] = cur - 1;
-      return next;
+export default function BuildSizePage({ params }: { params: { size: string } }) {
+  const router = useRouter();
+
+  const size = Math.max(1, Math.min(50, Number(params.size || 0) || 0));
+  const allowedSizes = [3, 6, 12];
+  const finalSize = allowedSizes.includes(size) ? size : 6;
+
+  const [selected, setSelected] = useState<string[]>([]);
+  const [error, setError] = useState("");
+
+  const selectedFlavors = useMemo(
+    () => selected.map((id) => FLAVORS.find((f) => f.id === id)).filter(Boolean) as Flavor[],
+    [selected]
+  );
+
+  const subtotal = useMemo(() => selectedFlavors.reduce((sum, f) => sum + f.price, 0), [selectedFlavors]);
+
+  const remaining = finalSize - selected.length;
+
+  function toggleFlavor(id: string) {
+    setError("");
+    setSelected((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= finalSize) return prev; // can't exceed
+      return [...prev, id];
     });
   }
 
-  function addToCart() {
-    if (!size) return;
-    if (pickedCount !== size) return;
+  function addToCartNow() {
+    setError("");
 
-    const item: CartItem = {
-      boxSize: size,
-      items: selections,
-      price: BOX_PRICES[size],
-      createdAt: Date.now(),
-    };
+    if (selected.length !== finalSize) {
+      setError(`Please select exactly ${finalSize} flavours. Remaining: ${remaining}`);
+      return;
+    }
 
-    try {
-      const raw = localStorage.getItem(CART_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const current: CartItem[] = Array.isArray(parsed) ? parsed : [];
-      localStorage.setItem(CART_KEY, JSON.stringify([item, ...current]));
-    } catch {}
+    const ts = Date.now();
+    const boxId = `box-${finalSize}-${ts}`;
+
+    const boxName = `Cookie Box (${finalSize}) - ${selectedFlavors.map((f) => f.name).join(", ")}`;
+
+    addCartItem({
+      id: boxId,
+      name: boxName.slice(0, 180),
+      price: subtotal,
+      quantity: 1,
+      meta: {
+        size: finalSize,
+        flavors: selectedFlavors.map((f) => ({ id: f.id, name: f.name, price: f.price })),
+      },
+    });
 
     router.push("/cart");
   }
 
-  if (!size) {
-    return (
-      <main style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
-        <h1>Build your box</h1>
-        <p>Invalid size.</p>
-        <Link href="/build" style={{ color: "var(--brand-blue)" }}>
-          ← Back to sizes
-        </Link>
-      </main>
-    );
-  }
-
   return (
-    <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div>
-       
-<div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-  <h1 style={{ marginBottom: 0 }}>Box of {size}</h1>
-
-  <Link
-    href="/build"
-    style={{
-      padding: "6px 12px",
-      borderRadius: 999,
-      border: "1px solid #ddd",
-      textDecoration: "none",
-      fontSize: 13,
-      fontWeight: 700,
-      color: "inherit",
-      background: "rgba(0,0,0,0.02)",
-    }}
-  >
-    Change box size
-  </Link>
-</div>
-
-
-
-          <div style={{ color: "#444" }}>
-            Price: <strong>IDR {formatIDR(BOX_PRICES[size])}</strong>
+    <div className="min-h-screen bg-white">
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <div className="text-sm text-gray-600">Cookie Doh</div>
+            <h1 className="text-2xl font-semibold">Build: Box of {finalSize}</h1>
+            <div className="mt-1 text-sm text-gray-600">
+              Pick exactly {finalSize} flavours. Remaining:{" "}
+              <span className={remaining === 0 ? "font-semibold text-green-700" : "font-semibold"}>
+                {remaining}
+              </span>
+            </div>
           </div>
-          <div style={{ marginTop: 6, color: "#444" }}>
-            Pick {size} cookies. Remaining: <strong>{remaining}</strong>
-          </div>
-        </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <Link
-            href="/build"
-            style={{
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "1px solid #ddd",
-              textDecoration: "none",
-              color: "inherit",
-            }}
-          >
-            ← Change size
-          </Link>
-
-          <button
-            type="button"
-            onClick={addToCart}
-            disabled={pickedCount !== size}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: "none",
-              background: "var(--brand-blue)",
-              color: "#fff",
-              fontWeight: 800,
-              cursor: pickedCount === size ? "pointer" : "not-allowed",
-              opacity: pickedCount === size ? 1 : 0.6,
-            }}
-          >
-            Add to cart
-          </button>
-        </div>
-      </div>
-
-      <div
-        style={{
-          marginTop: 18,
-          display: "grid",
-          gap: 12,
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-        }}
-      >
-        {FLAVORS.map((f) => {
-          const q = qtyByFlavor[f.id] || 0;
-          const disabledPlus = remaining <= 0;
-
-          return (
-            <div
-              key={f.id}
-              className={`${styles.card} ${justAddedId === f.id ? styles.bump : ""}`}
+          <div className="flex gap-2">
+            <button
+              className="rounded-md border px-4 py-2 text-sm"
+              onClick={() => router.push("/build")}
+              type="button"
             >
-              {/* Image header */}
-              <div className={styles.imageWrap}>
-                <div className={styles.shine} />
+              Change size
+            </button>
+            <button
+              className="rounded-md border px-4 py-2 text-sm"
+              onClick={() => router.push("/cart")}
+              type="button"
+            >
+              Cart
+            </button>
+          </div>
+        </div>
 
-                {f.image ? (
-                  <Image
-                    src={f.image}
-                    alt={f.name}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                    style={{ objectFit: "cover" }}
-                    priority={false}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      height: "100%",
-                      display: "grid",
-                      placeItems: "center",
-                      fontWeight: 800,
-                      color: "rgba(0,0,0,0.45)",
-                    }}
-                  >
-                    {f.name}
-                  </div>
-                )}
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Flavour list */}
+          <div className="md:col-span-2">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {FLAVORS.map((f) => {
+                const active = selected.includes(f.id);
+                const disabled = !active && selected.length >= finalSize;
 
-                {!!f.badges?.length && (
-                  <div className={styles.badges}>
-                    {f.badges.slice(0, 2).map((b: any) => (
-                      <BadgePill key={String(b)} text={String(b)} />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Body */}
-              <div className={styles.body}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 900, fontSize: 16, lineHeight: 1.2 }}>{f.name}</div>
-                    {f.description && (
-                      <div style={{ marginTop: 6, color: "#444", fontSize: 13, lineHeight: 1.35 }}>
-                        {f.description}
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    className={`${styles.qtyPill} ${justAddedId === f.id ? styles.pulse : ""}`}
-                    title="Selected"
-                  >
-                    {q}
-                  </div>
-                </div>
-
-                {!!f.tags?.length && (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {f.tags.slice(0, 4).map((t: any) => (
-                      <TagChip key={String(t)} text={String(t)} />
-                    ))}
-                  </div>
-                )}
-
-                {(f.intensity?.chocolate || f.intensity?.sweetness) && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 10,
-                      padding: 10,
-                      borderRadius: 12,
-                      background: "rgba(0,0,0,0.03)",
-                      border: "1px solid rgba(0,0,0,0.06)",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Chocolate</div>
-                      <Meter value={f.intensity?.chocolate ?? 0} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Sweetness</div>
-                      <Meter value={f.intensity?.sweetness ?? 0} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Controls */}
-                <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 2 }}>
+                return (
                   <button
+                    key={f.id}
                     type="button"
-                    onClick={() => dec(f.id)}
-                    disabled={q === 0}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      border: "1px solid #ddd",
-                      background: "#fff",
-                      cursor: q === 0 ? "not-allowed" : "pointer",
-                      opacity: q === 0 ? 0.5 : 1,
-                      fontWeight: 900,
-                      fontSize: 18,
-                    }}
+                    disabled={disabled}
+                    onClick={() => toggleFlavor(f.id)}
+                    className={`rounded-xl border p-4 text-left ${
+                      active ? "border-black bg-gray-50" : "hover:bg-gray-50"
+                    } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
                   >
-                    −
+                    <div className="text-base font-medium">{f.name}</div>
+                    <div className="mt-1 text-sm text-gray-600">IDR {formatIDR(f.price)} / cookie</div>
+                    <div className="mt-3 text-xs text-gray-500">
+                      {active ? "Selected" : disabled ? "Box is full" : "Tap to select"}
+                    </div>
                   </button>
+                );
+              })}
+            </div>
+          </div>
 
-                  <button
-                    type="button"
-                    onClick={() => inc(f.id)}
-                    disabled={disabledPlus}
-                    className={`${styles.primaryBtn} ${!disabledPlus ? styles.primaryBtnEnabled : ""}`}
-                    style={{
-                      flex: 1,
-                      height: 40,
-                      borderRadius: 12,
-                      border: "none",
-                      background: "var(--brand-blue)",
-                      color: "#fff",
-                      fontWeight: 900,
-                      cursor: disabledPlus ? "not-allowed" : "pointer",
-                      opacity: disabledPlus ? 0.55 : 1,
-                    }}
-                  >
-                    Add +
-                  </button>
-                </div>
+          {/* Summary */}
+          <div className="rounded-xl border p-4">
+            <div className="text-lg font-medium">Summary</div>
+
+            <div className="mt-3 space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span>Box size</span>
+                <span>{finalSize}</span>
               </div>
-
-              <div className={`${styles.successToast} ${justAddedId === f.id ? styles.showToast : ""}`}>
-                Added ✓
+              <div className="flex items-center justify-between">
+                <span>Selected</span>
+                <span>{selected.length}</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-2">
+                <span className="font-medium">Subtotal</span>
+                <span className="font-semibold">IDR {formatIDR(subtotal)}</span>
               </div>
             </div>
-          );
-        })}
+
+            <div className="mt-4">
+              <div className="text-sm font-medium">Your flavours</div>
+              {selectedFlavors.length === 0 ? (
+                <div className="mt-2 text-sm text-gray-600">No flavours selected yet.</div>
+              ) : (
+                <ul className="mt-2 list-disc pl-5 text-sm text-gray-700">
+                  {selectedFlavors.map((f) => (
+                    <li key={f.id}>{f.name}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {error && (
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={addToCartNow}
+              className={`mt-6 w-full rounded-md px-4 py-3 text-sm font-medium ${
+                selected.length === finalSize ? "bg-black text-white" : "bg-gray-200 text-gray-600"
+              }`}
+            >
+              Add to cart
+            </button>
+
+            <button
+              type="button"
+              onClick={() => router.push("/checkout")}
+              className="mt-2 w-full rounded-md border px-4 py-3 text-sm"
+            >
+              Go to checkout
+            </button>
+          </div>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
