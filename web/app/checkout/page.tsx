@@ -228,11 +228,11 @@ export default function CheckoutPage() {
     if (autocompleteRef.current) return;
 
     const ac = new window.google.maps.places.Autocomplete(addressInputRef.current, {
-      componentRestrictions: { country: "id" },
-      fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
-      // ✅ better for building/complex/landmark queries vs ["address"]
-      types: ["geocode"],
-    });
+  componentRestrictions: { country: "id" },
+  fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
+  // ✅ DO NOT set types — allows POIs + addresses
+});
+
 
     ac.addListener("place_changed", () => {
       const place = ac.getPlace?.();
