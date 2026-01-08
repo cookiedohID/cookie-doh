@@ -28,13 +28,13 @@ type ShippingForm = {
   receiver_phone: string;
   receiver_email: string;
 
-  address: string; // from Google selection + manual unit edits
-  notes: string;
+  address: string; // from Google selection
+  notes: string; // manual
 
-  area_id: string; // Biteship area id
-  area_label: string;
+  area_id: string; // auto
+  area_label: string; // auto
 
-  postal_code: string;
+  postal_code: string; // auto
 
   lat: number | null;
   lng: number | null;
@@ -148,6 +148,14 @@ function SectionCard({ title, subtitle, children }: { title: string; subtitle?: 
   );
 }
 
+function getComp(place: any, type: string): string {
+  const comps = place?.address_components || [];
+  for (const c of comps) {
+    if (c?.types?.includes(type)) return c?.long_name || c?.short_name || "";
+  }
+  return "";
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
 
@@ -166,10 +174,9 @@ export default function CheckoutPage() {
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   const autocompleteRef = useRef<any>(null);
 
-  // Biteship area search
-  const [areaQuery, setAreaQuery] = useState("");
-  const [areaResults, setAreaResults] = useState<any[]>([]);
+  // Auto area resolver
   const [areaLoading, setAreaLoading] = useState(false);
+  const [areaError, setAreaError] = useState<string | null>(null);
 
   // Form
   const [shipping, setShipping] = useState<ShippingForm>({
@@ -213,62 +220,40 @@ export default function CheckoutPage() {
     }
   }, [isJakarta, shipping.area_label]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Address input is UNCONTROLLED, so we sync DOM when we set shipping.address programmatically (Google selection)
+  // Address input is UNCONTROLLED; sync DOM when we programmatically set shipping.address
   useEffect(() => {
     const el = addressInputRef.current;
     if (!el) return;
     if (el.value !== shipping.address) el.value = shipping.address;
   }, [shipping.address]);
 
-  // Init Google autocomplete
-  useEffect(() => {
-    if (!mapsReady) return;
-    if (!window.google?.maps?.places) return;
-    if (!addressInputRef.current) return;
-    if (autocompleteRef.current) return;
+  async function resolveBiteshipAreaFromPlace(place: any) {
+    // Build the best query we can from Google address components
+    // Try Kelurahan / Kecamatan style first, then fallback broader.
+    const sublocality1 = getComp(place, "sublocality_level_1"); // often kelurahan-ish
+    const sublocality2 = getComp(place, "sublocality_level_2");
+    const neighborhood = getComp(place, "neighborhood");
+    const locality = getComp(place, "locality"); // city
+    const admin2 = getComp(place, "administrative_area_level_2"); // kota/kab
+    const admin3 = getComp(place, "administrative_area_level_3"); // kecamatan (sometimes)
+    const admin4 = getComp(place, "administrative_area_level_4"); // kelurahan (sometimes)
 
-    const ac = new window.google.maps.places.Autocomplete(addressInputRef.current, {
-  componentRestrictions: { country: "id" },
-  fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
-  // ✅ DO NOT set types — allows POIs + addresses
-});
+    const candidates = [
+      [admin4, admin3, admin2].filter(Boolean).join(" "),
+      [sublocality1, admin3, admin2].filter(Boolean).join(" "),
+      [neighborhood, sublocality1, admin2].filter(Boolean).join(" "),
+      [admin3, admin2].filter(Boolean).join(" "),
+      [admin2 || locality].filter(Boolean).join(" "),
+    ]
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 3);
 
+    if (!candidates.length) throw new Error("Unable to derive area query from address.");
 
-    ac.addListener("place_changed", () => {
-      const place = ac.getPlace?.();
-      const formatted = place?.formatted_address ?? place?.name ?? "";
-      const lat = place?.geometry?.location?.lat?.() ?? null;
-      const lng = place?.geometry?.location?.lng?.() ?? null;
+    setAreaLoading(true);
+    setAreaError(null);
 
-      let postal = "";
-      const comps = place?.address_components || [];
-      for (const c of comps) {
-        if (c?.types?.includes("postal_code")) postal = c?.long_name ?? "";
-      }
-
-      setShipping((prev) => ({
-        ...prev,
-        address: formatted,
-        lat,
-        lng,
-        // If user already typed postal, keep it; else use Google result
-        postal_code: prev.postal_code || postal,
-      }));
-    });
-
-    autocompleteRef.current = ac;
-  }, [mapsReady]);
-
-  // Debounced Biteship area search
-  useEffect(() => {
-    const q = areaQuery.trim();
-    if (q.length < 3) {
-      setAreaResults([]);
-      return;
-    }
-
-    const t = window.setTimeout(async () => {
-      setAreaLoading(true);
+    for (const q of candidates) {
       try {
         const res = await fetch(`/api/biteship/areas?input=${encodeURIComponent(q)}`);
         const data = await res.json();
@@ -281,16 +266,72 @@ export default function CheckoutPage() {
           ? data
           : [];
 
-        setAreaResults(results);
-      } catch {
-        setAreaResults([]);
-      } finally {
-        setAreaLoading(false);
-      }
-    }, 300);
+        if (!results.length) continue;
 
-    return () => window.clearTimeout(t);
-  }, [areaQuery]);
+        // Choose first result (usually best). If you want stricter matching, we can rank by label contains.
+        const r = results[0];
+        const id = String(r?.id ?? r?.area_id ?? "");
+        const joined = [r?.administrative_division_level_1, r?.administrative_division_level_2, r?.administrative_division_level_3]
+          .filter(Boolean)
+          .join(", ");
+        const label = String(r?.name ?? r?.label ?? joined ?? id);
+
+        if (id) {
+          setShipping((p) => ({ ...p, area_id: id, area_label: label }));
+          setAreaLoading(false);
+          return;
+        }
+      } catch {
+        // try next candidate
+      }
+    }
+
+    setAreaLoading(false);
+    throw new Error("Could not resolve Kecamatan/Kelurahan automatically. Please try a more specific address.");
+  }
+
+  // Init Google autocomplete
+  useEffect(() => {
+    if (!mapsReady) return;
+    if (!window.google?.maps?.places) return;
+    if (!addressInputRef.current) return;
+    if (autocompleteRef.current) return;
+
+    const ac = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+      componentRestrictions: { country: "id" },
+      fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
+      // Do NOT set `types` to allow POIs/buildings too.
+    });
+
+    ac.addListener("place_changed", async () => {
+      const place = ac.getPlace?.();
+      const formatted = place?.formatted_address ?? place?.name ?? "";
+      const lat = place?.geometry?.location?.lat?.() ?? null;
+      const lng = place?.geometry?.location?.lng?.() ?? null;
+
+      const postal = getComp(place, "postal_code") || "";
+
+      // Reset dependent fields first (auto flow)
+      setShipping((prev) => ({
+        ...prev,
+        address: formatted,
+        lat,
+        lng,
+        postal_code: postal,
+        area_id: "",
+        area_label: "",
+      }));
+
+      // Auto resolve area immediately
+      try {
+        await resolveBiteshipAreaFromPlace(place);
+      } catch (e: any) {
+        setAreaError(e?.message ?? "Failed to resolve area automatically.");
+      }
+    });
+
+    autocompleteRef.current = ac;
+  }, [mapsReady]);
 
   function validateBeforePay() {
     if (!midtransItems.length) return "Your cart is empty.";
@@ -301,11 +342,14 @@ export default function CheckoutPage() {
     if (!shipping.receiver_phone.trim()) return "Please fill phone number.";
     if (!shipping.receiver_email.trim()) return "Please fill email address.";
 
-    if (!shipping.address.trim()) return "Please pick an exact address from Google suggestions.";
-    if (!shipping.area_id) return "Please select Kecamatan/Kelurahan from the dropdown.";
+    // Must come from Google selection
+    if (!shipping.address.trim()) return "Please select an address from Google suggestions.";
+    if (shipping.lat == null || shipping.lng == null) return "Please select an address from Google suggestions (pin required).";
 
-    // ✅ strict: they MUST pick from Google suggestions (pin required)
-    if (shipping.lat == null || shipping.lng == null) return "Please select an address from Google suggestions (required).";
+    // Must be auto-filled
+    if (!shipping.postal_code.trim()) return "Postal code not detected. Please select a more specific address.";
+    if (!shipping.area_id) return "Kecamatan/Kelurahan not detected yet. Please wait a moment or select a more specific address.";
+    if (areaLoading) return "Still detecting Kecamatan/Kelurahan… please wait.";
 
     return null;
   }
@@ -400,7 +444,7 @@ export default function CheckoutPage() {
 
           <h1 style={{ margin: "12px 0 6px", fontSize: 30, letterSpacing: -0.3 }}>Almost there</h1>
           <p style={{ margin: 0, color: "rgba(0,0,0,0.70)", lineHeight: 1.5, maxWidth: 760 }}>
-            Fill in delivery details, choose your courier, then pay securely.
+            Select your address from Google suggestions. We auto-fill area + postal. Add notes if needed.
           </p>
 
           {!googleKey && (
@@ -413,10 +457,7 @@ export default function CheckoutPage() {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16, alignItems: "start" }}>
           {/* Left column */}
           <div style={{ display: "grid", gap: 16 }}>
-            <SectionCard
-              title="Delivery details"
-              subtitle="Select an address from Google suggestions (required). You can add unit/floor after."
-            >
+            <SectionCard title="Delivery details" subtitle="Address selection is required. Area & postal are detected automatically.">
               <div style={{ display: "grid", gap: 10 }}>
                 <div style={{ display: "grid", gap: 6 }}>
                   <FieldLabel>Receiver name</FieldLabel>
@@ -449,112 +490,56 @@ export default function CheckoutPage() {
 
                 <div style={{ display: "grid", gap: 6 }}>
                   <FieldLabel>Exact address (Google suggestions required)</FieldLabel>
-
-                  {/* UNCONTROLLED input: avoids Google vs React lock */}
                   <InputBase
                     ref={addressInputRef}
                     defaultValue={shipping.address}
-                    onChange={(e: any) =>
-                      setShipping((p) => ({
-                        ...p,
-                        address: e.target.value,
-                        // ✅ if they manually change text, force re-select suggestion
-                        lat: null,
-                        lng: null,
-                      }))
-                    }
-                    placeholder={mapsReady ? "Type street / building / complex name…" : "Loading Google…"}
+                    onChange={() => {
+                      // If they type, we allow searching, but they MUST re-select suggestion to get pin/area/postal again
+                      setShipping((p) => ({ ...p, lat: null, lng: null, postal_code: "", area_id: "", area_label: "" }));
+                      setAreaError(null);
+                    }}
+                    placeholder={mapsReady ? "Start typing street / building name…" : "Loading Google…"}
+                    autoComplete="off"
                   />
 
                   <div style={{ fontSize: 12, opacity: 0.65 }}>
                     Pin: {shipping.lat ?? "—"}, {shipping.lng ?? "—"}
                   </div>
 
-                  <div style={{ fontSize: 12, opacity: 0.55, lineHeight: 1.4 }}>
-                    Tip: pick a suggestion first (pin required). If you edit unit/floor after, you must re-select a
-                    suggestion again.
+                  <div style={{ fontSize: 12, opacity: 0.65 }}>
+                    Postal: <strong>{shipping.postal_code || "Detecting…"}</strong>
                   </div>
+
+                  <div style={{ fontSize: 12, opacity: 0.65 }}>
+                    Area:{" "}
+                    <strong>
+                      {areaLoading ? "Detecting…" : shipping.area_label || "—"}
+                    </strong>
+                  </div>
+
+                  {areaError && (
+                    <div style={{ fontSize: 12, color: "#b00020" }}>
+                      {areaError}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: "grid", gap: 6 }}>
-                  <FieldLabel>Kecamatan / Kelurahan (auto)</FieldLabel>
+                  <FieldLabel>Notes (optional)</FieldLabel>
                   <InputBase
-                    value={areaQuery}
-                    onChange={(e: any) => setAreaQuery(e.target.value)}
-                    placeholder="Type: Kemang / Bangka / Mampang Prapatan / etc"
+                    value={shipping.notes}
+                    onChange={(e: any) => setShipping((p) => ({ ...p, notes: e.target.value }))}
+                    placeholder="Unit / floor / landmark / security / etc"
                   />
-
-                  {areaLoading && <div style={{ fontSize: 12, opacity: 0.7 }}>Searching…</div>}
-
-                  {!!areaResults.length && (
-                    <div style={{ border: "1px solid rgba(0,0,0,0.10)", borderRadius: 14, overflow: "hidden" }}>
-                      {areaResults.slice(0, 8).map((r: any, idx: number) => {
-                        const id = String(r?.id ?? r?.area_id ?? "");
-                        const joined = [
-                          r?.administrative_division_level_1,
-                          r?.administrative_division_level_2,
-                          r?.administrative_division_level_3,
-                        ]
-                          .filter(Boolean)
-                          .join(", ");
-                        const label = String(r?.name ?? r?.label ?? joined ?? id);
-
-                        return (
-                          <button
-                            key={`${id}-${idx}`}
-                            type="button"
-                            onClick={() => {
-                              setShipping((p) => ({ ...p, area_id: id, area_label: label }));
-                              setAreaResults([]);
-                              setAreaQuery(label);
-                            }}
-                            style={{
-                              width: "100%",
-                              textAlign: "left",
-                              padding: "10px 12px",
-                              border: "none",
-                              background: idx % 2 === 0 ? "rgba(0,0,0,0.02)" : "#fff",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <div style={{ fontWeight: 900, fontSize: 13 }}>{label}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {shipping.area_id && (
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>
-                      Selected: <strong>{shipping.area_label}</strong>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
-                  <div style={{ display: "grid", gap: 6 }}>
-                    <FieldLabel>Postal code (optional)</FieldLabel>
-                    <InputBase
-                      value={shipping.postal_code}
-                      onChange={(e: any) => setShipping((p) => ({ ...p, postal_code: e.target.value }))}
-                      placeholder="12730"
-                    />
-                  </div>
-                  <div style={{ display: "grid", gap: 6 }}>
-                    <FieldLabel>Notes (optional)</FieldLabel>
-                    <InputBase
-                      value={shipping.notes}
-                      onChange={(e: any) => setShipping((p) => ({ ...p, notes: e.target.value }))}
-                      placeholder="Tower / unit / patokan / satpam / etc"
-                    />
-                  </div>
                 </div>
               </div>
             </SectionCard>
 
             <SectionCard title="Courier" subtitle="Jakarta: choose Lalamove or Paxel. Outside Jakarta: Paxel only.">
               {!shipping.area_label ? (
-                <div style={{ fontSize: 13, opacity: 0.75 }}>Select Kecamatan/Kelurahan first to unlock courier options.</div>
+                <div style={{ fontSize: 13, opacity: 0.75 }}>
+                  Select an address first — courier options unlock after area detection.
+                </div>
               ) : isJakarta ? (
                 <div style={{ display: "grid", gap: 10 }}>
                   <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
@@ -690,7 +675,7 @@ export default function CheckoutPage() {
                 <button
                   type="button"
                   onClick={handlePay}
-                  disabled={loading || !snapReady || !clientKey || midtransItems.length === 0}
+                  disabled={loading || !snapReady || !clientKey || midtransItems.length === 0 || areaLoading}
                   style={{
                     width: "100%",
                     padding: "12px 14px",
@@ -700,10 +685,10 @@ export default function CheckoutPage() {
                     color: "#fff",
                     fontWeight: 1000,
                     cursor: loading ? "wait" : "pointer",
-                    opacity: loading || !snapReady || !clientKey || midtransItems.length === 0 ? 0.6 : 1,
+                    opacity: loading || !snapReady || !clientKey || midtransItems.length === 0 || areaLoading ? 0.6 : 1,
                   }}
                 >
-                  {loading ? "Processing…" : "Pay securely"}
+                  {loading ? "Processing…" : areaLoading ? "Detecting area…" : "Pay securely"}
                 </button>
 
                 <div style={{ fontSize: 12, opacity: 0.65, lineHeight: 1.4 }}>
@@ -714,7 +699,7 @@ export default function CheckoutPage() {
 
             <SectionCard title="Need help?" subtitle="We’ll reply fast on WhatsApp.">
               <div style={{ fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
-                If you’re unsure about address details or courier choice, message us before paying.
+                If you’re unsure about address details, message us before paying.
               </div>
             </SectionCard>
           </aside>
