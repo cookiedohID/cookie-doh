@@ -1,34 +1,32 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import Image from "next/image";
+import { useParams, useRouter } from "next/navigation";
 import { addCartItem } from "@/lib/cart";
+import { BOX_PRICES, FLAVORS, formatIDR, type FlavorBadge } from "@/lib/catalog";
 
-type Flavor = {
-  id: string;
-  name: string;
-  price: number; // IDR per cookie
-  image?: string; // /flavors/<id>.jpg
-};
-
-function formatIDR(n: number) {
-  try {
-    return new Intl.NumberFormat("id-ID").format(n);
-  } catch {
-    return String(n);
-  }
+function Badge({ b }: { b: FlavorBadge }) {
+  const base = "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium";
+  return <span className={base}>{b}</span>;
 }
 
-// ✅ Replace these with YOUR real flavours/prices
-// Images: put files in /public/flavors/<id>.jpg (or .png) then set image path
-const FLAVORS: Flavor[] = [
-  { id: "choco-bliss", name: "Choco Bliss", price: 25000, image: "/flavors/choco-bliss.jpg" },
-  { id: "comfort-oat-raisin", name: "The Comfort (Oat & Raisin)", price: 23000, image: "/flavors/comfort-oat-raisin.jpg" },
-  { id: "matcha-magic", name: "Matcha Magic", price: 26000, image: "/flavors/matcha-magic.jpg" },
-  { id: "red-velvet", name: "Red Velvet", price: 26000, image: "/flavors/red-velvet.jpg" },
-  { id: "double-choco", name: "Double Choco", price: 27000, image: "/flavors/double-choco.jpg" },
-  { id: "salted-caramel", name: "Salted Caramel", price: 27000, image: "/flavors/salted-caramel.jpg" },
-];
+function Meter({ label, value }: { label: string; value?: 1 | 2 | 3 | 4 | 5 }) {
+  const v = value ?? 0;
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="text-xs text-gray-600">{label}</div>
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <span
+            key={n}
+            className={`h-2.5 w-2.5 rounded-full border ${n <= v ? "bg-black" : "bg-white"}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function BuildSizePage() {
   const router = useRouter();
@@ -36,10 +34,11 @@ export default function BuildSizePage() {
 
   const raw = params?.size;
   const sizeNum = Array.isArray(raw) ? Number(raw[0]) : Number(raw);
+
   const allowedSizes = [1, 3, 6];
   const boxSize = allowedSizes.includes(sizeNum) ? sizeNum : 6;
 
-  // counts by flavor id
+  // counts by flavor id (duplicates allowed)
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [error, setError] = useState("");
 
@@ -49,19 +48,14 @@ export default function BuildSizePage() {
   );
 
   const remaining = boxSize - selectedCount;
+  const boxPrice = BOX_PRICES[boxSize];
 
   const selectedItems = useMemo(() => {
-    const list: { flavor: Flavor; qty: number }[] = [];
-    for (const f of FLAVORS) {
+    return FLAVORS.map((f) => {
       const qty = Number(counts[f.id] || 0);
-      if (qty > 0) list.push({ flavor: f, qty });
-    }
-    return list;
+      return qty > 0 ? { flavor: f, qty } : null;
+    }).filter(Boolean) as { flavor: (typeof FLAVORS)[number]; qty: number }[];
   }, [counts]);
-
-  const subtotal = useMemo(() => {
-    return selectedItems.reduce((sum, row) => sum + row.flavor.price * row.qty, 0);
-  }, [selectedItems]);
 
   function inc(id: string) {
     setError("");
@@ -78,6 +72,11 @@ export default function BuildSizePage() {
       else next[id] = cur - 1;
       return next;
     });
+  }
+
+  function reset() {
+    setCounts({});
+    setError("");
   }
 
   function addToCartNow() {
@@ -98,15 +97,15 @@ export default function BuildSizePage() {
     addCartItem({
       id: boxId,
       name: `Cookie Box (${boxSize}) - ${titleParts}`.slice(0, 180),
-      price: subtotal,
+      price: boxPrice, // ✅ fixed box price
       quantity: 1,
       meta: {
         size: boxSize,
-        flavors: selectedItems.map((row) => ({
+        selections: selectedItems.map((row) => ({
           id: row.flavor.id,
           name: row.flavor.name,
-          price: row.flavor.price,
           quantity: row.qty,
+          image: row.flavor.image ?? null,
         })),
       },
     });
@@ -116,13 +115,15 @@ export default function BuildSizePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-5xl px-4 py-10">
+      <div className="mx-auto max-w-6xl px-4 py-10">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <div className="text-sm text-gray-600">Cookie Doh</div>
             <h1 className="text-2xl font-semibold">Build: Box of {boxSize}</h1>
             <div className="mt-1 text-sm text-gray-600">
-              Remaining:{" "}
+              Fixed price: <span className="font-semibold">IDR {formatIDR(boxPrice)}</span>
+              <span className="mx-2">•</span>
+              Remaining slots:{" "}
               <span className={remaining === 0 ? "font-semibold text-green-700" : "font-semibold"}>
                 {remaining}
               </span>
@@ -139,32 +140,69 @@ export default function BuildSizePage() {
           </div>
         </div>
 
+        {/* Progress */}
+        <div className="mb-6">
+          <div className="h-2 w-full rounded-full bg-gray-200">
+            <div
+              className="h-2 rounded-full bg-black"
+              style={{ width: `${Math.min(100, (selectedCount / boxSize) * 100)}%` }}
+            />
+          </div>
+          <div className="mt-2 text-xs text-gray-600">
+            {selectedCount}/{boxSize} selected
+            <button className="ml-3 underline" type="button" onClick={reset}>
+              reset
+            </button>
+          </div>
+        </div>
+
         <div className="grid gap-6 md:grid-cols-3">
           {/* Flavours */}
           <div className="md:col-span-2">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               {FLAVORS.map((f) => {
                 const qty = counts[f.id] || 0;
                 const disableAdd = remaining <= 0;
 
                 return (
-                  <div key={f.id} className="rounded-xl border p-4">
+                  <div key={f.id} className="rounded-2xl border p-4">
                     <div className="flex gap-3">
-                      <div className="h-16 w-16 overflow-hidden rounded-lg border bg-gray-50">
-                        {/* image is optional */}
+                      <div className="relative h-20 w-20 overflow-hidden rounded-xl border bg-gray-50">
                         {f.image ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={f.image} alt={f.name} className="h-full w-full object-cover" />
+                          <Image src={f.image} alt={f.name} fill className="object-cover" />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">
+                          <div className="flex h-full w-full items-center justify-center text-[11px] text-gray-500">
                             No image
                           </div>
                         )}
                       </div>
 
                       <div className="flex-1">
-                        <div className="text-base font-medium">{f.name}</div>
-                        <div className="mt-1 text-sm text-gray-600">IDR {formatIDR(f.price)} / cookie</div>
+                        <div className="text-base font-semibold">{f.name}</div>
+                        {f.description && (
+                          <div className="mt-1 text-xs leading-relaxed text-gray-600">
+                            {f.description}
+                          </div>
+                        )}
+
+                        {!!(f.badges?.length) && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {f.badges.map((b) => (
+                              <Badge key={b} b={b} />
+                            ))}
+                          </div>
+                        )}
+
+                        {!!(f.tags?.length) && (
+                          <div className="mt-2 text-xs text-gray-600">
+                            {f.tags.join(" • ")}
+                          </div>
+                        )}
+
+                        <div className="mt-3 space-y-1">
+                          <Meter label="Chocolate" value={f.intensity?.chocolate} />
+                          <Meter label="Sweetness" value={f.intensity?.sweetness} />
+                        </div>
 
                         <div className="mt-3 flex items-center gap-2">
                           <button
@@ -199,9 +237,9 @@ export default function BuildSizePage() {
             </div>
           </div>
 
-          {/* Summary */}
-          <div className="rounded-xl border p-4">
-            <div className="text-lg font-medium">Summary</div>
+          {/* Sticky Summary */}
+          <div className="md:sticky md:top-6 h-fit rounded-2xl border p-4">
+            <div className="text-lg font-semibold">Summary</div>
 
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex items-center justify-between">
@@ -213,20 +251,21 @@ export default function BuildSizePage() {
                 <span>{selectedCount}</span>
               </div>
               <div className="flex items-center justify-between border-t pt-2">
-                <span className="font-medium">Subtotal</span>
-                <span className="font-semibold">IDR {formatIDR(subtotal)}</span>
+                <span className="font-medium">Price</span>
+                <span className="font-semibold">IDR {formatIDR(boxPrice)}</span>
               </div>
             </div>
 
             <div className="mt-4">
               <div className="text-sm font-medium">Your flavours</div>
               {selectedItems.length === 0 ? (
-                <div className="mt-2 text-sm text-gray-600">No flavours selected yet.</div>
+                <div className="mt-2 text-sm text-gray-600">Pick your cookies on the left.</div>
               ) : (
-                <ul className="mt-2 list-disc pl-5 text-sm text-gray-700">
+                <ul className="mt-2 space-y-1 text-sm text-gray-700">
                   {selectedItems.map((row) => (
-                    <li key={row.flavor.id}>
-                      {row.flavor.name} x{row.qty}
+                    <li key={row.flavor.id} className="flex items-center justify-between">
+                      <span className="pr-2">{row.flavor.name}</span>
+                      <span className="font-semibold">x{row.qty}</span>
                     </li>
                   ))}
                 </ul>
@@ -242,7 +281,7 @@ export default function BuildSizePage() {
             <button
               type="button"
               onClick={addToCartNow}
-              className={`mt-6 w-full rounded-md px-4 py-3 text-sm font-medium ${
+              className={`mt-6 w-full rounded-md px-4 py-3 text-sm font-semibold ${
                 selectedCount === boxSize ? "bg-black text-white" : "bg-gray-200 text-gray-600"
               }`}
             >
@@ -251,10 +290,10 @@ export default function BuildSizePage() {
 
             <button
               type="button"
-              onClick={() => router.push("/checkout")}
+              onClick={() => router.push("/cart")}
               className="mt-2 w-full rounded-md border px-4 py-3 text-sm"
             >
-              Go to checkout
+              Go to cart
             </button>
           </div>
         </div>
