@@ -69,6 +69,25 @@ export default function OrdersClient() {
     });
   }, [orders, q]);
 
+  async function createShipment(midtrans_order_id: string) {
+    setBusyId(midtrans_order_id);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/shipments/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ midtrans_order_id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Create shipment failed");
+      await load();
+    } catch (e: any) {
+      setErr(e?.message ?? "Create shipment failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function retryShipment(midtrans_order_id: string) {
     setBusyId(midtrans_order_id);
     setErr(null);
@@ -80,8 +99,6 @@ export default function OrdersClient() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Retry failed");
-
-      // refresh list so UI reflects updated shipment fields
       await load();
     } catch (e: any) {
       setErr(e?.message ?? "Retry failed");
@@ -117,7 +134,7 @@ export default function OrdersClient() {
       ) : null}
 
       <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[1050px] text-left text-sm">
+        <table className="w-full min-w-[1100px] text-left text-sm">
           <thead className="text-xs text-neutral-500">
             <tr className="border-b">
               <th className="py-3 pr-3">Order</th>
@@ -125,46 +142,36 @@ export default function OrdersClient() {
               <th className="py-3 pr-3">Total</th>
               <th className="py-3 pr-3">Payment</th>
               <th className="py-3 pr-3">Shipment</th>
-              <th className="py-3 pr-3">Courier</th>
               <th className="py-3 pr-3">Waybill</th>
               <th className="py-3 pr-3">Created</th>
-              <th className="py-3 pr-3">Action</th>
+              <th className="py-3 pr-3">Actions</th>
             </tr>
           </thead>
 
           <tbody>
             {loading ? (
               <tr>
-                <td className="py-6 text-neutral-500" colSpan={9}>
+                <td className="py-6 text-neutral-500" colSpan={8}>
                   Loading…
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td className="py-6 text-neutral-500" colSpan={9}>
+                <td className="py-6 text-neutral-500" colSpan={8}>
                   No orders found.
                 </td>
               </tr>
             ) : (
               filtered.map((o) => {
-                const canRetry =
-                  String(o.payment_status ?? "").toUpperCase() === "PAID" &&
-                  !o.biteship_order_id;
-
-                const courier =
-                  (o.courier_company && o.courier_type
-                    ? `${o.courier_company}/${o.courier_type}`
-                    : o.courier_code && o.courier_service
-                      ? `${o.courier_code}/${o.courier_service}`
-                      : "-");
+                const paid = String(o.payment_status ?? "").toUpperCase() === "PAID";
+                const hasShipment = Boolean(o.biteship_order_id);
+                const canCreate = paid && !hasShipment;
 
                 return (
                   <tr key={o.id} className="border-b last:border-0">
                     <td className="py-3 pr-3">
                       <div className="font-medium">{o.order_no ?? "-"}</div>
-                      <div className="mt-1 font-mono text-xs text-neutral-500">
-                        {o.midtrans_order_id}
-                      </div>
+                      <div className="mt-1 font-mono text-xs text-neutral-500">{o.midtrans_order_id}</div>
                     </td>
 
                     <td className="py-3 pr-3">
@@ -173,44 +180,33 @@ export default function OrdersClient() {
                     </td>
 
                     <td className="py-3 pr-3">
-                      {typeof o.total_idr === "number"
-                        ? `Rp ${o.total_idr.toLocaleString("id-ID")}`
-                        : "-"}
+                      {typeof o.total_idr === "number" ? `Rp ${o.total_idr.toLocaleString("id-ID")}` : "-"}
                     </td>
 
                     <td className="py-3 pr-3">
-                      <span className="rounded-xl border px-2 py-1 text-xs">
-                        {o.payment_status}
-                      </span>
+                      <span className="rounded-xl border px-2 py-1 text-xs">{o.payment_status}</span>
                     </td>
 
                     <td className="py-3 pr-3">
                       <div className="text-xs">
-                        <span className="rounded-xl border px-2 py-1">
-                          {o.shipment_status ?? "-"}
-                        </span>
+                        <span className="rounded-xl border px-2 py-1">{o.shipment_status ?? "-"}</span>
                       </div>
-                      <div className="mt-1 font-mono text-xs text-neutral-500">
-                        {o.biteship_order_id ?? ""}
-                      </div>
+                      <div className="mt-1 font-mono text-xs text-neutral-500">{o.biteship_order_id ?? ""}</div>
                     </td>
-
-                    <td className="py-3 pr-3 text-xs">{courier}</td>
 
                     <td className="py-3 pr-3 text-xs">
                       {o.waybill ? (
                         o.tracking_url ? (
-                          <a
-                            className="underline"
-                            href={o.tracking_url}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
+                          <a className="underline" href={o.tracking_url} target="_blank" rel="noreferrer">
                             {o.waybill}
                           </a>
                         ) : (
                           o.waybill
                         )
+                      ) : o.tracking_url ? (
+                        <a className="underline" href={o.tracking_url} target="_blank" rel="noreferrer">
+                          Tracking
+                        </a>
                       ) : (
                         "-"
                       )}
@@ -221,13 +217,24 @@ export default function OrdersClient() {
                     </td>
 
                     <td className="py-3 pr-3">
-                      <button
-                        disabled={!canRetry || busyId === o.midtrans_order_id}
-                        onClick={() => retryShipment(o.midtrans_order_id)}
-                        className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-                      >
-                        {busyId === o.midtrans_order_id ? "Retrying…" : "Retry Shipment"}
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          disabled={!canCreate || busyId === o.midtrans_order_id}
+                          onClick={() => createShipment(o.midtrans_order_id)}
+                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+                        >
+                          {busyId === o.midtrans_order_id ? "Working…" : "Create Shipment"}
+                        </button>
+
+                        <button
+                          disabled={!paid || hasShipment || busyId === o.midtrans_order_id}
+                          onClick={() => retryShipment(o.midtrans_order_id)}
+                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+                          title="Retry is for PAID orders with no shipment_id"
+                        >
+                          Retry
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -238,7 +245,7 @@ export default function OrdersClient() {
       </div>
 
       <div className="mt-4 text-xs text-neutral-500">
-        Retry only works when <span className="font-medium">payment_status=PAID</span> and{" "}
+        Create Shipment works when <span className="font-medium">payment_status=PAID</span> and{" "}
         <span className="font-medium">biteship_order_id is empty</span>.
       </div>
     </div>
