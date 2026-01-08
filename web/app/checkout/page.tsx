@@ -233,7 +233,7 @@ export default function CheckoutPage() {
     const ac = new window.google.maps.places.Autocomplete(addressInputRef.current, {
       componentRestrictions: { country: "id" },
       fields: ["formatted_address", "geometry", "address_components"],
-      types: ["address"],
+      types: ["geocode"],
     });
 
     ac.addListener("place_changed", () => {
@@ -460,8 +460,8 @@ export default function CheckoutPage() {
                         ...p,
                         address: e.target.value,
                         // If user edits manually, we no longer trust the pin
-                        lat: p.lat,
-                        lng: p.lng,
+                        lat: null,
+                        lng: null,
                       }))
                     }
                     placeholder={mapsReady ? "Type your address…" : "Loading Google…"}
