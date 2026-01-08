@@ -10,7 +10,6 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const input = (url.searchParams.get("input") ?? url.searchParams.get("q") ?? "").trim();
-
     if (!input) return NextResponse.json({ areas: [] });
 
     const upstream = new URL("https://api.biteship.com/v1/maps/areas");
@@ -32,7 +31,6 @@ export async function GET(req: Request) {
       );
     }
 
-    // normalize
     const areas = Array.isArray(json?.areas) ? json.areas : Array.isArray(json) ? json : [];
     return NextResponse.json({ areas });
   } catch (e: any) {
