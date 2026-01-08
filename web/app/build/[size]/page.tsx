@@ -1,24 +1,15 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { addCartItem } from "@/lib/cart";
 
 type Flavor = {
   id: string;
   name: string;
-  price: number; // IDR per cookie (MVP)
+  price: number; // IDR per cookie
+  image?: string; // /flavors/<id>.jpg
 };
-
-// ✅ MVP flavour list (edit later if you want)
-const FLAVORS: Flavor[] = [
-  { id: "choco-bliss", name: "Choco Bliss", price: 25000 },
-  { id: "comfort-oat-raisin", name: "The Comfort (Oat & Raisin)", price: 23000 },
-  { id: "matcha-magic", name: "Matcha Magic", price: 26000 },
-  { id: "red-velvet", name: "Red Velvet", price: 26000 },
-  { id: "double-choco", name: "Double Choco", price: 27000 },
-  { id: "salted-caramel", name: "Salted Caramel", price: 27000 },
-];
 
 function formatIDR(n: number) {
   try {
@@ -28,55 +19,95 @@ function formatIDR(n: number) {
   }
 }
 
-export default function BuildSizePage({ params }: { params: { size: string } }) {
+// ✅ Replace these with YOUR real flavours/prices
+// Images: put files in /public/flavors/<id>.jpg (or .png) then set image path
+const FLAVORS: Flavor[] = [
+  { id: "choco-bliss", name: "Choco Bliss", price: 25000, image: "/flavors/choco-bliss.jpg" },
+  { id: "comfort-oat-raisin", name: "The Comfort (Oat & Raisin)", price: 23000, image: "/flavors/comfort-oat-raisin.jpg" },
+  { id: "matcha-magic", name: "Matcha Magic", price: 26000, image: "/flavors/matcha-magic.jpg" },
+  { id: "red-velvet", name: "Red Velvet", price: 26000, image: "/flavors/red-velvet.jpg" },
+  { id: "double-choco", name: "Double Choco", price: 27000, image: "/flavors/double-choco.jpg" },
+  { id: "salted-caramel", name: "Salted Caramel", price: 27000, image: "/flavors/salted-caramel.jpg" },
+];
+
+export default function BuildSizePage() {
   const router = useRouter();
+  const params = useParams();
 
-  const size = Math.max(1, Math.min(50, Number(params.size || 0) || 0));
-  const allowedSizes = [3, 6, 12];
-  const finalSize = allowedSizes.includes(size) ? size : 6;
+  const raw = params?.size;
+  const sizeNum = Array.isArray(raw) ? Number(raw[0]) : Number(raw);
+  const allowedSizes = [1, 3, 6];
+  const boxSize = allowedSizes.includes(sizeNum) ? sizeNum : 6;
 
-  const [selected, setSelected] = useState<string[]>([]);
+  // counts by flavor id
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [error, setError] = useState("");
 
-  const selectedFlavors = useMemo(
-    () => selected.map((id) => FLAVORS.find((f) => f.id === id)).filter(Boolean) as Flavor[],
-    [selected]
+  const selectedCount = useMemo(
+    () => Object.values(counts).reduce((sum, n) => sum + (Number(n) || 0), 0),
+    [counts]
   );
 
-  const subtotal = useMemo(() => selectedFlavors.reduce((sum, f) => sum + f.price, 0), [selectedFlavors]);
+  const remaining = boxSize - selectedCount;
 
-  const remaining = finalSize - selected.length;
+  const selectedItems = useMemo(() => {
+    const list: { flavor: Flavor; qty: number }[] = [];
+    for (const f of FLAVORS) {
+      const qty = Number(counts[f.id] || 0);
+      if (qty > 0) list.push({ flavor: f, qty });
+    }
+    return list;
+  }, [counts]);
 
-  function toggleFlavor(id: string) {
+  const subtotal = useMemo(() => {
+    return selectedItems.reduce((sum, row) => sum + row.flavor.price * row.qty, 0);
+  }, [selectedItems]);
+
+  function inc(id: string) {
     setError("");
-    setSelected((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (prev.length >= finalSize) return prev; // can't exceed
-      return [...prev, id];
+    if (remaining <= 0) return;
+    setCounts((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+  }
+
+  function dec(id: string) {
+    setError("");
+    setCounts((prev) => {
+      const next = { ...prev };
+      const cur = next[id] || 0;
+      if (cur <= 1) delete next[id];
+      else next[id] = cur - 1;
+      return next;
     });
   }
 
   function addToCartNow() {
     setError("");
 
-    if (selected.length !== finalSize) {
-      setError(`Please select exactly ${finalSize} flavours. Remaining: ${remaining}`);
+    if (selectedCount !== boxSize) {
+      setError(`Please select exactly ${boxSize} cookies. Remaining: ${remaining}`);
       return;
     }
 
     const ts = Date.now();
-    const boxId = `box-${finalSize}-${ts}`;
+    const boxId = `box-${boxSize}-${ts}`;
 
-    const boxName = `Cookie Box (${finalSize}) - ${selectedFlavors.map((f) => f.name).join(", ")}`;
+    const titleParts = selectedItems
+      .map((row) => `${row.flavor.name} x${row.qty}`)
+      .join(", ");
 
     addCartItem({
       id: boxId,
-      name: boxName.slice(0, 180),
+      name: `Cookie Box (${boxSize}) - ${titleParts}`.slice(0, 180),
       price: subtotal,
       quantity: 1,
       meta: {
-        size: finalSize,
-        flavors: selectedFlavors.map((f) => ({ id: f.id, name: f.name, price: f.price })),
+        size: boxSize,
+        flavors: selectedItems.map((row) => ({
+          id: row.flavor.id,
+          name: row.flavor.name,
+          price: row.flavor.price,
+          quantity: row.qty,
+        })),
       },
     });
 
@@ -89,9 +120,9 @@ export default function BuildSizePage({ params }: { params: { size: string } }) 
         <div className="mb-6 flex items-center justify-between">
           <div>
             <div className="text-sm text-gray-600">Cookie Doh</div>
-            <h1 className="text-2xl font-semibold">Build: Box of {finalSize}</h1>
+            <h1 className="text-2xl font-semibold">Build: Box of {boxSize}</h1>
             <div className="mt-1 text-sm text-gray-600">
-              Pick exactly {finalSize} flavours. Remaining:{" "}
+              Remaining:{" "}
               <span className={remaining === 0 ? "font-semibold text-green-700" : "font-semibold"}>
                 {remaining}
               </span>
@@ -99,47 +130,70 @@ export default function BuildSizePage({ params }: { params: { size: string } }) 
           </div>
 
           <div className="flex gap-2">
-            <button
-              className="rounded-md border px-4 py-2 text-sm"
-              onClick={() => router.push("/build")}
-              type="button"
-            >
+            <button className="rounded-md border px-4 py-2 text-sm" onClick={() => router.push("/build")} type="button">
               Change size
             </button>
-            <button
-              className="rounded-md border px-4 py-2 text-sm"
-              onClick={() => router.push("/cart")}
-              type="button"
-            >
+            <button className="rounded-md border px-4 py-2 text-sm" onClick={() => router.push("/cart")} type="button">
               Cart
             </button>
           </div>
         </div>
 
         <div className="grid gap-6 md:grid-cols-3">
-          {/* Flavour list */}
+          {/* Flavours */}
           <div className="md:col-span-2">
             <div className="grid gap-3 sm:grid-cols-2">
               {FLAVORS.map((f) => {
-                const active = selected.includes(f.id);
-                const disabled = !active && selected.length >= finalSize;
+                const qty = counts[f.id] || 0;
+                const disableAdd = remaining <= 0;
 
                 return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => toggleFlavor(f.id)}
-                    className={`rounded-xl border p-4 text-left ${
-                      active ? "border-black bg-gray-50" : "hover:bg-gray-50"
-                    } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-                  >
-                    <div className="text-base font-medium">{f.name}</div>
-                    <div className="mt-1 text-sm text-gray-600">IDR {formatIDR(f.price)} / cookie</div>
-                    <div className="mt-3 text-xs text-gray-500">
-                      {active ? "Selected" : disabled ? "Box is full" : "Tap to select"}
+                  <div key={f.id} className="rounded-xl border p-4">
+                    <div className="flex gap-3">
+                      <div className="h-16 w-16 overflow-hidden rounded-lg border bg-gray-50">
+                        {/* image is optional */}
+                        {f.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={f.image} alt={f.name} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">
+                            No image
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1">
+                        <div className="text-base font-medium">{f.name}</div>
+                        <div className="mt-1 text-sm text-gray-600">IDR {formatIDR(f.price)} / cookie</div>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <button
+                            className="rounded-md border px-3 py-1 text-sm"
+                            onClick={() => dec(f.id)}
+                            type="button"
+                            disabled={qty <= 0}
+                          >
+                            -
+                          </button>
+
+                          <div className="min-w-[36px] text-center text-sm font-semibold">{qty}</div>
+
+                          <button
+                            className={`rounded-md border px-3 py-1 text-sm ${disableAdd ? "opacity-40" : ""}`}
+                            onClick={() => inc(f.id)}
+                            type="button"
+                            disabled={disableAdd}
+                          >
+                            +
+                          </button>
+
+                          <div className="ml-2 text-xs text-gray-500">
+                            {disableAdd ? "Box full" : "Add"}
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -152,11 +206,11 @@ export default function BuildSizePage({ params }: { params: { size: string } }) 
             <div className="mt-3 space-y-2 text-sm">
               <div className="flex items-center justify-between">
                 <span>Box size</span>
-                <span>{finalSize}</span>
+                <span>{boxSize}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span>Selected</span>
-                <span>{selected.length}</span>
+                <span>{selectedCount}</span>
               </div>
               <div className="flex items-center justify-between border-t pt-2">
                 <span className="font-medium">Subtotal</span>
@@ -166,12 +220,14 @@ export default function BuildSizePage({ params }: { params: { size: string } }) 
 
             <div className="mt-4">
               <div className="text-sm font-medium">Your flavours</div>
-              {selectedFlavors.length === 0 ? (
+              {selectedItems.length === 0 ? (
                 <div className="mt-2 text-sm text-gray-600">No flavours selected yet.</div>
               ) : (
                 <ul className="mt-2 list-disc pl-5 text-sm text-gray-700">
-                  {selectedFlavors.map((f) => (
-                    <li key={f.id}>{f.name}</li>
+                  {selectedItems.map((row) => (
+                    <li key={row.flavor.id}>
+                      {row.flavor.name} x{row.qty}
+                    </li>
                   ))}
                 </ul>
               )}
@@ -187,7 +243,7 @@ export default function BuildSizePage({ params }: { params: { size: string } }) 
               type="button"
               onClick={addToCartNow}
               className={`mt-6 w-full rounded-md px-4 py-3 text-sm font-medium ${
-                selected.length === finalSize ? "bg-black text-white" : "bg-gray-200 text-gray-600"
+                selectedCount === boxSize ? "bg-black text-white" : "bg-gray-200 text-gray-600"
               }`}
             >
               Add to cart

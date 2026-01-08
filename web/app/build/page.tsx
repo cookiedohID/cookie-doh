@@ -4,9 +4,9 @@ import React from "react";
 import { useRouter } from "next/navigation";
 
 const SIZES = [
+  { size: 1, label: "Box of 1" },
   { size: 3, label: "Box of 3" },
   { size: 6, label: "Box of 6" },
-  { size: 12, label: "Box of 12" },
 ];
 
 export default function BuildPage() {
@@ -40,7 +40,7 @@ export default function BuildPage() {
             >
               <div className="text-lg font-medium">{s.label}</div>
               <div className="mt-1 text-sm text-gray-600">
-                Choose {s.size} flavours, add to cart, then checkout.
+                Choose {s.size} cookies (duplicates allowed).
               </div>
             </button>
           ))}
@@ -50,7 +50,7 @@ export default function BuildPage() {
           <div className="font-medium">How it works</div>
           <ul className="mt-2 list-disc pl-5">
             <li>Select a box size</li>
-            <li>Pick flavours (exactly the number of cookies)</li>
+            <li>Pick flavours (you can repeat flavours)</li>
             <li>Add to cart</li>
             <li>Checkout + pay with Midtrans</li>
           </ul>
