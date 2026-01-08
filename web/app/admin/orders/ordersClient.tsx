@@ -69,6 +69,25 @@ export default function OrdersClient() {
     });
   }, [orders, q]);
 
+  async function markPaid(midtrans_order_id: string) {
+    setBusyId(midtrans_order_id);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/orders/mark-paid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ midtrans_order_id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Mark Paid failed");
+      await load();
+    } catch (e: any) {
+      setErr(e?.message ?? "Mark Paid failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function createShipment(midtrans_order_id: string) {
     setBusyId(midtrans_order_id);
     setErr(null);
@@ -134,7 +153,7 @@ export default function OrdersClient() {
       ) : null}
 
       <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[1100px] text-left text-sm">
+        <table className="w-full min-w-[1200px] text-left text-sm">
           <thead className="text-xs text-neutral-500">
             <tr className="border-b">
               <th className="py-3 pr-3">Order</th>
@@ -165,7 +184,7 @@ export default function OrdersClient() {
               filtered.map((o) => {
                 const paid = String(o.payment_status ?? "").toUpperCase() === "PAID";
                 const hasShipment = Boolean(o.biteship_order_id);
-                const canCreate = paid && !hasShipment;
+                const canCreateShipment = paid && !hasShipment;
 
                 return (
                   <tr key={o.id} className="border-b last:border-0">
@@ -219,7 +238,15 @@ export default function OrdersClient() {
                     <td className="py-3 pr-3">
                       <div className="flex flex-wrap gap-2">
                         <button
-                          disabled={!canCreate || busyId === o.midtrans_order_id}
+                          disabled={paid || busyId === o.midtrans_order_id}
+                          onClick={() => markPaid(o.midtrans_order_id)}
+                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+                        >
+                          {busyId === o.midtrans_order_id ? "Working…" : "Mark Paid"}
+                        </button>
+
+                        <button
+                          disabled={!canCreateShipment || busyId === o.midtrans_order_id}
                           onClick={() => createShipment(o.midtrans_order_id)}
                           className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
                         >
@@ -230,7 +257,7 @@ export default function OrdersClient() {
                           disabled={!paid || hasShipment || busyId === o.midtrans_order_id}
                           onClick={() => retryShipment(o.midtrans_order_id)}
                           className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-                          title="Retry is for PAID orders with no shipment_id"
+                          title="Retry is for PAID orders with no shipment id"
                         >
                           Retry
                         </button>
@@ -245,8 +272,7 @@ export default function OrdersClient() {
       </div>
 
       <div className="mt-4 text-xs text-neutral-500">
-        Create Shipment works when <span className="font-medium">payment_status=PAID</span> and{" "}
-        <span className="font-medium">biteship_order_id is empty</span>.
+        Flow: <span className="font-medium">Mark Paid</span> → <span className="font-medium">Create Shipment</span> → share tracking.
       </div>
     </div>
   );
