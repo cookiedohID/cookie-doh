@@ -15,15 +15,24 @@ function normalizePhone(p: string) {
   return String(p || "").replace(/\D/g, "");
 }
 
+/**
+ * Example label: "Kemang, Bogor, Jawa Barat. 16310"
+ * We treat the 2nd comma-separated part as "city" (Bogor).
+ */
+function deriveCityFromAreaLabel(label: string) {
+  const s = String(label || "").trim();
+  if (!s) return "";
+  const parts = s.split(",").map((x) => x.trim()).filter(Boolean);
+  // parts[0]=district, parts[1]=city, parts[2]=province...
+  return parts[1] || parts[0] || "";
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
 
     if (!process.env.MIDTRANS_SERVER_KEY) {
-      return NextResponse.json(
-        { error: "Missing MIDTRANS_SERVER_KEY env var" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Missing MIDTRANS_SERVER_KEY env var" }, { status: 500 });
     }
 
     const items: Item[] = Array.isArray(body?.items) ? body.items : [];
@@ -59,6 +68,11 @@ export async function POST(req: Request) {
     const destination_area_id = String(body?.shipping?.destination_area_id ?? "").trim();
     const destination_area_label = String(body?.shipping?.destination_area_label ?? "").trim();
 
+    const city =
+      String(body?.shipping?.city ?? "").trim() ||
+      deriveCityFromAreaLabel(destination_area_label) ||
+      "Unknown";
+
     const courier_company = String(body?.shipping?.courier_company ?? "").trim() || null;
     const courier_type = String(body?.shipping?.courier_type ?? "").trim() || null;
     const courier_service = String(body?.shipping?.courier_service ?? "").trim() || null;
@@ -74,16 +88,19 @@ export async function POST(req: Request) {
       shipping_json: body?.shipping ?? null,
       midtrans_status: "created",
 
-      // for NOT NULL columns
+      // NOT NULL columns
       customer_name: customerName,
       customer_phone: customerPhoneRaw,
 
-      // optional shipping columns (only if they exist in your table)
+      // If your table has these columns:
       shipping_address: shippingAddress || null,
       destination_area_id: destination_area_id || null,
       destination_area_label: destination_area_label || null,
 
-      // optional courier columns
+      // Your NOT NULL city column:
+      city,
+
+      // Optional courier columns:
       courier_company,
       courier_type,
       courier_service,

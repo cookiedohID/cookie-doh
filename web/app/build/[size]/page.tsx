@@ -1,29 +1,114 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { addCartItem } from "@/lib/cart";
-import { BOX_PRICES, FLAVORS, formatIDR, type FlavorBadge } from "@/lib/catalog";
+import styles from "./flavorCard.module.css";
 
-function Badge({ b }: { b: FlavorBadge }) {
-  const base = "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium";
-  return <span className={base}>{b}</span>;
+import { BOX_PRICES, FLAVORS, formatIDR } from "@/lib/catalog";
+
+type CartItem = {
+  boxSize: number;
+  items: { flavorId: string; qty: number }[];
+  price: number;
+  createdAt: number;
+  giftNote?: string;
+};
+
+const CART_KEY = "cookieDohCart";
+const SIZES: Array<1 | 3 | 6> = [1, 3, 6];
+
+function clampSize(v: string | string[] | undefined): 1 | 3 | 6 | null {
+  const s = Array.isArray(v) ? v[0] : v;
+  const n = Number(s);
+  if (n === 1 || n === 3 || n === 6) return n;
+  return null;
 }
 
-function Meter({ label, value }: { label: string; value?: 1 | 2 | 3 | 4 | 5 }) {
-  const v = value ?? 0;
+function Meter({ value = 0 }: { value?: number }) {
+  const filled = Math.max(0, Math.min(5, value));
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="text-xs text-gray-600">{label}</div>
-      <div className="flex items-center gap-1">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <span
-            key={n}
-            className={`h-2.5 w-2.5 rounded-full border ${n <= v ? "bg-black" : "bg-white"}`}
-          />
-        ))}
-      </div>
+    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <span
+          key={i}
+          style={{
+            width: 9,
+            height: 9,
+            borderRadius: 999,
+            display: "inline-block",
+            border: "1px solid rgba(0,0,0,0.18)",
+            background: i < filled ? "rgba(0,0,0,0.85)" : "transparent",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function BadgePill({ text }: { text: string }) {
+  return (
+    <span
+      style={{
+        padding: "5px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 900,
+        border: "1px solid rgba(0,0,0,0.12)",
+        background: "rgba(0,0,0,0.04)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
+function TagChip({ text }: { text: string }) {
+  return (
+    <span
+      style={{
+        padding: "4px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        border: "1px solid rgba(0,0,0,0.10)",
+        background: "rgba(0,0,0,0.02)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
+function SizeSwitcher({ current }: { current: 1 | 3 | 6 }) {
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {SIZES.map((s) => {
+        const active = s === current;
+        return (
+          <Link
+            key={s}
+            href={`/build/${s}`}
+            prefetch={false}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 999,
+              border: active ? "1px solid rgba(0,0,0,0.25)" : "1px solid rgba(0,0,0,0.12)",
+              textDecoration: "none",
+              fontWeight: 950,
+              fontSize: 13,
+              color: "inherit",
+              background: active ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.02)",
+              cursor: "pointer",
+            }}
+            aria-current={active ? "page" : undefined}
+          >
+            Box {s}
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -31,273 +116,371 @@ function Meter({ label, value }: { label: string; value?: 1 | 2 | 3 | 4 | 5 }) {
 export default function BuildSizePage() {
   const router = useRouter();
   const params = useParams();
+  const size = clampSize(params?.size);
 
-  const raw = params?.size;
-  const sizeNum = Array.isArray(raw) ? Number(raw[0]) : Number(raw);
+  const [qtyByFlavor, setQtyByFlavor] = useState<Record<string, number>>({});
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
 
-  const allowedSizes = [1, 3, 6];
-  const boxSize = allowedSizes.includes(sizeNum) ? sizeNum : 6;
-
-  // counts by flavor id (duplicates allowed)
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [error, setError] = useState("");
-
-  const selectedCount = useMemo(
-    () => Object.values(counts).reduce((sum, n) => sum + (Number(n) || 0), 0),
-    [counts]
+  const pickedCount = useMemo(
+    () => Object.values(qtyByFlavor).reduce((sum, n) => sum + (Number(n) || 0), 0),
+    [qtyByFlavor]
   );
 
-  const remaining = boxSize - selectedCount;
-  const boxPrice = BOX_PRICES[boxSize];
+  const remaining = (size ?? 0) - pickedCount;
 
-  const selectedItems = useMemo(() => {
-    return FLAVORS.map((f) => {
-      const qty = Number(counts[f.id] || 0);
-      return qty > 0 ? { flavor: f, qty } : null;
-    }).filter(Boolean) as { flavor: (typeof FLAVORS)[number]; qty: number }[];
-  }, [counts]);
+  const selections = useMemo(() => {
+    return Object.entries(qtyByFlavor)
+      .filter(([, q]) => (q || 0) > 0)
+      .map(([flavorId, qty]) => ({ flavorId, qty }));
+  }, [qtyByFlavor]);
 
-  function inc(id: string) {
-    setError("");
+  function inc(flavorId: string) {
+    if (!size) return;
     if (remaining <= 0) return;
-    setCounts((prev) => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
+
+    setQtyByFlavor((prev) => ({ ...prev, [flavorId]: (prev[flavorId] || 0) + 1 }));
+
+    setJustAddedId(flavorId);
+    window.setTimeout(() => {
+      setJustAddedId((cur) => (cur === flavorId ? null : cur));
+    }, 650);
   }
 
-  function dec(id: string) {
-    setError("");
-    setCounts((prev) => {
+  function dec(flavorId: string) {
+    setQtyByFlavor((prev) => {
       const next = { ...prev };
-      const cur = next[id] || 0;
-      if (cur <= 1) delete next[id];
-      else next[id] = cur - 1;
+      const cur = next[flavorId] || 0;
+      if (cur <= 1) delete next[flavorId];
+      else next[flavorId] = cur - 1;
       return next;
     });
   }
 
-  function reset() {
-    setCounts({});
-    setError("");
-  }
+  function addToCart() {
+    if (!size) return;
+    if (pickedCount !== size) return;
 
-  function addToCartNow() {
-    setError("");
+    const item: CartItem = {
+      boxSize: size,
+      items: selections,
+      price: BOX_PRICES[size],
+      createdAt: Date.now(),
+    };
 
-    if (selectedCount !== boxSize) {
-      setError(`Please select exactly ${boxSize} cookies. Remaining: ${remaining}`);
-      return;
-    }
-
-    const ts = Date.now();
-    const boxId = `box-${boxSize}-${ts}`;
-
-    const titleParts = selectedItems
-      .map((row) => `${row.flavor.name} x${row.qty}`)
-      .join(", ");
-
-    addCartItem({
-      id: boxId,
-      name: `Cookie Box (${boxSize}) - ${titleParts}`.slice(0, 180),
-      price: boxPrice, // ✅ fixed box price
-      quantity: 1,
-      meta: {
-        size: boxSize,
-        selections: selectedItems.map((row) => ({
-          id: row.flavor.id,
-          name: row.flavor.name,
-          quantity: row.qty,
-          image: row.flavor.image ?? null,
-        })),
-      },
-    });
+    try {
+      const raw = localStorage.getItem(CART_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const current: CartItem[] = Array.isArray(parsed) ? parsed : [];
+      localStorage.setItem(CART_KEY, JSON.stringify([item, ...current]));
+    } catch {}
 
     router.push("/cart");
   }
 
+  if (!size) {
+    return (
+      <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
+        <h1>Build your box</h1>
+        <p>Invalid size.</p>
+        <Link href="/build" style={{ color: "var(--brand-blue)" }}>
+          ← Back to sizes
+        </Link>
+      </main>
+    );
+  }
+
+  const progress = Math.min(100, Math.max(0, (pickedCount / size) * 100));
+  const canAdd = pickedCount === size;
+
   return (
-    <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <div className="text-sm text-gray-600">Cookie Doh</div>
-            <h1 className="text-2xl font-semibold">Build: Box of {boxSize}</h1>
-            <div className="mt-1 text-sm text-gray-600">
-              Fixed price: <span className="font-semibold">IDR {formatIDR(boxPrice)}</span>
-              <span className="mx-2">•</span>
-              Remaining slots:{" "}
-              <span className={remaining === 0 ? "font-semibold text-green-700" : "font-semibold"}>
-                {remaining}
-              </span>
+    <main style={{ padding: 24, maxWidth: 1080, margin: "0 auto", paddingBottom: 110 }}>
+      <header style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 280 }}>
+            <div
+              style={{
+                display: "inline-flex",
+                gap: 10,
+                alignItems: "center",
+                padding: "8px 12px",
+                borderRadius: 999,
+                border: "1px solid rgba(0,0,0,0.10)",
+                background: "rgba(0,0,0,0.02)",
+                fontWeight: 950,
+                fontSize: 12,
+              }}
+            >
+              🍪 COOKIE DOH <span style={{ opacity: 0.65, fontWeight: 900 }}>Builder</span>
+            </div>
+
+            <h1 style={{ margin: "12px 0 6px", fontSize: 30, letterSpacing: -0.3 }}>Box of {size}</h1>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ color: "rgba(0,0,0,0.75)" }}>
+                Price: <strong>IDR {formatIDR(BOX_PRICES[size])}</strong>
+              </div>
+
+              <div
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  background: remaining === 0 ? "rgba(0,0,0,0.06)" : "rgba(0,0,0,0.03)",
+                  fontSize: 12,
+                  fontWeight: 950,
+                }}
+              >
+                Remaining: {remaining}
+              </div>
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <button className="rounded-md border px-4 py-2 text-sm" onClick={() => router.push("/build")} type="button">
-              Change size
-            </button>
-            <button className="rounded-md border px-4 py-2 text-sm" onClick={() => router.push("/cart")} type="button">
-              Cart
-            </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, alignItems: "flex-end" }}>
+            <SizeSwitcher current={size} />
+            <Link
+              href="/build"
+              style={{
+                textDecoration: "none",
+                color: "inherit",
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid rgba(0,0,0,0.12)",
+                background: "rgba(0,0,0,0.02)",
+                fontWeight: 900,
+                fontSize: 13,
+              }}
+            >
+              View sizes
+            </Link>
           </div>
         </div>
 
-        {/* Progress */}
-        <div className="mb-6">
-          <div className="h-2 w-full rounded-full bg-gray-200">
+        <div style={{ marginTop: 12 }}>
+          <div
+            style={{
+              height: 10,
+              borderRadius: 999,
+              border: "1px solid rgba(0,0,0,0.10)",
+              background: "rgba(0,0,0,0.03)",
+              overflow: "hidden",
+            }}
+            aria-label="Progress"
+          >
             <div
-              className="h-2 rounded-full bg-black"
-              style={{ width: `${Math.min(100, (selectedCount / boxSize) * 100)}%` }}
+              style={{
+                height: "100%",
+                width: `${progress}%`,
+                background: "rgba(0,0,0,0.85)",
+                transition: "width 200ms ease",
+              }}
             />
           </div>
-          <div className="mt-2 text-xs text-gray-600">
-            {selectedCount}/{boxSize} selected
-            <button className="ml-3 underline" type="button" onClick={reset}>
-              reset
-            </button>
+          <div style={{ marginTop: 8, color: "rgba(0,0,0,0.70)", fontSize: 13 }}>
+            Pick <strong>{size}</strong> cookies. Duplicates welcome.
           </div>
         </div>
+      </header>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Flavours */}
-          <div className="md:col-span-2">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {FLAVORS.map((f) => {
-                const qty = counts[f.id] || 0;
-                const disableAdd = remaining <= 0;
+      <section
+        style={{
+          display: "grid",
+          gap: 12,
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          marginTop: 16,
+        }}
+      >
+        {FLAVORS.map((f: any) => {
+          const q = qtyByFlavor[f.id] || 0;
+          const disabledPlus = remaining <= 0;
 
-                return (
-                  <div key={f.id} className="rounded-2xl border p-4">
-                    <div className="flex gap-3">
-                      <div className="relative h-20 w-20 overflow-hidden rounded-xl border bg-gray-50">
-                        {f.image ? (
-                          <Image src={f.image} alt={f.name} fill className="object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[11px] text-gray-500">
-                            No image
-                          </div>
-                        )}
+          return (
+            <div key={String(f.id)} className={`${styles.card} ${justAddedId === f.id ? styles.bump : ""}`}>
+              <div className={styles.imageWrap}>
+                <div className={styles.shine} />
+
+                {f.image ? (
+                  <Image
+                    src={String(f.image)}
+                    alt={String(f.name)}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 33vw"
+                    style={{ objectFit: "cover" }}
+                    priority={false}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      height: "100%",
+                      display: "grid",
+                      placeItems: "center",
+                      fontWeight: 950,
+                      color: "rgba(0,0,0,0.45)",
+                    }}
+                  >
+                    {String(f.name)}
+                  </div>
+                )}
+
+                {!!f.badges?.length && (
+                  <div className={styles.badges}>
+                    {f.badges.slice(0, 2).map((b: any) => (
+                      <BadgePill key={String(b)} text={String(b)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className={styles.body}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 950, fontSize: 16, lineHeight: 1.2 }}>{String(f.name)}</div>
+                    {f.description && (
+                      <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontSize: 13, lineHeight: 1.35 }}>
+                        {String(f.description)}
                       </div>
+                    )}
+                  </div>
 
-                      <div className="flex-1">
-                        <div className="text-base font-semibold">{f.name}</div>
-                        {f.description && (
-                          <div className="mt-1 text-xs leading-relaxed text-gray-600">
-                            {f.description}
-                          </div>
-                        )}
+                  <div className={`${styles.qtyPill} ${justAddedId === f.id ? styles.pulse : ""}`} title="Selected">
+                    {q}
+                  </div>
+                </div>
 
-                        {!!(f.badges?.length) && (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {f.badges.map((b) => (
-                              <Badge key={b} b={b} />
-                            ))}
-                          </div>
-                        )}
+                {!!f.tags?.length && (
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {f.tags.slice(0, 4).map((t: any) => (
+                      <TagChip key={String(t)} text={String(t)} />
+                    ))}
+                  </div>
+                )}
 
-                        {!!(f.tags?.length) && (
-                          <div className="mt-2 text-xs text-gray-600">
-                            {f.tags.join(" • ")}
-                          </div>
-                        )}
-
-                        <div className="mt-3 space-y-1">
-                          <Meter label="Chocolate" value={f.intensity?.chocolate} />
-                          <Meter label="Sweetness" value={f.intensity?.sweetness} />
-                        </div>
-
-                        <div className="mt-3 flex items-center gap-2">
-                          <button
-                            className="rounded-md border px-3 py-1 text-sm"
-                            onClick={() => dec(f.id)}
-                            type="button"
-                            disabled={qty <= 0}
-                          >
-                            -
-                          </button>
-
-                          <div className="min-w-[36px] text-center text-sm font-semibold">{qty}</div>
-
-                          <button
-                            className={`rounded-md border px-3 py-1 text-sm ${disableAdd ? "opacity-40" : ""}`}
-                            onClick={() => inc(f.id)}
-                            type="button"
-                            disabled={disableAdd}
-                          >
-                            +
-                          </button>
-
-                          <div className="ml-2 text-xs text-gray-500">
-                            {disableAdd ? "Box full" : "Add"}
-                          </div>
-                        </div>
-                      </div>
+                {(f.intensity?.chocolate || f.intensity?.sweetness) && (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 10,
+                      padding: 10,
+                      borderRadius: 12,
+                      background: "rgba(0,0,0,0.03)",
+                      border: "1px solid rgba(0,0,0,0.06)",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Chocolate</div>
+                      <Meter value={Number(f.intensity?.chocolate ?? 0)} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Sweetness</div>
+                      <Meter value={Number(f.intensity?.sweetness ?? 0)} />
                     </div>
                   </div>
-                );
-              })}
+                )}
+
+                <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 2 }}>
+                  <button
+                    type="button"
+                    onClick={() => dec(String(f.id))}
+                    disabled={q === 0}
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      border: "1px solid rgba(0,0,0,0.14)",
+                      background: "#fff",
+                      cursor: q === 0 ? "not-allowed" : "pointer",
+                      opacity: q === 0 ? 0.55 : 1,
+                      fontWeight: 950,
+                      fontSize: 18,
+                    }}
+                  >
+                    −
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => inc(String(f.id))}
+                    disabled={disabledPlus}
+                    className={`${styles.primaryBtn} ${!disabledPlus ? styles.primaryBtnEnabled : ""}`}
+                    style={{
+                      flex: 1,
+                      height: 40,
+                      borderRadius: 12,
+                      border: "none",
+                      background: "var(--brand-blue)",
+                      color: "#fff",
+                      fontWeight: 950,
+                      cursor: disabledPlus ? "not-allowed" : "pointer",
+                      opacity: disabledPlus ? 0.55 : 1,
+                    }}
+                  >
+                    Add +
+                  </button>
+                </div>
+              </div>
+
+              <div className={`${styles.successToast} ${justAddedId === f.id ? styles.showToast : ""}`}>Added ✓</div>
+            </div>
+          );
+        })}
+      </section>
+
+      <div
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 50,
+          padding: "14px 14px 18px",
+          background: "rgba(255,255,255,0.92)",
+          backdropFilter: "blur(10px)",
+          borderTop: "1px solid rgba(0,0,0,0.10)",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1080,
+            margin: "0 auto",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "grid", gap: 4 }}>
+            <div style={{ fontWeight: 950 }}>
+              Box of {size} •{" "}
+              <span style={{ color: canAdd ? "rgba(0,0,0,0.85)" : "rgba(0,0,0,0.65)" }}>
+                {canAdd ? "Ready to add ✅" : `Choose ${remaining} more`}
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(0,0,0,0.70)" }}>
+              Total: <strong>IDR {formatIDR(BOX_PRICES[size])}</strong>
             </div>
           </div>
 
-          {/* Sticky Summary */}
-          <div className="md:sticky md:top-6 h-fit rounded-2xl border p-4">
-            <div className="text-lg font-semibold">Summary</div>
-
-            <div className="mt-3 space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span>Box size</span>
-                <span>{boxSize}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Selected</span>
-                <span>{selectedCount}</span>
-              </div>
-              <div className="flex items-center justify-between border-t pt-2">
-                <span className="font-medium">Price</span>
-                <span className="font-semibold">IDR {formatIDR(boxPrice)}</span>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <div className="text-sm font-medium">Your flavours</div>
-              {selectedItems.length === 0 ? (
-                <div className="mt-2 text-sm text-gray-600">Pick your cookies on the left.</div>
-              ) : (
-                <ul className="mt-2 space-y-1 text-sm text-gray-700">
-                  {selectedItems.map((row) => (
-                    <li key={row.flavor.id} className="flex items-center justify-between">
-                      <span className="pr-2">{row.flavor.name}</span>
-                      <span className="font-semibold">x{row.qty}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {error && (
-              <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={addToCartNow}
-              className={`mt-6 w-full rounded-md px-4 py-3 text-sm font-semibold ${
-                selectedCount === boxSize ? "bg-black text-white" : "bg-gray-200 text-gray-600"
-              }`}
-            >
-              Add to cart
-            </button>
-
-            <button
-              type="button"
-              onClick={() => router.push("/cart")}
-              className="mt-2 w-full rounded-md border px-4 py-3 text-sm"
-            >
-              Go to cart
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={addToCart}
+            disabled={!canAdd}
+            style={{
+              padding: "12px 16px",
+              borderRadius: 14,
+              border: "none",
+              background: "var(--brand-blue)",
+              color: "#fff",
+              fontWeight: 950,
+              cursor: canAdd ? "pointer" : "not-allowed",
+              opacity: canAdd ? 1 : 0.6,
+              minWidth: 180,
+            }}
+          >
+            Add to cart
+          </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

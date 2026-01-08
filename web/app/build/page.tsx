@@ -1,67 +1,157 @@
-"use client";
-
-import React from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { BOX_PRICES, formatIDR } from "@/lib/catalog";
 
-const SIZES = [
-  { size: 1, label: "Box of 1" },
-  { size: 3, label: "Box of 3" },
-  { size: 6, label: "Box of 6" },
-];
+const sizes: Array<1 | 3 | 6> = [1, 3, 6];
 
-export default function BuildPage() {
-  const router = useRouter();
-
+export default function BuildIndexPage() {
   return (
-    <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-5xl px-4 py-10">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <div className="text-sm text-gray-600">Cookie Doh</div>
-            <h1 className="text-2xl font-semibold">Build a box</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Choose your box size, pick flavours (duplicates allowed), then checkout.
-            </p>
-          </div>
-
-          <button
-            className="rounded-md border px-4 py-2 text-sm"
-            onClick={() => router.push("/cart")}
-            type="button"
-          >
-            Cart
-          </button>
+    <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
+      <header style={{ marginBottom: 18 }}>
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "8px 12px",
+            borderRadius: 999,
+            border: "1px solid rgba(0,0,0,0.10)",
+            background: "rgba(0,0,0,0.02)",
+            fontWeight: 900,
+            fontSize: 12,
+            letterSpacing: 0.2,
+          }}
+        >
+          🍪 COOKIE DOH
+          <span style={{ opacity: 0.6, fontWeight: 800 }}>Build a Box</span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {SIZES.map((s) => (
-            <button
-              key={s.size}
-              type="button"
-              className="rounded-2xl border p-5 text-left hover:bg-gray-50"
-              onClick={() => router.push(`/build/${s.size}`)}
+        <h1 style={{ margin: "14px 0 8px", fontSize: 34, letterSpacing: -0.4 }}>
+          Pick your box size ✨
+        </h1>
+        <p style={{ margin: 0, color: "rgba(0,0,0,0.70)", lineHeight: 1.5, maxWidth: 680 }}>
+          Choose a size, then mix & match flavors. Duplicates are always welcome.
+        </p>
+      </header>
+
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 14,
+          marginTop: 18,
+        }}
+      >
+        {sizes.map((s) => {
+          const isMostPopular = s === 6;
+          return (
+            <Link
+              key={s}
+              href={`/build/${s}`}
+              prefetch={false}
+              style={{
+                display: "block",
+                textDecoration: "none",
+                color: "inherit",
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,0.10)",
+                background: "#fff",
+                padding: 18,
+                boxShadow: isMostPopular ? "0 14px 32px rgba(0,0,0,0.08)" : "0 8px 22px rgba(0,0,0,0.05)",
+                transform: "translateY(0)",
+                transition: "transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+                position: "relative",
+                overflow: "hidden",
+              }}
             >
-              <div className="text-lg font-semibold">{s.label}</div>
-              <div className="mt-1 text-sm text-gray-600">
-                Fixed price: <span className="font-medium">IDR {formatIDR(BOX_PRICES[s.size])}</span>
-              </div>
-              <div className="mt-3 text-xs text-gray-500">
-                Pick exactly {s.size} cookies • Repeat flavours if you want
-              </div>
-            </button>
-          ))}
-        </div>
+              {/* subtle shine */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  pointerEvents: "none",
+                  background:
+                    "linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 30%, rgba(255,255,255,0) 60%)",
+                  transform: "translateX(-120%)",
+                  transition: "transform 520ms ease",
+                }}
+                className="cd-shine"
+              />
 
-        <div className="mt-10 rounded-2xl border bg-gray-50 p-5">
-          <div className="text-sm font-semibold">Tip</div>
-          <div className="mt-1 text-sm text-gray-700">
-            Make sure your flavour images exist at <code className="px-1">web/public/flavors/</code>{" "}
-            and match the paths in <code className="px-1">catalog.ts</code> (e.g.{" "}
-            <code className="px-1">/flavors/the-one.jpg</code>).
-          </div>
-        </div>
-      </div>
-    </div>
+              {isMostPopular && (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    background: "rgba(0,0,0,0.06)",
+                    border: "1px solid rgba(0,0,0,0.10)",
+                    fontWeight: 900,
+                    fontSize: 12,
+                    marginBottom: 12,
+                  }}
+                >
+                  ⭐ Most popular
+                </div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ fontWeight: 1000, fontSize: 20, letterSpacing: -0.2 }}>Box of {s}</div>
+                <div style={{ fontWeight: 900, color: "rgba(0,0,0,0.75)" }}>IDR {formatIDR(BOX_PRICES[s])}</div>
+              </div>
+
+              <div style={{ marginTop: 10, color: "rgba(0,0,0,0.70)", lineHeight: 1.5 }}>
+                {s === 1 && "Perfect for a quick treat or a first taste."}
+                {s === 3 && "Best for sharing… or not 😉"}
+                {s === 6 && "Party-ready. Mix your favorites + a new one."}
+              </div>
+
+              <div
+                style={{
+                  marginTop: 14,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 14,
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  background: "rgba(0,0,0,0.02)",
+                  fontWeight: 950,
+                }}
+              >
+                Choose this <span aria-hidden>→</span>
+              </div>
+
+              <style>{`
+                a:hover .cd-shine { transform: translateX(120%); }
+                a:hover { border-color: rgba(0,0,0,0.16); transform: translateY(-2px); }
+              `}</style>
+            </Link>
+          );
+        })}
+      </section>
+
+      <section
+        style={{
+          marginTop: 18,
+          padding: 16,
+          borderRadius: 18,
+          border: "1px solid rgba(0,0,0,0.10)",
+          background: "rgba(0,0,0,0.02)",
+          color: "rgba(0,0,0,0.75)",
+          lineHeight: 1.5,
+        }}
+      >
+        <div style={{ fontWeight: 950, marginBottom: 6 }}>Quick tips</div>
+        <ul style={{ margin: 0, paddingLeft: 18 }}>
+          <li>Tap <strong>Add +</strong> to fill your box. You’ll see “Remaining” count update.</li>
+          <li>Duplicates are allowed (yes, all-choco is valid).</li>
+          <li>Switch box size anytime at the top of the builder.</li>
+        </ul>
+      </section>
+    </main>
   );
 }
