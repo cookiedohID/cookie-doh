@@ -28,13 +28,13 @@ type ShippingForm = {
   receiver_phone: string;
   receiver_email: string;
 
-  address: string; // from Google selection
-  notes: string; // manual
+  address: string;
+  notes: string;
 
-  area_id: string; // auto
-  area_label: string; // auto
+  area_id: string;
+  area_label: string;
 
-  postal_code: string; // auto
+  postal_code: string;
 
   lat: number | null;
   lng: number | null;
@@ -60,6 +60,23 @@ declare global {
 }
 
 const CART_KEY = "cookieDohCart";
+
+const SUPPORT_WA = process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || "6281932181818";
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "hello@cookiedoh.co.id";
+
+// ✅ EDIT THESE to your real bank/QRIS
+const PAYMENT_INSTRUCTIONS = [
+  "Manual Payment Instructions",
+  "",
+  "1) Transfer to:",
+  "   BCA: 622-0372918 a/n Angelia Tania ",
+  "   OR QRIS: (CHANGE THIS)",
+  "",
+  "2) Send proof of transfer to WhatsApp:",
+  `   wa.me/6281932181818`,
+  "",
+  "3) We will confirm & process your order after payment is received.",
+].join("\n");
 
 function formatIDR(n: number) {
   try {
@@ -159,6 +176,9 @@ function getComp(place: any, type: string): string {
 export default function CheckoutPage() {
   const router = useRouter();
 
+  const checkoutMode = process.env.NEXT_PUBLIC_CHECKOUT_MODE || "midtrans";
+  const isManual = checkoutMode === "manual";
+
   // Cart
   const [legacyCart, setLegacyCart] = useState<LegacyCartItem[]>([]);
 
@@ -174,7 +194,6 @@ export default function CheckoutPage() {
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   const autocompleteRef = useRef<any>(null);
 
-  // Auto area resolver
   const [areaLoading, setAreaLoading] = useState(false);
   const [areaError, setAreaError] = useState<string | null>(null);
 
@@ -212,7 +231,6 @@ export default function CheckoutPage() {
 
   const isJakarta = useMemo(() => isJakartaLabel(shipping.area_label), [shipping.area_label]);
 
-  // Force Paxel outside Jakarta
   useEffect(() => {
     if (!shipping.area_label) return;
     if (!isJakarta && shipping.courier_preference !== "paxel") {
@@ -220,7 +238,6 @@ export default function CheckoutPage() {
     }
   }, [isJakarta, shipping.area_label]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Address input is UNCONTROLLED; sync DOM when we programmatically set shipping.address
   useEffect(() => {
     const el = addressInputRef.current;
     if (!el) return;
@@ -228,27 +245,24 @@ export default function CheckoutPage() {
   }, [shipping.address]);
 
   async function resolveBiteshipAreaFromPlace(place: any) {
-    // Build the best query we can from Google address components
-    // Try Kelurahan / Kecamatan style first, then fallback broader.
-    const sublocality1 = getComp(place, "sublocality_level_1"); // often kelurahan-ish
-    const sublocality2 = getComp(place, "sublocality_level_2");
+    const admin2 = getComp(place, "administrative_area_level_2");
+    const admin3 = getComp(place, "administrative_area_level_3");
+    const admin4 = getComp(place, "administrative_area_level_4");
+    const sub1 = getComp(place, "sublocality_level_1");
     const neighborhood = getComp(place, "neighborhood");
-    const locality = getComp(place, "locality"); // city
-    const admin2 = getComp(place, "administrative_area_level_2"); // kota/kab
-    const admin3 = getComp(place, "administrative_area_level_3"); // kecamatan (sometimes)
-    const admin4 = getComp(place, "administrative_area_level_4"); // kelurahan (sometimes)
+    const locality = getComp(place, "locality");
 
     const candidates = [
       [admin4, admin3, admin2].filter(Boolean).join(" "),
-      [sublocality1, admin3, admin2].filter(Boolean).join(" "),
-      [neighborhood, sublocality1, admin2].filter(Boolean).join(" "),
+      [sub1, admin3, admin2].filter(Boolean).join(" "),
+      [neighborhood, sub1, admin2].filter(Boolean).join(" "),
       [admin3, admin2].filter(Boolean).join(" "),
       [admin2 || locality].filter(Boolean).join(" "),
     ]
       .map((s) => s.trim())
       .filter((s) => s.length >= 3);
 
-    if (!candidates.length) throw new Error("Unable to derive area query from address.");
+    if (!candidates.length) throw new Error("Unable to derive area from address.");
 
     setAreaLoading(true);
     setAreaError(null);
@@ -261,14 +275,13 @@ export default function CheckoutPage() {
         const results: any[] = Array.isArray(data?.areas)
           ? data.areas
           : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data)
-          ? data
-          : [];
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
 
         if (!results.length) continue;
 
-        // Choose first result (usually best). If you want stricter matching, we can rank by label contains.
         const r = results[0];
         const id = String(r?.id ?? r?.area_id ?? "");
         const joined = [r?.administrative_division_level_1, r?.administrative_division_level_2, r?.administrative_division_level_3]
@@ -281,16 +294,13 @@ export default function CheckoutPage() {
           setAreaLoading(false);
           return;
         }
-      } catch {
-        // try next candidate
-      }
+      } catch {}
     }
 
     setAreaLoading(false);
-    throw new Error("Could not resolve Kecamatan/Kelurahan automatically. Please try a more specific address.");
+    throw new Error("Could not detect Kecamatan/Kelurahan. Please choose a more specific address.");
   }
 
-  // Init Google autocomplete
   useEffect(() => {
     if (!mapsReady) return;
     if (!window.google?.maps?.places) return;
@@ -300,7 +310,6 @@ export default function CheckoutPage() {
     const ac = new window.google.maps.places.Autocomplete(addressInputRef.current, {
       componentRestrictions: { country: "id" },
       fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
-      // Do NOT set `types` to allow POIs/buildings too.
     });
 
     ac.addListener("place_changed", async () => {
@@ -308,10 +317,8 @@ export default function CheckoutPage() {
       const formatted = place?.formatted_address ?? place?.name ?? "";
       const lat = place?.geometry?.location?.lat?.() ?? null;
       const lng = place?.geometry?.location?.lng?.() ?? null;
-
       const postal = getComp(place, "postal_code") || "";
 
-      // Reset dependent fields first (auto flow)
       setShipping((prev) => ({
         ...prev,
         address: formatted,
@@ -322,44 +329,95 @@ export default function CheckoutPage() {
         area_label: "",
       }));
 
-      // Auto resolve area immediately
       try {
         await resolveBiteshipAreaFromPlace(place);
       } catch (e: any) {
-        setAreaError(e?.message ?? "Failed to resolve area automatically.");
+        setAreaError(e?.message ?? "Failed to detect area.");
       }
     });
 
     autocompleteRef.current = ac;
   }, [mapsReady]);
 
-  function validateBeforePay() {
+  function validateCore() {
     if (!midtransItems.length) return "Your cart is empty.";
-    if (!clientKey) return "Payment is not configured (missing client key).";
-    if (!window.snap) return "Payment system is still loading. Please try again in a moment.";
 
     if (!shipping.receiver_name.trim()) return "Please fill receiver name.";
     if (!shipping.receiver_phone.trim()) return "Please fill phone number.";
     if (!shipping.receiver_email.trim()) return "Please fill email address.";
 
-    // Must come from Google selection
     if (!shipping.address.trim()) return "Please select an address from Google suggestions.";
     if (shipping.lat == null || shipping.lng == null) return "Please select an address from Google suggestions (pin required).";
 
-    // Must be auto-filled
     if (!shipping.postal_code.trim()) return "Postal code not detected. Please select a more specific address.";
-    if (!shipping.area_id) return "Kecamatan/Kelurahan not detected yet. Please wait a moment or select a more specific address.";
-    if (areaLoading) return "Still detecting Kecamatan/Kelurahan… please wait.";
+    if (!shipping.area_id) return "Area not detected yet. Please wait a moment or select a more specific address.";
+    if (areaLoading) return "Still detecting area… please wait.";
 
     return null;
   }
 
-  async function handlePay() {
-    const err = validateBeforePay();
-    if (err) {
-      alert(err);
-      return;
+  async function handleManualOrder() {
+    const err = validateCore();
+    if (err) return alert(err);
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/orders/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_name: shipping.receiver_name,
+          customer_phone: shipping.receiver_phone,
+          email: shipping.receiver_email,
+
+          shipping_address: shipping.address,
+          destination_area_id: shipping.area_id,
+          destination_area_label: shipping.area_label,
+          postal: shipping.postal_code,
+
+          notes: shipping.notes,
+
+          subtotal_idr: totals.subtotal,
+          shipping_cost_idr: totals.shippingFee,
+          total_idr: totals.total,
+
+          courier_company: shipping.courier_preference,
+          courier_type: shipping.courier_preference === "lalamove" ? "instant" : "next_day",
+
+          items_json: midtransItems,
+          customer_json: {
+            receiver_name: shipping.receiver_name,
+            receiver_phone: shipping.receiver_phone,
+            receiver_email: shipping.receiver_email,
+          },
+          shipping_json: {
+            destination_lat: shipping.lat,
+            destination_lng: shipping.lng,
+            destination_postal_code: shipping.postal_code,
+            destination_area_id: shipping.area_id,
+            courier_preference: shipping.courier_preference,
+          },
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to place order");
+
+      const orderId = String(data.order_id ?? "");
+      router.push(`/checkout/pending?order_id=${encodeURIComponent(orderId)}`);
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to place order");
+    } finally {
+      setLoading(false);
     }
+  }
+
+  async function handleMidtransPay() {
+    const err = validateCore();
+    if (err) return alert(err);
+
+    if (!clientKey) return alert("Payment is not configured (missing client key).");
+    if (!window.snap) return alert("Payment system is still loading. Please try again in a moment.");
 
     setLoading(true);
     try {
@@ -388,11 +446,7 @@ export default function CheckoutPage() {
       });
 
       const data = await res.json();
-
-      if (!res.ok) {
-        const msg = data?.error ? String(data.error) : `Token API failed (${res.status})`;
-        throw new Error(msg);
-      }
+      if (!res.ok) throw new Error(data?.error ? String(data.error) : `Token API failed (${res.status})`);
 
       const { token, order_id } = data as { token: string; order_id: string };
 
@@ -403,16 +457,21 @@ export default function CheckoutPage() {
         onClose: () => {},
       });
     } catch (e: any) {
-      console.error(e);
       alert(e?.message || "Payment failed");
     } finally {
       setLoading(false);
     }
   }
 
+  const actionDisabled =
+    loading ||
+    midtransItems.length === 0 ||
+    areaLoading ||
+    (!isManual && (!snapReady || !clientKey));
+
   return (
     <>
-      {/* Midtrans Snap */}
+      {/* Midtrans Snap (only matters for midtrans mode, but safe to load always) */}
       <Script src={snapSrc} data-client-key={clientKey} strategy="afterInteractive" onLoad={() => setSnapReady(true)} />
 
       {/* Google Places */}
@@ -444,8 +503,15 @@ export default function CheckoutPage() {
 
           <h1 style={{ margin: "12px 0 6px", fontSize: 30, letterSpacing: -0.3 }}>Almost there</h1>
           <p style={{ margin: 0, color: "rgba(0,0,0,0.70)", lineHeight: 1.5, maxWidth: 760 }}>
-            Select your address from Google suggestions. We auto-fill area + postal. Add notes if needed.
+            Select your address from Google suggestions. We auto-detect area + postal. Add notes if needed.
           </p>
+
+          {isManual && (
+            <div style={{ marginTop: 12, border: "1px solid rgba(0,0,0,0.12)", padding: 12, borderRadius: 12, background: "rgba(0,0,0,0.02)" }}>
+              <div style={{ fontWeight: 950, marginBottom: 6 }}>Manual payment mode (temporary)</div>
+              <div style={{ fontSize: 12, opacity: 0.8, whiteSpace: "pre-wrap" }}>{PAYMENT_INSTRUCTIONS}</div>
+            </div>
+          )}
 
           {!googleKey && (
             <div style={{ marginTop: 12, border: "1px solid #f3c", padding: 12, borderRadius: 12 }}>
@@ -494,7 +560,7 @@ export default function CheckoutPage() {
                     ref={addressInputRef}
                     defaultValue={shipping.address}
                     onChange={() => {
-                      // If they type, we allow searching, but they MUST re-select suggestion to get pin/area/postal again
+                      // When they type, they must re-select a suggestion to re-detect
                       setShipping((p) => ({ ...p, lat: null, lng: null, postal_code: "", area_id: "", area_label: "" }));
                       setAreaError(null);
                     }}
@@ -505,23 +571,14 @@ export default function CheckoutPage() {
                   <div style={{ fontSize: 12, opacity: 0.65 }}>
                     Pin: {shipping.lat ?? "—"}, {shipping.lng ?? "—"}
                   </div>
-
                   <div style={{ fontSize: 12, opacity: 0.65 }}>
                     Postal: <strong>{shipping.postal_code || "Detecting…"}</strong>
                   </div>
-
                   <div style={{ fontSize: 12, opacity: 0.65 }}>
-                    Area:{" "}
-                    <strong>
-                      {areaLoading ? "Detecting…" : shipping.area_label || "—"}
-                    </strong>
+                    Area: <strong>{areaLoading ? "Detecting…" : shipping.area_label || "—"}</strong>
                   </div>
 
-                  {areaError && (
-                    <div style={{ fontSize: 12, color: "#b00020" }}>
-                      {areaError}
-                    </div>
-                  )}
+                  {areaError && <div style={{ fontSize: 12, color: "#b00020" }}>{areaError}</div>}
                 </div>
 
                 <div style={{ display: "grid", gap: 6 }}>
@@ -537,9 +594,7 @@ export default function CheckoutPage() {
 
             <SectionCard title="Courier" subtitle="Jakarta: choose Lalamove or Paxel. Outside Jakarta: Paxel only.">
               {!shipping.area_label ? (
-                <div style={{ fontSize: 13, opacity: 0.75 }}>
-                  Select an address first — courier options unlock after area detection.
-                </div>
+                <div style={{ fontSize: 13, opacity: 0.75 }}>Select an address first — courier options unlock after area detection.</div>
               ) : isJakarta ? (
                 <div style={{ display: "grid", gap: 10 }}>
                   <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
@@ -567,22 +622,16 @@ export default function CheckoutPage() {
                       <div style={{ fontSize: 12, opacity: 0.7 }}>Jakarta delivery</div>
                     </div>
                   </label>
-
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>
-                    Detected: <strong>Jakarta</strong>
-                  </div>
                 </div>
               ) : (
                 <div style={{ display: "grid", gap: 8 }}>
                   <div style={{ fontWeight: 950 }}>Paxel only</div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>
-                    Detected: <strong>Outside Jakarta</strong> — Paxel is enforced automatically.
-                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.7 }}>Outside Jakarta — Paxel is enforced automatically.</div>
                 </div>
               )}
             </SectionCard>
 
-            <SectionCard title="Your items" subtitle="Review your boxes before paying.">
+            <SectionCard title="Your items" subtitle="Review your boxes before placing order.">
               {midtransItems.length === 0 ? (
                 <div style={{ opacity: 0.75 }}>
                   Your cart is empty.{" "}
@@ -639,7 +688,7 @@ export default function CheckoutPage() {
 
           {/* Right column summary */}
           <aside style={{ position: "sticky", top: 18, alignSelf: "start", display: "grid", gap: 12 }}>
-            <SectionCard title="Summary" subtitle="Secure payment powered by Midtrans. You’ll see a payment popup.">
+            <SectionCard title="Summary" subtitle={isManual ? "Manual payment (temporary)" : "Secure payment powered by Midtrans."}>
               <div style={{ display: "grid", gap: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ opacity: 0.75 }}>Boxes</span>
@@ -656,26 +705,21 @@ export default function CheckoutPage() {
                   <strong>{totals.shippingFee === 0 ? "Free" : formatIDR(totals.shippingFee)}</strong>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    paddingTop: 10,
-                    borderTop: "1px solid rgba(0,0,0,0.10)",
-                  }}
-                >
+                <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid rgba(0,0,0,0.10)" }}>
                   <span style={{ fontWeight: 950 }}>Total</span>
                   <span style={{ fontWeight: 1000 }}>{formatIDR(totals.total)}</span>
                 </div>
 
-                <div style={{ fontSize: 12, opacity: 0.7 }}>
-                  Payment popup: <strong>{snapReady ? "Ready ✅" : "Loading…"}</strong>
-                </div>
+                {!isManual && (
+                  <div style={{ fontSize: 12, opacity: 0.7 }}>
+                    Payment popup: <strong>{snapReady ? "Ready ✅" : "Loading…"}</strong>
+                  </div>
+                )}
 
                 <button
                   type="button"
-                  onClick={handlePay}
-                  disabled={loading || !snapReady || !clientKey || midtransItems.length === 0 || areaLoading}
+                  onClick={isManual ? handleManualOrder : handleMidtransPay}
+                  disabled={actionDisabled}
                   style={{
                     width: "100%",
                     padding: "12px 14px",
@@ -685,21 +729,30 @@ export default function CheckoutPage() {
                     color: "#fff",
                     fontWeight: 1000,
                     cursor: loading ? "wait" : "pointer",
-                    opacity: loading || !snapReady || !clientKey || midtransItems.length === 0 || areaLoading ? 0.6 : 1,
+                    opacity: actionDisabled ? 0.6 : 1,
                   }}
                 >
-                  {loading ? "Processing…" : areaLoading ? "Detecting area…" : "Pay securely"}
+                  {loading
+                    ? "Processing…"
+                    : areaLoading
+                      ? "Detecting area…"
+                      : isManual
+                        ? "Place Order (Manual Payment)"
+                        : "Pay securely"}
                 </button>
 
                 <div style={{ fontSize: 12, opacity: 0.65, lineHeight: 1.4 }}>
-                  By paying, you confirm your delivery details are correct.
+                  {isManual
+                    ? "After placing order, follow the payment instructions and send proof via WhatsApp."
+                    : "By paying, you confirm your delivery details are correct."}
                 </div>
               </div>
             </SectionCard>
 
             <SectionCard title="Need help?" subtitle="We’ll reply fast on WhatsApp.">
               <div style={{ fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
-                If you’re unsure about address details, message us before paying.
+                Message us: <a style={{ textDecoration: "underline" }} href={`https://wa.me/${SUPPORT_WA}`} target="_blank" rel="noreferrer">WhatsApp</a> ·{" "}
+                <a style={{ textDecoration: "underline" }} href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
               </div>
             </SectionCard>
           </aside>
