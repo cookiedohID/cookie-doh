@@ -28,7 +28,7 @@ type ShippingForm = {
   receiver_phone: string;
   receiver_email: string;
 
-  address: string; // from Google autocomplete OR manual edits
+  address: string; // from Google selection + manual unit edits
   notes: string;
 
   area_id: string; // Biteship area id
@@ -158,9 +158,7 @@ export default function CheckoutPage() {
   const [snapReady, setSnapReady] = useState(false);
   const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY;
   const isProduction = process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === "true";
-  const snapSrc = isProduction
-    ? "https://app.midtrans.com/snap/snap.js"
-    : "https://app.sandbox.midtrans.com/snap/snap.js";
+  const snapSrc = isProduction ? "https://app.midtrans.com/snap/snap.js" : "https://app.sandbox.midtrans.com/snap/snap.js";
 
   // Google Places
   const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -215,8 +213,7 @@ export default function CheckoutPage() {
     }
   }, [isJakarta, shipping.area_label]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Helper: keep DOM input value in sync when we programmatically change shipping.address
-  // (since the address field is now UNCONTROLLED)
+  // Address input is UNCONTROLLED, so we sync DOM when we set shipping.address programmatically (Google selection)
   useEffect(() => {
     const el = addressInputRef.current;
     if (!el) return;
@@ -232,13 +229,14 @@ export default function CheckoutPage() {
 
     const ac = new window.google.maps.places.Autocomplete(addressInputRef.current, {
       componentRestrictions: { country: "id" },
-      fields: ["formatted_address", "geometry", "address_components"],
+      fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
+      // ✅ better for building/complex/landmark queries vs ["address"]
       types: ["geocode"],
     });
 
     ac.addListener("place_changed", () => {
       const place = ac.getPlace?.();
-      const formatted = place?.formatted_address ?? "";
+      const formatted = place?.formatted_address ?? place?.name ?? "";
       const lat = place?.geometry?.location?.lat?.() ?? null;
       const lng = place?.geometry?.location?.lng?.() ?? null;
 
@@ -248,7 +246,6 @@ export default function CheckoutPage() {
         if (c?.types?.includes("postal_code")) postal = c?.long_name ?? "";
       }
 
-      // ✅ Always update the state AND the input stays editable
       setShipping((prev) => ({
         ...prev,
         address: formatted,
@@ -306,7 +303,9 @@ export default function CheckoutPage() {
 
     if (!shipping.address.trim()) return "Please pick an exact address from Google suggestions.";
     if (!shipping.area_id) return "Please select Kecamatan/Kelurahan from the dropdown.";
-    if (shipping.lat == null || shipping.lng == null) return "Please pick an address from suggestions (pin required).";
+
+    // ✅ strict: they MUST pick from Google suggestions (pin required)
+    if (shipping.lat == null || shipping.lng == null) return "Please select an address from Google suggestions (required).";
 
     return null;
   }
@@ -416,7 +415,7 @@ export default function CheckoutPage() {
           <div style={{ display: "grid", gap: 16 }}>
             <SectionCard
               title="Delivery details"
-              subtitle="Use Google suggestions for exact address. Then select Kecamatan/Kelurahan for shipping accuracy."
+              subtitle="Select an address from Google suggestions (required). You can add unit/floor after."
             >
               <div style={{ display: "grid", gap: 10 }}>
                 <div style={{ display: "grid", gap: 6 }}>
@@ -449,9 +448,9 @@ export default function CheckoutPage() {
                 </div>
 
                 <div style={{ display: "grid", gap: 6 }}>
-                  <FieldLabel>Exact address (Google suggestions)</FieldLabel>
+                  <FieldLabel>Exact address (Google suggestions required)</FieldLabel>
 
-                  {/* ✅ UNCONTROLLED input to prevent Google vs React locking */}
+                  {/* UNCONTROLLED input: avoids Google vs React lock */}
                   <InputBase
                     ref={addressInputRef}
                     defaultValue={shipping.address}
@@ -459,20 +458,21 @@ export default function CheckoutPage() {
                       setShipping((p) => ({
                         ...p,
                         address: e.target.value,
-                        // If user edits manually, we no longer trust the pin
+                        // ✅ if they manually change text, force re-select suggestion
                         lat: null,
                         lng: null,
                       }))
                     }
-                    placeholder={mapsReady ? "Type your address…" : "Loading Google…"}
+                    placeholder={mapsReady ? "Type street / building / complex name…" : "Loading Google…"}
                   />
 
                   <div style={{ fontSize: 12, opacity: 0.65 }}>
                     Pin: {shipping.lat ?? "—"}, {shipping.lng ?? "—"}
                   </div>
 
-                  <div style={{ fontSize: 12, opacity: 0.55 }}>
-                    Tip: after selecting a suggestion, you can still edit unit / floor manually.
+                  <div style={{ fontSize: 12, opacity: 0.55, lineHeight: 1.4 }}>
+                    Tip: pick a suggestion first (pin required). If you edit unit/floor after, you must re-select a
+                    suggestion again.
                   </div>
                 </div>
 
