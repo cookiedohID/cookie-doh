@@ -1,4 +1,3 @@
-cat > web/app/cart/page.tsx <<'EOF'
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -75,7 +74,9 @@ export default function CartPage() {
         {cart.length === 0 ? (
           <div className="rounded-xl border p-6">
             <div className="text-lg font-medium">Your cookie box is feeling lonely.</div>
-            <div className="mt-2 text-sm text-gray-600">Build a box to add items into your cart.</div>
+            <div className="mt-2 text-sm text-gray-600">
+              Build a box to add items into your cart.
+            </div>
 
             <button
               className="mt-5 rounded-md bg-black px-4 py-2 text-sm font-medium text-white"
@@ -170,4 +171,3 @@ export default function CartPage() {
     </div>
   );
 }
-EOF
