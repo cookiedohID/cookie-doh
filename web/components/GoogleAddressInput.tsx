@@ -13,8 +13,11 @@ type Resolved = {
 
 type Props = {
   apiKey: string;
-  value: string;
-  onChange: (val: string) => void;
+
+  // Optional: you can still pass value from parent, but this component won't freeze
+  value?: string;
+  onChange?: (val: string) => void;
+
   onResolved: (data: Resolved) => void;
   placeholder?: string;
 };
@@ -52,8 +55,6 @@ function extractAddressParts(place: any) {
   for (const c of comps) {
     const types: string[] = Array.isArray(c?.types) ? c.types : [];
     if (types.includes("postal_code")) postal = c.long_name || c.short_name || postal;
-
-    // City in Indonesia can come as locality or admin_area_level_2
     if (types.includes("locality") || types.includes("administrative_area_level_2")) {
       city = c.long_name || c.short_name || city;
     }
@@ -72,10 +73,21 @@ export default function GoogleAddressInput({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const acRef = useRef<any>(null);
 
+  // ✅ Local state prevents “freezing” after Google selects a place
+  const [internalValue, setInternalValue] = useState(value ?? "");
+
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const canInit = useMemo(() => Boolean(apiKey && apiKey.length > 10), [apiKey]);
+
+  // Sync external value -> internal (only when it truly changes)
+  useEffect(() => {
+    if (typeof value === "string" && value !== internalValue) {
+      setInternalValue(value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
   useEffect(() => {
     let mounted = true;
@@ -92,14 +104,12 @@ export default function GoogleAddressInput({
 
         const w = window as any;
         const g = w.google;
-        if (!g?.maps?.places?.Autocomplete) {
-          throw new Error("Google Places not available");
-        }
+        if (!g?.maps?.places?.Autocomplete) throw new Error("Google Places not available");
 
         const ac = new g.maps.places.Autocomplete(el, {
           fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
           types: ["geocode"],
-          // componentRestrictions: { country: "id" },
+          componentRestrictions: { country: "id" }, // helps reduce weird results
         });
 
         ac.addListener("place_changed", async () => {
@@ -113,7 +123,6 @@ export default function GoogleAddressInput({
           let lat: number | null = null;
           let lng: number | null = null;
 
-          // Primary: geometry on place
           if (place?.geometry?.location) {
             try {
               lat = place.geometry.location.lat?.() ?? null;
@@ -123,7 +132,7 @@ export default function GoogleAddressInput({
             }
           }
 
-          // Fallback: geocode by placeId if geometry missing
+          // fallback geocode if geometry missing
           if ((!lat || !lng) && placeId && g?.maps?.Geocoder) {
             try {
               const geocoder = new g.maps.Geocoder();
@@ -146,7 +155,9 @@ export default function GoogleAddressInput({
 
           const { postal, city } = extractAddressParts(place);
 
-          onChange(formattedAddress);
+          // ✅ update local value so input stays editable after selection
+          setInternalValue(formattedAddress);
+          onChange?.(formattedAddress);
 
           onResolved({
             placeId,
@@ -166,28 +177,34 @@ export default function GoogleAddressInput({
     }
 
     init();
-
     return () => {
       mounted = false;
       acRef.current = null;
     };
-  }, [apiKey, canInit, onChange, onResolved]);
+  }, [apiKey, canInit, onResolved, onChange]);
 
   return (
     <div className="space-y-2">
       <input
         ref={inputRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={internalValue}
+        onChange={(e) => {
+          const v = e.target.value;
+          setInternalValue(v);
+          onChange?.(v);
+        }}
         placeholder={placeholder}
         className="w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:ring-2"
+        // reduce browser interference
+        autoComplete="off"
+        name="cd_address"
       />
 
       <div className="text-xs text-neutral-500">
         {err ? (
           <span className="text-red-600">{err}</span>
         ) : ready ? (
-          <span>Pick the exact address from suggestions (recommended).</span>
+          <span>Pick an address from suggestions, or edit it manually.</span>
         ) : (
           <span>Loading address autocomplete…</span>
         )}
