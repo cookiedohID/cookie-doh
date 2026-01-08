@@ -1,0 +1,246 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+type AdminOrder = {
+  id: string;
+  order_no: string | null;
+  midtrans_order_id: string;
+  customer_name: string;
+  customer_phone: string;
+  total_idr: number | null;
+  payment_status: string;
+  shipment_status: string | null;
+  biteship_order_id: string | null;
+  waybill: string | null;
+  tracking_url: string | null;
+  created_at: string;
+  courier_company: string | null;
+  courier_type: string | null;
+  courier_code: string | null;
+  courier_service: string | null;
+  postal: string | null;
+  destination_area_id: string | null;
+};
+
+export default function OrdersClient() {
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/orders", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Failed to load orders");
+      setOrders(json.orders ?? []);
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return orders;
+    return orders.filter((o) => {
+      const hay = [
+        o.order_no ?? "",
+        o.midtrans_order_id ?? "",
+        o.customer_name ?? "",
+        o.customer_phone ?? "",
+        o.payment_status ?? "",
+        o.shipment_status ?? "",
+        o.biteship_order_id ?? "",
+        o.waybill ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(s);
+    });
+  }, [orders, q]);
+
+  async function retryShipment(midtrans_order_id: string) {
+    setBusyId(midtrans_order_id);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin/shipments/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ midtrans_order_id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Retry failed");
+
+      // refresh list so UI reflects updated shipment fields
+      await load();
+    } catch (e: any) {
+      setErr(e?.message ?? "Retry failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="rounded-3xl border bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full sm:max-w-md">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search order no / midtrans id / name / phone / waybill…"
+            className="w-full rounded-2xl border bg-white px-4 py-2 text-sm outline-none focus:ring-2"
+          />
+        </div>
+
+        <button
+          onClick={load}
+          className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+        >
+          Refresh
+        </button>
+      </div>
+
+      {err ? (
+        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {err}
+        </div>
+      ) : null}
+
+      <div className="mt-5 overflow-x-auto">
+        <table className="w-full min-w-[1050px] text-left text-sm">
+          <thead className="text-xs text-neutral-500">
+            <tr className="border-b">
+              <th className="py-3 pr-3">Order</th>
+              <th className="py-3 pr-3">Customer</th>
+              <th className="py-3 pr-3">Total</th>
+              <th className="py-3 pr-3">Payment</th>
+              <th className="py-3 pr-3">Shipment</th>
+              <th className="py-3 pr-3">Courier</th>
+              <th className="py-3 pr-3">Waybill</th>
+              <th className="py-3 pr-3">Created</th>
+              <th className="py-3 pr-3">Action</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {loading ? (
+              <tr>
+                <td className="py-6 text-neutral-500" colSpan={9}>
+                  Loading…
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td className="py-6 text-neutral-500" colSpan={9}>
+                  No orders found.
+                </td>
+              </tr>
+            ) : (
+              filtered.map((o) => {
+                const canRetry =
+                  String(o.payment_status ?? "").toUpperCase() === "PAID" &&
+                  !o.biteship_order_id;
+
+                const courier =
+                  (o.courier_company && o.courier_type
+                    ? `${o.courier_company}/${o.courier_type}`
+                    : o.courier_code && o.courier_service
+                      ? `${o.courier_code}/${o.courier_service}`
+                      : "-");
+
+                return (
+                  <tr key={o.id} className="border-b last:border-0">
+                    <td className="py-3 pr-3">
+                      <div className="font-medium">{o.order_no ?? "-"}</div>
+                      <div className="mt-1 font-mono text-xs text-neutral-500">
+                        {o.midtrans_order_id}
+                      </div>
+                    </td>
+
+                    <td className="py-3 pr-3">
+                      <div className="font-medium">{o.customer_name}</div>
+                      <div className="mt-1 text-xs text-neutral-500">{o.customer_phone}</div>
+                    </td>
+
+                    <td className="py-3 pr-3">
+                      {typeof o.total_idr === "number"
+                        ? `Rp ${o.total_idr.toLocaleString("id-ID")}`
+                        : "-"}
+                    </td>
+
+                    <td className="py-3 pr-3">
+                      <span className="rounded-xl border px-2 py-1 text-xs">
+                        {o.payment_status}
+                      </span>
+                    </td>
+
+                    <td className="py-3 pr-3">
+                      <div className="text-xs">
+                        <span className="rounded-xl border px-2 py-1">
+                          {o.shipment_status ?? "-"}
+                        </span>
+                      </div>
+                      <div className="mt-1 font-mono text-xs text-neutral-500">
+                        {o.biteship_order_id ?? ""}
+                      </div>
+                    </td>
+
+                    <td className="py-3 pr-3 text-xs">{courier}</td>
+
+                    <td className="py-3 pr-3 text-xs">
+                      {o.waybill ? (
+                        o.tracking_url ? (
+                          <a
+                            className="underline"
+                            href={o.tracking_url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {o.waybill}
+                          </a>
+                        ) : (
+                          o.waybill
+                        )
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+
+                    <td className="py-3 pr-3 text-xs text-neutral-500">
+                      {new Date(o.created_at).toLocaleString("id-ID")}
+                    </td>
+
+                    <td className="py-3 pr-3">
+                      <button
+                        disabled={!canRetry || busyId === o.midtrans_order_id}
+                        onClick={() => retryShipment(o.midtrans_order_id)}
+                        className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+                      >
+                        {busyId === o.midtrans_order_id ? "Retrying…" : "Retry Shipment"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="mt-4 text-xs text-neutral-500">
+        Retry only works when <span className="font-medium">payment_status=PAID</span> and{" "}
+        <span className="font-medium">biteship_order_id is empty</span>.
+      </div>
+    </div>
+  );
+}

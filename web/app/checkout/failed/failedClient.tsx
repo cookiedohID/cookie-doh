@@ -1,154 +1,91 @@
 "use client";
 
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-const WHATSAPP_NUMBER = "6281932181818";
-const SUPPORT_EMAIL = "hello@cookiedoh.co.id";
+const WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || "6281932181818";
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "hello@cookiedoh.co.id";
+
+function waLink(text: string) {
+  const msg = encodeURIComponent(text);
+  return `https://wa.me/${WHATSAPP}?text=${msg}`;
+}
 
 export default function FailedClient() {
   const sp = useSearchParams();
-  const orderId = sp.get("order_id") || "—";
+  const [copied, setCopied] = useState(false);
 
-  const waText = encodeURIComponent(
-    `Hi Cookie Doh 💙\n\nMy payment failed.\nOrder ID: ${orderId}\n\nCan you help me retry / confirm if the order went through?`
-  );
+  const orderId = useMemo(() => {
+    return sp.get("order_id") || sp.get("orderId") || sp.get("id") || "";
+  }, [sp]);
+
+  async function copyOrderId() {
+    if (!orderId) return;
+    try {
+      await navigator.clipboard.writeText(orderId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // ignore
+    }
+  }
+
+  const supportMsg = orderId
+    ? `Hi Cookie Doh, my payment failed. Order ID: ${orderId}`
+    : `Hi Cookie Doh, my payment failed.`;
 
   return (
-    <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <div
-        style={{
-          display: "inline-flex",
-          gap: 10,
-          alignItems: "center",
-          padding: "8px 12px",
-          borderRadius: 999,
-          border: "1px solid rgba(0,0,0,0.10)",
-          background: "rgba(0,0,0,0.02)",
-          fontWeight: 950,
-          fontSize: 12,
-        }}
-      >
-        ⚠️ COOKIE DOH <span style={{ opacity: 0.65, fontWeight: 900 }}>Payment failed</span>
+    <div className="mx-auto w-full max-w-2xl px-4 py-10">
+      <div className="rounded-3xl border bg-white p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Payment failed ❌</h1>
+            <p className="mt-2 text-sm text-neutral-600">
+              Your payment wasn’t completed. You can try again or contact support.
+            </p>
+          </div>
+          <div className="rounded-2xl bg-black px-3 py-2 text-xs font-medium text-white">
+            Failed
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border bg-neutral-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-xs text-neutral-500">Order ID</div>
+              <div className="mt-1 font-mono text-sm">{orderId || "—"}</div>
+            </div>
+            <button
+              onClick={copyOrderId}
+              disabled={!orderId}
+              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm transition hover:bg-neutral-100 disabled:opacity-50"
+            >
+              {copied ? "Copied ✅" : "Copy Order ID"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <a
+            href={waLink(supportMsg)}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-2xl bg-black px-5 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            WhatsApp Support
+          </a>
+          <a
+            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Payment Failed")}&body=${encodeURIComponent(supportMsg)}`}
+            className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-neutral-100"
+          >
+            Email Support
+          </a>
+        </div>
+
+        <div className="mt-6 text-xs text-neutral-500">
+          If you already got charged, contact us immediately with your Order ID.
+        </div>
       </div>
-
-      <h1 style={{ margin: "12px 0 8px", fontSize: 32, letterSpacing: -0.3 }}>Payment didn’t go through</h1>
-
-      <p style={{ margin: 0, color: "rgba(0,0,0,0.70)", lineHeight: 1.55, maxWidth: 720 }}>
-        It’s okay — this can happen. Your cart is still saved. Please retry from checkout, or contact us and we’ll help.
-      </p>
-
-      <section
-        style={{
-          marginTop: 16,
-          borderRadius: 18,
-          border: "1px solid rgba(0,0,0,0.10)",
-          background: "#fff",
-          padding: 16,
-        }}
-      >
-        <div style={{ fontWeight: 950, marginBottom: 6 }}>Order reference</div>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 12px",
-            borderRadius: 14,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: "rgba(0,0,0,0.02)",
-            fontWeight: 1000,
-            letterSpacing: 0.2,
-          }}
-        >
-          {orderId}
-        </div>
-      </section>
-
-      <section
-        style={{
-          marginTop: 14,
-          borderRadius: 18,
-          border: "1px solid rgba(0,0,0,0.10)",
-          background: "rgba(0,0,0,0.02)",
-          padding: 16,
-        }}
-      >
-        <div style={{ fontWeight: 950, marginBottom: 6 }}>Try again</div>
-
-        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Link
-            href="/checkout"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "12px 14px",
-              borderRadius: 14,
-              textDecoration: "none",
-              background: "var(--brand-blue)",
-              color: "#fff",
-              fontWeight: 1000,
-            }}
-          >
-            Back to checkout →
-          </Link>
-
-          <Link
-            href="/cart"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "12px 14px",
-              borderRadius: 14,
-              textDecoration: "none",
-              border: "1px solid rgba(0,0,0,0.12)",
-              background: "#fff",
-              color: "inherit",
-              fontWeight: 950,
-            }}
-          >
-            Back to cart
-          </Link>
-
-          <a
-            href={`https://wa.me/${WHATSAPP_NUMBER}?text=${waText}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "12px 14px",
-              borderRadius: 14,
-              textDecoration: "none",
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "#fff",
-              color: "inherit",
-              fontWeight: 950,
-            }}
-          >
-            WhatsApp support →
-          </a>
-
-          <a
-            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Cookie Doh Payment Failed ${orderId}`)}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "12px 14px",
-              borderRadius: 14,
-              textDecoration: "none",
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "#fff",
-              color: "inherit",
-              fontWeight: 950,
-            }}
-          >
-            Email →
-          </a>
-        </div>
-      </section>
-    </main>
+    </div>
   );
 }

@@ -1,202 +1,91 @@
 "use client";
 
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-const WHATSAPP_NUMBER = "6281932181818";
-const SUPPORT_EMAIL = "hello@cookiedoh.co.id";
+const WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || "6281932181818";
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "hello@cookiedoh.co.id";
+
+function waLink(text: string) {
+  const msg = encodeURIComponent(text);
+  return `https://wa.me/${WHATSAPP}?text=${msg}`;
+}
 
 export default function SuccessClient() {
   const sp = useSearchParams();
-  const orderId = sp.get("order_id") || "—";
+  const [copied, setCopied] = useState(false);
 
-  const waText = encodeURIComponent(
-    `Hi Cookie Doh 💙\n\nI just placed an order.\nOrder ID: ${orderId}\n\nCan you help me track it?`
-  );
+  const orderId = useMemo(() => {
+    return sp.get("order_id") || sp.get("orderId") || sp.get("id") || "";
+  }, [sp]);
+
+  async function copyOrderId() {
+    if (!orderId) return;
+    try {
+      await navigator.clipboard.writeText(orderId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // ignore
+    }
+  }
+
+  const supportMsg = orderId
+    ? `Hi Cookie Doh, I need help with my order. Order ID: ${orderId}`
+    : `Hi Cookie Doh, I need help with my order.`;
 
   return (
-    <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <div
-        style={{
-          display: "inline-flex",
-          gap: 10,
-          alignItems: "center",
-          padding: "8px 12px",
-          borderRadius: 999,
-          border: "1px solid rgba(0,0,0,0.10)",
-          background: "rgba(0,0,0,0.02)",
-          fontWeight: 950,
-          fontSize: 12,
-        }}
-      >
-        ✅ COOKIE DOH <span style={{ opacity: 0.65, fontWeight: 900 }}>Payment successful</span>
+    <div className="mx-auto w-full max-w-2xl px-4 py-10">
+      <div className="rounded-3xl border bg-white p-6 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Payment successful 🎉</h1>
+            <p className="mt-2 text-sm text-neutral-600">
+              We’ve received your payment. We’ll prepare your cookies and arrange shipping.
+            </p>
+          </div>
+          <div className="rounded-2xl bg-black px-3 py-2 text-xs font-medium text-white">
+            Success
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border bg-neutral-50 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-xs text-neutral-500">Order ID</div>
+              <div className="mt-1 font-mono text-sm">{orderId || "—"}</div>
+            </div>
+            <button
+              onClick={copyOrderId}
+              disabled={!orderId}
+              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm transition hover:bg-neutral-100 disabled:opacity-50"
+            >
+              {copied ? "Copied ✅" : "Copy Order ID"}
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <a
+            href={waLink(supportMsg)}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-2xl bg-black px-5 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            WhatsApp Support
+          </a>
+          <a
+            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Order Support")}&body=${encodeURIComponent(supportMsg)}`}
+            className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-neutral-100"
+          >
+            Email Support
+          </a>
+        </div>
+
+        <div className="mt-6 text-xs text-neutral-500">
+          Tip: Keep your Order ID for faster support and tracking.
+        </div>
       </div>
-
-      <h1 style={{ margin: "12px 0 8px", fontSize: 32, letterSpacing: -0.3 }}>You’re all set 🎉</h1>
-
-      <p style={{ margin: 0, color: "rgba(0,0,0,0.70)", lineHeight: 1.55, maxWidth: 720 }}>
-        Payment confirmed. We’re preparing your cookies right now. We’ll notify you when your order is on the way.
-      </p>
-
-      <section
-        style={{
-          marginTop: 16,
-          borderRadius: 18,
-          border: "1px solid rgba(0,0,0,0.10)",
-          background: "#fff",
-          padding: 16,
-        }}
-      >
-        <div style={{ fontWeight: 950, marginBottom: 6 }}>Order reference</div>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "10px 12px",
-            borderRadius: 14,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: "rgba(0,0,0,0.02)",
-            fontWeight: 1000,
-            letterSpacing: 0.2,
-          }}
-        >
-          {orderId}
-        </div>
-
-        <div style={{ marginTop: 10, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.5 }}>
-          Keep this order ID for quick support. If you chose instant delivery (Jakarta), you’ll usually get updates faster.
-        </div>
-      </section>
-
-      <section
-        style={{
-          marginTop: 14,
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 12,
-        }}
-      >
-        <div
-          style={{
-            borderRadius: 18,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: "#fff",
-            padding: 16,
-          }}
-        >
-          <div style={{ fontWeight: 950, marginBottom: 6 }}>What happens next</div>
-          <ol style={{ margin: 0, paddingLeft: 18, color: "rgba(0,0,0,0.75)", lineHeight: 1.6 }}>
-            <li>We prepare your cookies (fresh + packed).</li>
-            <li>Courier is assigned based on your selection & location.</li>
-            <li>You’ll receive delivery updates via WhatsApp / email.</li>
-          </ol>
-        </div>
-
-        <div
-          style={{
-            borderRadius: 18,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: "#fff",
-            padding: 16,
-          }}
-        >
-          <div style={{ fontWeight: 950, marginBottom: 6 }}>Need help?</div>
-          <div style={{ color: "rgba(0,0,0,0.75)", lineHeight: 1.55, marginBottom: 12 }}>
-            Message us anytime with your Order ID — we’ll help quickly.
-          </div>
-
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <a
-              href={`https://wa.me/${WHATSAPP_NUMBER}?text=${waText}`}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "12px 14px",
-                borderRadius: 14,
-                textDecoration: "none",
-                border: "1px solid rgba(0,0,0,0.10)",
-                background: "rgba(0,0,0,0.02)",
-                color: "inherit",
-                fontWeight: 950,
-              }}
-            >
-              WhatsApp us →
-            </a>
-
-            <a
-              href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Cookie Doh Order ${orderId}`)}`}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "12px 14px",
-                borderRadius: 14,
-                textDecoration: "none",
-                border: "1px solid rgba(0,0,0,0.10)",
-                background: "rgba(0,0,0,0.02)",
-                color: "inherit",
-                fontWeight: 950,
-              }}
-            >
-              Email →
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section
-        style={{
-          marginTop: 14,
-          borderRadius: 18,
-          border: "1px solid rgba(0,0,0,0.10)",
-          background: "rgba(0,0,0,0.02)",
-          padding: 16,
-        }}
-      >
-        <div style={{ fontWeight: 950, marginBottom: 6 }}>Track your orders</div>
-        <div style={{ color: "rgba(0,0,0,0.75)", lineHeight: 1.55, marginBottom: 12 }}>
-          Guest checkout is totally fine. If you want an order history + tracking page, continue with Google.
-        </div>
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Link
-            href="/login"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "12px 14px",
-              borderRadius: 14,
-              textDecoration: "none",
-              background: "var(--brand-blue)",
-              color: "#fff",
-              fontWeight: 1000,
-            }}
-          >
-            Continue with Google →
-          </Link>
-
-          <Link
-            href="/build"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "12px 14px",
-              borderRadius: 14,
-              textDecoration: "none",
-              border: "1px solid rgba(0,0,0,0.12)",
-              background: "#fff",
-              color: "inherit",
-              fontWeight: 950,
-            }}
-          >
-            Build another box
-          </Link>
-        </div>
-      </section>
-    </main>
+    </div>
   );
 }
