@@ -1,6 +1,3 @@
-cd /Users/angeltan/cookie-doh
-
-cat > web/app/api/midtrans/snap-token/route.ts <<'EOF'
 import { NextResponse } from "next/server";
 import midtransClient from "midtrans-client";
 import { supabaseServer } from "@/lib/supabaseServer";
@@ -15,8 +12,7 @@ type Item = {
 };
 
 function normalizePhone(p: string) {
-  const digits = String(p || "").replace(/\D/g, "");
-  return digits;
+  return String(p || "").replace(/\D/g, "");
 }
 
 export async function POST(req: Request) {
@@ -33,38 +29,18 @@ export async function POST(req: Request) {
     const items: Item[] = Array.isArray(body?.items) ? body.items : [];
     if (!items.length) return NextResponse.json({ error: "No items" }, { status: 400 });
 
-    // --- Customer (required because your DB has NOT NULL customer_name) ---
     const customerName =
       String(body?.customer?.name ?? "").trim() ||
-      String(
-        `${body?.customer?.first_name ?? ""} ${body?.customer?.last_name ?? ""}`.trim()
-      ).trim();
+      String(`${body?.customer?.first_name ?? ""} ${body?.customer?.last_name ?? ""}`.trim()).trim();
 
     const customerPhoneRaw = String(body?.customer?.phone ?? "").trim();
-    const customerPhone = normalizePhone(customerPhoneRaw);
+    const customerPhoneDigits = normalizePhone(customerPhoneRaw);
 
-    if (!customerName) {
-      return NextResponse.json({ error: "Missing customer.name" }, { status: 400 });
-    }
-    if (customerPhone.length < 9) {
+    if (!customerName) return NextResponse.json({ error: "Missing customer.name" }, { status: 400 });
+    if (customerPhoneDigits.length < 9) {
       return NextResponse.json({ error: "Missing/invalid customer.phone" }, { status: 400 });
     }
 
-    // --- Shipping (recommended, because webhook + Biteship needs it) ---
-    const shippingAddress = String(body?.shipping?.address ?? "").trim();
-    const destination_area_id = String(body?.shipping?.destination_area_id ?? "").trim();
-    const destination_area_label = String(body?.shipping?.destination_area_label ?? "").trim();
-
-    const courier_company = String(body?.shipping?.courier_company ?? "").trim() || null;
-    const courier_type = String(body?.shipping?.courier_type ?? "").trim() || null;
-    const courier_service = String(body?.shipping?.courier_service ?? "").trim() || null;
-
-    // If you want shipping required, uncomment these:
-    // if (!shippingAddress) return NextResponse.json({ error: "Missing shipping.address" }, { status: 400 });
-    // if (!destination_area_id) return NextResponse.json({ error: "Missing shipping.destination_area_id" }, { status: 400 });
-    // if (!courier_company || !courier_type) return NextResponse.json({ error: "Missing courier selection" }, { status: 400 });
-
-    // sanitize items
     const safeItems = items.map((it) => ({
       id: String(it.id),
       name: String(it.name).slice(0, 50),
@@ -79,7 +55,14 @@ export async function POST(req: Request) {
 
     const midtrans_order_id = `CD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    // --- Save order to Supabase ---
+    const shippingAddress = String(body?.shipping?.address ?? "").trim();
+    const destination_area_id = String(body?.shipping?.destination_area_id ?? "").trim();
+    const destination_area_label = String(body?.shipping?.destination_area_label ?? "").trim();
+
+    const courier_company = String(body?.shipping?.courier_company ?? "").trim() || null;
+    const courier_type = String(body?.shipping?.courier_type ?? "").trim() || null;
+    const courier_service = String(body?.shipping?.courier_service ?? "").trim() || null;
+
     const supabase = supabaseServer();
 
     const insertPayload: any = {
@@ -91,16 +74,16 @@ export async function POST(req: Request) {
       shipping_json: body?.shipping ?? null,
       midtrans_status: "created",
 
-      // These fix your NOT NULL constraint:
+      // for NOT NULL columns
       customer_name: customerName,
       customer_phone: customerPhoneRaw,
 
-      // Optional useful shipping fields if you have columns:
+      // optional shipping columns (only if they exist in your table)
       shipping_address: shippingAddress || null,
       destination_area_id: destination_area_id || null,
       destination_area_label: destination_area_label || null,
 
-      // Optional courier columns:
+      // optional courier columns
       courier_company,
       courier_type,
       courier_service,
@@ -117,7 +100,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: dbErr.message }, { status: 500 });
     }
 
-    // --- Create Snap transaction ---
     const snap = new midtransClient.Snap({
       isProduction: process.env.MIDTRANS_IS_PRODUCTION === "true",
       serverKey: process.env.MIDTRANS_SERVER_KEY,
@@ -148,7 +130,7 @@ export async function POST(req: Request) {
     console.error("snap-token error:", err);
     const message =
       err?.message || err?.ApiResponse?.status_message || err?.status_message || String(err);
+
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-EOF
