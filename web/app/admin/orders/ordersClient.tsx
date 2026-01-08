@@ -23,6 +23,37 @@ type AdminOrder = {
   destination_area_id: string | null;
 };
 
+const SUPPORT_WA = process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || "6281932181818";
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "hello@cookiedoh.co.id";
+
+function formatIDR(n: number | null) {
+  if (typeof n !== "number") return "-";
+  return `Rp ${n.toLocaleString("id-ID")}`;
+}
+
+function buildWhatsappMsg(o: AdminOrder) {
+  const orderNo = o.order_no ?? "-";
+  const total = formatIDR(o.total_idr);
+  const pay = String(o.payment_status ?? "").toUpperCase();
+  const ship = o.shipment_status ?? "-";
+  const track = o.tracking_url ? `Tracking: ${o.tracking_url}` : "";
+
+  return [
+    `Hi ${o.customer_name} 👋`,
+    ``,
+    `Thank you for ordering Cookie Doh 💙🤍`,
+    `Order: ${orderNo}`,
+    `Total: ${total}`,
+    `Payment status: ${pay}`,
+    ship ? `Shipment status: ${ship}` : ``,
+    track,
+    ``,
+    `If you need help, reply here or email ${SUPPORT_EMAIL}.`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export default function OrdersClient() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,8 +61,8 @@ export default function OrdersClient() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ new: filter toggle
   const [onlyPaidNotShipped, setOnlyPaidNotShipped] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -54,7 +85,6 @@ export default function OrdersClient() {
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-
     let list = orders;
 
     if (onlyPaidNotShipped) {
@@ -161,6 +191,23 @@ export default function OrdersClient() {
     }
   }
 
+  async function copyWhatsapp(o: AdminOrder) {
+    const key = o.midtrans_order_id;
+    try {
+      const text = buildWhatsappMsg(o);
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 1200);
+    } catch {
+      setErr("Clipboard copy failed (browser blocked).");
+    }
+  }
+
+  function openWhatsapp(o: AdminOrder) {
+    const text = encodeURIComponent(buildWhatsappMsg(o));
+    window.open(`https://wa.me/${SUPPORT_WA}?text=${text}`, "_blank", "noreferrer");
+  }
+
   return (
     <div className="rounded-3xl border bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -199,7 +246,7 @@ export default function OrdersClient() {
       ) : null}
 
       <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[1280px] text-left text-sm">
+        <table className="w-full min-w-[1400px] text-left text-sm">
           <thead className="text-xs text-neutral-500">
             <tr className="border-b">
               <th className="py-3 pr-3">Order</th>
@@ -234,6 +281,9 @@ export default function OrdersClient() {
                 const canCreateShipment = paid && !hasShipment;
                 const canRetry = paid && !hasShipment;
 
+                const copyLabel =
+                  copiedKey === o.midtrans_order_id ? "Copied ✅" : "Copy WA Msg";
+
                 return (
                   <tr key={o.id} className="border-b last:border-0">
                     <td className="py-3 pr-3">
@@ -246,9 +296,7 @@ export default function OrdersClient() {
                       <div className="mt-1 text-xs text-neutral-500">{o.customer_phone}</div>
                     </td>
 
-                    <td className="py-3 pr-3">
-                      {typeof o.total_idr === "number" ? `Rp ${o.total_idr.toLocaleString("id-ID")}` : "-"}
-                    </td>
+                    <td className="py-3 pr-3">{formatIDR(o.total_idr)}</td>
 
                     <td className="py-3 pr-3">
                       <span className="rounded-xl border px-2 py-1 text-xs">{o.payment_status}</span>
@@ -286,11 +334,28 @@ export default function OrdersClient() {
                     <td className="py-3 pr-3">
                       <div className="flex flex-wrap gap-2">
                         <button
+                          disabled={busyId === o.midtrans_order_id}
+                          onClick={() => copyWhatsapp(o)}
+                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+                        >
+                          {copyLabel}
+                        </button>
+
+                        <button
+                          disabled={busyId === o.midtrans_order_id}
+                          onClick={() => openWhatsapp(o)}
+                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+                          title="Open WhatsApp Web with message"
+                        >
+                          Open WA
+                        </button>
+
+                        <button
                           disabled={paid || busyId === o.midtrans_order_id}
                           onClick={() => markPaid(o.midtrans_order_id)}
                           className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
                         >
-                          {busyId === o.midtrans_order_id ? "Working…" : "Mark Paid"}
+                          Mark Paid
                         </button>
 
                         <button
@@ -298,7 +363,7 @@ export default function OrdersClient() {
                           onClick={() => createShipment(o.midtrans_order_id)}
                           className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
                         >
-                          {busyId === o.midtrans_order_id ? "Working…" : "Create Shipment"}
+                          Create Shipment
                         </button>
 
                         <button
@@ -316,7 +381,7 @@ export default function OrdersClient() {
                           className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
                           title="Use after you’ve packed + handed off / completed delivery"
                         >
-                          {busyId === o.midtrans_order_id ? "Working…" : fulfilled ? "Fulfilled ✅" : "Mark Fulfilled"}
+                          {fulfilled ? "Fulfilled ✅" : "Mark Fulfilled"}
                         </button>
                       </div>
                     </td>
@@ -329,8 +394,7 @@ export default function OrdersClient() {
       </div>
 
       <div className="mt-4 text-xs text-neutral-500">
-        Ops flow: <span className="font-medium">Mark Paid</span> → <span className="font-medium">Create Shipment</span> →{" "}
-        <span className="font-medium">Mark Fulfilled</span>.
+        WhatsApp shortcut: Copy message → paste to customer chat, or Open WA.
       </div>
     </div>
   );
