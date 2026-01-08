@@ -8,7 +8,7 @@ const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "hello@cookiedoh.
 
 function waLink(text: string) {
   const msg = encodeURIComponent(text);
-  return `https://wa.me/${WHATSAPP}?text=${msg}`;
+  return `https://wa.me/6281932181818`;
 }
 
 export default function SuccessClient() {

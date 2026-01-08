@@ -205,7 +205,7 @@ export default function OrdersClient() {
 
   function openWhatsapp(o: AdminOrder) {
     const text = encodeURIComponent(buildWhatsappMsg(o));
-    window.open(`https://wa.me/${SUPPORT_WA}?text=${text}`, "_blank", "noreferrer");
+    window.open(`https://wa.me/6281932181818`, "_blank", "noreferrer");
   }
 
   return (

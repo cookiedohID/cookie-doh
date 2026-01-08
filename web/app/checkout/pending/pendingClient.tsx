@@ -11,18 +11,18 @@ const PAYMENT_INSTRUCTIONS = [
   "Manual Payment Instructions",
   "",
   "1) Transfer to:",
-  "   BCA: 1234567890 a/n Cookie Doh (CHANGE THIS)",
+  "   BCA: 622-0372918 a/n Angelia Tania",
   "   OR QRIS: (CHANGE THIS)",
   "",
   "2) Send proof of transfer to WhatsApp:",
-  `   wa.me/${WHATSAPP}`,
+  `   wa.me/6281932181818`,
   "",
   "3) We will confirm & process your order after payment is received.",
 ].join("\n");
 
 function waLink(text: string) {
   const msg = encodeURIComponent(text);
-  return `https://wa.me/${WHATSAPP}?text=${msg}`;
+  return `https://wa.me/6281932181818`;
 }
 
 export default function PendingClient() {
