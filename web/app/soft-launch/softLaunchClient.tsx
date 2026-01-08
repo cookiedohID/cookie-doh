@@ -5,18 +5,41 @@ import { useMemo, useState } from "react";
 export default function SoftLaunchClient({ nextPath }: { nextPath: string }) {
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const next = useMemo(() => {
-    // basic safety: only allow internal paths
     if (!nextPath || !nextPath.startsWith("/")) return "/";
     return nextPath;
   }, [nextPath]);
 
-  function enter() {
+  async function enter() {
     const p = pass.trim();
-    if (!p) return;
-    // proxy.ts will validate pass and set cookie, then redirect to next
-    window.location.href = `/soft-launch?next=${encodeURIComponent(next)}&pass=${encodeURIComponent(p)}`;
+    if (!p) {
+      setErr("Please enter password.");
+      return;
+    }
+
+    setLoading(true);
+    setErr(null);
+
+    try {
+      const res = await fetch("/api/soft-launch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pass: p, next }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Wrong password");
+
+      const go = json?.next && typeof json.next === "string" ? json.next : next;
+      window.location.href = go;
+    } catch (e: any) {
+      setErr(e?.message ?? "Wrong password");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -34,8 +57,15 @@ export default function SoftLaunchClient({ nextPath }: { nextPath: string }) {
           </div>
         </div>
 
+        {err ? (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {err}
+          </div>
+        ) : null}
+
         <div className="mt-6 space-y-2">
           <label className="text-xs text-neutral-500">Access password</label>
+
           <div className="flex gap-2">
             <input
               value={pass}
@@ -46,8 +76,15 @@ export default function SoftLaunchClient({ nextPath }: { nextPath: string }) {
               onKeyDown={(e) => {
                 if (e.key === "Enter") enter();
               }}
+              // Autofill suppression (not 100%, but helps a lot)
+              autoComplete="new-password"
+              name="cd_softlaunch_password"
+              data-lpignore="true"
+              data-form-type="other"
             />
+
             <button
+              type="button"
               onClick={() => setShow((v) => !v)}
               className="rounded-2xl border bg-white px-4 py-3 text-sm font-semibold hover:bg-neutral-100"
             >
@@ -56,10 +93,12 @@ export default function SoftLaunchClient({ nextPath }: { nextPath: string }) {
           </div>
 
           <button
+            type="button"
             onClick={enter}
-            className="mt-3 w-full rounded-2xl bg-black px-5 py-3 text-sm font-semibold text-white hover:opacity-90"
+            disabled={loading}
+            className="mt-3 w-full rounded-2xl bg-black px-5 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
-            Enter
+            {loading ? "Entering…" : "Enter"}
           </button>
 
           <p className="mt-3 text-xs text-neutral-500">

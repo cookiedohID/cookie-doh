@@ -61,9 +61,9 @@ function softLaunchEnabled() {
 }
 
 export default function proxy(req: NextRequest) {
-  const { pathname, searchParams } = req.nextUrl;
+  const { pathname } = req.nextUrl;
 
-  // Always allow Next assets
+  // allow next assets
   if (isPublicAsset(pathname)) return NextResponse.next();
 
   // 1) Admin protection (Basic Auth)
@@ -72,42 +72,19 @@ export default function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2) Allow all /api (so payments/webhooks still work)
-  // If you want to block some APIs too, we can tighten later.
+  // 2) Allow all /api (so webhooks/payments still work)
+  // Admin API is already protected above.
   if (isApiRoute(pathname)) return NextResponse.next();
 
-  // 3) Soft Launch Gate (blocks public)
+  // 3) Soft Launch Gate (public pages)
   if (softLaunchEnabled()) {
     const cookie = req.cookies.get("cd_softlaunch")?.value;
     const alreadyAuthed = cookie === "1";
 
-    // allow visiting the gate page itself
+    // allow the gate page itself
     if (pathname === "/soft-launch") return NextResponse.next();
 
-    // password pass via query: ?pass=XXX&next=/some/path
-    const pass = searchParams.get("pass");
-    const next = searchParams.get("next") || "/";
-
-    const expected = process.env.SOFT_LAUNCH_PASS || "";
-
-    if (!alreadyAuthed && pass && expected && pass === expected) {
-      // set cookie and redirect to intended destination
-      const url = req.nextUrl.clone();
-      url.pathname = next;
-      url.search = "";
-      const res = NextResponse.redirect(url);
-      res.cookies.set("cd_softlaunch", "1", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-      });
-      return res;
-    }
-
     if (!alreadyAuthed) {
-      // send user to gate with next=their requested path
       const url = req.nextUrl.clone();
       url.pathname = "/soft-launch";
       url.searchParams.set("next", pathname);
