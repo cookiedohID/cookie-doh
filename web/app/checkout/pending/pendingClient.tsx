@@ -11,10 +11,11 @@ const PAYMENT_INSTRUCTIONS = [
   "Manual Payment Instructions",
   "",
   "1) Transfer to:",
-  "   BCA: 622-0372918 a/n Angelia Tania",
+  "   BCA: 1234567890 a/n Cookie Doh (CHANGE THIS)",
   "   OR QRIS: (CHANGE THIS)",
   "",
   "2) Send proof of transfer to WhatsApp:",
+  `   wa.me/${WHATSAPP}`,
   "",
   "3) We will confirm & process your order after payment is received.",
 ].join("\n");
@@ -24,9 +25,11 @@ function formatIDR(n?: number | null) {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
-function waLink(text: string) {
-  const msg = encodeURIComponent(text);
-  return `https://wa.me/6281932181818`;
+// ✅ More reliable than wa.me for prefilling text
+function whatsappSendLink(phone: string, text: string) {
+  const p = String(phone).replace(/[^\d]/g, "");
+  const t = encodeURIComponent(text);
+  return `https://api.whatsapp.com/send?phone=${p}&text=${t}`;
 }
 
 function normalizeItems(itemsJson: any): Array<{ name: string; qty: number }> {
@@ -40,7 +43,7 @@ function normalizeItems(itemsJson: any): Array<{ name: string; qty: number }> {
     }
   }
 
-  // ✅ NEW FORMAT: { summary: [{flavorName, qty}] }
+  // NEW format: { summary: [{flavorName, qty}] }
   if (items && Array.isArray(items.summary)) {
     return items.summary.map((x: any) => ({
       name: String(x?.flavorName ?? x?.name ?? "Item"),
@@ -88,6 +91,7 @@ export default function PendingClient() {
 
   const [copiedId, setCopiedId] = useState(false);
   const [copiedPay, setCopiedPay] = useState(false);
+  const [copiedWa, setCopiedWa] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -169,6 +173,20 @@ export default function PendingClient() {
     ].join("\n");
   }, [order, orderId, items]);
 
+  async function copyWaMessage() {
+    try {
+      await navigator.clipboard.writeText(waMessage);
+      setCopiedWa(true);
+      setTimeout(() => setCopiedWa(false), 1200);
+    } catch {}
+  }
+
+  function openWa() {
+    // Use api.whatsapp.com (reliable auto-fill)
+    const url = whatsappSendLink(WHATSAPP, waMessage);
+    window.open(url, "_blank", "noreferrer");
+  }
+
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-10">
       <div className="rounded-3xl border bg-white p-6 shadow-sm">
@@ -176,12 +194,13 @@ export default function PendingClient() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Order placed · Payment pending ⏳</h1>
             <p className="mt-2 text-sm text-neutral-600">
-              Please complete payment using the instructions below, then send proof via WhatsApp.
+              Complete payment using the instructions below, then send proof via WhatsApp (message auto-filled).
             </p>
           </div>
           <div className="rounded-2xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white">Pending</div>
         </div>
 
+        {/* Order ID */}
         <div className="mt-6 rounded-2xl border bg-neutral-50 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -200,6 +219,7 @@ export default function PendingClient() {
           </div>
         </div>
 
+        {/* Summary */}
         <div className="mt-6 rounded-2xl border bg-white p-4">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-neutral-800">Order Summary</div>
@@ -266,6 +286,7 @@ export default function PendingClient() {
           ) : null}
         </div>
 
+        {/* Payment instructions */}
         <div className="mt-6 rounded-2xl border bg-white p-4">
           <div className="text-xs font-semibold text-neutral-700">Payment Instructions</div>
           <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-xs text-neutral-700">
@@ -280,26 +301,51 @@ export default function PendingClient() {
           </button>
         </div>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <a
-            href={waLink(waMessage)}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-2xl bg-black px-5 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90"
-          >
-            Send Proof via WhatsApp (Auto-filled)
-          </a>
+        {/* WhatsApp proof */}
+        <div className="mt-6 rounded-2xl border bg-white p-4">
+          <div className="text-xs font-semibold text-neutral-700">WhatsApp message (auto-filled)</div>
+          <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-xs text-neutral-700">
+            {waMessage}
+          </pre>
 
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <button
+              onClick={openWa}
+              className="rounded-2xl bg-black px-5 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90"
+            >
+              Open WhatsApp (Auto-filled)
+            </button>
+
+            <button
+              onClick={copyWaMessage}
+              className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-neutral-100"
+            >
+              {copiedWa ? "Copied ✅" : "Copy WhatsApp Message"}
+            </button>
+          </div>
+
+          <div className="mt-3 text-xs text-neutral-500">
+            If WhatsApp opens without text (rare on some phones), tap “Copy WhatsApp Message” and paste into chat.
+          </div>
+        </div>
+
+        {/* Email support */}
+        <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <a
             href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Manual Payment Proof")}&body=${encodeURIComponent(waMessage)}`}
             className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-neutral-100"
           >
             Email Support
           </a>
-        </div>
 
-        <div className="mt-4 text-xs text-neutral-500">
-          Tip: WhatsApp is fastest (it includes your order details automatically).
+          <a
+            href={`https://wa.me/${WHATSAPP}`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-neutral-100"
+          >
+            Open WhatsApp (no message)
+          </a>
         </div>
       </div>
     </div>
