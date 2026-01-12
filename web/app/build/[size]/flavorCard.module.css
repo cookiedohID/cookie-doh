@@ -45,15 +45,16 @@
   flex-direction: column;
   gap: 10px;
 
-  /* ✅ give text full width, reserve space for qty pill overlay */
-  padding-right: 76px;
+  /* ✅ smaller reserve so text gets wider */
+  padding-right: 54px;
   position: relative;
 }
 
-/* ✅ make qty pill overlay so it doesn't steal layout width */
 .qtyPill {
-  min-width: 38px;
-  height: 32px;
+  /* ✅ slightly smaller pill */
+  min-width: 32px;
+  height: 28px;
+
   border-radius: 999px;
   border: 1px solid rgba(0, 0, 0, 0.12);
   display: grid;
@@ -62,12 +63,12 @@
   overflow: hidden;
 
   position: absolute;
-  /* top aligned to the first row (title area) inside the body */
-  top: 18px;
+  top: 14px;
   right: 14px;
   z-index: 3;
   background: #fff;
 }
+
 
 .pulse {
   animation: pulse 420ms ease-out;
