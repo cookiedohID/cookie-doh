@@ -69,11 +69,10 @@ const PAYMENT_INSTRUCTIONS = [
   "Manual Payment Instructions",
   "",
   "1) Transfer to:",
-  "   BCA 622-0372918 a/n Angelia Tania",
-  
+  "   BCA: 622-0372918 a/n Angelia Tania",
+  "   OR QRIS: (CHANGE THIS)",
   "",
   "2) Send proof of transfer to WhatsApp:",
-  `   wa.me/6281932181818`,
   "",
   "3) We will confirm & process your order after payment is received.",
 ].join("\n");
@@ -118,6 +117,41 @@ function legacyCartToMidtransItems(cart: LegacyCartItem[]): MidtransItem[] {
     });
   }
   return items;
+}
+
+function buildRichItemsJson(cart: LegacyCartItem[]) {
+  // Output:
+  // {
+  //   boxes: [{ boxSize, price, createdAt, items:[{flavorId, flavorName, qty}] }],
+  //   summary: [{ flavorId, flavorName, qty }],
+  // }
+  const boxes = cart.map((box) => ({
+    boxSize: box.boxSize,
+    price: Math.max(0, Math.round(Number(box.price) || 0)),
+    createdAt: box.createdAt,
+    items: (box.items || []).map((it) => {
+      const f = FLAVORS.find((ff) => ff.id === it.flavorId);
+      return {
+        flavorId: it.flavorId,
+        flavorName: f?.name ?? it.flavorId,
+        qty: Number(it.qty || 0),
+      };
+    }),
+  }));
+
+  const agg = new Map<string, { flavorId: string; flavorName: string; qty: number }>();
+  for (const b of boxes) {
+    for (const it of b.items) {
+      const key = it.flavorId;
+      const prev = agg.get(key);
+      if (prev) prev.qty += it.qty;
+      else agg.set(key, { flavorId: it.flavorId, flavorName: it.flavorName, qty: it.qty });
+    }
+  }
+
+  const summary = Array.from(agg.values()).sort((a, b) => b.qty - a.qty);
+
+  return { boxes, summary };
 }
 
 function isJakartaLabel(label: string) {
@@ -175,48 +209,6 @@ function getComp(place: any, type: string): string {
   return "";
 }
 
-
-// ===============================
-// PHONE NUMBER HELPERS (ID)
-// ===============================
-
-function onlyDigits(v: string) {
-  return v.replace(/\D/g, "");
-}
-
-function formatIndoPhoneByLength(digits: string) {
-  // Expect digits only, starting with 08
-  if (!digits) return "";
-
-  // Hard safety
-  if (!digits.startsWith("0")) return digits;
-
-  const len = digits.length;
-
-  // 08
-  if (len <= 2) return digits;
-
-  // 0812
-  if (len <= 4) return digits;
-
-  // 0812-345
-  if (len <= 7) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-
-  // 0812-3456
-  if (len <= 8) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-
-  // 0812-3456-7890
-  return `${digits.slice(0, 4)}-${digits.slice(4, 8)}-${digits.slice(8, 12)}`;
-}
-
-function isValidIndoMobile(digits: string) {
-  // must start with 08 and min 9 digits
-  return /^08\d{7,}$/.test(digits);
-}
-
-
-
-
 export default function CheckoutPage() {
   const router = useRouter();
 
@@ -273,6 +265,7 @@ export default function CheckoutPage() {
   }, []);
 
   const midtransItems = useMemo(() => legacyCartToMidtransItems(legacyCart), [legacyCart]);
+  const richItemsJson = useMemo(() => buildRichItemsJson(legacyCart), [legacyCart]);
 
   const totals = useMemo(() => {
     const subtotal = midtransItems.reduce((sum, it) => sum + it.price * it.quantity, 0);
@@ -395,11 +388,6 @@ export default function CheckoutPage() {
   }, [mapsReady]);
 
   function validateCore() {
-
-   if (!isValidIndoMobile(shipping.receiver_phone))
-  return "Phone number must start with 08 and contain at least 9 digits.";
-
-
     if (!midtransItems.length) return "Your cart is empty.";
 
     if (!shipping.receiver_name.trim()) return "Please fill receiver name.";
@@ -444,7 +432,12 @@ export default function CheckoutPage() {
           courier_company: shipping.courier_preference,
           courier_type: shipping.courier_preference === "lalamove" ? "instant" : "next_day",
 
-          items_json: midtransItems,
+          // ✅ upgraded items_json
+          items_json: {
+            ...richItemsJson,
+            midtrans_items: midtransItems,
+          },
+
           customer_json: {
             receiver_name: shipping.receiver_name,
             receiver_phone: shipping.receiver_phone,
@@ -477,7 +470,6 @@ export default function CheckoutPage() {
     if (err) return alert(err);
 
     if (!clientKey) return alert("Payment is not configured (missing client key).");
-    // ✅ FIXED: closing parenthesis
     if (!window.snap) return alert("Payment system is still loading. Please try again in a moment.");
 
     setLoading(true);
@@ -532,10 +524,8 @@ export default function CheckoutPage() {
 
   return (
     <>
-      {/* Midtrans Snap */}
       <Script src={snapSrc} data-client-key={clientKey} strategy="afterInteractive" onLoad={() => setSnapReady(true)} />
 
-      {/* Google Places */}
       {googleKey && (
         <Script
           src={`https://maps.googleapis.com/maps/api/js?key=${googleKey}&libraries=places`}
@@ -603,7 +593,6 @@ export default function CheckoutPage() {
             alignItems: "start",
           }}
         >
-          {/* Left column */}
           <div style={{ display: "grid", gap: 16, minWidth: 0 }}>
             <SectionCard title="Delivery details" subtitle="Address selection is required. Area & postal are detected automatically.">
               <div style={{ display: "grid", gap: 10 }}>
@@ -618,49 +607,12 @@ export default function CheckoutPage() {
 
                 <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
                   <div style={{ display: "grid", gap: 6 }}>
-
-
-
-                <FieldLabel>Phone</FieldLabel>
-
-                <InputBase
-                  value={formatIndoPhoneByLength(shipping.receiver_phone)}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder="08xx-xxxx-xxxx"
-                  onChange={(e: any) => {
-                    let raw = onlyDigits(e.target.value);
-
-                    // Enforce starting with 0 → 08
-                    if (raw.length === 1 && raw !== "0") return;
-                    if (raw.length >= 2 && !raw.startsWith("08")) return;
-
-                    // Optional max length safety (08 + up to 11 digits)
-                    raw = raw.slice(0, 13);
-
-                    setShipping((p) => ({
-                      ...p,
-                      receiver_phone: raw, // STORE DIGITS ONLY
-                    }));
-                  }}
-                />
-
-                {shipping.receiver_phone && (
-                  <div style={{ fontSize: 12, marginTop: 4 }}>
-                    {isValidIndoMobile(shipping.receiver_phone) ? (
-                      <span style={{ color: "green" }}>✓ Valid mobile number</span>
-                    ) : (
-                      <span style={{ color: "#b00020" }}>
-                        Phone must start with <strong>08</strong> and be at least <strong>9 digits</strong>
-                      </span>
-                    )}
-                  </div>
-                )}
-
-
-
-
-
+                    <FieldLabel>Phone</FieldLabel>
+                    <InputBase
+                      value={shipping.receiver_phone}
+                      onChange={(e: any) => setShipping((p) => ({ ...p, receiver_phone: e.target.value }))}
+                      placeholder="08xxxxxxxxxx"
+                    />
                   </div>
 
                   <div style={{ display: "grid", gap: 6 }}>
@@ -803,7 +755,6 @@ export default function CheckoutPage() {
             </SectionCard>
           </div>
 
-          {/* Right column summary */}
           <aside
             style={{
               position: isMobile ? "static" : "sticky",
@@ -858,13 +809,7 @@ export default function CheckoutPage() {
                     opacity: actionDisabled ? 0.6 : 1,
                   }}
                 >
-                  {loading
-                    ? "Processing…"
-                    : areaLoading
-                      ? "Detecting area…"
-                      : isManual
-                        ? "Place Order (Manual Payment)"
-                        : "Pay securely"}
+                  {loading ? "Processing…" : areaLoading ? "Detecting area…" : isManual ? "Place Order (Manual Payment)" : "Pay securely"}
                 </button>
 
                 <div style={{ fontSize: 12, opacity: 0.65, lineHeight: 1.4 }}>

@@ -15,7 +15,6 @@ const PAYMENT_INSTRUCTIONS = [
   "   OR QRIS: (CHANGE THIS)",
   "",
   "2) Send proof of transfer to WhatsApp:",
-  `   0819-32-181818`,
   "",
   "3) We will confirm & process your order after payment is received.",
 ].join("\n");
@@ -27,10 +26,10 @@ function formatIDR(n?: number | null) {
 
 function waLink(text: string) {
   const msg = encodeURIComponent(text);
-  return `https://wa.me/${WHATSAPP}?text=${msg}`;
+  return `https://wa.me/6281932181818`;
 }
 
-function normalizeItems(itemsJson: any): Array<{ name: string; qty: number; price?: number }> {
+function normalizeItems(itemsJson: any): Array<{ name: string; qty: number }> {
   let items: any = itemsJson;
 
   if (typeof itemsJson === "string") {
@@ -41,21 +40,35 @@ function normalizeItems(itemsJson: any): Array<{ name: string; qty: number; pric
     }
   }
 
-  // Most likely: array of MidtransItem {name, price, quantity}
+  // ✅ NEW FORMAT: { summary: [{flavorName, qty}] }
+  if (items && Array.isArray(items.summary)) {
+    return items.summary.map((x: any) => ({
+      name: String(x?.flavorName ?? x?.name ?? "Item"),
+      qty: Number(x?.qty ?? 1),
+    }));
+  }
+
+  // Old: array of MidtransItem {name, price, quantity}
   if (Array.isArray(items)) {
     return items.map((it) => ({
       name: String(it?.name ?? it?.title ?? "Item"),
       qty: Number(it?.quantity ?? it?.qty ?? 1),
-      price: typeof it?.price === "number" ? it.price : undefined,
     }));
   }
 
-  // Sometimes: {items:[...]}
+  // Old: {items:[...]}
   if (items && Array.isArray(items.items)) {
     return items.items.map((it: any) => ({
       name: String(it?.name ?? it?.title ?? "Item"),
       qty: Number(it?.quantity ?? it?.qty ?? 1),
-      price: typeof it?.price === "number" ? it.price : undefined,
+    }));
+  }
+
+  // Old: {midtrans_items:[...]}
+  if (items && Array.isArray(items.midtrans_items)) {
+    return items.midtrans_items.map((it: any) => ({
+      name: String(it?.name ?? it?.title ?? "Item"),
+      qty: Number(it?.quantity ?? it?.qty ?? 1),
     }));
   }
 
@@ -169,15 +182,12 @@ export default function PendingClient() {
           <div className="rounded-2xl bg-neutral-900 px-3 py-2 text-xs font-medium text-white">Pending</div>
         </div>
 
-        {/* Order ID */}
         <div className="mt-6 rounded-2xl border bg-neutral-50 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-xs text-neutral-500">Order ID</div>
               <div className="mt-1 font-mono text-sm">{orderId || "—"}</div>
-              {order?.order_no ? (
-                <div className="mt-1 text-xs text-neutral-500">Order No: {order.order_no}</div>
-              ) : null}
+              {order?.order_no ? <div className="mt-1 text-xs text-neutral-500">Order No: {order.order_no}</div> : null}
             </div>
 
             <button
@@ -190,7 +200,6 @@ export default function PendingClient() {
           </div>
         </div>
 
-        {/* Summary */}
         <div className="mt-6 rounded-2xl border bg-white p-4">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-neutral-800">Order Summary</div>
@@ -257,7 +266,6 @@ export default function PendingClient() {
           ) : null}
         </div>
 
-        {/* Payment instructions */}
         <div className="mt-6 rounded-2xl border bg-white p-4">
           <div className="text-xs font-semibold text-neutral-700">Payment Instructions</div>
           <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-xs text-neutral-700">
@@ -272,7 +280,6 @@ export default function PendingClient() {
           </button>
         </div>
 
-        {/* CTA buttons */}
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <a
             href={waLink(waMessage)}
@@ -292,7 +299,7 @@ export default function PendingClient() {
         </div>
 
         <div className="mt-4 text-xs text-neutral-500">
-          Tip: Use the WhatsApp button so we can verify faster (it includes your order details automatically).
+          Tip: WhatsApp is fastest (it includes your order details automatically).
         </div>
       </div>
     </div>
