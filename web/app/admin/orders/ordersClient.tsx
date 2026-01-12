@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type AdminOrder = {
   id: string;
@@ -73,6 +73,8 @@ export default function OrdersClient() {
     mq.addEventListener?.("change", apply);
     return () => mq.removeEventListener?.("change", apply);
   }, []);
+
+  const searchRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
     setLoading(true);
@@ -218,37 +220,6 @@ export default function OrdersClient() {
     window.open(`https://wa.me/${SUPPORT_WA}?text=${text}`, "_blank", "noreferrer");
   }
 
-  const Header = (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="w-full sm:max-w-md">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search order no / id / name / phone / waybill…"
-          className="w-full rounded-2xl border bg-white px-4 py-2 text-sm outline-none focus:ring-2"
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 text-xs font-semibold">
-          <input
-            type="checkbox"
-            checked={onlyPaidNotShipped}
-            onChange={(e) => setOnlyPaidNotShipped(e.target.checked)}
-          />
-          PAID & Not Shipped
-        </label>
-
-        <button
-          onClick={load}
-          className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-        >
-          Refresh
-        </button>
-      </div>
-    </div>
-  );
-
   function Actions(o: AdminOrder) {
     const paid = String(o.payment_status ?? "").toUpperCase() === "PAID";
     const fulfilled = String(o.shipment_status ?? "").toLowerCase() === "fulfilled";
@@ -272,7 +243,6 @@ export default function OrdersClient() {
           disabled={busyId === o.midtrans_order_id}
           onClick={() => openWhatsapp(o)}
           className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-          title="Open WhatsApp Web with message"
         >
           Open WA
         </button>
@@ -305,13 +275,46 @@ export default function OrdersClient() {
           disabled={!paid || busyId === o.midtrans_order_id || fulfilled}
           onClick={() => markFulfilled(o.midtrans_order_id)}
           className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-          title="Use after you’ve packed + handed off / completed delivery"
         >
           {fulfilled ? "Fulfilled ✅" : "Mark Fulfilled"}
         </button>
       </div>
     );
   }
+
+  const Header = (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="w-full sm:max-w-md">
+        <input
+          ref={searchRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search order no / id / name / phone / waybill…"
+          className="w-full rounded-2xl border bg-white px-4 py-2 text-sm outline-none focus:ring-2"
+        />
+      </div>
+
+      {!isMobile && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 text-xs font-semibold">
+            <input
+              type="checkbox"
+              checked={onlyPaidNotShipped}
+              onChange={(e) => setOnlyPaidNotShipped(e.target.checked)}
+            />
+            PAID & Not Shipped
+          </label>
+
+          <button
+            onClick={load}
+            className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          >
+            Refresh
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="rounded-3xl border bg-white p-5 shadow-sm">
@@ -323,28 +326,25 @@ export default function OrdersClient() {
         </div>
       ) : null}
 
-      {/* ✅ MOBILE: cards */}
+      {/* MOBILE: cards */}
       {isMobile ? (
-        <div className="mt-5 grid gap-3">
+        <div className="mt-5 grid gap-3 pb-24">
           {loading ? (
             <div className="text-sm text-neutral-500">Loading…</div>
           ) : filtered.length === 0 ? (
             <div className="text-sm text-neutral-500">No orders found.</div>
           ) : (
             filtered.map((o) => {
-              const paid = String(o.payment_status ?? "").toUpperCase() === "PAID";
               const fulfilled = String(o.shipment_status ?? "").toLowerCase() === "fulfilled";
 
               return (
                 <div key={o.id} className="rounded-3xl border bg-white p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-sm font-semibold">{o.order_no ?? "-"}</div>
-                      <div className="mt-1 font-mono text-xs text-neutral-500">{o.midtrans_order_id}</div>
+                      <div className="mt-1 font-mono text-xs text-neutral-500 break-all">{o.midtrans_order_id}</div>
                     </div>
-                    <span className="rounded-xl border px-2 py-1 text-xs">
-                      {o.payment_status}
-                    </span>
+                    <span className="rounded-xl border px-2 py-1 text-xs">{o.payment_status}</span>
                   </div>
 
                   <div className="mt-3 grid gap-1 text-sm">
@@ -370,16 +370,16 @@ export default function OrdersClient() {
                       <div>
                         <span className="text-neutral-500">Waybill:</span>{" "}
                         {o.tracking_url ? (
-                          <a className="underline" href={o.tracking_url} target="_blank" rel="noreferrer">
+                          <a className="underline break-all" href={o.tracking_url} target="_blank" rel="noreferrer">
                             {o.waybill}
                           </a>
                         ) : (
-                          <span className="font-mono">{o.waybill}</span>
+                          <span className="font-mono break-all">{o.waybill}</span>
                         )}
                       </div>
                     ) : o.tracking_url ? (
                       <div>
-                        <a className="underline" href={o.tracking_url} target="_blank" rel="noreferrer">
+                        <a className="underline break-all" href={o.tracking_url} target="_blank" rel="noreferrer">
                           Open tracking
                         </a>
                       </div>
@@ -395,9 +395,38 @@ export default function OrdersClient() {
               );
             })
           )}
+
+          {/* ✅ Mobile bottom action bar */}
+          <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white/95 backdrop-blur">
+            <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-3">
+              <button
+                onClick={() => {
+                  searchRef.current?.focus();
+                  searchRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+                }}
+                className="flex-1 rounded-2xl border bg-white px-3 py-3 text-sm font-semibold shadow-sm"
+              >
+                Search
+              </button>
+
+              <button
+                onClick={() => setOnlyPaidNotShipped((v) => !v)}
+                className="flex-1 rounded-2xl border bg-white px-3 py-3 text-sm font-semibold shadow-sm"
+              >
+                {onlyPaidNotShipped ? "All" : "Paid → Ship"}
+              </button>
+
+              <button
+                onClick={load}
+                className="flex-1 rounded-2xl bg-black px-3 py-3 text-sm font-semibold text-white shadow-sm"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
-        /* ✅ DESKTOP: table */
+        /* DESKTOP: table */
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[1400px] text-left text-sm">
             <thead className="text-xs text-neutral-500">
@@ -484,7 +513,7 @@ export default function OrdersClient() {
       )}
 
       <div className="mt-4 text-xs text-neutral-500">
-        Mobile: card view · Desktop: table view.
+        Mobile: bottom bar (Search / Paid→Ship / Refresh) · Desktop: table tools on header.
       </div>
     </div>
   );
