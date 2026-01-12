@@ -175,6 +175,48 @@ function getComp(place: any, type: string): string {
   return "";
 }
 
+
+// ===============================
+// PHONE NUMBER HELPERS (ID)
+// ===============================
+
+function onlyDigits(v: string) {
+  return v.replace(/\D/g, "");
+}
+
+function formatIndoPhoneByLength(digits: string) {
+  // Expect digits only, starting with 08
+  if (!digits) return "";
+
+  // Hard safety
+  if (!digits.startsWith("0")) return digits;
+
+  const len = digits.length;
+
+  // 08
+  if (len <= 2) return digits;
+
+  // 0812
+  if (len <= 4) return digits;
+
+  // 0812-345
+  if (len <= 7) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+
+  // 0812-3456
+  if (len <= 8) return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+
+  // 0812-3456-7890
+  return `${digits.slice(0, 4)}-${digits.slice(4, 8)}-${digits.slice(8, 12)}`;
+}
+
+function isValidIndoMobile(digits: string) {
+  // must start with 08 and min 9 digits
+  return /^08\d{7,}$/.test(digits);
+}
+
+
+
+
 export default function CheckoutPage() {
   const router = useRouter();
 
@@ -353,6 +395,11 @@ export default function CheckoutPage() {
   }, [mapsReady]);
 
   function validateCore() {
+
+   if (!isValidIndoMobile(shipping.receiver_phone))
+  return "Phone number must start with 08 and contain at least 9 digits.";
+
+
     if (!midtransItems.length) return "Your cart is empty.";
 
     if (!shipping.receiver_name.trim()) return "Please fill receiver name.";
@@ -571,12 +618,49 @@ export default function CheckoutPage() {
 
                 <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
                   <div style={{ display: "grid", gap: 6 }}>
-                    <FieldLabel>Phone</FieldLabel>
-                    <InputBase
-                      value={shipping.receiver_phone}
-                      onChange={(e: any) => setShipping((p) => ({ ...p, receiver_phone: e.target.value }))}
-                      placeholder="08xxxxxxxxxx"
-                    />
+
+
+
+                <FieldLabel>Phone</FieldLabel>
+
+                <InputBase
+                  value={formatIndoPhoneByLength(shipping.receiver_phone)}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="08xx-xxxx-xxxx"
+                  onChange={(e: any) => {
+                    let raw = onlyDigits(e.target.value);
+
+                    // Enforce starting with 0 → 08
+                    if (raw.length === 1 && raw !== "0") return;
+                    if (raw.length >= 2 && !raw.startsWith("08")) return;
+
+                    // Optional max length safety (08 + up to 11 digits)
+                    raw = raw.slice(0, 13);
+
+                    setShipping((p) => ({
+                      ...p,
+                      receiver_phone: raw, // STORE DIGITS ONLY
+                    }));
+                  }}
+                />
+
+                {shipping.receiver_phone && (
+                  <div style={{ fontSize: 12, marginTop: 4 }}>
+                    {isValidIndoMobile(shipping.receiver_phone) ? (
+                      <span style={{ color: "green" }}>✓ Valid mobile number</span>
+                    ) : (
+                      <span style={{ color: "#b00020" }}>
+                        Phone must start with <strong>08</strong> and be at least <strong>9 digits</strong>
+                      </span>
+                    )}
+                  </div>
+                )}
+
+
+
+
+
                   </div>
 
                   <div style={{ display: "grid", gap: 6 }}>
