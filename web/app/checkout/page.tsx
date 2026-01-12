@@ -70,7 +70,7 @@ const PAYMENT_INSTRUCTIONS = [
   "",
   "1) Transfer to:",
   "   BCA: 622-0372918 a/n Angelia Tania",
-  "   OR QRIS: (CHANGE THIS)",
+  "   OR QRIS",
   "",
   "2) Send proof of transfer to WhatsApp:",
   "",
@@ -362,20 +362,35 @@ export default function CheckoutPage() {
 
     ac.addListener("place_changed", async () => {
       const place = ac.getPlace?.();
-      const formatted = place?.formatted_address ?? place?.name ?? "";
+    
+        const formattedAddr = String(place?.formatted_address ?? "").trim();
+        const placeName = String(place?.name ?? "").trim();
+
+        let finalAddress = formattedAddr || placeName;
+
+        // keep building name if present
+        if (placeName && formattedAddr) {
+          const a = formattedAddr.toLowerCase();
+          const n = placeName.toLowerCase();
+          finalAddress = a.includes(n) ? formattedAddr : `${placeName}, ${formattedAddr}`;
+}
+
+
+
       const lat = place?.geometry?.location?.lat?.() ?? null;
       const lng = place?.geometry?.location?.lng?.() ?? null;
       const postal = getComp(place, "postal_code") || "";
 
       setShipping((prev) => ({
         ...prev,
-        address: formatted,
+        address: finalAddress,
         lat,
         lng,
         postal_code: postal,
         area_id: "",
         area_label: "",
       }));
+
 
       try {
         await resolveBiteshipAreaFromPlace(place);

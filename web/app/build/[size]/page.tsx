@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import styles from "./flavorCard.module.css";
 
@@ -116,7 +116,17 @@ function SizeSwitcher({ current }: { current: 1 | 3 | 6 }) {
 export default function BuildSizePage() {
   const router = useRouter();
   const params = useParams();
-  const size = clampSize(params?.size);
+  const size = clampSize((params as any)?.size);
+
+  // ✅ Mobile grid
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
 
   const [qtyByFlavor, setQtyByFlavor] = useState<Record<string, number>>({});
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
@@ -193,7 +203,7 @@ export default function BuildSizePage() {
   const canAdd = pickedCount === size;
 
   return (
-    <main style={{ padding: 24, maxWidth: 1080, margin: "0 auto", paddingBottom: 110 }}>
+    <main style={{ padding: 24, maxWidth: 1080, margin: "0 auto", paddingBottom: 130, overflowX: "hidden" }}>
       <header style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
           <div style={{ minWidth: 280 }}>
@@ -281,150 +291,154 @@ export default function BuildSizePage() {
         </div>
       </header>
 
-      <section
-        style={{
-          display: "grid",
-          gap: 12,
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          marginTop: 16,
-        }}
-      >
-        {FLAVORS.map((f: any) => {
-          const q = qtyByFlavor[f.id] || 0;
-          const disabledPlus = remaining <= 0;
+      {/* ✅ Only ONE grid, and section is properly closed */}
+      <section style={{ marginTop: 16 }}>
+        <div
+          style={{
+            display: "grid",
+            gap: 12,
+            gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))",
+            alignItems: "stretch",
+          }}
+        >
+          {FLAVORS.map((f: any) => {
+            const q = qtyByFlavor[f.id] || 0;
+            const disabledPlus = remaining <= 0;
 
-          return (
-            <div key={String(f.id)} className={`${styles.card} ${justAddedId === f.id ? styles.bump : ""}`}>
-              <div className={styles.imageWrap}>
-                <div className={styles.shine} />
+            return (
+              <div key={String(f.id)} className={`${styles.card} ${justAddedId === f.id ? styles.bump : ""}`}>
+                <div className={styles.imageWrap}>
+                  <div className={styles.shine} />
 
-                {f.image ? (
-                  <Image
-                    src={String(f.image)}
-                    alt={String(f.name)}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 33vw"
-                    style={{ objectFit: "cover" }}
-                    priority={false}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      height: "100%",
-                      display: "grid",
-                      placeItems: "center",
-                      fontWeight: 950,
-                      color: "rgba(0,0,0,0.45)",
-                    }}
-                  >
-                    {String(f.name)}
+                  {f.image ? (
+                    <Image
+                      src={String(f.image)}
+                      alt={String(f.name)}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      style={{ objectFit: "cover" }}
+                      priority={false}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        height: "100%",
+                        display: "grid",
+                        placeItems: "center",
+                        fontWeight: 950,
+                        color: "rgba(0,0,0,0.45)",
+                      }}
+                    >
+                      {String(f.name)}
+                    </div>
+                  )}
+
+                  {!!f.badges?.length && (
+                    <div className={styles.badges}>
+                      {f.badges.slice(0, 2).map((b: any) => (
+                        <BadgePill key={String(b)} text={String(b)} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className={styles.body}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 950, fontSize: 16, lineHeight: 1.2 }}>{String(f.name)}</div>
+                      {f.description && (
+                        <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontSize: 13, lineHeight: 1.35 }}>
+                          {String(f.description)}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={`${styles.qtyPill} ${justAddedId === f.id ? styles.pulse : ""}`} title="Selected">
+                      {q}
+                    </div>
                   </div>
-                )}
 
-                {!!f.badges?.length && (
-                  <div className={styles.badges}>
-                    {f.badges.slice(0, 2).map((b: any) => (
-                      <BadgePill key={String(b)} text={String(b)} />
-                    ))}
-                  </div>
-                )}
-              </div>
+                  {!!f.tags?.length && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {f.tags.slice(0, 4).map((t: any) => (
+                        <TagChip key={String(t)} text={String(t)} />
+                      ))}
+                    </div>
+                  )}
 
-              <div className={styles.body}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 950, fontSize: 16, lineHeight: 1.2 }}>{String(f.name)}</div>
-                    {f.description && (
-                      <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontSize: 13, lineHeight: 1.35 }}>
-                        {String(f.description)}
+                  {(f.intensity?.chocolate || f.intensity?.sweetness) && (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 10,
+                        padding: 10,
+                        borderRadius: 12,
+                        background: "rgba(0,0,0,0.03)",
+                        border: "1px solid rgba(0,0,0,0.06)",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Chocolate</div>
+                        <Meter value={Number(f.intensity?.chocolate ?? 0)} />
                       </div>
-                    )}
-                  </div>
+                      <div>
+                        <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Sweetness</div>
+                        <Meter value={Number(f.intensity?.sweetness ?? 0)} />
+                      </div>
+                    </div>
+                  )}
 
-                  <div className={`${styles.qtyPill} ${justAddedId === f.id ? styles.pulse : ""}`} title="Selected">
-                    {q}
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 2 }}>
+                    <button
+                      type="button"
+                      onClick={() => dec(String(f.id))}
+                      disabled={q === 0}
+                      style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 12,
+                        border: "1px solid rgba(0,0,0,0.14)",
+                        background: "#fff",
+                        cursor: q === 0 ? "not-allowed" : "pointer",
+                        opacity: q === 0 ? 0.55 : 1,
+                        fontWeight: 950,
+                        fontSize: 18,
+                      }}
+                    >
+                      −
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => inc(String(f.id))}
+                      disabled={disabledPlus}
+                      className={`${styles.primaryBtn} ${!disabledPlus ? styles.primaryBtnEnabled : ""}`}
+                      style={{
+                        flex: 1,
+                        height: 40,
+                        borderRadius: 12,
+                        border: "none",
+                        background: "var(--brand-blue)",
+                        color: "#fff",
+                        fontWeight: 950,
+                        cursor: disabledPlus ? "not-allowed" : "pointer",
+                        opacity: disabledPlus ? 0.55 : 1,
+                      }}
+                    >
+                      Add +
+                    </button>
                   </div>
                 </div>
 
-                {!!f.tags?.length && (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {f.tags.slice(0, 4).map((t: any) => (
-                      <TagChip key={String(t)} text={String(t)} />
-                    ))}
-                  </div>
-                )}
-
-                {(f.intensity?.chocolate || f.intensity?.sweetness) && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 10,
-                      padding: 10,
-                      borderRadius: 12,
-                      background: "rgba(0,0,0,0.03)",
-                      border: "1px solid rgba(0,0,0,0.06)",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Chocolate</div>
-                      <Meter value={Number(f.intensity?.chocolate ?? 0)} />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, opacity: 0.75, marginBottom: 6 }}>Sweetness</div>
-                      <Meter value={Number(f.intensity?.sweetness ?? 0)} />
-                    </div>
-                  </div>
-                )}
-
-                <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 2 }}>
-                  <button
-                    type="button"
-                    onClick={() => dec(String(f.id))}
-                    disabled={q === 0}
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      border: "1px solid rgba(0,0,0,0.14)",
-                      background: "#fff",
-                      cursor: q === 0 ? "not-allowed" : "pointer",
-                      opacity: q === 0 ? 0.55 : 1,
-                      fontWeight: 950,
-                      fontSize: 18,
-                    }}
-                  >
-                    −
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => inc(String(f.id))}
-                    disabled={disabledPlus}
-                    className={`${styles.primaryBtn} ${!disabledPlus ? styles.primaryBtnEnabled : ""}`}
-                    style={{
-                      flex: 1,
-                      height: 40,
-                      borderRadius: 12,
-                      border: "none",
-                      background: "var(--brand-blue)",
-                      color: "#fff",
-                      fontWeight: 950,
-                      cursor: disabledPlus ? "not-allowed" : "pointer",
-                      opacity: disabledPlus ? 0.55 : 1,
-                    }}
-                  >
-                    Add +
-                  </button>
-                </div>
+                <div className={`${styles.successToast} ${justAddedId === f.id ? styles.showToast : ""}`}>Added ✓</div>
               </div>
-
-              <div className={`${styles.successToast} ${justAddedId === f.id ? styles.showToast : ""}`}>Added ✓</div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </section>
 
+      {/* ✅ Fixed bottom bar OUTSIDE section */}
       <div
         style={{
           position: "fixed",
