@@ -11,11 +11,11 @@ const PAYMENT_INSTRUCTIONS = [
   "Manual Payment Instructions",
   "",
   "1) Transfer to:",
-  "   BCA: 1234567890 a/n Cookie Doh (CHANGE THIS)",
-  "   OR QRIS: (CHANGE THIS)",
+  "   BCA: 622-0372918 a/n Angelia Tania",
+  "   OR QRIS",
   "",
   "2) Send proof of transfer to WhatsApp:",
-  `   wa.me/${WHATSAPP}`,
+  `   0819-32-181818`,
   "",
   "3) We will confirm & process your order after payment is received.",
 ].join("\n");
@@ -91,7 +91,6 @@ export default function PendingClient() {
 
   const [copiedId, setCopiedId] = useState(false);
   const [copiedPay, setCopiedPay] = useState(false);
-  const [copiedWa, setCopiedWa] = useState(false);
 
   useEffect(() => {
     if (!orderId) return;
@@ -173,16 +172,7 @@ export default function PendingClient() {
     ].join("\n");
   }, [order, orderId, items]);
 
-  async function copyWaMessage() {
-    try {
-      await navigator.clipboard.writeText(waMessage);
-      setCopiedWa(true);
-      setTimeout(() => setCopiedWa(false), 1200);
-    } catch {}
-  }
-
   function openWa() {
-    // Use api.whatsapp.com (reliable auto-fill)
     const url = whatsappSendLink(WHATSAPP, waMessage);
     window.open(url, "_blank", "noreferrer");
   }
@@ -301,51 +291,25 @@ export default function PendingClient() {
           </button>
         </div>
 
-        {/* WhatsApp proof */}
-        <div className="mt-6 rounded-2xl border bg-white p-4">
-          <div className="text-xs font-semibold text-neutral-700">WhatsApp message (auto-filled)</div>
-          <pre className="mt-2 whitespace-pre-wrap rounded-xl bg-neutral-50 p-3 text-xs text-neutral-700">
-            {waMessage}
-          </pre>
-
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <button
-              onClick={openWa}
-              className="rounded-2xl bg-black px-5 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90"
-            >
-              Open WhatsApp (Auto-filled)
-            </button>
-
-            <button
-              onClick={copyWaMessage}
-              className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-neutral-100"
-            >
-              {copiedWa ? "Copied ✅" : "Copy WhatsApp Message"}
-            </button>
-          </div>
-
-          <div className="mt-3 text-xs text-neutral-500">
-            If WhatsApp opens without text (rare on some phones), tap “Copy WhatsApp Message” and paste into chat.
-          </div>
-        </div>
-
-        {/* Email support */}
+        {/* CTA buttons */}
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
+          <button
+            onClick={openWa}
+            className="rounded-2xl bg-black px-5 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            Send Proof via WhatsApp (Auto-filled)
+          </button>
+
           <a
             href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Manual Payment Proof")}&body=${encodeURIComponent(waMessage)}`}
             className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-neutral-100"
           >
             Email Support
           </a>
+        </div>
 
-          <a
-            href={`https://wa.me/${WHATSAPP}`}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-neutral-100"
-          >
-            Open WhatsApp (no message)
-          </a>
+        <div className="mt-4 text-xs text-neutral-500">
+          Tip: Use WhatsApp to verify faster (it includes your order details automatically).
         </div>
       </div>
     </div>
