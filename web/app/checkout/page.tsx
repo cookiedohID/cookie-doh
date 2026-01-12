@@ -69,11 +69,11 @@ const PAYMENT_INSTRUCTIONS = [
   "Manual Payment Instructions",
   "",
   "1) Transfer to:",
-  "   BCA: 1234567890 a/n Cookie Doh (CHANGE THIS)",
-  "   OR QRIS: (CHANGE THIS)",
+  "   BCA 622-0372918 a/n Angelia Tania",
+  
   "",
   "2) Send proof of transfer to WhatsApp:",
-  `   wa.me/${SUPPORT_WA}`,
+  `   wa.me/6281932181818`,
   "",
   "3) We will confirm & process your order after payment is received.",
 ].join("\n");
