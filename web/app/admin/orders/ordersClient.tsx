@@ -64,6 +64,16 @@ export default function OrdersClient() {
   const [onlyPaidNotShipped, setOnlyPaidNotShipped] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+  // ✅ responsive
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
+
   async function load() {
     setLoading(true);
     setErr(null);
@@ -205,39 +215,107 @@ export default function OrdersClient() {
 
   function openWhatsapp(o: AdminOrder) {
     const text = encodeURIComponent(buildWhatsappMsg(o));
-    window.open(`https://wa.me/6281932181818`, "_blank", "noreferrer");
+    window.open(`https://wa.me/${SUPPORT_WA}?text=${text}`, "_blank", "noreferrer");
+  }
+
+  const Header = (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="w-full sm:max-w-md">
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search order no / id / name / phone / waybill…"
+          className="w-full rounded-2xl border bg-white px-4 py-2 text-sm outline-none focus:ring-2"
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 text-xs font-semibold">
+          <input
+            type="checkbox"
+            checked={onlyPaidNotShipped}
+            onChange={(e) => setOnlyPaidNotShipped(e.target.checked)}
+          />
+          PAID & Not Shipped
+        </label>
+
+        <button
+          onClick={load}
+          className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+        >
+          Refresh
+        </button>
+      </div>
+    </div>
+  );
+
+  function Actions(o: AdminOrder) {
+    const paid = String(o.payment_status ?? "").toUpperCase() === "PAID";
+    const fulfilled = String(o.shipment_status ?? "").toLowerCase() === "fulfilled";
+    const hasShipment = Boolean(o.biteship_order_id);
+    const canCreateShipment = paid && !hasShipment;
+    const canRetry = paid && !hasShipment;
+
+    const copyLabel = copiedKey === o.midtrans_order_id ? "Copied ✅" : "Copy WA Msg";
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        <button
+          disabled={busyId === o.midtrans_order_id}
+          onClick={() => copyWhatsapp(o)}
+          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+        >
+          {copyLabel}
+        </button>
+
+        <button
+          disabled={busyId === o.midtrans_order_id}
+          onClick={() => openWhatsapp(o)}
+          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+          title="Open WhatsApp Web with message"
+        >
+          Open WA
+        </button>
+
+        <button
+          disabled={paid || busyId === o.midtrans_order_id}
+          onClick={() => markPaid(o.midtrans_order_id)}
+          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+        >
+          Mark Paid
+        </button>
+
+        <button
+          disabled={!canCreateShipment || busyId === o.midtrans_order_id}
+          onClick={() => createShipment(o.midtrans_order_id)}
+          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+        >
+          Create Shipment
+        </button>
+
+        <button
+          disabled={!canRetry || busyId === o.midtrans_order_id}
+          onClick={() => retryShipment(o.midtrans_order_id)}
+          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+        >
+          Retry
+        </button>
+
+        <button
+          disabled={!paid || busyId === o.midtrans_order_id || fulfilled}
+          onClick={() => markFulfilled(o.midtrans_order_id)}
+          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+          title="Use after you’ve packed + handed off / completed delivery"
+        >
+          {fulfilled ? "Fulfilled ✅" : "Mark Fulfilled"}
+        </button>
+      </div>
+    );
   }
 
   return (
     <div className="rounded-3xl border bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="w-full sm:max-w-md">
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search order no / midtrans id / name / phone / waybill…"
-            className="w-full rounded-2xl border bg-white px-4 py-2 text-sm outline-none focus:ring-2"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 rounded-2xl border bg-white px-3 py-2 text-xs font-semibold">
-            <input
-              type="checkbox"
-              checked={onlyPaidNotShipped}
-              onChange={(e) => setOnlyPaidNotShipped(e.target.checked)}
-            />
-            PAID & Not Shipped
-          </label>
-
-          <button
-            onClick={load}
-            className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
+      {Header}
 
       {err ? (
         <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -245,46 +323,111 @@ export default function OrdersClient() {
         </div>
       ) : null}
 
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[1400px] text-left text-sm">
-          <thead className="text-xs text-neutral-500">
-            <tr className="border-b">
-              <th className="py-3 pr-3">Order</th>
-              <th className="py-3 pr-3">Customer</th>
-              <th className="py-3 pr-3">Total</th>
-              <th className="py-3 pr-3">Payment</th>
-              <th className="py-3 pr-3">Shipment</th>
-              <th className="py-3 pr-3">Waybill</th>
-              <th className="py-3 pr-3">Created</th>
-              <th className="py-3 pr-3">Actions</th>
-            </tr>
-          </thead>
+      {/* ✅ MOBILE: cards */}
+      {isMobile ? (
+        <div className="mt-5 grid gap-3">
+          {loading ? (
+            <div className="text-sm text-neutral-500">Loading…</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-sm text-neutral-500">No orders found.</div>
+          ) : (
+            filtered.map((o) => {
+              const paid = String(o.payment_status ?? "").toUpperCase() === "PAID";
+              const fulfilled = String(o.shipment_status ?? "").toLowerCase() === "fulfilled";
 
-          <tbody>
-            {loading ? (
-              <tr>
-                <td className="py-6 text-neutral-500" colSpan={8}>
-                  Loading…
-                </td>
+              return (
+                <div key={o.id} className="rounded-3xl border bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">{o.order_no ?? "-"}</div>
+                      <div className="mt-1 font-mono text-xs text-neutral-500">{o.midtrans_order_id}</div>
+                    </div>
+                    <span className="rounded-xl border px-2 py-1 text-xs">
+                      {o.payment_status}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid gap-1 text-sm">
+                    <div>
+                      <span className="text-neutral-500">Customer:</span>{" "}
+                      <span className="font-medium">{o.customer_name}</span>
+                    </div>
+                    <div className="text-neutral-600">{o.customer_phone}</div>
+                    <div>
+                      <span className="text-neutral-500">Total:</span>{" "}
+                      <span className="font-semibold">{formatIDR(o.total_idr)}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 rounded-2xl bg-neutral-50 p-3 text-xs">
+                    <div>
+                      <span className="text-neutral-500">Shipment:</span>{" "}
+                      <span className="font-semibold">{o.shipment_status ?? "-"}</span>
+                      {fulfilled ? <span className="ml-2">✅</span> : null}
+                    </div>
+
+                    {o.waybill ? (
+                      <div>
+                        <span className="text-neutral-500">Waybill:</span>{" "}
+                        {o.tracking_url ? (
+                          <a className="underline" href={o.tracking_url} target="_blank" rel="noreferrer">
+                            {o.waybill}
+                          </a>
+                        ) : (
+                          <span className="font-mono">{o.waybill}</span>
+                        )}
+                      </div>
+                    ) : o.tracking_url ? (
+                      <div>
+                        <a className="underline" href={o.tracking_url} target="_blank" rel="noreferrer">
+                          Open tracking
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3 text-xs text-neutral-500">
+                    {new Date(o.created_at).toLocaleString("id-ID")}
+                  </div>
+
+                  <div className="mt-3">{Actions(o)}</div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      ) : (
+        /* ✅ DESKTOP: table */
+        <div className="mt-5 overflow-x-auto">
+          <table className="w-full min-w-[1400px] text-left text-sm">
+            <thead className="text-xs text-neutral-500">
+              <tr className="border-b">
+                <th className="py-3 pr-3">Order</th>
+                <th className="py-3 pr-3">Customer</th>
+                <th className="py-3 pr-3">Total</th>
+                <th className="py-3 pr-3">Payment</th>
+                <th className="py-3 pr-3">Shipment</th>
+                <th className="py-3 pr-3">Waybill</th>
+                <th className="py-3 pr-3">Created</th>
+                <th className="py-3 pr-3">Actions</th>
               </tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td className="py-6 text-neutral-500" colSpan={8}>
-                  No orders found.
-                </td>
-              </tr>
-            ) : (
-              filtered.map((o) => {
-                const paid = String(o.payment_status ?? "").toUpperCase() === "PAID";
-                const fulfilled = String(o.shipment_status ?? "").toLowerCase() === "fulfilled";
-                const hasShipment = Boolean(o.biteship_order_id);
-                const canCreateShipment = paid && !hasShipment;
-                const canRetry = paid && !hasShipment;
+            </thead>
 
-                const copyLabel =
-                  copiedKey === o.midtrans_order_id ? "Copied ✅" : "Copy WA Msg";
-
-                return (
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td className="py-6 text-neutral-500" colSpan={8}>
+                    Loading…
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td className="py-6 text-neutral-500" colSpan={8}>
+                    No orders found.
+                  </td>
+                </tr>
+              ) : (
+                filtered.map((o) => (
                   <tr key={o.id} className="border-b last:border-0">
                     <td className="py-3 pr-3">
                       <div className="font-medium">{o.order_no ?? "-"}</div>
@@ -331,70 +474,17 @@ export default function OrdersClient() {
                       {new Date(o.created_at).toLocaleString("id-ID")}
                     </td>
 
-                    <td className="py-3 pr-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          disabled={busyId === o.midtrans_order_id}
-                          onClick={() => copyWhatsapp(o)}
-                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-                        >
-                          {copyLabel}
-                        </button>
-
-                        <button
-                          disabled={busyId === o.midtrans_order_id}
-                          onClick={() => openWhatsapp(o)}
-                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-                          title="Open WhatsApp Web with message"
-                        >
-                          Open WA
-                        </button>
-
-                        <button
-                          disabled={paid || busyId === o.midtrans_order_id}
-                          onClick={() => markPaid(o.midtrans_order_id)}
-                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-                        >
-                          Mark Paid
-                        </button>
-
-                        <button
-                          disabled={!canCreateShipment || busyId === o.midtrans_order_id}
-                          onClick={() => createShipment(o.midtrans_order_id)}
-                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-                        >
-                          Create Shipment
-                        </button>
-
-                        <button
-                          disabled={!canRetry || busyId === o.midtrans_order_id}
-                          onClick={() => retryShipment(o.midtrans_order_id)}
-                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-                          title="Retry is for PAID orders with no shipment id"
-                        >
-                          Retry
-                        </button>
-
-                        <button
-                          disabled={!paid || busyId === o.midtrans_order_id || fulfilled}
-                          onClick={() => markFulfilled(o.midtrans_order_id)}
-                          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
-                          title="Use after you’ve packed + handed off / completed delivery"
-                        >
-                          {fulfilled ? "Fulfilled ✅" : "Mark Fulfilled"}
-                        </button>
-                      </div>
-                    </td>
+                    <td className="py-3 pr-3">{Actions(o)}</td>
                   </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="mt-4 text-xs text-neutral-500">
-        WhatsApp shortcut: Copy message → paste to customer chat, or Open WA.
+        Mobile: card view · Desktop: table view.
       </div>
     </div>
   );
