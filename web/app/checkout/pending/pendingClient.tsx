@@ -12,7 +12,7 @@ const PAYMENT_INSTRUCTIONS = [
   "",
   "1) Transfer to:",
   "   BCA: 622-0372918 a/n Angelia Tania",
-  "   OR QRIS: (CHANGE THIS)",
+ 
   "",
   "2) Send proof of transfer to WhatsApp:",
   `   wa.me/6281932181818`,
