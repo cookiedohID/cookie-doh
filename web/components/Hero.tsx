@@ -6,9 +6,10 @@ export default function Hero() {
   return (
     <section style={{ padding: "80px 24px", textAlign: "center" }}>
       <h1 style={{ fontSize: 40, marginBottom: 16 }}>
-        Life’s better with warm cookies.
+        This is very the cookie magic happens.
       </h1>
       <p style={{ fontSize: 18, maxWidth: 520, margin: "0 auto 32px" }}>
+        Life’s better with warm cookies
         Thoughtfully baked. Ridiculously good.
         Pick your favorites — we’ll take care of the rest.
       </p>
