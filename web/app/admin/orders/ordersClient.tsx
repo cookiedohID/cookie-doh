@@ -31,6 +31,23 @@ function formatIDR(n: number | null) {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
+function normalizeToWaMsisdn(phoneRaw: string) {
+  // Goal: wa.me requires MSISDN without +, spaces, dashes
+  // Accept common Indo formats: 08xxx, +62xxx, 62xxx
+  const p = String(phoneRaw || "").trim();
+  if (!p) return "";
+
+  let s = p.replace(/[^\d+]/g, ""); // keep digits and optional +
+  if (s.startsWith("+")) s = s.slice(1);
+
+  // if starts with 0 => convert to 62
+  if (s.startsWith("0")) s = "62" + s.slice(1);
+
+  // If already starts with 62, keep
+  // else if it's short, return as-is (user might be non-ID)
+  return s;
+}
+
 function buildWhatsappMsg(o: AdminOrder) {
   const orderNo = o.order_no ?? "-";
   const total = formatIDR(o.total_idr);
@@ -64,7 +81,6 @@ export default function OrdersClient() {
   const [onlyPaidNotShipped, setOnlyPaidNotShipped] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // ✅ responsive
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
@@ -203,7 +219,7 @@ export default function OrdersClient() {
     }
   }
 
-  async function copyWhatsapp(o: AdminOrder) {
+  async function copyWhatsappMsg(o: AdminOrder) {
     const key = o.midtrans_order_id;
     try {
       const text = buildWhatsappMsg(o);
@@ -215,9 +231,19 @@ export default function OrdersClient() {
     }
   }
 
-  function openWhatsapp(o: AdminOrder) {
+  function openSupportWa(o: AdminOrder) {
     const text = encodeURIComponent(buildWhatsappMsg(o));
     window.open(`https://wa.me/${SUPPORT_WA}?text=${text}`, "_blank", "noreferrer");
+  }
+
+  function openCustomerWa(o: AdminOrder) {
+    const msisdn = normalizeToWaMsisdn(o.customer_phone);
+    if (!msisdn) {
+      setErr("Customer phone is empty/invalid for WhatsApp.");
+      return;
+    }
+    const text = encodeURIComponent(buildWhatsappMsg(o));
+    window.open(`https://wa.me/${msisdn}?text=${text}`, "_blank", "noreferrer");
   }
 
   function Actions(o: AdminOrder) {
@@ -227,13 +253,13 @@ export default function OrdersClient() {
     const canCreateShipment = paid && !hasShipment;
     const canRetry = paid && !hasShipment;
 
-    const copyLabel = copiedKey === o.midtrans_order_id ? "Copied ✅" : "Copy WA Msg";
+    const copyLabel = copiedKey === o.midtrans_order_id ? "Copied ✅" : "Copy Msg";
 
     return (
       <div className="flex flex-wrap gap-2">
         <button
           disabled={busyId === o.midtrans_order_id}
-          onClick={() => copyWhatsapp(o)}
+          onClick={() => copyWhatsappMsg(o)}
           className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
         >
           {copyLabel}
@@ -241,10 +267,20 @@ export default function OrdersClient() {
 
         <button
           disabled={busyId === o.midtrans_order_id}
-          onClick={() => openWhatsapp(o)}
+          onClick={() => openCustomerWa(o)}
           className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+          title="WhatsApp the customer"
         >
-          Open WA
+          WA Customer
+        </button>
+
+        <button
+          disabled={busyId === o.midtrans_order_id}
+          onClick={() => openSupportWa(o)}
+          className="rounded-2xl border bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-neutral-100 disabled:opacity-50"
+          title="Open WhatsApp support chat"
+        >
+          WA Support
         </button>
 
         <button
@@ -396,7 +432,7 @@ export default function OrdersClient() {
             })
           )}
 
-          {/* ✅ Mobile bottom action bar */}
+          {/* Mobile bottom action bar */}
           <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white/95 backdrop-blur">
             <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-3">
               <button
@@ -426,7 +462,6 @@ export default function OrdersClient() {
           </div>
         </div>
       ) : (
-        /* DESKTOP: table */
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[1400px] text-left text-sm">
             <thead className="text-xs text-neutral-500">
@@ -468,7 +503,7 @@ export default function OrdersClient() {
                       <div className="mt-1 text-xs text-neutral-500">{o.customer_phone}</div>
                     </td>
 
-                    <td className="py-3 pr-3">{formatIDR(o.total_idr)}</td>
+                    <td className="py-3 pr-3">{typeof o.total_idr === "number" ? `Rp ${o.total_idr.toLocaleString("id-ID")}` : "-"}</td>
 
                     <td className="py-3 pr-3">
                       <span className="rounded-xl border px-2 py-1 text-xs">{o.payment_status}</span>
@@ -503,7 +538,9 @@ export default function OrdersClient() {
                       {new Date(o.created_at).toLocaleString("id-ID")}
                     </td>
 
-                    <td className="py-3 pr-3">{Actions(o)}</td>
+                    <td className="py-3 pr-3">
+                      {Actions(o)}
+                    </td>
                   </tr>
                 ))
               )}
@@ -511,10 +548,6 @@ export default function OrdersClient() {
           </table>
         </div>
       )}
-
-      <div className="mt-4 text-xs text-neutral-500">
-        Mobile: bottom bar (Search / Paid→Ship / Refresh) · Desktop: table tools on header.
-      </div>
     </div>
   );
 }
