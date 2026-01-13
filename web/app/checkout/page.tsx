@@ -106,14 +106,18 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Address fields
+  // Address validation state
   const [addressResolved, setAddressResolved] = useState(false);
-
-  const [addressText, setAddressText] = useState("");
   const [addressLat, setAddressLat] = useState<number | null>(null);
   const [addressLng, setAddressLng] = useState<number | null>(null);
 
-  // Building & postal
+  // ✅ Split address into:
+  // - addressBase: chosen from Google (validated)
+  // - addressDetail: unit/floor/landmark (free typing, does NOT invalidate Google)
+  const [addressBase, setAddressBase] = useState("");
+  const [addressDetail, setAddressDetail] = useState("");
+
+  // Building & postal (auto-filled from address selection, still editable)
   const [buildingName, setBuildingName] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
@@ -124,11 +128,7 @@ export default function CheckoutPage() {
     setCart(readCart());
   }, []);
 
-  const subtotal = useMemo(
-    () => cart.boxes.reduce((s, b) => s + (b.total || 0), 0),
-    [cart]
-  );
-
+  const subtotal = useMemo(() => cart.boxes.reduce((s, b) => s + (b.total || 0), 0), [cart]);
   const isEmpty = cart.boxes.length === 0;
 
   const allItems = useMemo(() => {
@@ -153,7 +153,8 @@ export default function CheckoutPage() {
     const phoneCheck = validatePhone(phone);
     if (!phoneCheck.ok) return phoneCheck.message;
 
-    if (!addressText.trim()) return "Please add your delivery address.";
+    // Base address must come from Google
+    if (!addressBase.trim()) return "Please choose your address from Google.";
 
     // Must be selected from Google (valid lat/lng)
     if (!addressResolved || addressLat === null || addressLng === null) {
@@ -179,15 +180,20 @@ export default function CheckoutPage() {
     const phoneCheck = validatePhone(phone);
     const normalizedPhone = phoneCheck.normalized || phone;
 
+    // ✅ Combine base + detail (detail does NOT affect resolved status)
+    const fullAddress = addressDetail.trim()
+      ? `${addressBase}\n${addressDetail.trim()}`
+      : addressBase;
+
     setLoading(true);
     try {
-      // We always POST to /api/checkout.
-      // Server decides manual/midtrans via NEXT_PUBLIC_CHECKOUT_MODE.
       const payload = {
         customer: { name: name.trim(), phone: normalizedPhone },
         delivery: {
           method: delivery,
-          address: addressText,
+          address: fullAddress,
+          addressBase,
+          addressDetail,
           lat: addressLat,
           lng: addressLng,
           buildingName,
@@ -268,7 +274,10 @@ export default function CheckoutPage() {
             </Link>
 
             <div style={{ marginTop: 12 }}>
-              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+              <Link
+                href="/cart"
+                style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}
+              >
                 ← Back to cart
               </Link>
             </div>
@@ -305,12 +314,7 @@ export default function CheckoutPage() {
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Name</span>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={sameStyle}
-                  placeholder="Your name"
-                />
+                <input value={name} onChange={(e) => setName(e.target.value)} style={sameStyle} placeholder="Your name" />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
@@ -345,42 +349,53 @@ export default function CheckoutPage() {
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              {/* Address (Google required) */}
+              {/* ✅ ONE address field (Google required). Building is extracted here. */}
               <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Address
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
 
                 <GoogleAddressInput
                   apiKey={mapsKey}
                   placeholder="Start typing your address…"
                   types={["geocode"]}
                   onResolved={(val: any) => {
-                    // 1) best case: Google gives building / name
-                    const b1 = val?.building || val?.name;
+                    // Prefer the component’s normalized output
+                    const formatted =
+                      val?.formattedAddress ||
+                      val?.formatted_address ||
+                      "";
 
-                    // 2) fallback: if Google only returns a formatted address,
-                    // take the first part before the comma as "building-ish"
-                    const fa = val?.formattedAddress || val?.formatted_address || "";
-                    const b2 = fa ? String(fa).split(",")[0].trim() : "";
+                    // ✅ base address from Google
+                    setAddressBase(String(formatted));
 
-                    const finalBuilding = (b1 && String(b1).trim()) || b2;
+                    // ✅ resolution must stay TRUE after Google selection
+                    // Use component’s isResolved when available; otherwise infer from lat/lng
+                    const lat = typeof val?.lat === "number" ? val.lat : null;
+                    const lng = typeof val?.lng === "number" ? val.lng : null;
+
+                    setAddressLat(lat);
+                    setAddressLng(lng);
+
+                    setAddressResolved(!!val?.isResolved || (lat !== null && lng !== null));
+
+                    // ✅ Building extraction:
+                    // 1) use val.building or val.name if present
+                    // 2) else take first segment of formatted address before comma
+                    const b1 = (val?.building || val?.name || "").toString().trim();
+                    const b2 = String(formatted).split(",")[0].trim();
+                    const finalBuilding = b1 || b2;
 
                     if (finalBuilding) setBuildingName(finalBuilding);
 
-                    // keep postal enrichment when available
+                    // Postal code
                     if (val?.postal) setPostalCode(String(val.postal));
                   }}
-
                 />
 
+                {/* ✅ Extra details line (does NOT invalidate Google selection) */}
                 <input
-                  value={addressText}
-                  onChange={(e) => {
-                    setAddressText(e.target.value);
-                    setAddressResolved(false); // manual edit -> not valid until Google selection again
-                  }}
-                  placeholder="Unit / floor / landmark (after selecting from Google)"
+                  value={addressDetail}
+                  onChange={(e) => setAddressDetail(e.target.value)}
+                  placeholder="Unit / floor / landmark (optional)"
                   style={sameStyle}
                 />
 
@@ -391,44 +406,18 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* ✅ Building search (Google) — THIS IS THE KEY PART */}
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Building / Apartment (optional)
-                </div>
-
-                {/* IMPORTANT:
-                   Using `geocode` is more reliable in Indonesia than `establishment`.
-                   We still capture building name from val.name/val.building.
-                */}
-                <GoogleAddressInput
-                  apiKey={mapsKey}
-                  placeholder="Search building name… (e.g. Kemang Village, Infinity Tower)"
-                  types={["geocode"]}
-                  onResolved={(val: any) => {
-                    const b = val?.building || val?.name || "";
-                    if (b) setBuildingName(String(b));
-                    if (val?.postal) setPostalCode(String(val.postal));
-                  }}
-                />
-
+              {/* Show building + postal (auto-filled but editable) */}
+              <div style={{ display: "grid", gap: 8 }}>
                 <input
                   value={buildingName}
                   onChange={(e) => setBuildingName(e.target.value)}
-                  placeholder="Or type manually"
+                  placeholder="Building name (auto, editable)"
                   style={sameStyle}
                 />
-              </div>
-
-              {/* Postal code */}
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Postal code (optional)
-                </div>
                 <input
                   value={postalCode}
                   onChange={(e) => setPostalCode(e.target.value)}
-                  placeholder="e.g. 12150"
+                  placeholder="Postal code (auto, editable)"
                   style={sameStyle}
                 />
               </div>
@@ -505,8 +494,20 @@ export default function CheckoutPage() {
 
             <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
               {allItems.map((it, i) => (
-                <div key={`${it.id}-${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                  <div style={{ color: "#101010", fontWeight: 800, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div
+                  key={`${it.id}-${i}`}
+                  style={{ display: "flex", justifyContent: "space-between", gap: 10 }}
+                >
+                  <div
+                    style={{
+                      color: "#101010",
+                      fontWeight: 800,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {it.name} <span style={{ color: "#6B6B6B", fontWeight: 700 }}>×{it.quantity}</span>
                   </div>
                 </div>
@@ -536,7 +537,14 @@ export default function CheckoutPage() {
           </section>
 
           {err && (
-            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff" }}>
+            <section
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,0.10)",
+                padding: 14,
+                background: "#fff",
+              }}
+            >
               <div style={{ fontWeight: 950, color: "#101010" }}>Hmm, something doesn’t look right.</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{err}</div>
             </section>
