@@ -259,7 +259,7 @@ export default function GoogleAddressInput({
             formattedAddress: fullAddress,
             formatted_address: fullAddress,
             name: place?.name || null,
-            building: finalBuilding,
+            building: (building && building.trim()) || (place?.name ? String(place.name).trim() : "") || fullAddress.split(",")[0].trim() || null,
             lat,
             lng,
             postal,
