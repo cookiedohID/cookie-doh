@@ -52,10 +52,10 @@ export default function SiteHeader() {
             flexWrap: "wrap",
           }}
         >
-          <Link href="/build/6" style={{ textDecoration: "none", color: "inherit" }}>
+          <Link href="/build/6" style={{ textDecoration: "none", color: "#eee" }}> { /* inherit */}
             Build a box
           </Link>
-          <Link href="/cart" style={{ textDecoration: "none", color: "inherit" }}>
+          <Link href="/cart" style={{ textDecoration: "none", color: "#eee" }}> { /* inherit */}
             Cart
           </Link>
         </div>
