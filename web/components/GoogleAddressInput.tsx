@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
  * Resolved address payload emitted by this component.
  * - formattedAddress: best “full” address string (formatted + name/premise when available)
  * - name: place name (often building / POI)
- * - building: best-effort building/premise/POI name
+ * - building: best-effort building/premise/POI name (NEVER empty if formattedAddress exists)
  * - postal/city: extracted from address_components when available
  * - lat/lng: geometry coords (fallback to Geocoder by placeId if needed)
  * - isResolved: true only when user selects a Google suggestion (place_changed)
@@ -15,6 +15,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 export type Resolved = {
   placeId?: string;
   formattedAddress: string;
+
+  // optional compatibility alias
+  formatted_address?: string;
 
   name: string | null;
   building: string | null;
@@ -53,13 +56,18 @@ function loadGoogle(apiKey: string) {
     const w = window as any;
     if (w.google?.maps?.places) return resolve();
 
-    const existing = document.querySelector(`script[data-google-maps="1"]`) as HTMLScriptElement | null;
+    const existing = document.querySelector(
+      `script[data-google-maps="1"]`
+    ) as HTMLScriptElement | null;
+
     if (existing) {
-      // if already loaded
+      // If already loaded
       if ((existing as any)._cdLoaded) return resolve();
 
       existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Google script load error")));
+      existing.addEventListener("error", () =>
+        reject(new Error("Google script load error"))
+      );
       return;
     }
 
@@ -82,11 +90,13 @@ function extractAddressParts(place: any) {
   let city: string | null = null;
   let building: string | null = null;
 
-  const comps: any[] = Array.isArray(place?.address_components) ? place.address_components : [];
+  const comps: any[] = Array.isArray(place?.address_components)
+    ? place.address_components
+    : [];
 
   for (const c of comps) {
     const types: string[] = Array.isArray(c?.types) ? c.types : [];
-    const val = c?.long_name || c?.short_name || null;
+    const val: string | null = c?.long_name || c?.short_name || null;
 
     if (types.includes("postal_code")) postal = val || postal;
 
@@ -96,7 +106,7 @@ function extractAddressParts(place: any) {
     }
 
     // building / premise / POI-ish
-    if (types.includes("premise")) building = val || building;
+    if (!building && types.includes("premise")) building = val || building;
     if (!building && types.includes("subpremise")) building = val || building;
     if (!building && types.includes("point_of_interest")) building = val || building;
     if (!building && types.includes("establishment")) building = val || building;
@@ -116,12 +126,18 @@ function buildFullAddress(place: any, elValue: string) {
   const formatted: string | null = place?.formatted_address || null;
 
   if (name && formatted) {
-    // avoid duplication if formatted already starts with name
     const lower = formatted.toLowerCase();
     if (lower.startsWith(name.toLowerCase())) return formatted;
     return `${name}, ${formatted}`;
   }
   return formatted || name || elValue || "";
+}
+
+/** If we can't detect a building name, fallback to first segment of the address */
+function firstSegment(addr: string) {
+  const s = (addr || "").trim();
+  if (!s) return "";
+  return s.split(",")[0].trim();
 }
 
 export default function GoogleAddressInput({
@@ -137,13 +153,13 @@ export default function GoogleAddressInput({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const acRef = useRef<any>(null);
 
-  // local state prevents freezing after selection
+  // ✅ Local state prevents “freezing” after Google selects a place
   const [internalValue, setInternalValue] = useState(value ?? "");
 
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // for UX: show whether user has chosen a suggestion since last edit
+  // UX: show whether user has chosen a suggestion since last edit
   const [isResolved, setIsResolved] = useState(false);
 
   const canInit = useMemo(() => Boolean(apiKey && apiKey.length > 10), [apiKey]);
@@ -173,7 +189,6 @@ export default function GoogleAddressInput({
         const g = w.google;
         if (!g?.maps?.places?.Autocomplete) throw new Error("Google Places not available");
 
-        // If re-initializing, clear old listeners by recreating autocomplete
         const ac = new g.maps.places.Autocomplete(el, {
           fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
           types,
@@ -199,12 +214,9 @@ export default function GoogleAddressInput({
           }
 
           // fallback geocode if geometry missing
-          const w2 = window as any;
-          const g2 = w2.google;
-
-          if ((lat === null || lng === null) && placeId && g2?.maps?.Geocoder) {
+          if ((lat === null || lng === null) && placeId && g?.maps?.Geocoder) {
             try {
-              const geocoder = new g2.maps.Geocoder();
+              const geocoder = new g.maps.Geocoder();
               const results: any[] = await new Promise((resolve, reject) => {
                 geocoder.geocode({ placeId }, (r: any, status: any) => {
                   if (status === "OK" && r && r.length) resolve(r);
@@ -222,9 +234,21 @@ export default function GoogleAddressInput({
             }
           }
 
-          const { postal, city, building } = extractAddressParts(place);
+          const { postal, city, building: buildingFromComps } = extractAddressParts(place);
 
-          // update local value so input stays editable after selection
+          // ✅ Ensure building is never empty if we have any address text:
+          // Priority:
+          // 1) premise/poi/establishment from address components
+          // 2) place.name (often building/POI)
+          // 3) first segment of the formatted address
+          const inferredBuilding =
+            (buildingFromComps && buildingFromComps.trim()) ||
+            (place?.name ? String(place.name).trim() : "") ||
+            firstSegment(fullAddress);
+
+          const finalBuilding = inferredBuilding ? inferredBuilding : null;
+
+          // ✅ update local value so input stays editable after selection
           setInternalValue(fullAddress);
           onChange?.(fullAddress);
 
@@ -233,8 +257,9 @@ export default function GoogleAddressInput({
           onResolved({
             placeId,
             formattedAddress: fullAddress,
+            formatted_address: fullAddress,
             name: place?.name || null,
-            building: building || place?.name || null,
+            building: finalBuilding,
             lat,
             lng,
             postal,
@@ -274,6 +299,7 @@ export default function GoogleAddressInput({
           className ||
           "w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:ring-2"
         }
+        // reduce browser interference
         autoComplete="off"
         name="cd_address"
         inputMode="text"
