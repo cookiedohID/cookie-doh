@@ -10,7 +10,7 @@ export type Flavor = {
   badges?: FlavorBadge[]; // e.g. ["Bestseller", "Classic"]
   tags?: string[]; // e.g. ["Chewy", "Chunky", "Nutty"]
   intensity?: {
-    chocolate?: 1 | 2 | 3 | 4 | 5;
+    chocolate?: 0 | 1 | 2 | 3 | 4 | 5;
     sweetness?: 1 | 2 | 3 | 4 | 5;
   };
 };
@@ -41,7 +41,7 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/the-comfort.jpg",
     badges: ["Fan Favorite"],
     tags: ["Earthy", "Creamy"],
-    intensity: { chocolate: 1, sweetness: 3 },
+    intensity: { chocolate: 0, sweetness: 3 },
   },
   {
     id: "matcha-magic",
