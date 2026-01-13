@@ -188,7 +188,7 @@ export default function CartPage() {
                                 textOverflow: "ellipsis",
                               }}
                             >
-                              {it.name} × {it.quantity}
+                              {it.name}
                             </div>
 
                             <div style={{ color: "#6B6B6B", fontSize: 13 }}>

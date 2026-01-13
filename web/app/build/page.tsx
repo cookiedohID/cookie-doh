@@ -41,7 +41,7 @@ const FLAVORS: FlavorUI[] = [
      "Decadent dark cookie studded with creamy white Belgian chocolate chips - a bold, blisful contrast in every bite",
     textureTags: ["Soft", "Chewy"],
     intensity: { chocolate: 5, sweetness: 3 },
-    price: 30000,
+    price: 32500,
     badges: ["Bestseller", "Classic"],
   },
   {
@@ -51,7 +51,7 @@ const FLAVORS: FlavorUI[] = [
     ingredients: "Sinfully rich chocolate cookie loaded with dark + milk Belgian chocolate chips - pure bliss in every bite",
     textureTags: ["Earthy", "Creamy"],
     intensity: { chocolate: 4, sweetness: 4 },
-    price: 30000,
+    price: 32500,
     badges: ["Fan Favorite"],
   },
 
@@ -62,7 +62,7 @@ const FLAVORS: FlavorUI[] = [
     ingredients: "Hearty oats, plumps raisins, and a warm cinnamon hug - chewy, golden and baked with old fashioned love.",
     textureTags: ["Earthy", "Creamy"],
     intensity: { chocolate: 0, sweetness: 3 },
-    price: 30000,
+    price: 32500,
     badges: ["The Classic"],
   },
 
@@ -73,7 +73,7 @@ const FLAVORS: FlavorUI[] = [
     ingredients: "Like a serene Japanese garden in cookie form : vibrant matcha, sweet chocolate clouds and pure melt-in-your mouth magic",
     textureTags: ["Earthy", "Creamy"],
     intensity: { chocolate: 2, sweetness: 3 },
-    price: 30000,
+    price: 32500,
     badges: ["Matcha Lover"],
   },
  
@@ -84,7 +84,7 @@ const FLAVORS: FlavorUI[] = [
     ingredients: "Rich, fudgy chocolate cookie packed with dark chocolate chips and a citrusy twist of orange peel - decadence with a zing.",
     textureTags: ["Citrusy", "Creamy"],
     intensity: { chocolate: 3, sweetness: 4 },
-    price: 30000,
+    price: 32500,
     badges: ["Classic with a twist"],
   }
   // Add your other flavors here...
