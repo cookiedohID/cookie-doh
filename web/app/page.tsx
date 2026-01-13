@@ -116,7 +116,7 @@ export default function HomePage() {
               color: "#101010",
             }}
           >
-            This is where the
+            Where the
             <br />
             cookie magic happens
           </h1>
