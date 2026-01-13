@@ -3,10 +3,55 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
+const formatIDR = (n: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(n);
+
+function toWaNumber(input: string) {
+  const digits = (input || "").replace(/[^\d]/g, "");
+  if (digits.startsWith("0")) return "62" + digits.slice(1);
+  return digits;
+}
+
 export default function PendingClient() {
   const sp = useSearchParams();
-  const orderId = sp.get("order_id") || sp.get("orderId") || "";
-  const status = sp.get("transaction_status") || sp.get("status") || "pending";
+
+  const orderId = sp.get("order_id") || "";
+  const total = Number(sp.get("total") || "0") || 0;
+
+  const name = sp.get("name") || "";
+  const phone = sp.get("phone") || "";
+  const address = sp.get("address") || "";
+  const building = sp.get("building") || "";
+  const postal = sp.get("postal") || "";
+
+  const adminWa = process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || "";
+  const adminWaDigits = toWaNumber(adminWa);
+
+  // ✅ Put your manual payment instructions here (env-based)
+  const manualPayInstructions =
+    process.env.NEXT_PUBLIC_MANUAL_PAYMENT_INSTRUCTIONS ||
+    "Manual payment: Please WhatsApp admin to receive payment instructions (Bank/QRIS).";
+
+  const msgLines = [
+    "Hi Cookie Doh 🤍",
+    "I’d like to complete manual payment for my order:",
+    orderId ? `Order ID: ${orderId}` : "",
+    name ? `Name: ${name}` : "",
+    phone ? `WhatsApp: ${phone}` : "",
+    total ? `Total: ${formatIDR(total)}` : "",
+    address ? `Address: ${address}` : "",
+    building ? `Building: ${building}` : "",
+    postal ? `Postal Code: ${postal}` : "",
+    "",
+    "Please send me payment instructions 🙏",
+  ].filter(Boolean);
+
+  const waText = encodeURIComponent(msgLines.join("\n"));
+  const waLink = adminWaDigits ? `https://wa.me/${adminWaDigits}?text=${waText}` : "#";
 
   return (
     <main style={{ minHeight: "100vh", background: "#FAF7F2" }}>
@@ -21,20 +66,46 @@ export default function PendingClient() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 18, fontWeight: 950, color: "#101010" }}>Payment pending 🤍</div>
+          <div style={{ fontSize: 18, fontWeight: 950, color: "#101010" }}>
+            Payment pending 🤍
+          </div>
+
           <div style={{ marginTop: 8, color: "#6B6B6B", lineHeight: 1.6 }}>
-            No worries — your order is saved. Please complete payment and we’ll start baking right after 🍪
+            Your order is saved. We’re starting with <b>manual payment</b> while Midtrans is being verified.
           </div>
 
           {orderId && (
-            <div style={{ marginTop: 12, fontSize: 13, color: "#3C3C3C" }}>
+            <div style={{ marginTop: 10, fontSize: 13, color: "#3C3C3C" }}>
               Order ID: <span style={{ fontWeight: 900 }}>{orderId}</span>
             </div>
           )}
 
-          <div style={{ marginTop: 18, display: "grid", gap: 10, justifyItems: "center" }}>
-            <Link
-              href="/cart"
+          {total > 0 && (
+            <div style={{ marginTop: 6, fontSize: 13, color: "#3C3C3C" }}>
+              Total: <span style={{ fontWeight: 900 }}>{formatIDR(total)}</span>
+            </div>
+          )}
+
+          <div
+            style={{
+              marginTop: 14,
+              borderRadius: 16,
+              background: "#FAF7F2",
+              border: "1px solid rgba(0,0,0,0.08)",
+              padding: 12,
+              color: "#3C3C3C",
+              textAlign: "left",
+              lineHeight: 1.6,
+              fontSize: 13,
+            }}
+          >
+            <div style={{ fontWeight: 900, marginBottom: 6 }}>Payment instructions</div>
+            {manualPayInstructions}
+          </div>
+
+          <div style={{ marginTop: 16, display: "grid", gap: 10, justifyItems: "center" }}>
+            <a
+              href={waLink}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -46,16 +117,22 @@ export default function PendingClient() {
                 fontWeight: 950,
                 textDecoration: "none",
                 boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
-                minWidth: 220,
+                minWidth: 260,
               }}
             >
-              Back to cart
-            </Link>
+              WhatsApp admin for payment
+            </a>
 
-            <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-              Status: <span style={{ fontWeight: 800 }}>{status}</span>
-            </div>
+            <Link href="/" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+              Back to home
+            </Link>
           </div>
+
+          {!adminWaDigits && (
+            <div style={{ marginTop: 12, fontSize: 12, color: "#6B6B6B" }}>
+              (Admin WhatsApp not set. Add NEXT_PUBLIC_WHATSAPP_SUPPORT in env.)
+            </div>
+          )}
         </div>
       </div>
     </main>
