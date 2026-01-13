@@ -8,15 +8,17 @@ import GoogleAddressInput from "@/components/GoogleAddressInput";
 type CartItem = {
   id: string;
   name: string;
-  price: number;
   quantity: number;
   image?: string;
+  // NOTE: we intentionally do NOT need price here for fixed box pricing.
+  // If your stored cart still has price fields, it's okay — we won't use them.
+  price?: number;
 };
 
 type CartBox = {
   boxSize: number;
   items: CartItem[];
-  total: number;
+  total: number; // fixed box price
 };
 
 type CartState = {
@@ -42,6 +44,47 @@ function readCart(): CartState {
   } catch {
     return { boxes: [] };
   }
+}
+
+/** Normalize Indonesian phone/WA numbers to +62XXXXXXXXXXX */
+function normalizeIDPhone(input: string) {
+  const raw = (input || "").trim();
+  const digits = raw.replace(/[^\d+]/g, ""); // keep digits and + (we'll clean more below)
+
+  // Remove spaces/dashes etc, keep leading +
+  let cleaned = digits;
+
+  // Convert starting "62" to "+62"
+  if (!cleaned.startsWith("+") && cleaned.startsWith("62")) cleaned = `+${cleaned}`;
+
+  // Convert starting "08" to "+628"
+  if (cleaned.startsWith("08")) cleaned = `+62${cleaned.slice(1)}`;
+
+  // If it starts with "+" but not +62, leave it as-is (customer might be abroad)
+  return cleaned;
+}
+
+function validatePhone(input: string) {
+  const normalized = normalizeIDPhone(input);
+
+  // Basic checks
+  if (!normalized) return { ok: false, normalized: "", message: "Please add your WhatsApp number." };
+
+  // If Indonesia format:
+  if (normalized.startsWith("+62")) {
+    const onlyDigits = normalized.replace(/[^\d]/g, ""); // "62xxxxxxxxx"
+    // length sanity: +62 + (9 to 12 digits) -> total digits 11 to 14 (including 62)
+    if (onlyDigits.length < 11 || onlyDigits.length > 14) {
+      return { ok: false, normalized, message: "WhatsApp number looks too short/long. Example: 0812xxxxxxx" };
+    }
+    return { ok: true, normalized, message: "" };
+  }
+
+  // Non-ID number: light validation
+  const digitCount = normalized.replace(/[^\d]/g, "").length;
+  if (digitCount < 8) return { ok: false, normalized, message: "WhatsApp number looks invalid." };
+
+  return { ok: true, normalized, message: "" };
 }
 
 export default function CheckoutPage() {
@@ -79,15 +122,40 @@ export default function CheckoutPage() {
     return items;
   }, [cart]);
 
+  // Google Maps key (required by your component)
+  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
   const validate = () => {
     if (!name.trim()) return "Please add your name.";
-    if (!phone.trim()) return "Please add your WhatsApp number.";
+
+    const phoneCheck = validatePhone(phone);
+    if (!phoneCheck.ok) return phoneCheck.message;
+
     if (!addressText.trim()) return "Please add your delivery address.";
+
     return null;
   };
 
+  async function readErrorBody(res: Response) {
+    // Try json then fallback to text for maximum visibility
+    const ct = res.headers.get("content-type") || "";
+    try {
+      if (ct.includes("application/json")) {
+        const j = await res.json();
+        return j?.error || j?.message || JSON.stringify(j);
+      }
+    } catch {}
+    try {
+      const t = await res.text();
+      return t || null;
+    } catch {
+      return null;
+    }
+  }
+
   const placeOrder = async () => {
     setErr(null);
+
     const v = validate();
     if (v) {
       setErr(v);
@@ -98,36 +166,53 @@ export default function CheckoutPage() {
       return;
     }
 
+    const phoneCheck = validatePhone(phone);
+    const normalizedPhone = phoneCheck.normalized || phone;
+
     setLoading(true);
     try {
-      // ✅ If your backend endpoint differs, change ONLY this URL:
+      const payload = {
+        customer: { name: name.trim(), phone: normalizedPhone },
+        delivery: {
+          method: delivery,
+          address: addressText,
+          lat: addressLat,
+          lng: addressLng,
+        },
+        notes,
+        cart,
+        // Helpful for backend debugging:
+        meta: {
+          checkoutMode: process.env.NEXT_PUBLIC_CHECKOUT_MODE || "unknown",
+          siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "",
+        },
+      };
+
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customer: { name, phone },
-          delivery: {
-            method: delivery,
-            address: addressText,
-            lat: addressLat,
-            lng: addressLng,
-          },
-          notes,
-          cart,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json().catch(() => ({}));
-
       if (!res.ok) {
+        const body = await readErrorBody(res);
+        // Show real details (status + server message)
         throw new Error(
-          data?.error || "Something went wrong — let’s try again."
+          body
+            ? `Checkout failed (HTTP ${res.status}). ${body}`
+            : `Checkout failed (HTTP ${res.status}). Please try again.`
         );
       }
 
+      const data = await res.json().catch(() => ({} as any));
       const redirectUrl = data?.redirect_url || data?.redirectUrl;
+
       if (!redirectUrl) {
-        throw new Error("Missing payment redirect URL from server.");
+        // If server is in manual mode, it may return something else.
+        // Show full data for debugging:
+        throw new Error(
+          `Checkout succeeded but missing redirect_url. Server response: ${JSON.stringify(data)}`
+        );
       }
 
       window.location.href = redirectUrl;
@@ -138,22 +223,12 @@ export default function CheckoutPage() {
     }
   };
 
-  // Google Maps key (required by your component)
-  const mapsKey =
-    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-    process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ||
-    "";
-
   if (isEmpty) {
     return (
       <main style={{ minHeight: "100vh", background: "#fff" }}>
         <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px" }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>
-            Checkout
-          </h1>
-          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
-            You’re almost there 🤍
-          </p>
+          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
+          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>You’re almost there 🤍</p>
 
           <section
             style={{
@@ -164,9 +239,7 @@ export default function CheckoutPage() {
               padding: 18,
             }}
           >
-            <div style={{ fontWeight: 900, color: "#101010" }}>
-              Your box is waiting 🤍
-            </div>
+            <div style={{ fontWeight: 900, color: "#101010" }}>Your box is waiting 🤍</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>
               Please build your cookie box first.
             </div>
@@ -191,14 +264,7 @@ export default function CheckoutPage() {
             </Link>
 
             <div style={{ marginTop: 12 }}>
-              <Link
-                href="/cart"
-                style={{
-                  color: "#0052CC",
-                  fontWeight: 800,
-                  textDecoration: "none",
-                }}
-              >
+              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
                 ← Back to cart
               </Link>
             </div>
@@ -212,12 +278,8 @@ export default function CheckoutPage() {
     <main style={{ minHeight: "100vh", background: "#fff" }}>
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px 120px" }}>
         <header style={{ marginBottom: 18 }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>
-            Checkout
-          </h1>
-          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
-            You’re almost there 🤍
-          </p>
+          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
+          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>You’re almost there 🤍</p>
         </header>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
@@ -231,18 +293,14 @@ export default function CheckoutPage() {
               boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
             }}
           >
-            <div style={{ fontWeight: 950, color: "#101010" }}>
-              Contact details
-            </div>
+            <div style={{ fontWeight: 950, color: "#101010" }}>Contact details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               We’ll use this to update you about your order.
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Name
-                </span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Name</span>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -258,9 +316,7 @@ export default function CheckoutPage() {
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  WhatsApp number
-                </span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>WhatsApp number</span>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -271,8 +327,11 @@ export default function CheckoutPage() {
                     padding: "0 12px",
                     outline: "none",
                   }}
-                  placeholder="e.g. 0812xxxxxxx"
+                  placeholder="e.g. 0812xxxxxxx or +62812xxxxxxx"
                 />
+                <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+                  We’ll send payment + delivery updates via WhatsApp.
+                </div>
               </label>
             </div>
           </section>
@@ -287,38 +346,25 @@ export default function CheckoutPage() {
               boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
             }}
           >
-            <div style={{ fontWeight: 950, color: "#101010" }}>
-              Delivery details
-            </div>
+            <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               Please double-check your address to avoid delivery delays.{" "}
-              <span style={{ color: "#3C3C3C" }}>
-                Jakarta same-day available for selected areas ✨
-              </span>
+              <span style={{ color: "#3C3C3C" }}>Jakarta same-day available for selected areas ✨</span>
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              {/* Google address picker */}
               <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Address
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
 
                 <GoogleAddressInput
                   apiKey={mapsKey}
                   onResolved={(val: any) => {
-                    // Defensive: accept multiple shapes.
                     const text =
                       typeof val === "string"
                         ? val
-                        : val?.formatted_address ||
-                          val?.address ||
-                          val?.label ||
-                          "";
-
+                        : val?.formatted_address || val?.address || val?.label || "";
                     setAddressText(text);
 
-                    // Lat/Lng if present
                     const lat =
                       val?.lat ??
                       val?.location?.lat ??
@@ -333,7 +379,7 @@ export default function CheckoutPage() {
                   }}
                 />
 
-                {/* Mirror input (optional, helps user add unit/floor) */}
+                {/* Always keep a manual input fallback */}
                 <input
                   value={addressText}
                   onChange={(e) => setAddressText(e.target.value)}
@@ -345,14 +391,18 @@ export default function CheckoutPage() {
                     padding: "0 12px",
                     outline: "none",
                   }}
-                  placeholder="Address details (floor/unit/notes)"
+                  placeholder="Apartment / unit / floor / landmark"
                 />
+
+                {!mapsKey && (
+                  <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+                    (Autocomplete is off because Google Maps API key is not set.)
+                  </div>
+                )}
               </div>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Notes (optional)
-                </span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes (optional)</span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -364,15 +414,12 @@ export default function CheckoutPage() {
                     outline: "none",
                     resize: "vertical",
                   }}
-                  placeholder="Gift note, landmark, delivery timing…"
+                  placeholder="Gift note, delivery timing, special instructions…"
                 />
               </label>
 
-              {/* Delivery method cards */}
               <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Delivery method
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Delivery method</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <button
                     type="button"
@@ -381,23 +428,13 @@ export default function CheckoutPage() {
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border:
-                        delivery === "standard"
-                          ? "2px solid #0052CC"
-                          : "1px solid rgba(0,0,0,0.10)",
-                      background:
-                        delivery === "standard"
-                          ? "rgba(0,82,204,0.06)"
-                          : "#FAF7F2",
+                      border: delivery === "standard" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                      background: delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
                       cursor: "pointer",
                     }}
                   >
-                    <div style={{ fontWeight: 900, color: "#101010" }}>
-                      Standard
-                    </div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                      Reliable & safe
-                    </div>
+                    <div style={{ fontWeight: 900, color: "#101010" }}>Standard</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Reliable & safe</div>
                   </button>
 
                   <button
@@ -407,82 +444,16 @@ export default function CheckoutPage() {
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border:
-                        delivery === "sameday"
-                          ? "2px solid #0052CC"
-                          : "1px solid rgba(0,0,0,0.10)",
-                      background:
-                        delivery === "sameday"
-                          ? "rgba(0,82,204,0.06)"
-                          : "#FAF7F2",
+                      border: delivery === "sameday" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                      background: delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
                       cursor: "pointer",
                     }}
                   >
-                    <div style={{ fontWeight: 900, color: "#101010" }}>
-                      Same-day
-                    </div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                      For when you need cookies now 🍪
-                    </div>
+                    <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>For when you need cookies now 🍪</div>
                   </button>
                 </div>
               </div>
-            </div>
-          </section>
-
-          {/* PAYMENT TRUST */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#FAF7F2",
-            }}
-          >
-            <div style={{ fontWeight: 950, color: "#101010" }}>Payment</div>
-            <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
-              All payments are secure and encrypted.
-            </div>
-            <div
-              style={{
-                marginTop: 10,
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-                color: "#3C3C3C",
-                fontSize: 13,
-              }}
-            >
-              <span
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 999,
-                  background: "#fff",
-                  border: "1px solid rgba(0,0,0,0.10)",
-                }}
-              >
-                QRIS
-              </span>
-              <span
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 999,
-                  background: "#fff",
-                  border: "1px solid rgba(0,0,0,0.10)",
-                }}
-              >
-                VA
-              </span>
-              <span
-                style={{
-                  padding: "6px 10px",
-                  borderRadius: 999,
-                  background: "#fff",
-                  border: "1px solid rgba(0,0,0,0.10)",
-                }}
-              >
-                Card
-              </span>
             </div>
           </section>
 
@@ -500,28 +471,11 @@ export default function CheckoutPage() {
 
             <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
               {allItems.map((it, i) => (
-                <div
-                  key={`${it.id}-${i}`}
-                  style={{ display: "flex", justifyContent: "space-between", gap: 10 }}
-                >
-                  <div
-                    style={{
-                      color: "#101010",
-                      fontWeight: 800,
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {it.name}{" "}
-                    <span style={{ color: "#6B6B6B", fontWeight: 700 }}>
-                      ×{it.quantity}
-                    </span>
+                <div key={`${it.id}-${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <div style={{ color: "#101010", fontWeight: 800, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {it.name} <span style={{ color: "#6B6B6B", fontWeight: 700 }}>×{it.quantity}</span>
                   </div>
-                  <div style={{ color: "#101010", fontWeight: 900 }}>
-                    {formatIDR((it.price || 0) * (it.quantity || 0))}
-                  </div>
+                  {/* No per-item pricing */}
                 </div>
               ))}
             </div>
@@ -548,26 +502,15 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-          {/* ERROR */}
           {err && (
-            <section
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(0,0,0,0.10)",
-                padding: 14,
-                background: "#fff",
-              }}
-            >
-              <div style={{ fontWeight: 950, color: "#101010" }}>
-                Hmm, something doesn’t look right.
-              </div>
-              <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>{err}</div>
+            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff" }}>
+              <div style={{ fontWeight: 950, color: "#101010" }}>Hmm, something doesn’t look right.</div>
+              <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{err}</div>
             </section>
           )}
         </div>
       </div>
 
-      {/* Sticky Place Order */}
       <div
         style={{
           position: "fixed",
@@ -603,12 +546,6 @@ export default function CheckoutPage() {
           <div style={{ marginTop: 8, color: "#6B6B6B", fontSize: 12, textAlign: "center" }}>
             By placing your order, you agree to our terms.
           </div>
-
-          {!mapsKey && (
-            <div style={{ marginTop: 8, color: "#6B6B6B", fontSize: 12, textAlign: "center" }}>
-              (Heads up: Google Maps API key not found in env. Address autocomplete may not work.)
-            </div>
-          )}
         </div>
       </div>
     </main>
