@@ -1,27 +1,137 @@
-import type { NextApiRequest, NextApiResponse } from "next";
 // web/app/api/checkout/route.ts
 import { NextResponse } from "next/server";
 
+function getSiteUrl() {
+  return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+}
+
+function mode() {
+  return (process.env.NEXT_PUBLIC_CHECKOUT_MODE || "midtrans").toLowerCase();
+}
+
+/**
+ * In MANUAL mode:
+ * - We return redirect to /checkout/pending with query params for WhatsApp auto-message.
+ *
+ * In MIDTRANS mode:
+ * - We expect your real Midtrans logic to exist somewhere server-side.
+ * - If you already have an internal endpoint for creating Midtrans transactions,
+ *   set CHECKOUT_MIDTRANS_CREATE_URL to that URL (server-only).
+ * - Otherwise we return an error telling you what’s missing (instead of fake pending).
+ */
 export async function POST(req: Request) {
   try {
     const payload = await req.json();
-
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const siteUrl = getSiteUrl();
 
     const orderId =
       payload?.orderId ||
       globalThis.crypto?.randomUUID?.() ||
       `order_${Date.now()}`;
 
-    const redirect_url = `${siteUrl}/checkout/pending?order_id=${encodeURIComponent(
-      orderId
-    )}`;
+    // Basic info (best-effort)
+    const customerName = payload?.customer?.name || payload?.name || "";
+    const customerPhone = payload?.customer?.phone || payload?.phone || "";
+    const address = payload?.delivery?.address || payload?.address || "";
+    const building = payload?.delivery?.buildingName || payload?.delivery?.building || payload?.buildingName || "";
+    const postal = payload?.delivery?.postalCode || payload?.delivery?.postal || payload?.postalCode || "";
+    const total =
+      typeof payload?.total === "number"
+        ? payload.total
+        : // fallback: sum of box totals if present
+          Array.isArray(payload?.cart?.boxes)
+          ? payload.cart.boxes.reduce((s: number, b: any) => s + (Number(b?.total) || 0), 0)
+          : 0;
+
+    // ---- MANUAL MODE (fallback while Midtrans pending/verification)
+    if (mode() === "manual") {
+      const u = new URL(`${siteUrl}/checkout/pending`);
+      u.searchParams.set("order_id", orderId);
+      if (total) u.searchParams.set("total", String(total));
+      if (customerName) u.searchParams.set("name", String(customerName));
+      if (customerPhone) u.searchParams.set("phone", String(customerPhone));
+      if (address) u.searchParams.set("address", String(address));
+      if (building) u.searchParams.set("building", String(building));
+      if (postal) u.searchParams.set("postal", String(postal));
+
+      return NextResponse.json({
+        ok: true,
+        mode: "manual",
+        order_id: orderId,
+        redirect_url: u.toString(),
+      });
+    }
+
+    // ---- MIDTRANS MODE (primary)
+    // If you already have server code to create Midtrans transactions, call it here.
+    // To minimize deleting your work, we allow you to point to it via env.
+    const createUrl = process.env.CHECKOUT_MIDTRANS_CREATE_URL || "";
+
+    if (!createUrl) {
+      return NextResponse.json(
+        {
+          ok: false,
+          mode: "midtrans",
+          error:
+            "Midtrans mode is enabled but CHECKOUT_MIDTRANS_CREATE_URL is not set. Set NEXT_PUBLIC_CHECKOUT_MODE=manual for now, or configure Midtrans create endpoint.",
+        },
+        { status: 500 }
+      );
+    }
+
+    // Forward payload to your existing Midtrans transaction creator
+    const res = await fetch(createUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, orderId }),
+    });
+
+    const text = await res.text().catch(() => "");
+    if (!res.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          mode: "midtrans",
+          error: `Midtrans create failed (HTTP ${res.status}): ${text || "no details"}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // if it wasn't json, treat as error
+      return NextResponse.json(
+        {
+          ok: false,
+          mode: "midtrans",
+          error: `Midtrans create returned non-JSON: ${text.slice(0, 300)}`,
+        },
+        { status: 500 }
+      );
+    }
+
+    const redirectUrl = data?.redirect_url || data?.redirectUrl;
+    if (!redirectUrl) {
+      return NextResponse.json(
+        {
+          ok: false,
+          mode: "midtrans",
+          error: `Missing redirect_url from Midtrans create response: ${JSON.stringify(data)}`,
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       ok: true,
+      mode: "midtrans",
       order_id: orderId,
-      redirect_url,
+      redirect_url: redirectUrl,
+      // pass through if your creator returns snap_token
+      snap_token: data?.snap_token || data?.token || undefined,
     });
   } catch (e: any) {
     return NextResponse.json(
@@ -31,7 +141,6 @@ export async function POST(req: Request) {
   }
 }
 
-// Optional: helpful message if someone visits /api/checkout directly
 export async function GET() {
   return NextResponse.json(
     { ok: true, message: "Use POST /api/checkout" },

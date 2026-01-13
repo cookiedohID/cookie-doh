@@ -99,6 +99,9 @@ export default function CheckoutPage() {
 
   // Address fields
 
+  const [addressResolved, setAddressResolved] = useState(false);
+  const [buildingResolved, setBuildingResolved] = useState(false);
+
   const [buildingName, setBuildingName] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
@@ -139,15 +142,21 @@ export default function CheckoutPage() {
 
 
   const validate = () => {
-    if (!name.trim()) return "Please add your name.";
+  if (!name.trim()) return "Please add your name.";
 
-    const phoneCheck = validatePhone(phone);
-    if (!phoneCheck.ok) return phoneCheck.message;
+  const phoneCheck = validatePhone(phone);
+  if (!phoneCheck.ok) return phoneCheck.message;
 
-    if (!addressText.trim()) return "Please add your delivery address.";
+  if (!addressText.trim()) return "Please add your delivery address.";
 
-    return null;
-  };
+  // ✅ NEW: must be selected from Google
+  if (!addressResolved || addressLat === null || addressLng === null) {
+    return "Please choose a valid address from the Google suggestions.";
+  }
+
+  return null;
+};
+
 
   async function readErrorBody(res: Response) {
     // Try json then fallback to text for maximum visibility
@@ -166,6 +175,24 @@ export default function CheckoutPage() {
     }
   }
 
+  function redirectToManualPending(orderId: string) {
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
+    const base = siteUrl ? `${siteUrl}/checkout/pending` : "/checkout/pending";
+
+    const u = new URL(base, siteUrl || window.location.origin);
+
+    u.searchParams.set("order_id", orderId);
+    u.searchParams.set("total", String(subtotal));
+    u.searchParams.set("name", name.trim());
+    u.searchParams.set("phone", normalizeIDPhone(phone));
+    u.searchParams.set("address", addressText);
+    u.searchParams.set("building", buildingName || "");
+    u.searchParams.set("postal", postalCode || "");
+
+    window.location.href = u.toString();
+  }
+
+
   const placeOrder = async () => {
     setErr(null);
 
@@ -178,6 +205,52 @@ export default function CheckoutPage() {
       setErr("Your cart is empty. Please build a box first.");
       return;
     }
+
+    const checkoutMode =
+      (process.env.NEXT_PUBLIC_CHECKOUT_MODE || "midtrans").toLowerCase();
+
+      if (checkoutMode === "manual") {
+          // TEMPORARY fallback
+          // DO NOT touch Midtrans
+          redirectToManualPending(`order_${Date.now()}`);
+          return;
+
+        }
+
+        // Otherwise → Midtrans flow (server creates transaction + returns redirect_url)
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customer: { name: name.trim(), phone: normalizeIDPhone(phone) },
+            delivery: {
+              method: delivery,
+              address: addressText,
+              lat: addressLat,
+              lng: addressLng,
+              buildingName,
+              postalCode,
+            },
+            notes,
+            cart,
+          }),
+        });
+
+        if (!res.ok) {
+          const msg = await res.text().catch(() => "");
+          throw new Error(msg || `Checkout failed (HTTP ${res.status}).`);
+        }
+
+        const data = await res.json().catch(() => ({} as any));
+        const redirectUrl = data?.redirect_url || data?.redirectUrl;
+
+        if (!redirectUrl) {
+          throw new Error(`Missing redirect_url from server: ${JSON.stringify(data)}`);
+        }
+
+        window.location.href = redirectUrl;
+        return;
+
 
     const phoneCheck = validatePhone(phone);
     const normalizedPhone = phoneCheck.normalized || phone;
@@ -352,6 +425,9 @@ export default function CheckoutPage() {
             </div>
           </section>
 
+
+
+
           {/* DELIVERY */}
           <section
             style={{
@@ -365,83 +441,51 @@ export default function CheckoutPage() {
             <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               Please double-check your address to avoid delivery delays.{" "}
-              <span style={{ color: "#3C3C3C" }}>Jakarta same-day available for selected areas ✨</span>
+              <span style={{ color: "#3C3C3C" }}>
+                Jakarta same-day available for selected areas ✨
+              </span>
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              {/* MAIN ADDRESS (must be chosen from Google to proceed) */}
               <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Address
+                </div>
 
                 <GoogleAddressInput
                   apiKey={mapsKey}
-
-
+                  placeholder="Start typing your address…"
                   onResolved={(val: any) => {
+                    // GoogleAddressInput.tsx emits: formattedAddress, lat, lng, postal, building, isResolved
                     const text =
                       typeof val === "string"
                         ? val
-                        : val?.formatted_address || val?.address || val?.label || "";
+                        : val?.formattedAddress ||
+                          val?.formatted_address ||
+                          "";
+
                     setAddressText(text);
+                    setAddressLat(typeof val?.lat === "number" ? val.lat : null);
+                    setAddressLng(typeof val?.lng === "number" ? val.lng : null);
 
-                    // Lat/Lng (keep your existing logic)
-                    const lat =
-                      val?.lat ?? val?.location?.lat ?? val?.geometry?.location?.lat?.();
-                    const lng =
-                      val?.lng ?? val?.location?.lng ?? val?.geometry?.location?.lng?.();
-                    setAddressLat(typeof lat === "number" ? lat : null);
-                    setAddressLng(typeof lng === "number" ? lng : null);
+                    setPostalCode(val?.postal || "");
+                    // If building exists, keep it as a suggestion but user can edit
+                    if (val?.building) setBuildingName(val.building);
 
-                    // Postal code from Google address components (common field)
-                    const comps = val?.address_components || [];
-                    const pc =
-                      comps.find((c: any) => c?.types?.includes("postal_code"))?.long_name ||
-                      val?.postal_code ||
-                      val?.postalCode ||
-                      "";
-                    if (pc) setPostalCode(pc);
-
-                    // Building name: sometimes comes as "premise", "point_of_interest", or custom fields
-                    const premise =
-                      comps.find((c: any) => c?.types?.includes("premise"))?.long_name ||
-                      comps.find((c: any) => c?.types?.includes("point_of_interest"))?.long_name ||
-                      val?.building ||
-                      val?.buildingName ||
-                      "";
-                    if (premise) setBuildingName(premise);
+                    setAddressResolved(true);
                   }}
-
                 />
 
-                {/* Always keep a manual input fallback */}
-                <input
-                  value={buildingName}
-                  onChange={(e) => setBuildingName(e.target.value)}
-                  placeholder="Building name (optional)"
-                  style={sameStyle}
-
-                />
-
-                <input
-                  value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
-                  placeholder="Postal code (optional)"
-                  style={sameStyle}
-
-                />
-
-
+                {/* Manual details line: allowed, but it makes address "not resolved" */}
                 <input
                   value={addressText}
-                  onChange={(e) => setAddressText(e.target.value)}
-                  style={{
-                    marginTop: 8,
-                    height: 46,
-                    borderRadius: 14,
-                    border: "1px solid rgba(0,0,0,0.12)",
-                    padding: "0 12px",
-                    outline: "none",
+                  onChange={(e) => {
+                    setAddressText(e.target.value);
+                    setAddressResolved(false); // typed manually = not validated by Google
                   }}
-                  placeholder="Apartment / unit / floor / landmark"
+                  placeholder="Unit / floor / landmark (after selecting from Google)"
+                  style={sameStyle}
                 />
 
                 {!mapsKey && (
@@ -451,8 +495,61 @@ export default function CheckoutPage() {
                 )}
               </div>
 
+              {/* BUILDING SEARCH (Google) */}
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Building / Apartment (optional)
+                </div>
+
+                <GoogleAddressInput
+                  apiKey={mapsKey}
+                  placeholder="Search your building (optional)…"
+                  // This makes results more likely to be buildings/POI
+                  types={["establishment"]}
+                  onResolved={(val: any) => {
+                    const b =
+                      val?.building ||
+                      val?.name ||
+                      null;
+
+                    if (b) setBuildingName(String(b));
+
+                    // sometimes postal is present here too
+                    if (val?.postal) setPostalCode(val.postal);
+
+                    setBuildingResolved(true);
+                  }}
+                />
+
+                <input
+                  value={buildingName}
+                  onChange={(e) => {
+                    setBuildingName(e.target.value);
+                    setBuildingResolved(false);
+                  }}
+                  placeholder="e.g. Kemang Village - Infinity Tower"
+                  style={sameStyle}
+                />
+              </div>
+
+              {/* POSTAL CODE */}
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Postal code (optional)
+                </div>
+                <input
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  placeholder="e.g. 12150"
+                  style={sameStyle}
+                />
+              </div>
+
+              {/* NOTES */}
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes (optional)</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Notes (optional)
+                </span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -468,8 +565,11 @@ export default function CheckoutPage() {
                 />
               </label>
 
+              {/* DELIVERY METHOD */}
               <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Delivery method</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Delivery method
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <button
                     type="button"
@@ -478,13 +578,19 @@ export default function CheckoutPage() {
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border: delivery === "standard" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
-                      background: delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      border:
+                        delivery === "standard"
+                          ? "2px solid #0052CC"
+                          : "1px solid rgba(0,0,0,0.10)",
+                      background:
+                        delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
                       cursor: "pointer",
                     }}
                   >
                     <div style={{ fontWeight: 900, color: "#101010" }}>Standard</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Reliable & safe</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                      Reliable & safe
+                    </div>
                   </button>
 
                   <button
@@ -494,18 +600,29 @@ export default function CheckoutPage() {
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border: delivery === "sameday" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
-                      background: delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      border:
+                        delivery === "sameday"
+                          ? "2px solid #0052CC"
+                          : "1px solid rgba(0,0,0,0.10)",
+                      background:
+                        delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
                       cursor: "pointer",
                     }}
                   >
                     <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>For when you need cookies now 🍪</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                      For when you need cookies now 🍪
+                    </div>
                   </button>
                 </div>
               </div>
             </div>
           </section>
+
+
+
+
+
 
           {/* ORDER SUMMARY */}
           <section
