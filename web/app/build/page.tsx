@@ -30,7 +30,7 @@ const FLAVORS: FlavorUI[] = [
     name: "The One",
     image: "/flavors/the-one.jpg",
     ingredients:
-      "European butter, white chocolate, extra dark cocoa, bourbon vanilla, sea salt flakes",
+     "Decadent dark cookie studded with creamy white Belgian chocolate chips - a bold, blisful contrast in every bite",
     textureTags: ["Soft", "Chewy"],
     intensity: { chocolate: 5, sweetness: 3 },
     price: 30000,
@@ -40,12 +40,45 @@ const FLAVORS: FlavorUI[] = [
     id: "the-other-one",
     name: "The Other One",
     image: "/flavors/the-other-one.jpg",
-    ingredients: "European butter, mixed chocolate chips, vanilla, sea salt",
+    ingredients: "Sinfully rich chocolate cookie loaded with dark + milk Belgian chocolate chips - pure bliss in every bite",
     textureTags: ["Earthy", "Creamy"],
     intensity: { chocolate: 4, sweetness: 4 },
     price: 30000,
     badges: ["Fan Favorite"],
   },
+
+  {
+    id: "the-comfort",
+    name: "The Comfort",
+    image: "/flavors/the-comfort.jpg",
+    ingredients: "Hearty oats, plumps raisins, and a warm cinnamon hug - chewy, golden and baked with old fashioned love.",
+    textureTags: ["Earthy", "Creamy"],
+    intensity: { chocolate: 1, sweetness: 3 },
+    price: 30000,
+    badges: ["The Classic"],
+  },
+
+  {
+    id: "matcha-magic",
+    name: "Matcha Magic",
+    image: "/flavors/matcha-magic.jpg",
+    ingredients: "Like a serene Japanese garden in cookie form : vibrant matcha, sweet chocolate clouds and pure melt-in-your mouth magic",
+    textureTags: ["Earthy", "Creamy"],
+    intensity: { chocolate: 2, sweetness: 3 },
+    price: 30000,
+    badges: ["Matcha Lover"],
+  },
+ 
+  {
+    id: "orange-in-the-dark",
+    name: "Orange In The Dark",
+    image: "/flavors/orange-in-the-dark.jpg",
+    ingredients: "Rich, fudgy chocolate cookie packed with dark chocolate chips and a citrusy twist of orange peel - decadence with a zing.",
+    textureTags: ["Citrusy", "Creamy"],
+    intensity: { chocolate: 3, sweetness: 4 },
+    price: 30000,
+    badges: ["Classic with a twist"],
+  }
   // Add your other flavors here...
 ];
 
