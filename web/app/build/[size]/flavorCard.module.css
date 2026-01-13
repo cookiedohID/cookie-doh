@@ -148,3 +148,43 @@
   opacity: 1;
   transform: translateY(0);
 }
+
+/* --- Description clamp + expand --- */
+.desc {
+  all: unset;
+  display: block;
+  width: 100%;
+  cursor: pointer;
+  color: rgba(0,0,0,0.70);
+  font-size: 13px;
+  line-height: 1.35;
+
+  /* smooth height feel */
+  overflow: hidden;
+  transition: max-height 260ms ease, opacity 260ms ease;
+}
+
+.descCollapsed {
+  /* clamp to 3 lines */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+
+  max-height: 3.9em; /* ~3 lines */
+}
+
+.descExpanded {
+  display: block;
+  max-height: 240px; /* animate to this */
+}
+
+.more {
+  font-weight: 900;
+  color: rgba(0,0,0,0.75);
+}
+
+.less {
+  font-weight: 900;
+  color: rgba(0,0,0,0.55);
+}
+

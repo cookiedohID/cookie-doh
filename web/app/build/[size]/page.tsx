@@ -113,12 +113,16 @@ function SizeSwitcher({ current }: { current: 1 | 3 | 6 }) {
   );
 }
 
+function shouldShowMore(desc: string) {
+  // heuristic: show “more” if likely longer than 3 lines
+  return desc.trim().length > 95;
+}
+
 export default function BuildSizePage() {
   const router = useRouter();
   const params = useParams();
   const size = clampSize((params as any)?.size);
 
-  // ✅ Mobile grid
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 900px)");
@@ -130,6 +134,9 @@ export default function BuildSizePage() {
 
   const [qtyByFlavor, setQtyByFlavor] = useState<Record<string, number>>({});
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
+
+  // ✅ NEW: expanded description per card
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const pickedCount = useMemo(
     () => Object.values(qtyByFlavor).reduce((sum, n) => sum + (Number(n) || 0), 0),
@@ -291,7 +298,6 @@ export default function BuildSizePage() {
         </div>
       </header>
 
-      {/* ✅ Only ONE grid, and section is properly closed */}
       <section style={{ marginTop: 16 }}>
         <div
           style={{
@@ -304,6 +310,9 @@ export default function BuildSizePage() {
           {FLAVORS.map((f: any) => {
             const q = qtyByFlavor[f.id] || 0;
             const disabledPlus = remaining <= 0;
+
+            const isExpanded = expandedId === String(f.id);
+            const desc = String(f.description ?? "");
 
             return (
               <div key={String(f.id)} className={`${styles.card} ${justAddedId === f.id ? styles.bump : ""}`}>
@@ -343,21 +352,38 @@ export default function BuildSizePage() {
                 </div>
 
                 <div className={styles.body}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 950, fontSize: 16, lineHeight: 1.2 }}>{String(f.name)}</div>
-                      {f.description && (
-                        <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontSize: 13, lineHeight: 1.35 }}>
-                          {String(f.description)}
-                        </div>
-                      )}
-                    </div>
+                  {/* RED: title + qty */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      alignItems: "start",
+                      columnGap: 8,
+                    }}
+                  >
+                    <div style={{ fontWeight: 950, fontSize: 16, lineHeight: 1.2 }}>{String(f.name)}</div>
 
                     <div className={`${styles.qtyPill} ${justAddedId === f.id ? styles.pulse : ""}`} title="Selected">
                       {q}
                     </div>
                   </div>
 
+                  {/* GREEN: ingredients (clamp + tap expand + smooth) */}
+                  {desc ? (
+                    <button
+                      type="button"
+                      className={`${styles.desc} ${isExpanded ? styles.descExpanded : styles.descCollapsed}`}
+                      onClick={() => setExpandedId((cur) => (cur === String(f.id) ? null : String(f.id)))}
+                      aria-expanded={isExpanded}
+                      title={isExpanded ? "Tap to collapse" : "Tap to expand"}
+                    >
+                      {desc}
+                      {!isExpanded && shouldShowMore(desc) ? <span className={styles.more}>… more</span> : null}
+                      {isExpanded ? <span className={styles.less}> tap to collapse</span> : null}
+                    </button>
+                  ) : null}
+
+                  {/* NAVY: texture tags */}
                   {!!f.tags?.length && (
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {f.tags.slice(0, 4).map((t: any) => (
@@ -438,7 +464,7 @@ export default function BuildSizePage() {
         </div>
       </section>
 
-      {/* ✅ Fixed bottom bar OUTSIDE section */}
+      {/* Fixed bottom bar */}
       <div
         style={{
           position: "fixed",
