@@ -2,54 +2,51 @@
 export type CartItem = {
   id: string;
   name: string;
-  price: number; // IDR integer
+  price: number;
   quantity: number;
-  meta?: any; // optional (for storing flavours/size)
+  image?: string;
 };
 
-const CART_KEY = "cookie-doh-cart";
+export type CartBox = {
+  boxSize: number;
+  items: CartItem[];
+  total: number;
+};
 
-export function getCart(): CartItem[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(CART_KEY);
-  if (!raw) return [];
+type CartState = {
+  boxes: CartBox[];
+};
+
+const KEY = "cookie_doh_cart_v1";
+
+function readCart(): CartState {
+  if (typeof window === "undefined") return { boxes: [] };
   try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return { boxes: [] };
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
-    if (parsed && Array.isArray(parsed.items)) return parsed.items;
-    return [];
+    if (!parsed || !Array.isArray(parsed.boxes)) return { boxes: [] };
+    return parsed as CartState;
   } catch {
-    return [];
+    return { boxes: [] };
   }
 }
 
-export function setCart(items: CartItem[]) {
+function writeCart(state: CartState) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(CART_KEY, JSON.stringify(items));
+  localStorage.setItem(KEY, JSON.stringify(state));
+}
+
+export function addBoxToCart(box: CartBox) {
+  const cart = readCart();
+  cart.boxes.unshift(box);
+  writeCart(cart);
+}
+
+export function getCart(): CartState {
+  return readCart();
 }
 
 export function clearCart() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(CART_KEY);
-}
-
-export function addCartItem(item: CartItem) {
-  const cart = getCart();
-  cart.push(item);
-  setCart(cart);
-}
-
-export function updateCartItemQuantity(id: string, quantity: number) {
-  const q = Math.max(1, Math.round(quantity));
-  const cart = getCart().map((it) => (it.id === id ? { ...it, quantity: q } : it));
-  setCart(cart);
-}
-
-export function removeCartItem(id: string) {
-  const cart = getCart().filter((it) => it.id !== id);
-  setCart(cart);
-}
-
-export function calcSubtotal(items: CartItem[]) {
-  return items.reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0);
+  writeCart({ boxes: [] });
 }

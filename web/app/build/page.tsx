@@ -1,157 +1,256 @@
-import Link from "next/link";
-import { BOX_PRICES, formatIDR } from "@/lib/catalog";
+// web/app/build/page.tsx
+"use client";
 
-const sizes: Array<1 | 3 | 6> = [1, 3, 6];
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import ProductCard, { FlavorUI } from "@/components/ProductCard";
+import { addBoxToCart } from "@/lib/cart";
+import build from "next/dist/build";
 
-export default function BuildIndexPage() {
+const formatIDR = (n: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(n);
+
+type BoxSize = 3 | 6 | 12;
+
+const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
+  { size: 3, title: "3 cookies", desc: "Perfect for a little treat" },
+  { size: 6, title: "6 cookies", desc: "Just right for sharing" },
+  { size: 12, title: "12 cookies", desc: "For serious cookie lovers" },
+];
+
+// ✅ Replace this list with your real flavors if you already have FLAVORS.
+// If you already have `FLAVORS` somewhere, you can swap this constant to import it.
+const FLAVORS: FlavorUI[] = [
+  {
+    id: "the-one",
+    name: "The One",
+    image: "/flavors/the-one.jpg",
+    ingredients:
+      "European butter, white chocolate, extra dark cocoa, bourbon vanilla, sea salt flakes",
+    textureTags: ["Soft", "Chewy"],
+    intensity: { chocolate: 5, sweetness: 3 },
+    price: 30000,
+    badges: ["Bestseller", "Classic"],
+  },
+  {
+    id: "the-other-one",
+    name: "The Other One",
+    image: "/flavors/the-other-one.jpg",
+    ingredients: "European butter, mixed chocolate chips, vanilla, sea salt",
+    textureTags: ["Earthy", "Creamy"],
+    intensity: { chocolate: 4, sweetness: 4 },
+    price: 30000,
+    badges: ["Fan Favorite"],
+  },
+  // Add your other flavors here...
+];
+
+export default function BuildABoxPage() {
+  const router = useRouter();
+
+  const [boxSize, setBoxSize] = useState<BoxSize>(6);
+  const [qty, setQty] = useState<Record<string, number>>({});
+
+  const totalCount = useMemo(
+    () => Object.values(qty).reduce((a, b) => a + b, 0),
+    [qty]
+  );
+
+  const remaining = Math.max(0, boxSize - totalCount);
+
+  const totalPrice = useMemo(() => {
+    let sum = 0;
+    for (const f of FLAVORS) sum += (qty[f.id] ?? 0) * f.price;
+    return sum;
+  }, [qty]);
+
+  const canAddMore = totalCount < boxSize;
+
+  const inc = (id: string) => {
+    if (!canAddMore) return;
+    setQty((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  };
+
+  const dec = (id: string) => {
+    setQty((prev) => {
+      const next = { ...prev };
+      const v = next[id] ?? 0;
+      if (v <= 1) delete next[id];
+      else next[id] = v - 1;
+      return next;
+    });
+  };
+
+  const onAddToCart = () => {
+    if (totalCount === 0) return;
+
+    // Normalize items
+    const items = FLAVORS.filter((f) => (qty[f.id] ?? 0) > 0).map((f) => ({
+      id: f.id,
+      name: f.name,
+      price: f.price,
+      quantity: qty[f.id] ?? 0,
+      image: f.image,
+    }));
+
+    addBoxToCart({
+      boxSize,
+      items,
+      total: totalPrice,
+    });
+
+    router.push("/cart");
+  };
+
   return (
-    <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
-      <header style={{ marginBottom: 18 }}>
-        <div
+    <main style={{ background: "#fff", minHeight: "100vh" }}>
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "20px 16px 120px" }}>
+        <header style={{ marginBottom: 18 }}>
+          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>
+            Build your cookie box
+          </h1>
+          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
+            Mix and match your favorites. Freshly baked, packed with care.
+          </p>
+        </header>
+
+        {/* Box size cards */}
+        <section
           style={{
-            display: "inline-flex",
-            alignItems: "center",
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
             gap: 10,
-            padding: "8px 12px",
-            borderRadius: 999,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: "rgba(0,0,0,0.02)",
-            fontWeight: 900,
-            fontSize: 12,
-            letterSpacing: 0.2,
+            marginBottom: 18,
           }}
         >
-          🍪 COOKIE DOH
-          <span style={{ opacity: 0.6, fontWeight: 800 }}>Build a Box</span>
-        </div>
-
-        <h1 style={{ margin: "14px 0 8px", fontSize: 34, letterSpacing: -0.4 }}>
-          Pick your box size ✨
-        </h1>
-        <p style={{ margin: 0, color: "rgba(0,0,0,0.70)", lineHeight: 1.5, maxWidth: 680 }}>
-          Choose a size, then mix & match flavors. Duplicates are always welcome.
-        </p>
-      </header>
-
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 14,
-          marginTop: 18,
-        }}
-      >
-        {sizes.map((s) => {
-          const isMostPopular = s === 6;
-          return (
-            <Link
-              key={s}
-              href={`/build/${s}`}
-              prefetch={false}
-              style={{
-                display: "block",
-                textDecoration: "none",
-                color: "inherit",
-                borderRadius: 18,
-                border: "1px solid rgba(0,0,0,0.10)",
-                background: "#fff",
-                padding: 18,
-                boxShadow: isMostPopular ? "0 14px 32px rgba(0,0,0,0.08)" : "0 8px 22px rgba(0,0,0,0.05)",
-                transform: "translateY(0)",
-                transition: "transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease",
-                cursor: "pointer",
-                WebkitTapHighlightColor: "transparent",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              {/* subtle shine */}
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  pointerEvents: "none",
-                  background:
-                    "linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.45) 30%, rgba(255,255,255,0) 60%)",
-                  transform: "translateX(-120%)",
-                  transition: "transform 520ms ease",
+          {BOX_OPTIONS.map((opt) => {
+            const active = opt.size === boxSize;
+            return (
+              <button
+                key={opt.size}
+                onClick={() => {
+                  setBoxSize(opt.size);
+                  setQty({});
                 }}
-                className="cd-shine"
-              />
-
-              {isMostPopular && (
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "6px 10px",
-                    borderRadius: 999,
-                    background: "rgba(0,0,0,0.06)",
-                    border: "1px solid rgba(0,0,0,0.10)",
-                    fontWeight: 900,
-                    fontSize: 12,
-                    marginBottom: 12,
-                  }}
-                >
-                  ⭐ Most popular
-                </div>
-              )}
-
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
-                <div style={{ fontWeight: 1000, fontSize: 20, letterSpacing: -0.2 }}>Box of {s}</div>
-                <div style={{ fontWeight: 900, color: "rgba(0,0,0,0.75)" }}>IDR {formatIDR(BOX_PRICES[s])}</div>
-              </div>
-
-              <div style={{ marginTop: 10, color: "rgba(0,0,0,0.70)", lineHeight: 1.5 }}>
-                {s === 1 && "Perfect for a quick treat or a first taste."}
-                {s === 3 && "Best for sharing… or not 😉"}
-                {s === 6 && "Party-ready. Mix your favorites + a new one."}
-              </div>
-
-              <div
                 style={{
-                  marginTop: 14,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "10px 12px",
-                  borderRadius: 14,
-                  border: "1px solid rgba(0,0,0,0.10)",
-                  background: "rgba(0,0,0,0.02)",
-                  fontWeight: 950,
+                  textAlign: "left",
+                  borderRadius: 16,
+                  padding: 12,
+                  border: active ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                  background: active ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                  cursor: "pointer",
                 }}
               >
-                Choose this <span aria-hidden>→</span>
-              </div>
+                <div style={{ fontWeight: 700, color: "#101010" }}>{opt.title}</div>
+                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                  {opt.desc}
+                </div>
+              </button>
+            );
+          })}
+        </section>
 
-              <style>{`
-                a:hover .cd-shine { transform: translateX(120%); }
-                a:hover { border-color: rgba(0,0,0,0.16); transform: translateY(-2px); }
-              `}</style>
-            </Link>
-          );
-        })}
-      </section>
+        {/* Progress */}
+        <section style={{ marginBottom: 18 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "#3C3C3C" }}>
+            <div style={{ fontWeight: 600 }}>
+              You’ve added {totalCount} of {boxSize} cookies
+            </div>
+            <div style={{ color: "#6B6B6B" }}>{remaining} more</div>
+          </div>
+          <div
+            style={{
+              marginTop: 10,
+              height: 10,
+              borderRadius: 999,
+              background: "rgba(0,0,0,0.08)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${Math.min(100, (totalCount / boxSize) * 100)}%`,
+                background: "#0052CC",
+                borderRadius: 999,
+              }}
+            />
+          </div>
 
-      <section
+          {!canAddMore && (
+            <div style={{ marginTop: 10, color: "#6B6B6B" }}>
+              Your box is full 🤍 Remove one cookie to add another.
+            </div>
+          )}
+        </section>
+
+        {/* Grid */}
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 14,
+          }}
+        >
+          {FLAVORS.map((f) => (
+            <ProductCard
+              key={f.id}
+              flavor={f}
+              quantity={qty[f.id] ?? 0}
+              onAdd={() => inc(f.id)}
+              onRemove={() => dec(f.id)}
+              disabledAdd={!canAddMore}
+            />
+          ))}
+        </section>
+      </div>
+
+      {/* Sticky bottom bar */}
+      <div
         style={{
-          marginTop: 18,
-          padding: 16,
-          borderRadius: 18,
-          border: "1px solid rgba(0,0,0,0.10)",
-          background: "rgba(0,0,0,0.02)",
-          color: "rgba(0,0,0,0.75)",
-          lineHeight: 1.5,
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "#fff",
+          borderTop: "1px solid rgba(0,0,0,0.08)",
+          boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
+          padding: "12px 14px",
         }}
       >
-        <div style={{ fontWeight: 950, marginBottom: 6 }}>Quick tips</div>
-        <ul style={{ margin: 0, paddingLeft: 18 }}>
-          <li>Tap <strong>Add +</strong> to fill your box. You’ll see “Remaining” count update.</li>
-          <li>Duplicates are allowed (yes, all-choco is valid).</li>
-          <li>Switch box size anytime at the top of the builder.</li>
-        </ul>
-      </section>
+        <div style={{ maxWidth: 980, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <div style={{ fontWeight: 700, color: "#101010" }}>
+              Box of {boxSize} • Choose {Math.max(0, boxSize - totalCount)} more
+            </div>
+            <div style={{ color: "#6B6B6B" }}>Total: {formatIDR(totalPrice)}</div>
+          </div>
+
+          <button
+            onClick={onAddToCart}
+            disabled={totalCount === 0}
+            style={{
+              marginTop: 10,
+              width: "100%",
+              borderRadius: 999,
+              height: 52,
+              border: "none",
+              cursor: totalCount === 0 ? "not-allowed" : "pointer",
+              background: totalCount === 0 ? "rgba(0,82,204,0.45)" : "#0052CC",
+              color: "#fff",
+              fontWeight: 800,
+              fontSize: 16,
+              boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
+            }}
+          >
+            Add to cart
+          </button>
+        </div>
+      </div>
     </main>
   );
 }
