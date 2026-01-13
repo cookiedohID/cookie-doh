@@ -357,18 +357,29 @@ export default function CheckoutPage() {
                   apiKey={mapsKey}
                   placeholder="Start typing your address…"
                   types={["geocode"]}
+                 
                   onResolved={(val: any) => {
-                    // Prefer the component’s normalized output
                     const formatted =
                       val?.formattedAddress ||
                       val?.formatted_address ||
                       "";
 
-                    // ✅ base address from Google
-                    setAddressBase(String(formatted));
+                    // Building extraction (never empty if formatted exists)
+                    const b1 = (val?.building || val?.name || "").toString().trim();
+                    const b2 = formatted ? String(formatted).split(",")[0].trim() : "";
+                    const building = b1 || b2;
 
-                    // ✅ resolution must stay TRUE after Google selection
-                    // Use component’s isResolved when available; otherwise infer from lat/lng
+                    // ✅ Make building visible inside the address itself
+                    // Only prefix if it's not already included
+                    const addressWithBuilding =
+                      building && formatted && !formatted.toLowerCase().includes(building.toLowerCase())
+                        ? `${building}, ${formatted}`
+                        : formatted;
+
+                    // ✅ Save base address (now includes building visibly)
+                    setAddressBase(addressWithBuilding);
+
+                    // Lat/Lng + resolved
                     const lat = typeof val?.lat === "number" ? val.lat : null;
                     const lng = typeof val?.lng === "number" ? val.lng : null;
 
@@ -377,18 +388,13 @@ export default function CheckoutPage() {
 
                     setAddressResolved(!!val?.isResolved || (lat !== null && lng !== null));
 
-                    // ✅ Building extraction:
-                    // 1) use val.building or val.name if present
-                    // 2) else take first segment of formatted address before comma
-                    const b1 = (val?.building || val?.name || "").toString().trim();
-                    const b2 = String(formatted).split(",")[0].trim();
-                    const finalBuilding = b1 || b2;
-
-                    if (finalBuilding) setBuildingName(finalBuilding);
-
-                    // Postal code
+                    // Save building + postal too (for admin / ops)
+                    setBuildingName(building || "");
                     if (val?.postal) setPostalCode(String(val.postal));
                   }}
+
+
+
                 />
 
                 {/* ✅ Extra details line (does NOT invalidate Google selection) */}
@@ -421,6 +427,11 @@ export default function CheckoutPage() {
                   style={sameStyle}
                 />
               </div>
+
+              <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+                Detected building: <b>{buildingName || "-"}</b>
+              </div>
+
 
               {/* Notes */}
               <label style={{ display: "grid", gap: 6 }}>
