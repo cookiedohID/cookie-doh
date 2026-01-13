@@ -14,6 +14,13 @@ const formatIDR = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
+  const BOX_PRICE: Record<1 | 3 | 6, number> = {
+  1: 32500,
+  3: 90000,
+  6: 180000,
+};
+
+
 type BoxSize = 1 | 3 | 6;
 
 const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
@@ -96,11 +103,13 @@ export default function BuildABoxPage() {
 
   const remaining = Math.max(0, boxSize - totalCount);
 
-  const totalPrice = useMemo(() => {
-    let sum = 0;
-    for (const f of FLAVORS) sum += (qty[f.id] ?? 0) * f.price;
-    return sum;
-  }, [qty]);
+const totalPrice = useMemo(() => {
+  if (totalCount === boxSize) {
+    return BOX_PRICE[boxSize];
+  }
+  return 0;
+}, [boxSize, totalCount]);
+
 
   const canAddMore = totalCount < boxSize;
 
@@ -134,7 +143,7 @@ export default function BuildABoxPage() {
     addBoxToCart({
       boxSize,
       items,
-      total: totalPrice,
+      total: BOX_PRICE[boxSize],
     });
 
     router.push("/cart");

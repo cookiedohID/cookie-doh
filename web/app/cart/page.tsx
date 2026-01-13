@@ -147,7 +147,7 @@ export default function CartPage() {
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
-                      <div style={{ fontWeight: 900, color: "#101010" }}>
+                      <div style={{ fontWeight: 950, color: "#101010" }}>
                         Box of {box.boxSize} • {boxCount} cookies
                       </div>
                       <button
@@ -179,14 +179,23 @@ export default function CartPage() {
                           }}
                         >
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontWeight: 800, color: "#101010", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {it.name}
+                            <div
+                              style={{
+                                fontWeight: 800,
+                                color: "#101010",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {it.name} × {it.quantity}
                             </div>
+
                             <div style={{ color: "#6B6B6B", fontSize: 13 }}>
                               Qty: <span style={{ fontWeight: 800, color: "#101010" }}>{it.quantity}</span>
                             </div>
                           </div>
-                          <div style={{ fontWeight: 900, color: "#101010" }}>
+                          <div style={{ fontWeight: 950, color: "#101010" }}>
                             {formatIDR((it.price || 0) * (it.quantity || 0))}
                           </div>
                         </div>
