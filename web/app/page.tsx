@@ -81,7 +81,7 @@ export default function HomePage() {
               Build your perfect box
             </div>
             <Link
-              href="/build-a-box"
+              href="/build"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
