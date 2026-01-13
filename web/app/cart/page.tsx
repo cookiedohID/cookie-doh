@@ -191,9 +191,7 @@ export default function CartPage() {
                               {it.name}
                             </div>
 
-                            <div style={{ color: "#6B6B6B", fontSize: 13 }}>
-                              Qty: <span style={{ fontWeight: 800, color: "#101010" }}>{it.quantity}</span>
-                            </div>
+
                           </div>
                           <div style={{ fontWeight: 950, color: "#101010" }}>
                             {formatIDR((it.price || 0) * (it.quantity || 0))}
