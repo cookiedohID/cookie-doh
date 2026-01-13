@@ -1,6 +1,7 @@
 // web/app/checkout/page.tsx
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
@@ -10,9 +11,7 @@ type CartItem = {
   name: string;
   quantity: number;
   image?: string;
-  // NOTE: we intentionally do NOT need price here for fixed box pricing.
-  // If your stored cart still has price fields, it's okay — we won't use them.
-  price?: number;
+  price?: number; // ignored (box pricing)
 };
 
 type CartBox = {
@@ -49,42 +48,52 @@ function readCart(): CartState {
 /** Normalize Indonesian phone/WA numbers to +62XXXXXXXXXXX */
 function normalizeIDPhone(input: string) {
   const raw = (input || "").trim();
-  const digits = raw.replace(/[^\d+]/g, ""); // keep digits and + (we'll clean more below)
-
-  // Remove spaces/dashes etc, keep leading +
+  const digits = raw.replace(/[^\d+]/g, "");
   let cleaned = digits;
 
-  // Convert starting "62" to "+62"
   if (!cleaned.startsWith("+") && cleaned.startsWith("62")) cleaned = `+${cleaned}`;
-
-  // Convert starting "08" to "+628"
   if (cleaned.startsWith("08")) cleaned = `+62${cleaned.slice(1)}`;
 
-  // If it starts with "+" but not +62, leave it as-is (customer might be abroad)
   return cleaned;
 }
 
 function validatePhone(input: string) {
   const normalized = normalizeIDPhone(input);
 
-  // Basic checks
   if (!normalized) return { ok: false, normalized: "", message: "Please add your WhatsApp number." };
 
-  // If Indonesia format:
   if (normalized.startsWith("+62")) {
-    const onlyDigits = normalized.replace(/[^\d]/g, ""); // "62xxxxxxxxx"
-    // length sanity: +62 + (9 to 12 digits) -> total digits 11 to 14 (including 62)
+    const onlyDigits = normalized.replace(/[^\d]/g, "");
     if (onlyDigits.length < 11 || onlyDigits.length > 14) {
-      return { ok: false, normalized, message: "WhatsApp number looks too short/long. Example: 0812xxxxxxx" };
+      return {
+        ok: false,
+        normalized,
+        message: "WhatsApp number looks too short/long. Example: 0812xxxxxxx",
+      };
     }
     return { ok: true, normalized, message: "" };
   }
 
-  // Non-ID number: light validation
   const digitCount = normalized.replace(/[^\d]/g, "").length;
   if (digitCount < 8) return { ok: false, normalized, message: "WhatsApp number looks invalid." };
 
   return { ok: true, normalized, message: "" };
+}
+
+async function readErrorBody(res: Response) {
+  const ct = res.headers.get("content-type") || "";
+  try {
+    if (ct.includes("application/json")) {
+      const j = await res.json();
+      return j?.error || j?.message || JSON.stringify(j);
+    }
+  } catch {}
+  try {
+    const t = await res.text();
+    return t || null;
+  } catch {
+    return null;
+  }
 }
 
 export default function CheckoutPage() {
@@ -98,16 +107,15 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState("");
 
   // Address fields
-
   const [addressResolved, setAddressResolved] = useState(false);
-  const [buildingResolved, setBuildingResolved] = useState(false);
-
-  const [buildingName, setBuildingName] = useState("");
-  const [postalCode, setPostalCode] = useState("");
 
   const [addressText, setAddressText] = useState("");
   const [addressLat, setAddressLat] = useState<number | null>(null);
   const [addressLng, setAddressLng] = useState<number | null>(null);
+
+  // Building & postal
+  const [buildingName, setBuildingName] = useState("");
+  const [postalCode, setPostalCode] = useState("");
 
   // Delivery method cards
   const [delivery, setDelivery] = useState<"standard" | "sameday">("standard");
@@ -129,10 +137,9 @@ export default function CheckoutPage() {
     return items;
   }, [cart]);
 
-  // Google Maps key (required by your component)
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
-  const sameStyle: React.CSSProperties = {
+  const sameStyle: CSSProperties = {
     height: 46,
     borderRadius: 14,
     border: "1px solid rgba(0,0,0,0.12)",
@@ -140,58 +147,21 @@ export default function CheckoutPage() {
     outline: "none",
   };
 
-
   const validate = () => {
-  if (!name.trim()) return "Please add your name.";
+    if (!name.trim()) return "Please add your name.";
 
-  const phoneCheck = validatePhone(phone);
-  if (!phoneCheck.ok) return phoneCheck.message;
+    const phoneCheck = validatePhone(phone);
+    if (!phoneCheck.ok) return phoneCheck.message;
 
-  if (!addressText.trim()) return "Please add your delivery address.";
+    if (!addressText.trim()) return "Please add your delivery address.";
 
-  // ✅ NEW: must be selected from Google
-  if (!addressResolved || addressLat === null || addressLng === null) {
-    return "Please choose a valid address from the Google suggestions.";
-  }
-
-  return null;
-};
-
-
-  async function readErrorBody(res: Response) {
-    // Try json then fallback to text for maximum visibility
-    const ct = res.headers.get("content-type") || "";
-    try {
-      if (ct.includes("application/json")) {
-        const j = await res.json();
-        return j?.error || j?.message || JSON.stringify(j);
-      }
-    } catch {}
-    try {
-      const t = await res.text();
-      return t || null;
-    } catch {
-      return null;
+    // Must be selected from Google (valid lat/lng)
+    if (!addressResolved || addressLat === null || addressLng === null) {
+      return "Please choose a valid address from the Google suggestions.";
     }
-  }
 
-  function redirectToManualPending(orderId: string) {
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "";
-    const base = siteUrl ? `${siteUrl}/checkout/pending` : "/checkout/pending";
-
-    const u = new URL(base, siteUrl || window.location.origin);
-
-    u.searchParams.set("order_id", orderId);
-    u.searchParams.set("total", String(subtotal));
-    u.searchParams.set("name", name.trim());
-    u.searchParams.set("phone", normalizeIDPhone(phone));
-    u.searchParams.set("address", addressText);
-    u.searchParams.set("building", buildingName || "");
-    u.searchParams.set("postal", postalCode || "");
-
-    window.location.href = u.toString();
-  }
-
+    return null;
+  };
 
   const placeOrder = async () => {
     setErr(null);
@@ -206,57 +176,13 @@ export default function CheckoutPage() {
       return;
     }
 
-    const checkoutMode =
-      (process.env.NEXT_PUBLIC_CHECKOUT_MODE || "midtrans").toLowerCase();
-
-      if (checkoutMode === "manual") {
-          // TEMPORARY fallback
-          // DO NOT touch Midtrans
-          redirectToManualPending(`order_${Date.now()}`);
-          return;
-
-        }
-
-        // Otherwise → Midtrans flow (server creates transaction + returns redirect_url)
-        const res = await fetch("/api/checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customer: { name: name.trim(), phone: normalizeIDPhone(phone) },
-            delivery: {
-              method: delivery,
-              address: addressText,
-              lat: addressLat,
-              lng: addressLng,
-              buildingName,
-              postalCode,
-            },
-            notes,
-            cart,
-          }),
-        });
-
-        if (!res.ok) {
-          const msg = await res.text().catch(() => "");
-          throw new Error(msg || `Checkout failed (HTTP ${res.status}).`);
-        }
-
-        const data = await res.json().catch(() => ({} as any));
-        const redirectUrl = data?.redirect_url || data?.redirectUrl;
-
-        if (!redirectUrl) {
-          throw new Error(`Missing redirect_url from server: ${JSON.stringify(data)}`);
-        }
-
-        window.location.href = redirectUrl;
-        return;
-
-
     const phoneCheck = validatePhone(phone);
     const normalizedPhone = phoneCheck.normalized || phone;
 
     setLoading(true);
     try {
+      // We always POST to /api/checkout.
+      // Server decides manual/midtrans via NEXT_PUBLIC_CHECKOUT_MODE.
       const payload = {
         customer: { name: name.trim(), phone: normalizedPhone },
         delivery: {
@@ -267,14 +193,8 @@ export default function CheckoutPage() {
           buildingName,
           postalCode,
         },
-
         notes,
         cart,
-        // Helpful for backend debugging:
-        meta: {
-          checkoutMode: process.env.NEXT_PUBLIC_CHECKOUT_MODE || "unknown",
-          siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "",
-        },
       };
 
       const res = await fetch("/api/checkout", {
@@ -285,7 +205,6 @@ export default function CheckoutPage() {
 
       if (!res.ok) {
         const body = await readErrorBody(res);
-        // Show real details (status + server message)
         throw new Error(
           body
             ? `Checkout failed (HTTP ${res.status}). ${body}`
@@ -297,11 +216,7 @@ export default function CheckoutPage() {
       const redirectUrl = data?.redirect_url || data?.redirectUrl;
 
       if (!redirectUrl) {
-        // If server is in manual mode, it may return something else.
-        // Show full data for debugging:
-        throw new Error(
-          `Checkout succeeded but missing redirect_url. Server response: ${JSON.stringify(data)}`
-        );
+        throw new Error(`Missing redirect_url from server: ${JSON.stringify(data)}`);
       }
 
       window.location.href = redirectUrl;
@@ -393,13 +308,7 @@ export default function CheckoutPage() {
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  style={{
-                    height: 46,
-                    borderRadius: 14,
-                    border: "1px solid rgba(0,0,0,0.12)",
-                    padding: "0 12px",
-                    outline: "none",
-                  }}
+                  style={sameStyle}
                   placeholder="Your name"
                 />
               </label>
@@ -409,13 +318,7 @@ export default function CheckoutPage() {
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  style={{
-                    height: 46,
-                    borderRadius: 14,
-                    border: "1px solid rgba(0,0,0,0.12)",
-                    padding: "0 12px",
-                    outline: "none",
-                  }}
+                  style={sameStyle}
                   placeholder="e.g. 0812xxxxxxx or +62812xxxxxxx"
                 />
                 <div style={{ fontSize: 12, color: "#6B6B6B" }}>
@@ -425,193 +328,167 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-
-
-
           {/* DELIVERY */}
-            <section
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(0,0,0,0.10)",
-                padding: 14,
-                background: "#fff",
-                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-              }}
-            >
-              <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
-              <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
-                Please double-check your address to avoid delivery delays.{" "}
-                <span style={{ color: "#3C3C3C" }}>
-                  Jakarta same-day available for selected areas ✨
-                </span>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
+            <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
+            <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
+              Please double-check your address to avoid delivery delays.{" "}
+              <span style={{ color: "#3C3C3C" }}>Jakarta same-day available for selected areas ✨</span>
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              {/* Address (Google required) */}
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Address
+                </div>
+
+                <GoogleAddressInput
+                  apiKey={mapsKey}
+                  placeholder="Start typing your address…"
+                  types={["geocode"]}
+                  onResolved={(val: any) => {
+                    const text =
+                      typeof val === "string"
+                        ? val
+                        : val?.formattedAddress || val?.formatted_address || "";
+
+                    setAddressText(text);
+                    setAddressLat(typeof val?.lat === "number" ? val.lat : null);
+                    setAddressLng(typeof val?.lng === "number" ? val.lng : null);
+
+                    // optional enrich
+                    if (val?.postal) setPostalCode(val.postal);
+                    if (val?.building) setBuildingName(val.building);
+
+                    setAddressResolved(true);
+                  }}
+                />
+
+                <input
+                  value={addressText}
+                  onChange={(e) => {
+                    setAddressText(e.target.value);
+                    setAddressResolved(false); // manual edit -> not valid until Google selection again
+                  }}
+                  placeholder="Unit / floor / landmark (after selecting from Google)"
+                  style={sameStyle}
+                />
+
+                {!mapsKey && (
+                  <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+                    (Autocomplete is off because Google Maps API key is not set.)
+                  </div>
+                )}
               </div>
 
-              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-                {/* ADDRESS (must be chosen from Google) */}
-                <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                    Address
-                  </div>
-
-                  <GoogleAddressInput
-                    apiKey={mapsKey}
-                    placeholder="Start typing your address…"
-                    onResolved={(val: any) => {
-                      const text =
-                        typeof val === "string"
-                          ? val
-                          : val?.formattedAddress || val?.formatted_address || "";
-
-                      setAddressText(text);
-                      setAddressLat(typeof val?.lat === "number" ? val.lat : null);
-                      setAddressLng(typeof val?.lng === "number" ? val.lng : null);
-
-                      setPostalCode(val?.postal || "");
-                      if (val?.building) setBuildingName(val.building);
-
-                      setAddressResolved(true);
-                    }}
-                  />
-
-                  <input
-                    value={addressText}
-                    onChange={(e) => {
-                      setAddressText(e.target.value);
-                      setAddressResolved(false);
-                    }}
-                    placeholder="Unit / floor / landmark (after selecting from Google)"
-                    style={sameStyle}
-                  />
-
-                  {!mapsKey && (
-                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                      (Autocomplete is off because Google Maps API key is not set.)
-                    </div>
-                  )}
+              {/* ✅ Building search (Google) — THIS IS THE KEY PART */}
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Building / Apartment (optional)
                 </div>
 
-                {/* BUILDING (Google search) */}
-                <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                    Building / Apartment (optional)
-                  </div>
+                {/* IMPORTANT:
+                   Using `geocode` is more reliable in Indonesia than `establishment`.
+                   We still capture building name from val.name/val.building.
+                */}
+                <GoogleAddressInput
+                  apiKey={mapsKey}
+                  placeholder="Search building name… (e.g. Kemang Village, Infinity Tower)"
+                  types={["geocode"]}
+                  onResolved={(val: any) => {
+                    const b = val?.building || val?.name || "";
+                    if (b) setBuildingName(String(b));
+                    if (val?.postal) setPostalCode(String(val.postal));
+                  }}
+                />
 
-                  <GoogleAddressInput
-                    apiKey={mapsKey}
-                    placeholder="Search building name… (optional)"
-                    types={["establishment"]}
-                    onResolved={(val: any) => {
-                      const b = val?.building || val?.name || "";
-                      if (b) setBuildingName(String(b));
-                      if (val?.postal) setPostalCode(val.postal);
-                      setBuildingResolved(true);
-                    }}
-                  />
+                <input
+                  value={buildingName}
+                  onChange={(e) => setBuildingName(e.target.value)}
+                  placeholder="Or type manually"
+                  style={sameStyle}
+                />
+              </div>
 
-                  <input
-                    value={buildingName}
-                    onChange={(e) => {
-                      setBuildingName(e.target.value);
-                      setBuildingResolved(false);
-                    }}
-                    placeholder="Type manually if needed"
-                    style={sameStyle}
-                  />
+              {/* Postal code */}
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Postal code (optional)
                 </div>
+                <input
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  placeholder="e.g. 12150"
+                  style={sameStyle}
+                />
+              </div>
 
-                {/* POSTAL CODE */}
-                <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                    Postal code (optional)
-                  </div>
+              {/* Notes */}
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes (optional)</span>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  style={{
+                    minHeight: 90,
+                    borderRadius: 14,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    padding: "10px 12px",
+                    outline: "none",
+                    resize: "vertical",
+                  }}
+                  placeholder="Gift note, delivery timing, special instructions…"
+                />
+              </label>
 
-                  <input
-                    value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value)}
-                    placeholder="e.g. 12150"
-                    style={sameStyle}
-                  />
-                </div>
-
-                {/* NOTES */}
-                <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                    Notes (optional)
-                  </span>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
+              {/* Delivery method */}
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Delivery method</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setDelivery("standard")}
                     style={{
-                      minHeight: 90,
-                      borderRadius: 14,
-                      border: "1px solid rgba(0,0,0,0.12)",
-                      padding: "10px 12px",
-                      outline: "none",
-                      resize: "vertical",
+                      textAlign: "left",
+                      borderRadius: 16,
+                      padding: 12,
+                      border: delivery === "standard" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                      background: delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      cursor: "pointer",
                     }}
-                    placeholder="Gift note, delivery timing, special instructions…"
-                  />
-                </label>
+                  >
+                    <div style={{ fontWeight: 900, color: "#101010" }}>Standard</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Reliable & safe</div>
+                  </button>
 
-                {/* DELIVERY METHOD */}
-                <div style={{ display: "grid", gap: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                    Delivery method
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => setDelivery("standard")}
-                      style={{
-                        textAlign: "left",
-                        borderRadius: 16,
-                        padding: 12,
-                        border:
-                          delivery === "standard"
-                            ? "2px solid #0052CC"
-                            : "1px solid rgba(0,0,0,0.10)",
-                        background:
-                          delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div style={{ fontWeight: 900, color: "#101010" }}>Standard</div>
-                      <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                        Reliable & safe
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDelivery("sameday")}
-                      style={{
-                        textAlign: "left",
-                        borderRadius: 16,
-                        padding: 12,
-                        border:
-                          delivery === "sameday"
-                            ? "2px solid #0052CC"
-                            : "1px solid rgba(0,0,0,0.10)",
-                        background:
-                          delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
-                      <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                        For when you need cookies now 🍪
-                      </div>
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDelivery("sameday")}
+                    style={{
+                      textAlign: "left",
+                      borderRadius: 16,
+                      padding: 12,
+                      border: delivery === "sameday" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                      background: delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>For when you need cookies now 🍪</div>
+                  </button>
                 </div>
               </div>
-            </section>
-
-
-
-
-
+            </div>
+          </section>
 
           {/* ORDER SUMMARY */}
           <section
@@ -631,7 +508,6 @@ export default function CheckoutPage() {
                   <div style={{ color: "#101010", fontWeight: 800, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {it.name} <span style={{ color: "#6B6B6B", fontWeight: 700 }}>×{it.quantity}</span>
                   </div>
-                  {/* No per-item pricing */}
                 </div>
               ))}
             </div>
@@ -667,6 +543,7 @@ export default function CheckoutPage() {
         </div>
       </div>
 
+      {/* Sticky Place Order */}
       <div
         style={{
           position: "fixed",
