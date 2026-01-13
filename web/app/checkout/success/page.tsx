@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import SuccessClient from "./successClient";
 
-export default function CheckoutSuccessPage() {
+export default function SuccessPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>Loading…</div>}>
+    <Suspense fallback={null}>
       <SuccessClient />
     </Suspense>
   );

@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import PendingClient from "./pendingClient";
 
-export default function CheckoutPendingPage() {
+export default function PendingPage() {
   return (
-    <Suspense fallback={<div style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>Loading…</div>}>
+    <Suspense fallback={null}>
       <PendingClient />
     </Suspense>
   );

@@ -53,7 +53,7 @@ const FLAVORS: FlavorUI[] = [
     image: "/flavors/the-comfort.jpg",
     ingredients: "Hearty oats, plumps raisins, and a warm cinnamon hug - chewy, golden and baked with old fashioned love.",
     textureTags: ["Earthy", "Creamy"],
-    intensity: { raisins + spices: 3, sweetness: 3 },
+    intensity: { chocolate: 3, sweetness: 3 },
     price: 30000,
     badges: ["The Classic"],
   },

@@ -1,91 +1,67 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-
-const WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || "6281932181818";
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "hello@cookiedoh.co.id";
-
-function waLink(text: string) {
-  const msg = encodeURIComponent(text);
-  return `https://wa.me/6281932181818`;
-}
 
 export default function FailedClient() {
   const sp = useSearchParams();
-  const [copied, setCopied] = useState(false);
-
-  const orderId = useMemo(() => {
-    return sp.get("order_id") || sp.get("orderId") || sp.get("id") || "";
-  }, [sp]);
-
-  async function copyOrderId() {
-    if (!orderId) return;
-    try {
-      await navigator.clipboard.writeText(orderId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {
-      // ignore
-    }
-  }
-
-  const supportMsg = orderId
-    ? `Hi Cookie Doh, my payment failed. Order ID: ${orderId}`
-    : `Hi Cookie Doh, my payment failed.`;
+  const orderId = sp.get("order_id") || sp.get("orderId") || "";
+  const status = sp.get("transaction_status") || sp.get("status") || "failed";
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-10">
-      <div className="rounded-3xl border bg-white p-6 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Payment failed ❌</h1>
-            <p className="mt-2 text-sm text-neutral-600">
-              Your payment wasn’t completed. You can try again or contact support.
-            </p>
+    <main style={{ minHeight: "100vh", background: "#FAF7F2" }}>
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "64px 16px" }}>
+        <div
+          style={{
+            borderRadius: 20,
+            border: "1px solid rgba(0,0,0,0.10)",
+            background: "#fff",
+            padding: 18,
+            boxShadow: "0 14px 30px rgba(0,0,0,0.06)",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 18, fontWeight: 950, color: "#101010" }}>Payment didn’t go through 🤍</div>
+          <div style={{ marginTop: 8, color: "#6B6B6B", lineHeight: 1.6 }}>
+            That’s okay — it happens. Please try again, and we’ll take care of the rest.
           </div>
-          <div className="rounded-2xl bg-black px-3 py-2 text-xs font-medium text-white">
-            Failed
-          </div>
-        </div>
 
-        <div className="mt-6 rounded-2xl border bg-neutral-50 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-xs text-neutral-500">Order ID</div>
-              <div className="mt-1 font-mono text-sm">{orderId || "—"}</div>
+          {orderId && (
+            <div style={{ marginTop: 12, fontSize: 13, color: "#3C3C3C" }}>
+              Order ID: <span style={{ fontWeight: 900 }}>{orderId}</span>
             </div>
-            <button
-              onClick={copyOrderId}
-              disabled={!orderId}
-              className="rounded-xl border bg-white px-4 py-2 text-sm font-medium shadow-sm transition hover:bg-neutral-100 disabled:opacity-50"
+          )}
+
+          <div style={{ marginTop: 18, display: "grid", gap: 10, justifyItems: "center" }}>
+            <Link
+              href="/checkout"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 999,
+                padding: "14px 22px",
+                background: "#0052CC",
+                color: "#fff",
+                fontWeight: 950,
+                textDecoration: "none",
+                boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
+                minWidth: 220,
+              }}
             >
-              {copied ? "Copied ✅" : "Copy Order ID"}
-            </button>
+              Try checkout again
+            </Link>
+
+            <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+              ← Back to cart
+            </Link>
+
+            <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+              Status: <span style={{ fontWeight: 800 }}>{status}</span>
+            </div>
           </div>
-        </div>
-
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <a
-            href={waLink(supportMsg)}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-2xl bg-black px-5 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90"
-          >
-            WhatsApp Support
-          </a>
-          <a
-            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Payment Failed")}&body=${encodeURIComponent(supportMsg)}`}
-            className="rounded-2xl border bg-white px-5 py-3 text-center text-sm font-semibold transition hover:bg-neutral-100"
-          >
-            Email Support
-          </a>
-        </div>
-
-        <div className="mt-6 text-xs text-neutral-500">
-          If you already got charged, contact us immediately with your Order ID.
         </div>
       </div>
-    </div>
+    </main>
   );
 }

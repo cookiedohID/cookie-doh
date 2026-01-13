@@ -1,855 +1,616 @@
+// web/app/checkout/page.tsx
 "use client";
 
-import Script from "next/script";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { FLAVORS, formatIDR as formatIDRFromCatalog, FREE_SHIPPING_THRESHOLD } from "@/lib/catalog";
+import GoogleAddressInput from "@/components/GoogleAddressInput";
 
-type LegacyCartItem = {
-  boxSize: number;
-  items: { flavorId: string; qty: number }[];
-  price: number;
-  createdAt: number;
-  giftNote?: string;
-};
-
-type MidtransItem = {
+type CartItem = {
   id: string;
   name: string;
   price: number;
   quantity: number;
+  image?: string;
 };
 
-type CourierPref = "lalamove" | "paxel";
-
-type ShippingForm = {
-  receiver_name: string;
-  receiver_phone: string;
-  receiver_email: string;
-
-  address: string;
-  notes: string;
-
-  area_id: string;
-  area_label: string;
-
-  postal_code: string;
-
-  lat: number | null;
-  lng: number | null;
-
-  courier_preference: CourierPref;
+type CartBox = {
+  boxSize: number;
+  items: CartItem[];
+  total: number;
 };
 
-declare global {
-  interface Window {
-    google?: any;
-    snap?: {
-      pay: (
-        token: string,
-        options?: {
-          onSuccess?: (result: any) => void;
-          onPending?: (result: any) => void;
-          onError?: (result: any) => void;
-          onClose?: () => void;
-        }
-      ) => void;
-    };
-  }
-}
+type CartState = {
+  boxes: CartBox[];
+};
 
-const CART_KEY = "cookieDohCart";
+const CART_KEY = "cookie_doh_cart_v1";
 
-const SUPPORT_WA = process.env.NEXT_PUBLIC_WHATSAPP_SUPPORT || "6281932181818";
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "hello@cookiedoh.co.id";
+const formatIDR = (n: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(n);
 
-// ✅ EDIT THESE to your real bank/QRIS
-const PAYMENT_INSTRUCTIONS = [
-  "Manual Payment Instructions",
-  "",
-  "1) Transfer to:",
-  "   BCA: 622-0372918 a/n Angelia Tania",
-  "   OR QRIS",
-  "",
-  "2) Send proof of transfer to WhatsApp:",
-  "",
-  "3) We will confirm & process your order after payment is received.",
-].join("\n");
-
-function formatIDR(n: number) {
+function readCart(): CartState {
   try {
-    return formatIDRFromCatalog(n);
-  } catch {
-    try {
-      return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR" }).format(n);
-    } catch {
-      return `Rp ${n.toLocaleString("id-ID")}`;
-    }
-  }
-}
-
-function safeParseCart(raw: string | null): LegacyCartItem[] {
-  if (!raw) return [];
-  try {
+    const raw = localStorage.getItem(CART_KEY);
+    if (!raw) return { boxes: [] };
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!parsed || !Array.isArray(parsed.boxes)) return { boxes: [] };
+    return parsed as CartState;
   } catch {
-    return [];
+    return { boxes: [] };
   }
-}
-
-function legacyCartToMidtransItems(cart: LegacyCartItem[]): MidtransItem[] {
-  const items: MidtransItem[] = [];
-  for (const box of cart) {
-    const parts = (box.items || []).map((x) => {
-      const f = FLAVORS.find((ff) => ff.id === x.flavorId);
-      const name = f?.name ?? x.flavorId;
-      return `${name} x${x.qty}`;
-    });
-    const name = parts.length ? `Box of ${box.boxSize}: ${parts.join(", ")}` : `Box of ${box.boxSize}`;
-
-    items.push({
-      id: `box-${box.createdAt}`,
-      name,
-      price: Math.max(0, Math.round(Number(box.price) || 0)),
-      quantity: 1,
-    });
-  }
-  return items;
-}
-
-function buildRichItemsJson(cart: LegacyCartItem[]) {
-  // Output:
-  // {
-  //   boxes: [{ boxSize, price, createdAt, items:[{flavorId, flavorName, qty}] }],
-  //   summary: [{ flavorId, flavorName, qty }],
-  // }
-  const boxes = cart.map((box) => ({
-    boxSize: box.boxSize,
-    price: Math.max(0, Math.round(Number(box.price) || 0)),
-    createdAt: box.createdAt,
-    items: (box.items || []).map((it) => {
-      const f = FLAVORS.find((ff) => ff.id === it.flavorId);
-      return {
-        flavorId: it.flavorId,
-        flavorName: f?.name ?? it.flavorId,
-        qty: Number(it.qty || 0),
-      };
-    }),
-  }));
-
-  const agg = new Map<string, { flavorId: string; flavorName: string; qty: number }>();
-  for (const b of boxes) {
-    for (const it of b.items) {
-      const key = it.flavorId;
-      const prev = agg.get(key);
-      if (prev) prev.qty += it.qty;
-      else agg.set(key, { flavorId: it.flavorId, flavorName: it.flavorName, qty: it.qty });
-    }
-  }
-
-  const summary = Array.from(agg.values()).sort((a, b) => b.qty - a.qty);
-
-  return { boxes, summary };
-}
-
-function isJakartaLabel(label: string) {
-  const s = (label || "").toLowerCase();
-  return s.includes("jakarta") || s.includes("dki");
-}
-
-function FieldLabel({ children }: { children: any }) {
-  return <div style={{ fontSize: 12, opacity: 0.75, fontWeight: 800 }}>{children}</div>;
-}
-
-function InputBase(props: any) {
-  return (
-    <input
-      {...props}
-      style={{
-        width: "100%",
-        padding: 12,
-        borderRadius: 14,
-        border: "1px solid rgba(0,0,0,0.12)",
-        outline: "none",
-        background: "#fff",
-        boxSizing: "border-box",
-        ...(props.style || {}),
-      }}
-    />
-  );
-}
-
-function SectionCard({ title, subtitle, children }: { title: string; subtitle?: string; children: any }) {
-  return (
-    <section
-      style={{
-        border: "1px solid rgba(0,0,0,0.10)",
-        borderRadius: 18,
-        background: "#fff",
-        padding: 16,
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ display: "grid", gap: 4, marginBottom: 12 }}>
-        <div style={{ fontWeight: 950, fontSize: 16 }}>{title}</div>
-        {subtitle && <div style={{ color: "rgba(0,0,0,0.70)", fontSize: 13, lineHeight: 1.4 }}>{subtitle}</div>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function getComp(place: any, type: string): string {
-  const comps = place?.address_components || [];
-  for (const c of comps) {
-    if (c?.types?.includes(type)) return c?.long_name || c?.short_name || "";
-  }
-  return "";
 }
 
 export default function CheckoutPage() {
-  const router = useRouter();
-
-  // ✅ Responsive: avoid horizontal scroll on mobile
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 900px)");
-    const apply = () => setIsMobile(mq.matches);
-    apply();
-    mq.addEventListener?.("change", apply);
-    return () => mq.removeEventListener?.("change", apply);
-  }, []);
-
-  const checkoutMode = process.env.NEXT_PUBLIC_CHECKOUT_MODE || "midtrans";
-  const isManual = checkoutMode === "manual";
-
-  // Cart
-  const [legacyCart, setLegacyCart] = useState<LegacyCartItem[]>([]);
-
-  // Midtrans
-  const [snapReady, setSnapReady] = useState(false);
-  const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY;
-  const isProduction = process.env.NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION === "true";
-  const snapSrc = isProduction ? "https://app.midtrans.com/snap/snap.js" : "https://app.sandbox.midtrans.com/snap/snap.js";
-
-  // Google Places
-  const googleKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const [mapsReady, setMapsReady] = useState(false);
-  const addressInputRef = useRef<HTMLInputElement | null>(null);
-  const autocompleteRef = useRef<any>(null);
-
-  const [areaLoading, setAreaLoading] = useState(false);
-  const [areaError, setAreaError] = useState<string | null>(null);
-
-  const [shipping, setShipping] = useState<ShippingForm>({
-    receiver_name: "",
-    receiver_phone: "",
-    receiver_email: "",
-    address: "",
-    notes: "",
-    area_id: "",
-    area_label: "",
-    postal_code: "",
-    lat: null,
-    lng: null,
-    courier_preference: "lalamove",
-  });
-
+  const [cart, setCart] = useState<CartState>({ boxes: [] });
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // Basic form fields
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // Address fields
+  const [addressText, setAddressText] = useState("");
+  const [addressLat, setAddressLat] = useState<number | null>(null);
+  const [addressLng, setAddressLng] = useState<number | null>(null);
+
+  // Delivery method cards
+  const [delivery, setDelivery] = useState<"standard" | "sameday">("standard");
 
   useEffect(() => {
-    const raw = localStorage.getItem(CART_KEY);
-    setLegacyCart(safeParseCart(raw));
+    setCart(readCart());
   }, []);
 
-  const midtransItems = useMemo(() => legacyCartToMidtransItems(legacyCart), [legacyCart]);
-  const richItemsJson = useMemo(() => buildRichItemsJson(legacyCart), [legacyCart]);
+  const subtotal = useMemo(
+    () => cart.boxes.reduce((s, b) => s + (b.total || 0), 0),
+    [cart]
+  );
 
-  const totals = useMemo(() => {
-    const subtotal = midtransItems.reduce((sum, it) => sum + it.price * it.quantity, 0);
-    const boxes = midtransItems.reduce((sum, it) => sum + it.quantity, 0);
-    const shippingFee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : 20000; // placeholder
-    const total = subtotal + shippingFee;
-    return { subtotal, shippingFee, total, boxes };
-  }, [midtransItems]);
+  const isEmpty = cart.boxes.length === 0;
 
-  const isJakarta = useMemo(() => isJakartaLabel(shipping.area_label), [shipping.area_label]);
+  const allItems = useMemo(() => {
+    const items: CartItem[] = [];
+    cart.boxes.forEach((b) => b.items.forEach((it) => items.push(it)));
+    return items;
+  }, [cart]);
 
-  useEffect(() => {
-    if (!shipping.area_label) return;
-    if (!isJakarta && shipping.courier_preference !== "paxel") {
-      setShipping((p) => ({ ...p, courier_preference: "paxel" }));
-    }
-  }, [isJakarta, shipping.area_label]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Keep uncontrolled input in sync when programmatically set
-  useEffect(() => {
-    const el = addressInputRef.current;
-    if (!el) return;
-    if (el.value !== shipping.address) el.value = shipping.address;
-  }, [shipping.address]);
-
-  async function resolveBiteshipAreaFromPlace(place: any) {
-    const admin2 = getComp(place, "administrative_area_level_2");
-    const admin3 = getComp(place, "administrative_area_level_3");
-    const admin4 = getComp(place, "administrative_area_level_4");
-    const sub1 = getComp(place, "sublocality_level_1");
-    const neighborhood = getComp(place, "neighborhood");
-    const locality = getComp(place, "locality");
-
-    const candidates = [
-      [admin4, admin3, admin2].filter(Boolean).join(" "),
-      [sub1, admin3, admin2].filter(Boolean).join(" "),
-      [neighborhood, sub1, admin2].filter(Boolean).join(" "),
-      [admin3, admin2].filter(Boolean).join(" "),
-      [admin2 || locality].filter(Boolean).join(" "),
-    ]
-      .map((s) => s.trim())
-      .filter((s) => s.length >= 3);
-
-    if (!candidates.length) throw new Error("Unable to derive area from address.");
-
-    setAreaLoading(true);
-    setAreaError(null);
-
-    for (const q of candidates) {
-      try {
-        const res = await fetch(`/api/biteship/areas?input=${encodeURIComponent(q)}`);
-        const data = await res.json();
-
-        const results: any[] = Array.isArray(data?.areas)
-          ? data.areas
-          : Array.isArray(data?.data)
-            ? data.data
-            : Array.isArray(data)
-              ? data
-              : [];
-
-        if (!results.length) continue;
-
-        const r = results[0];
-        const id = String(r?.id ?? r?.area_id ?? "");
-        const joined = [r?.administrative_division_level_1, r?.administrative_division_level_2, r?.administrative_division_level_3]
-          .filter(Boolean)
-          .join(", ");
-        const label = String(r?.name ?? r?.label ?? joined ?? id);
-
-        if (id) {
-          setShipping((p) => ({ ...p, area_id: id, area_label: label }));
-          setAreaLoading(false);
-          return;
-        }
-      } catch {}
-    }
-
-    setAreaLoading(false);
-    throw new Error("Could not detect Kecamatan/Kelurahan. Please choose a more specific address.");
-  }
-
-  // Init Google autocomplete
-  useEffect(() => {
-    if (!mapsReady) return;
-    if (!window.google?.maps?.places) return;
-    if (!addressInputRef.current) return;
-    if (autocompleteRef.current) return;
-
-    const ac = new window.google.maps.places.Autocomplete(addressInputRef.current, {
-      componentRestrictions: { country: "id" },
-      fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
-    });
-
-    ac.addListener("place_changed", async () => {
-      const place = ac.getPlace?.();
-    
-        const formattedAddr = String(place?.formatted_address ?? "").trim();
-        const placeName = String(place?.name ?? "").trim();
-
-        let finalAddress = formattedAddr || placeName;
-
-        // keep building name if present
-        if (placeName && formattedAddr) {
-          const a = formattedAddr.toLowerCase();
-          const n = placeName.toLowerCase();
-          finalAddress = a.includes(n) ? formattedAddr : `${placeName}, ${formattedAddr}`;
-}
-
-
-
-      const lat = place?.geometry?.location?.lat?.() ?? null;
-      const lng = place?.geometry?.location?.lng?.() ?? null;
-      const postal = getComp(place, "postal_code") || "";
-
-      setShipping((prev) => ({
-        ...prev,
-        address: finalAddress,
-        lat,
-        lng,
-        postal_code: postal,
-        area_id: "",
-        area_label: "",
-      }));
-
-
-      try {
-        await resolveBiteshipAreaFromPlace(place);
-      } catch (e: any) {
-        setAreaError(e?.message ?? "Failed to detect area.");
-      }
-    });
-
-    autocompleteRef.current = ac;
-  }, [mapsReady]);
-
-  function validateCore() {
-    if (!midtransItems.length) return "Your cart is empty.";
-
-    if (!shipping.receiver_name.trim()) return "Please fill receiver name.";
-    if (!shipping.receiver_phone.trim()) return "Please fill phone number.";
-    if (!shipping.receiver_email.trim()) return "Please fill email address.";
-
-    if (!shipping.address.trim()) return "Please select an address from Google suggestions.";
-    if (shipping.lat == null || shipping.lng == null) return "Please select an address from Google suggestions (pin required).";
-
-    if (!shipping.postal_code.trim()) return "Postal code not detected. Please select a more specific address.";
-    if (!shipping.area_id) return "Area not detected yet. Please wait a moment or select a more specific address.";
-    if (areaLoading) return "Still detecting area… please wait.";
-
+  const validate = () => {
+    if (!name.trim()) return "Please add your name.";
+    if (!phone.trim()) return "Please add your WhatsApp number.";
+    if (!addressText.trim()) return "Please add your delivery address.";
     return null;
-  }
+  };
 
-  async function handleManualOrder() {
-    const err = validateCore();
-    if (err) return alert(err);
+  const placeOrder = async () => {
+    setErr(null);
+    const v = validate();
+    if (v) {
+      setErr(v);
+      return;
+    }
+    if (isEmpty) {
+      setErr("Your cart is empty. Please build a box first.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const res = await fetch("/api/orders/manual", {
+      // ✅ If your backend endpoint differs, change ONLY this URL:
+      const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customer_name: shipping.receiver_name,
-          customer_phone: shipping.receiver_phone,
-          email: shipping.receiver_email,
-
-          shipping_address: shipping.address,
-          destination_area_id: shipping.area_id,
-          destination_area_label: shipping.area_label,
-          postal: shipping.postal_code,
-
-          notes: shipping.notes,
-
-          subtotal_idr: totals.subtotal,
-          shipping_cost_idr: totals.shippingFee,
-          total_idr: totals.total,
-
-          courier_company: shipping.courier_preference,
-          courier_type: shipping.courier_preference === "lalamove" ? "instant" : "next_day",
-
-          // ✅ upgraded items_json
-          items_json: {
-            ...richItemsJson,
-            midtrans_items: midtransItems,
+          customer: { name, phone },
+          delivery: {
+            method: delivery,
+            address: addressText,
+            lat: addressLat,
+            lng: addressLng,
           },
-
-          customer_json: {
-            receiver_name: shipping.receiver_name,
-            receiver_phone: shipping.receiver_phone,
-            receiver_email: shipping.receiver_email,
-          },
-          shipping_json: {
-            destination_lat: shipping.lat,
-            destination_lng: shipping.lng,
-            destination_postal_code: shipping.postal_code,
-            destination_area_id: shipping.area_id,
-            courier_preference: shipping.courier_preference,
-          },
+          notes,
+          cart,
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "Failed to place order");
+      const data = await res.json().catch(() => ({}));
 
-      const orderId = String(data.order_id ?? "");
-      router.push(`/checkout/pending?order_id=${encodeURIComponent(orderId)}`);
+      if (!res.ok) {
+        throw new Error(
+          data?.error || "Something went wrong — let’s try again."
+        );
+      }
+
+      const redirectUrl = data?.redirect_url || data?.redirectUrl;
+      if (!redirectUrl) {
+        throw new Error("Missing payment redirect URL from server.");
+      }
+
+      window.location.href = redirectUrl;
     } catch (e: any) {
-      alert(e?.message ?? "Failed to place order");
+      setErr(e?.message || "Something went wrong — let’s try again.");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  async function handleMidtransPay() {
-    const err = validateCore();
-    if (err) return alert(err);
+  // Google Maps key (required by your component)
+  const mapsKey =
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ||
+    "";
 
-    if (!clientKey) return alert("Payment is not configured (missing client key).");
-    if (!window.snap) return alert("Payment system is still loading. Please try again in a moment.");
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/midtrans/snap-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: midtransItems,
-          customer: {
-            first_name: shipping.receiver_name,
-            last_name: "",
-            email: shipping.receiver_email,
-            phone: shipping.receiver_phone,
-          },
-          shipping: {
-            address: shipping.address,
-            notes: shipping.notes,
-            destination_area_id: shipping.area_id,
-            destination_area_label: shipping.area_label,
-            destination_postal_code: shipping.postal_code,
-            destination_lat: shipping.lat,
-            destination_lng: shipping.lng,
-            courier_preference: shipping.courier_preference,
-          },
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ? String(data.error) : `Token API failed (${res.status})`);
-
-      const { token, order_id } = data as { token: string; order_id: string };
-
-      window.snap!.pay(token, {
-        onSuccess: () => router.push(`/checkout/success?order_id=${encodeURIComponent(order_id)}`),
-        onPending: () => router.push(`/checkout/pending?order_id=${encodeURIComponent(order_id)}`),
-        onError: () => router.push(`/checkout/failed?order_id=${encodeURIComponent(order_id)}`),
-        onClose: () => {},
-      });
-    } catch (e: any) {
-      alert(e?.message || "Payment failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const actionDisabled =
-    loading ||
-    midtransItems.length === 0 ||
-    areaLoading ||
-    (!isManual && (!snapReady || !clientKey));
-
-  return (
-    <>
-      <Script src={snapSrc} data-client-key={clientKey} strategy="afterInteractive" onLoad={() => setSnapReady(true)} />
-
-      {googleKey && (
-        <Script
-          src={`https://maps.googleapis.com/maps/api/js?key=${googleKey}&libraries=places`}
-          strategy="afterInteractive"
-          onLoad={() => setMapsReady(true)}
-        />
-      )}
-
-      <main
-        style={{
-          padding: isMobile ? 14 : 24,
-          maxWidth: 1080,
-          margin: "0 auto",
-          paddingBottom: isMobile ? 90 : 110,
-          boxSizing: "border-box",
-          overflowX: "hidden",
-        }}
-      >
-        <header style={{ marginBottom: 14 }}>
-          <div
-            style={{
-              display: "inline-flex",
-              gap: 10,
-              alignItems: "center",
-              padding: "8px 12px",
-              borderRadius: 999,
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "rgba(0,0,0,0.02)",
-              fontWeight: 950,
-              fontSize: 12,
-              maxWidth: "100%",
-              boxSizing: "border-box",
-            }}
-          >
-            🔒 COOKIE DOH <span style={{ opacity: 0.65, fontWeight: 900 }}>Secure Checkout</span>
-          </div>
-
-          <h1 style={{ margin: "12px 0 6px", fontSize: isMobile ? 24 : 30, letterSpacing: -0.3 }}>Almost there</h1>
-          <p style={{ margin: 0, color: "rgba(0,0,0,0.70)", lineHeight: 1.5, maxWidth: 760 }}>
-            Select your address from Google suggestions. We auto-detect area + postal. Add notes if needed.
+  if (isEmpty) {
+    return (
+      <main style={{ minHeight: "100vh", background: "#fff" }}>
+        <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px" }}>
+          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>
+            Checkout
+          </h1>
+          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
+            You’re almost there 🤍
           </p>
 
-          {isManual && (
-            <div
-              style={{
-                marginTop: 12,
-                border: "1px solid rgba(0,0,0,0.12)",
-                padding: 12,
-                borderRadius: 12,
-                background: "rgba(0,0,0,0.02)",
-                boxSizing: "border-box",
-              }}
-            >
-              <div style={{ fontWeight: 950, marginBottom: 6 }}>Manual payment mode (temporary)</div>
-              <div style={{ fontSize: 12, opacity: 0.8, whiteSpace: "pre-wrap" }}>{PAYMENT_INSTRUCTIONS}</div>
-            </div>
-          )}
-        </header>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "1fr 360px",
-            gap: 16,
-            alignItems: "start",
-          }}
-        >
-          <div style={{ display: "grid", gap: 16, minWidth: 0 }}>
-            <SectionCard title="Delivery details" subtitle="Address selection is required. Area & postal are detected automatically.">
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "grid", gap: 6 }}>
-                  <FieldLabel>Receiver name</FieldLabel>
-                  <InputBase
-                    value={shipping.receiver_name}
-                    onChange={(e: any) => setShipping((p) => ({ ...p, receiver_name: e.target.value }))}
-                    placeholder="Full name"
-                  />
-                </div>
-
-                <div style={{ display: "grid", gap: 10, gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr" }}>
-                  <div style={{ display: "grid", gap: 6 }}>
-                    <FieldLabel>Phone</FieldLabel>
-                    <InputBase
-                      value={shipping.receiver_phone}
-                      onChange={(e: any) => setShipping((p) => ({ ...p, receiver_phone: e.target.value }))}
-                      placeholder="08xxxxxxxxxx"
-                    />
-                  </div>
-
-                  <div style={{ display: "grid", gap: 6 }}>
-                    <FieldLabel>Email</FieldLabel>
-                    <InputBase
-                      value={shipping.receiver_email}
-                      onChange={(e: any) => setShipping((p) => ({ ...p, receiver_email: e.target.value }))}
-                      placeholder="you@email.com"
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gap: 6 }}>
-                  <FieldLabel>Exact address (Google suggestions required)</FieldLabel>
-                  <InputBase
-                    ref={addressInputRef}
-                    defaultValue={shipping.address}
-                    onChange={() => {
-                      setShipping((p) => ({ ...p, lat: null, lng: null, postal_code: "", area_id: "", area_label: "" }));
-                      setAreaError(null);
-                    }}
-                    placeholder={mapsReady ? "Start typing street / building name…" : "Loading Google…"}
-                    autoComplete="off"
-                  />
-
-                  <div style={{ fontSize: 12, opacity: 0.65 }}>
-                    Pin: {shipping.lat ?? "—"}, {shipping.lng ?? "—"}
-                  </div>
-                  <div style={{ fontSize: 12, opacity: 0.65 }}>
-                    Postal: <strong>{shipping.postal_code || "Detecting…"}</strong>
-                  </div>
-                  <div style={{ fontSize: 12, opacity: 0.65 }}>
-                    Area: <strong>{areaLoading ? "Detecting…" : shipping.area_label || "—"}</strong>
-                  </div>
-                  {areaError && <div style={{ fontSize: 12, color: "#b00020" }}>{areaError}</div>}
-                </div>
-
-                <div style={{ display: "grid", gap: 6 }}>
-                  <FieldLabel>Notes (optional)</FieldLabel>
-                  <InputBase
-                    value={shipping.notes}
-                    onChange={(e: any) => setShipping((p) => ({ ...p, notes: e.target.value }))}
-                    placeholder="Unit / floor / landmark / security / etc"
-                  />
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Courier" subtitle="Jakarta: choose Lalamove or Paxel. Outside Jakarta: Paxel only.">
-              {!shipping.area_label ? (
-                <div style={{ fontSize: 13, opacity: 0.75 }}>Select an address first — courier options unlock after area detection.</div>
-              ) : isJakarta ? (
-                <div style={{ display: "grid", gap: 10 }}>
-                  <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="courier"
-                      checked={shipping.courier_preference === "lalamove"}
-                      onChange={() => setShipping((p) => ({ ...p, courier_preference: "lalamove" }))}
-                    />
-                    <div>
-                      <div style={{ fontWeight: 950 }}>Lalamove</div>
-                      <div style={{ fontSize: 12, opacity: 0.7 }}>Instant courier (Jakarta)</div>
-                    </div>
-                  </label>
-
-                  <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
-                    <input
-                      type="radio"
-                      name="courier"
-                      checked={shipping.courier_preference === "paxel"}
-                      onChange={() => setShipping((p) => ({ ...p, courier_preference: "paxel" }))}
-                    />
-                    <div>
-                      <div style={{ fontWeight: 950 }}>Paxel</div>
-                      <div style={{ fontSize: 12, opacity: 0.7 }}>Jakarta delivery</div>
-                    </div>
-                  </label>
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: 8 }}>
-                  <div style={{ fontWeight: 950 }}>Paxel only</div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>Outside Jakarta — Paxel is enforced automatically.</div>
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard title="Your items" subtitle="Review your boxes before placing order.">
-              {midtransItems.length === 0 ? (
-                <div style={{ opacity: 0.75 }}>
-                  Your cart is empty.{" "}
-                  <Link href="/build/6" style={{ textDecoration: "underline", color: "inherit" }}>
-                    Build a box
-                  </Link>
-                </div>
-              ) : (
-                <div style={{ display: "grid", gap: 10 }}>
-                  {midtransItems.map((it) => (
-                    <div
-                      key={it.id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        padding: "10px 12px",
-                        borderRadius: 14,
-                        background: "rgba(0,0,0,0.03)",
-                        border: "1px solid rgba(0,0,0,0.06)",
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 900 }}>{it.name}</div>
-                        <div style={{ fontSize: 12, opacity: 0.7 }}>
-                          {formatIDR(it.price)} × {it.quantity}
-                        </div>
-                      </div>
-                      <div style={{ fontWeight: 950, whiteSpace: "nowrap" }}>{formatIDR(it.price * it.quantity)}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div style={{ marginTop: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => router.push("/cart")}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 12,
-                    border: "1px solid rgba(0,0,0,0.12)",
-                    background: "rgba(0,0,0,0.02)",
-                    cursor: "pointer",
-                    fontWeight: 900,
-                    fontSize: 13,
-                  }}
-                >
-                  ← Back to cart
-                </button>
-              </div>
-            </SectionCard>
-          </div>
-
-          <aside
+          <section
             style={{
-              position: isMobile ? "static" : "sticky",
-              top: isMobile ? undefined : 18,
-              alignSelf: "start",
-              display: "grid",
-              gap: 12,
-              minWidth: 0,
+              marginTop: 16,
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              background: "#FAF7F2",
+              padding: 18,
             }}
           >
-            <SectionCard title="Summary" subtitle={isManual ? "Manual payment (temporary)" : "Secure payment powered by Midtrans."}>
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ opacity: 0.75 }}>Boxes</span>
-                  <strong>{totals.boxes}</strong>
-                </div>
+            <div style={{ fontWeight: 900, color: "#101010" }}>
+              Your box is waiting 🤍
+            </div>
+            <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>
+              Please build your cookie box first.
+            </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ opacity: 0.75 }}>Subtotal</span>
-                  <strong>{formatIDR(totals.subtotal)}</strong>
-                </div>
+            <Link
+              href="/build"
+              style={{
+                marginTop: 14,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 999,
+                padding: "14px 22px",
+                background: "#0052CC",
+                color: "#fff",
+                fontWeight: 900,
+                textDecoration: "none",
+                boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
+              }}
+            >
+              Build your box 🍪
+            </Link>
 
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ opacity: 0.75 }}>Shipping</span>
-                  <strong>{totals.shippingFee === 0 ? "Free" : formatIDR(totals.shippingFee)}</strong>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 10, borderTop: "1px solid rgba(0,0,0,0.10)" }}>
-                  <span style={{ fontWeight: 950 }}>Total</span>
-                  <span style={{ fontWeight: 1000 }}>{formatIDR(totals.total)}</span>
-                </div>
-
-                {!isManual && (
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>
-                    Payment popup: <strong>{snapReady ? "Ready ✅" : "Loading…"}</strong>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={isManual ? handleManualOrder : handleMidtransPay}
-                  disabled={actionDisabled}
-                  style={{
-                    width: "100%",
-                    padding: "12px 14px",
-                    borderRadius: 14,
-                    border: "none",
-                    background: "var(--brand-blue)",
-                    color: "#fff",
-                    fontWeight: 1000,
-                    cursor: loading ? "wait" : "pointer",
-                    opacity: actionDisabled ? 0.6 : 1,
-                  }}
-                >
-                  {loading ? "Processing…" : areaLoading ? "Detecting area…" : isManual ? "Place Order (Manual Payment)" : "Pay securely"}
-                </button>
-
-                <div style={{ fontSize: 12, opacity: 0.65, lineHeight: 1.4 }}>
-                  {isManual
-                    ? "After placing order, follow payment instructions and send proof via WhatsApp."
-                    : "By paying, you confirm your delivery details are correct."}
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Need help?" subtitle="We’ll reply fast on WhatsApp.">
-              <div style={{ fontSize: 13, opacity: 0.75, lineHeight: 1.5 }}>
-                Message us:{" "}
-                <a style={{ textDecoration: "underline" }} href={`https://wa.me/${SUPPORT_WA}`} target="_blank" rel="noreferrer">
-                  WhatsApp
-                </a>{" "}
-                ·{" "}
-                <a style={{ textDecoration: "underline" }} href={`mailto:${SUPPORT_EMAIL}`}>
-                  {SUPPORT_EMAIL}
-                </a>
-              </div>
-            </SectionCard>
-          </aside>
+            <div style={{ marginTop: 12 }}>
+              <Link
+                href="/cart"
+                style={{
+                  color: "#0052CC",
+                  fontWeight: 800,
+                  textDecoration: "none",
+                }}
+              >
+                ← Back to cart
+              </Link>
+            </div>
+          </section>
         </div>
       </main>
-    </>
+    );
+  }
+
+  return (
+    <main style={{ minHeight: "100vh", background: "#fff" }}>
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px 120px" }}>
+        <header style={{ marginBottom: 18 }}>
+          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>
+            Checkout
+          </h1>
+          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
+            You’re almost there 🤍
+          </p>
+        </header>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
+          {/* CONTACT */}
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
+            <div style={{ fontWeight: 950, color: "#101010" }}>
+              Contact details
+            </div>
+            <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
+              We’ll use this to update you about your order.
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Name
+                </span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={{
+                    height: 46,
+                    borderRadius: 14,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    padding: "0 12px",
+                    outline: "none",
+                  }}
+                  placeholder="Your name"
+                />
+              </label>
+
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  WhatsApp number
+                </span>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  style={{
+                    height: 46,
+                    borderRadius: 14,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    padding: "0 12px",
+                    outline: "none",
+                  }}
+                  placeholder="e.g. 0812xxxxxxx"
+                />
+              </label>
+            </div>
+          </section>
+
+          {/* DELIVERY */}
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
+            <div style={{ fontWeight: 950, color: "#101010" }}>
+              Delivery details
+            </div>
+            <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
+              Please double-check your address to avoid delivery delays.{" "}
+              <span style={{ color: "#3C3C3C" }}>
+                Jakarta same-day available for selected areas ✨
+              </span>
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              {/* Google address picker */}
+              <div style={{ display: "grid", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Address
+                </div>
+
+                <GoogleAddressInput
+                  apiKey={mapsKey}
+                  onResolved={(val: any) => {
+                    // Defensive: accept multiple shapes.
+                    const text =
+                      typeof val === "string"
+                        ? val
+                        : val?.formatted_address ||
+                          val?.address ||
+                          val?.label ||
+                          "";
+
+                    setAddressText(text);
+
+                    // Lat/Lng if present
+                    const lat =
+                      val?.lat ??
+                      val?.location?.lat ??
+                      val?.geometry?.location?.lat?.();
+                    const lng =
+                      val?.lng ??
+                      val?.location?.lng ??
+                      val?.geometry?.location?.lng?.();
+
+                    setAddressLat(typeof lat === "number" ? lat : null);
+                    setAddressLng(typeof lng === "number" ? lng : null);
+                  }}
+                />
+
+                {/* Mirror input (optional, helps user add unit/floor) */}
+                <input
+                  value={addressText}
+                  onChange={(e) => setAddressText(e.target.value)}
+                  style={{
+                    marginTop: 8,
+                    height: 46,
+                    borderRadius: 14,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    padding: "0 12px",
+                    outline: "none",
+                  }}
+                  placeholder="Address details (floor/unit/notes)"
+                />
+              </div>
+
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Notes (optional)
+                </span>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  style={{
+                    minHeight: 90,
+                    borderRadius: 14,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    padding: "10px 12px",
+                    outline: "none",
+                    resize: "vertical",
+                  }}
+                  placeholder="Gift note, landmark, delivery timing…"
+                />
+              </label>
+
+              {/* Delivery method cards */}
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Delivery method
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setDelivery("standard")}
+                    style={{
+                      textAlign: "left",
+                      borderRadius: 16,
+                      padding: 12,
+                      border:
+                        delivery === "standard"
+                          ? "2px solid #0052CC"
+                          : "1px solid rgba(0,0,0,0.10)",
+                      background:
+                        delivery === "standard"
+                          ? "rgba(0,82,204,0.06)"
+                          : "#FAF7F2",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, color: "#101010" }}>
+                      Standard
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                      Reliable & safe
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDelivery("sameday")}
+                    style={{
+                      textAlign: "left",
+                      borderRadius: 16,
+                      padding: 12,
+                      border:
+                        delivery === "sameday"
+                          ? "2px solid #0052CC"
+                          : "1px solid rgba(0,0,0,0.10)",
+                      background:
+                        delivery === "sameday"
+                          ? "rgba(0,82,204,0.06)"
+                          : "#FAF7F2",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontWeight: 900, color: "#101010" }}>
+                      Same-day
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                      For when you need cookies now 🍪
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* PAYMENT TRUST */}
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#FAF7F2",
+            }}
+          >
+            <div style={{ fontWeight: 950, color: "#101010" }}>Payment</div>
+            <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
+              All payments are secure and encrypted.
+            </div>
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                color: "#3C3C3C",
+                fontSize: 13,
+              }}
+            >
+              <span
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  background: "#fff",
+                  border: "1px solid rgba(0,0,0,0.10)",
+                }}
+              >
+                QRIS
+              </span>
+              <span
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  background: "#fff",
+                  border: "1px solid rgba(0,0,0,0.10)",
+                }}
+              >
+                VA
+              </span>
+              <span
+                style={{
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  background: "#fff",
+                  border: "1px solid rgba(0,0,0,0.10)",
+                }}
+              >
+                Card
+              </span>
+            </div>
+          </section>
+
+          {/* ORDER SUMMARY */}
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
+            <div style={{ fontWeight: 950, color: "#101010" }}>Your order 🤍</div>
+
+            <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+              {allItems.map((it, i) => (
+                <div
+                  key={`${it.id}-${i}`}
+                  style={{ display: "flex", justifyContent: "space-between", gap: 10 }}
+                >
+                  <div
+                    style={{
+                      color: "#101010",
+                      fontWeight: 800,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {it.name}{" "}
+                    <span style={{ color: "#6B6B6B", fontWeight: 700 }}>
+                      ×{it.quantity}
+                    </span>
+                  </div>
+                  <div style={{ color: "#101010", fontWeight: 900 }}>
+                    {formatIDR((it.price || 0) * (it.quantity || 0))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 12, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#6B6B6B" }}>
+                <div>Subtotal</div>
+                <div>{formatIDR(subtotal)}</div>
+              </div>
+              <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", color: "#6B6B6B" }}>
+                <div>Delivery</div>
+                <div>Calculated at payment</div>
+              </div>
+              <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <div style={{ fontWeight: 950, color: "#101010" }}>Total</div>
+                <div style={{ fontWeight: 950, color: "#101010" }}>{formatIDR(subtotal)}</div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+                ← Back to cart
+              </Link>
+            </div>
+          </section>
+
+          {/* ERROR */}
+          {err && (
+            <section
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,0.10)",
+                padding: 14,
+                background: "#fff",
+              }}
+            >
+              <div style={{ fontWeight: 950, color: "#101010" }}>
+                Hmm, something doesn’t look right.
+              </div>
+              <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>{err}</div>
+            </section>
+          )}
+        </div>
+      </div>
+
+      {/* Sticky Place Order */}
+      <div
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "#fff",
+          borderTop: "1px solid rgba(0,0,0,0.08)",
+          boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
+          padding: "12px 14px",
+        }}
+      >
+        <div style={{ maxWidth: 980, margin: "0 auto" }}>
+          <button
+            onClick={placeOrder}
+            disabled={loading}
+            style={{
+              width: "100%",
+              borderRadius: 999,
+              height: 52,
+              border: "none",
+              cursor: loading ? "not-allowed" : "pointer",
+              background: loading ? "rgba(0,82,204,0.55)" : "#0052CC",
+              color: "#fff",
+              fontWeight: 950,
+              fontSize: 16,
+              boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
+            }}
+          >
+            {loading ? "Preparing payment…" : "Place order"}
+          </button>
+
+          <div style={{ marginTop: 8, color: "#6B6B6B", fontSize: 12, textAlign: "center" }}>
+            By placing your order, you agree to our terms.
+          </div>
+
+          {!mapsKey && (
+            <div style={{ marginTop: 8, color: "#6B6B6B", fontSize: 12, textAlign: "center" }}>
+              (Heads up: Google Maps API key not found in env. Address autocomplete may not work.)
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
   );
 }

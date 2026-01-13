@@ -8,7 +8,7 @@ export type FlavorUI = {
   image: string;
   ingredients: string; // 🟢
   textureTags: string[]; // 🔵
-  intensity?: { chocolate?: 1 | 2 | 3 | 4 | 5; sweetness?: 1 | 2 | 3 | 4 | 5 }; // optional
+  intensity?: { chocolate?: 0 | 1 | 2 | 3 | 4 | 5; sweetness?: 1 | 2 | 3 | 4 | 5 }; // optional
   price: number;
   badges?: string[];
 };
