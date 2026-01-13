@@ -356,21 +356,22 @@ export default function CheckoutPage() {
                   placeholder="Start typing your address…"
                   types={["geocode"]}
                   onResolved={(val: any) => {
-                    const text =
-                      typeof val === "string"
-                        ? val
-                        : val?.formattedAddress || val?.formatted_address || "";
+                    // 1) best case: Google gives building / name
+                    const b1 = val?.building || val?.name;
 
-                    setAddressText(text);
-                    setAddressLat(typeof val?.lat === "number" ? val.lat : null);
-                    setAddressLng(typeof val?.lng === "number" ? val.lng : null);
+                    // 2) fallback: if Google only returns a formatted address,
+                    // take the first part before the comma as "building-ish"
+                    const fa = val?.formattedAddress || val?.formatted_address || "";
+                    const b2 = fa ? String(fa).split(",")[0].trim() : "";
 
-                    // optional enrich
-                    if (val?.postal) setPostalCode(val.postal);
-                    if (val?.building) setBuildingName(val.building);
+                    const finalBuilding = (b1 && String(b1).trim()) || b2;
 
-                    setAddressResolved(true);
+                    if (finalBuilding) setBuildingName(finalBuilding);
+
+                    // keep postal enrichment when available
+                    if (val?.postal) setPostalCode(String(val.postal));
                   }}
+
                 />
 
                 <input
