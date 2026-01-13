@@ -106,18 +106,14 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Address validation state
+  // ✅ ONE address input (Google) + separate detail line
+  const [addressBase, setAddressBase] = useState(""); // selected from Google
+  const [addressDetail, setAddressDetail] = useState(""); // unit/floor/landmark
   const [addressResolved, setAddressResolved] = useState(false);
   const [addressLat, setAddressLat] = useState<number | null>(null);
   const [addressLng, setAddressLng] = useState<number | null>(null);
 
-  // ✅ Split address into:
-  // - addressBase: chosen from Google (validated)
-  // - addressDetail: unit/floor/landmark (free typing, does NOT invalidate Google)
-  const [addressBase, setAddressBase] = useState("");
-  const [addressDetail, setAddressDetail] = useState("");
-
-  // Building & postal (auto-filled from address selection, still editable)
+  // Auto-filled but editable
   const [buildingName, setBuildingName] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
@@ -153,7 +149,6 @@ export default function CheckoutPage() {
     const phoneCheck = validatePhone(phone);
     if (!phoneCheck.ok) return phoneCheck.message;
 
-    // Base address must come from Google
     if (!addressBase.trim()) return "Please choose your address from Google.";
 
     // Must be selected from Google (valid lat/lng)
@@ -180,7 +175,6 @@ export default function CheckoutPage() {
     const phoneCheck = validatePhone(phone);
     const normalizedPhone = phoneCheck.normalized || phone;
 
-    // ✅ Combine base + detail (detail does NOT affect resolved status)
     const fullAddress = addressDetail.trim()
       ? `${addressBase}\n${addressDetail.trim()}`
       : addressBase;
@@ -274,10 +268,7 @@ export default function CheckoutPage() {
             </Link>
 
             <div style={{ marginTop: 12 }}>
-              <Link
-                href="/cart"
-                style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}
-              >
+              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
                 ← Back to cart
               </Link>
             </div>
@@ -349,55 +340,31 @@ export default function CheckoutPage() {
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              {/* ✅ ONE address field (Google required). Building is extracted here. */}
+              {/* ✅ ONLY 1 GoogleAddressInput in this file */}
               <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
 
                 <GoogleAddressInput
                   apiKey={mapsKey}
-                  placeholder="Start typing your address…"
-                  types={["geocode"]}
-                 
+                  placeholder="Type building name or address…"
+                  // IMPORTANT: DO NOT pass `types` to allow BOTH building/POI + address results
                   onResolved={(val: any) => {
-                    const formatted =
-                      val?.formattedAddress ||
-                      val?.formatted_address ||
-                      "";
-
-                    // Building extraction (never empty if formatted exists)
-                    const b1 = (val?.building || val?.name || "").toString().trim();
-                    const b2 = formatted ? String(formatted).split(",")[0].trim() : "";
-                    const building = b1 || b2;
-
-                    // ✅ Make building visible inside the address itself
-                    // Only prefix if it's not already included
-                    const addressWithBuilding =
-                      building && formatted && !formatted.toLowerCase().includes(building.toLowerCase())
-                        ? `${building}, ${formatted}`
-                        : formatted;
-
-                    // ✅ Save base address (now includes building visibly)
-                    setAddressBase(addressWithBuilding);
-
-                    // Lat/Lng + resolved
+                    const formatted = val?.formattedAddress || val?.formatted_address || "";
                     const lat = typeof val?.lat === "number" ? val.lat : null;
                     const lng = typeof val?.lng === "number" ? val.lng : null;
 
+                    setAddressBase(String(formatted));
                     setAddressLat(lat);
                     setAddressLng(lng);
-
                     setAddressResolved(!!val?.isResolved || (lat !== null && lng !== null));
 
-                    // Save building + postal too (for admin / ops)
-                    setBuildingName(building || "");
+                    const b = (val?.building || val?.name || "").toString().trim();
+                    if (b) setBuildingName(b);
+
                     if (val?.postal) setPostalCode(String(val.postal));
                   }}
-
-
-
                 />
 
-                {/* ✅ Extra details line (does NOT invalidate Google selection) */}
                 <input
                   value={addressDetail}
                   onChange={(e) => setAddressDetail(e.target.value)}
@@ -410,9 +377,14 @@ export default function CheckoutPage() {
                     (Autocomplete is off because Google Maps API key is not set.)
                   </div>
                 )}
+
+                {/* show what google resolved */}
+                <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+                  Detected building: <b>{buildingName || "-"}</b>
+                </div>
               </div>
 
-              {/* Show building + postal (auto-filled but editable) */}
+              {/* Editable fields (auto-filled) */}
               <div style={{ display: "grid", gap: 8 }}>
                 <input
                   value={buildingName}
@@ -427,11 +399,6 @@ export default function CheckoutPage() {
                   style={sameStyle}
                 />
               </div>
-
-              <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                Detected building: <b>{buildingName || "-"}</b>
-              </div>
-
 
               {/* Notes */}
               <label style={{ display: "grid", gap: 6 }}>
@@ -505,10 +472,7 @@ export default function CheckoutPage() {
 
             <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
               {allItems.map((it, i) => (
-                <div
-                  key={`${it.id}-${i}`}
-                  style={{ display: "flex", justifyContent: "space-between", gap: 10 }}
-                >
+                <div key={`${it.id}-${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
                   <div
                     style={{
                       color: "#101010",
@@ -548,14 +512,7 @@ export default function CheckoutPage() {
           </section>
 
           {err && (
-            <section
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(0,0,0,0.10)",
-                padding: 14,
-                background: "#fff",
-              }}
-            >
+            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff" }}>
               <div style={{ fontWeight: 950, color: "#101010" }}>Hmm, something doesn’t look right.</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{err}</div>
             </section>
