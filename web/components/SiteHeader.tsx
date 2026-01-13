@@ -8,7 +8,7 @@ export default function SiteHeader() {
         position: "sticky",
         top: 0,
         zIndex: 50,
-        background: "#fff",
+        background: "#0047bb",
         borderBottom: "1px solid #eee",
       }}
     >
