@@ -133,12 +133,13 @@ const totalPrice = useMemo(() => {
 
     // Normalize items
     const items = FLAVORS.filter((f) => (qty[f.id] ?? 0) > 0).map((f) => ({
-      id: f.id,
-      name: f.name,
-      price: f.price,
-      quantity: qty[f.id] ?? 0,
-      image: f.image,
-    }));
+        id: String(f.id),
+        name: String(f.name),
+        price: Number((f as any).price ?? 0), // ✅ always a number (fixes build)
+        quantity: Number(qty[f.id] ?? 0),
+        image: String((f as any).image ?? ""),
+      }));
+
 
     addBoxToCart({
       boxSize,
@@ -253,6 +254,9 @@ const totalPrice = useMemo(() => {
       </div>
 
       {/* Sticky bottom bar */}
+
+    
+
       <div
         style={{
           position: "fixed",
@@ -270,28 +274,35 @@ const totalPrice = useMemo(() => {
             <div style={{ fontWeight: 700, color: "#101010" }}>
               Box of {boxSize} • Choose {Math.max(0, boxSize - totalCount)} more
             </div>
-            <div style={{ color: "#6B6B6B" }}>Total: {formatIDR(totalPrice)}</div>
+            
+            <div style={{ color: "#6B6B6B" }}>
+                Total: {formatIDR(totalCount === boxSize ? totalPrice : 0)}
+            </div>
+
           </div>
 
-          <button
-            onClick={onAddToCart}
-            disabled={totalCount === 0}
-            style={{
-              marginTop: 10,
-              width: "100%",
-              borderRadius: 999,
-              height: 52,
-              border: "none",
-              cursor: totalCount === 0 ? "not-allowed" : "pointer",
-              background: totalCount === 0 ? "rgba(0,82,204,0.45)" : "#0052CC",
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: 16,
-              boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
-            }}
-          >
-            Add to cart
-          </button>
+            <button
+              onClick={onAddToCart}
+              disabled={totalCount !== boxSize}
+              style={{
+                marginTop: 10,
+                width: "100%",
+                borderRadius: 999,
+                height: 52,
+                border: "none",
+                cursor: totalCount !== boxSize ? "not-allowed" : "pointer",
+                background: totalCount !== boxSize ? "rgba(0,82,204,0.45)" : "#0052CC",
+                color: "#fff",
+                fontWeight: 800,
+                fontSize: 16,
+                boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
+              }}
+            >
+              Add to cart
+            </button>
+
+
+          
         </div>
       </div>
     </main>

@@ -98,6 +98,10 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState("");
 
   // Address fields
+
+  const [buildingName, setBuildingName] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+
   const [addressText, setAddressText] = useState("");
   const [addressLat, setAddressLat] = useState<number | null>(null);
   const [addressLng, setAddressLng] = useState<number | null>(null);
@@ -124,6 +128,15 @@ export default function CheckoutPage() {
 
   // Google Maps key (required by your component)
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
+  const sameStyle: React.CSSProperties = {
+    height: 46,
+    borderRadius: 14,
+    border: "1px solid rgba(0,0,0,0.12)",
+    padding: "0 12px",
+    outline: "none",
+  };
+
 
   const validate = () => {
     if (!name.trim()) return "Please add your name.";
@@ -178,7 +191,10 @@ export default function CheckoutPage() {
           address: addressText,
           lat: addressLat,
           lng: addressLng,
+          buildingName,
+          postalCode,
         },
+
         notes,
         cart,
         // Helpful for backend debugging:
@@ -358,6 +374,8 @@ export default function CheckoutPage() {
 
                 <GoogleAddressInput
                   apiKey={mapsKey}
+
+
                   onResolved={(val: any) => {
                     const text =
                       typeof val === "string"
@@ -365,21 +383,53 @@ export default function CheckoutPage() {
                         : val?.formatted_address || val?.address || val?.label || "";
                     setAddressText(text);
 
+                    // Lat/Lng (keep your existing logic)
                     const lat =
-                      val?.lat ??
-                      val?.location?.lat ??
-                      val?.geometry?.location?.lat?.();
+                      val?.lat ?? val?.location?.lat ?? val?.geometry?.location?.lat?.();
                     const lng =
-                      val?.lng ??
-                      val?.location?.lng ??
-                      val?.geometry?.location?.lng?.();
-
+                      val?.lng ?? val?.location?.lng ?? val?.geometry?.location?.lng?.();
                     setAddressLat(typeof lat === "number" ? lat : null);
                     setAddressLng(typeof lng === "number" ? lng : null);
+
+                    // Postal code from Google address components (common field)
+                    const comps = val?.address_components || [];
+                    const pc =
+                      comps.find((c: any) => c?.types?.includes("postal_code"))?.long_name ||
+                      val?.postal_code ||
+                      val?.postalCode ||
+                      "";
+                    if (pc) setPostalCode(pc);
+
+                    // Building name: sometimes comes as "premise", "point_of_interest", or custom fields
+                    const premise =
+                      comps.find((c: any) => c?.types?.includes("premise"))?.long_name ||
+                      comps.find((c: any) => c?.types?.includes("point_of_interest"))?.long_name ||
+                      val?.building ||
+                      val?.buildingName ||
+                      "";
+                    if (premise) setBuildingName(premise);
                   }}
+
                 />
 
                 {/* Always keep a manual input fallback */}
+                <input
+                  value={buildingName}
+                  onChange={(e) => setBuildingName(e.target.value)}
+                  placeholder="Building name (optional)"
+                  style={sameStyle}
+
+                />
+
+                <input
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  placeholder="Postal code (optional)"
+                  style={sameStyle}
+
+                />
+
+
                 <input
                   value={addressText}
                   onChange={(e) => setAddressText(e.target.value)}

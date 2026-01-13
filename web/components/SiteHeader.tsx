@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 export default function SiteHeader() {
   return (
@@ -15,17 +16,42 @@ export default function SiteHeader() {
         style={{
           maxWidth: 980,
           margin: "0 auto",
-          padding: "14px 24px",
+          padding: "12px 14px",
           display: "flex",
           alignItems: "center",
           gap: 14,
         }}
       >
-        <Link href="/" style={{ textDecoration: "none", color: "inherit", fontWeight: 900 }}>
-          Cookie Doh
+        <Link
+          href="/"
+          style={{
+            textDecoration: "none",
+            color: "inherit",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            minWidth: 0,
+          }}
+        >
+          <Image
+            src="/logo.png"
+            alt="Cookie Doh"
+            width={140}
+            height={28}
+            priority
+            style={{ height: "auto", width: "140px", maxWidth: "100%" }}
+          />
         </Link>
 
-        <div style={{ marginLeft: "auto", display: "flex", gap: 14 }}>
+        <div
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            gap: 14,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
           <Link href="/build/6" style={{ textDecoration: "none", color: "inherit" }}>
             Build a box
           </Link>

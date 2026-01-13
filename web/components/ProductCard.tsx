@@ -8,8 +8,8 @@ export type FlavorUI = {
   image: string;
   ingredients: string; // 🟢
   textureTags: string[]; // 🔵
-  intensity?: { chocolate?: 0 | 1 | 2 | 3 | 4 | 5; sweetness?: 1 | 2 | 3 | 4 | 5 }; // optional
-  price: number;
+  intensity?: { chocolate?: 0 | 1 | 2 | 3 | 4 | 5; sweetness?: 1 | 2 | 3 | 4 | 5 };
+  price?: number; // not used for box pricing
   badges?: string[];
 };
 
@@ -41,9 +41,13 @@ export default function ProductCard({
           priority={false}
         />
 
-        {/* Badges */}
-        {flavor.badges?.slice(0, 2).map((b) => (
-          <div key={b} className={styles.badge}>
+        {/* Badges (stack vertically so they don't overlap/clamp weirdly) */}
+        {flavor.badges?.slice(0, 2).map((b, i) => (
+          <div
+            key={b}
+            className={styles.badge}
+            style={{ top: 10 + i * 36 }} // <-- stack
+          >
             {b}
           </div>
         ))}
@@ -70,7 +74,7 @@ export default function ProductCard({
           ))}
         </div>
 
-        {/* Intensity (de-emphasized; still visible, not messy) */}
+        {/* Intensity (smaller, fits box) */}
         {(chocolate > 0 || sweetness > 0) && (
           <div className={styles.intensityWrap}>
             <div className={styles.intensityBlock}>
