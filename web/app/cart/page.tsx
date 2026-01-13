@@ -165,37 +165,39 @@ export default function CartPage() {
                     </div>
 
                     <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                      {box.items.map((it) => (
-                        <div
-                          key={it.id}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 10,
-                            padding: "10px 10px",
-                            borderRadius: 14,
-                            background: "#FAF7F2",
-                            border: "1px solid rgba(0,0,0,0.06)",
-                          }}
-                        >
-                          <div style={{ minWidth: 0 }}>
-                            <div
-                              style={{
-                                fontWeight: 800,
-                                color: "#101010",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {it.name}
-                            </div>
 
 
+                    {box.items.map((it) => (
+                      <div
+                        key={it.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          padding: "10px 10px",
+                          borderRadius: 14,
+                          background: "#FAF7F2",
+                          border: "1px solid rgba(0,0,0,0.06)",
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontWeight: 800,
+                              color: "#101010",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {it.name} × {it.quantity}
                           </div>
-                          
                         </div>
-                      ))}
+                      </div>
+                    ))}
+
+
+
                     </div>
 
                     <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
