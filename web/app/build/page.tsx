@@ -14,13 +14,14 @@ const formatIDR = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-type BoxSize = 3 | 6 | 12;
+type BoxSize = 1 | 3 | 6;
 
 const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
+  { size: 1, title: "1 cookie", desc: "Just one, just because" },
   { size: 3, title: "3 cookies", desc: "Perfect for a little treat" },
   { size: 6, title: "6 cookies", desc: "Just right for sharing" },
-  { size: 12, title: "12 cookies", desc: "For serious cookie lovers" },
 ];
+
 
 // ✅ Replace this list with your real flavors if you already have FLAVORS.
 // If you already have `FLAVORS` somewhere, you can swap this constant to import it.
