@@ -429,195 +429,184 @@ export default function CheckoutPage() {
 
 
           {/* DELIVERY */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
-            <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
-            <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
-              Please double-check your address to avoid delivery delays.{" "}
-              <span style={{ color: "#3C3C3C" }}>
-                Jakarta same-day available for selected areas ✨
-              </span>
-            </div>
-
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              {/* MAIN ADDRESS (must be chosen from Google to proceed) */}
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Address
-                </div>
-
-                <GoogleAddressInput
-                  apiKey={mapsKey}
-                  placeholder="Start typing your address…"
-                  onResolved={(val: any) => {
-                    // GoogleAddressInput.tsx emits: formattedAddress, lat, lng, postal, building, isResolved
-                    const text =
-                      typeof val === "string"
-                        ? val
-                        : val?.formattedAddress ||
-                          val?.formatted_address ||
-                          "";
-
-                    setAddressText(text);
-                    setAddressLat(typeof val?.lat === "number" ? val.lat : null);
-                    setAddressLng(typeof val?.lng === "number" ? val.lng : null);
-
-                    setPostalCode(val?.postal || "");
-                    // If building exists, keep it as a suggestion but user can edit
-                    if (val?.building) setBuildingName(val.building);
-
-                    setAddressResolved(true);
-                  }}
-                />
-
-                {/* Manual details line: allowed, but it makes address "not resolved" */}
-                <input
-                  value={addressText}
-                  onChange={(e) => {
-                    setAddressText(e.target.value);
-                    setAddressResolved(false); // typed manually = not validated by Google
-                  }}
-                  placeholder="Unit / floor / landmark (after selecting from Google)"
-                  style={sameStyle}
-                />
-
-                {!mapsKey && (
-                  <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                    (Autocomplete is off because Google Maps API key is not set.)
-                  </div>
-                )}
-              </div>
-
-              {/* BUILDING SEARCH (Google) */}
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Building / Apartment (optional)
-                </div>
-
-                <GoogleAddressInput
-                  apiKey={mapsKey}
-                  placeholder="Search your building (optional)…"
-                  // This makes results more likely to be buildings/POI
-                  types={["establishment"]}
-                  onResolved={(val: any) => {
-                    const b =
-                      val?.building ||
-                      val?.name ||
-                      null;
-
-                    if (b) setBuildingName(String(b));
-
-                    // sometimes postal is present here too
-                    if (val?.postal) setPostalCode(val.postal);
-
-                    setBuildingResolved(true);
-                  }}
-                />
-
-                <input
-                  value={buildingName}
-                  onChange={(e) => {
-                    setBuildingName(e.target.value);
-                    setBuildingResolved(false);
-                  }}
-                  placeholder="e.g. Kemang Village - Infinity Tower"
-                  style={sameStyle}
-                />
-              </div>
-
-              {/* POSTAL CODE */}
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Postal code (optional)
-                </div>
-                <input
-                  value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
-                  placeholder="e.g. 12150"
-                  style={sameStyle}
-                />
-              </div>
-
-              {/* NOTES */}
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Notes (optional)
+            <section
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,0.10)",
+                padding: 14,
+                background: "#fff",
+                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
+              <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
+                Please double-check your address to avoid delivery delays.{" "}
+                <span style={{ color: "#3C3C3C" }}>
+                  Jakarta same-day available for selected areas ✨
                 </span>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  style={{
-                    minHeight: 90,
-                    borderRadius: 14,
-                    border: "1px solid rgba(0,0,0,0.12)",
-                    padding: "10px 12px",
-                    outline: "none",
-                    resize: "vertical",
-                  }}
-                  placeholder="Gift note, delivery timing, special instructions…"
-                />
-              </label>
+              </div>
 
-              {/* DELIVERY METHOD */}
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Delivery method
+              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                {/* ADDRESS (must be chosen from Google) */}
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                    Address
+                  </div>
+
+                  <GoogleAddressInput
+                    apiKey={mapsKey}
+                    placeholder="Start typing your address…"
+                    onResolved={(val: any) => {
+                      const text =
+                        typeof val === "string"
+                          ? val
+                          : val?.formattedAddress || val?.formatted_address || "";
+
+                      setAddressText(text);
+                      setAddressLat(typeof val?.lat === "number" ? val.lat : null);
+                      setAddressLng(typeof val?.lng === "number" ? val.lng : null);
+
+                      setPostalCode(val?.postal || "");
+                      if (val?.building) setBuildingName(val.building);
+
+                      setAddressResolved(true);
+                    }}
+                  />
+
+                  <input
+                    value={addressText}
+                    onChange={(e) => {
+                      setAddressText(e.target.value);
+                      setAddressResolved(false);
+                    }}
+                    placeholder="Unit / floor / landmark (after selecting from Google)"
+                    style={sameStyle}
+                  />
+
+                  {!mapsKey && (
+                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+                      (Autocomplete is off because Google Maps API key is not set.)
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => setDelivery("standard")}
-                    style={{
-                      textAlign: "left",
-                      borderRadius: 16,
-                      padding: 12,
-                      border:
-                        delivery === "standard"
-                          ? "2px solid #0052CC"
-                          : "1px solid rgba(0,0,0,0.10)",
-                      background:
-                        delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ fontWeight: 900, color: "#101010" }}>Standard</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                      Reliable & safe
-                    </div>
-                  </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setDelivery("sameday")}
-                    style={{
-                      textAlign: "left",
-                      borderRadius: 16,
-                      padding: 12,
-                      border:
-                        delivery === "sameday"
-                          ? "2px solid #0052CC"
-                          : "1px solid rgba(0,0,0,0.10)",
-                      background:
-                        delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
-                      cursor: "pointer",
+                {/* BUILDING (Google search) */}
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                    Building / Apartment (optional)
+                  </div>
+
+                  <GoogleAddressInput
+                    apiKey={mapsKey}
+                    placeholder="Search building name… (optional)"
+                    types={["establishment"]}
+                    onResolved={(val: any) => {
+                      const b = val?.building || val?.name || "";
+                      if (b) setBuildingName(String(b));
+                      if (val?.postal) setPostalCode(val.postal);
+                      setBuildingResolved(true);
                     }}
-                  >
-                    <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                      For when you need cookies now 🍪
-                    </div>
-                  </button>
+                  />
+
+                  <input
+                    value={buildingName}
+                    onChange={(e) => {
+                      setBuildingName(e.target.value);
+                      setBuildingResolved(false);
+                    }}
+                    placeholder="Type manually if needed"
+                    style={sameStyle}
+                  />
+                </div>
+
+                {/* POSTAL CODE */}
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                    Postal code (optional)
+                  </div>
+
+                  <input
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    placeholder="e.g. 12150"
+                    style={sameStyle}
+                  />
+                </div>
+
+                {/* NOTES */}
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                    Notes (optional)
+                  </span>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    style={{
+                      minHeight: 90,
+                      borderRadius: 14,
+                      border: "1px solid rgba(0,0,0,0.12)",
+                      padding: "10px 12px",
+                      outline: "none",
+                      resize: "vertical",
+                    }}
+                    placeholder="Gift note, delivery timing, special instructions…"
+                  />
+                </label>
+
+                {/* DELIVERY METHOD */}
+                <div style={{ display: "grid", gap: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                    Delivery method
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setDelivery("standard")}
+                      style={{
+                        textAlign: "left",
+                        borderRadius: 16,
+                        padding: 12,
+                        border:
+                          delivery === "standard"
+                            ? "2px solid #0052CC"
+                            : "1px solid rgba(0,0,0,0.10)",
+                        background:
+                          delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, color: "#101010" }}>Standard</div>
+                      <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                        Reliable & safe
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDelivery("sameday")}
+                      style={{
+                        textAlign: "left",
+                        borderRadius: 16,
+                        padding: 12,
+                        border:
+                          delivery === "sameday"
+                            ? "2px solid #0052CC"
+                            : "1px solid rgba(0,0,0,0.10)",
+                        background:
+                          delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
+                      <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                        For when you need cookies now 🍪
+                      </div>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
 
 
 
