@@ -39,15 +39,19 @@ export default function PendingClient() {
   const msgLines = [
     "Hi Cookie Doh 🤍",
     "I’d like to complete manual payment for my order:",
-    orderId ? `Order ID: ${orderId}` : "",
+    "",
+    orderId ? `Order ID: ${orderId}` : "" : "",
     name ? `Name: ${name}` : "",
     phone ? `WhatsApp: ${phone}` : "",
     total ? `Total: ${formatIDR(total)}` : "",
     address ? `Address: ${address}` : "",
     building ? `Building: ${building}` : "",
-    postal ? `Postal Code: ${postal}` : "",
+    postal ? `Postal Code: ${postal}` : "" : "",
+  
+    "Please send the proof of payment via Bank transfer",
     "",
-    "Please send me payment instructions 🙏",
+    "BCA : 622-0372918 a/n Angelia Tania  🙏",
+    
   ].filter(Boolean);
 
   const waText = encodeURIComponent(msgLines.join("\n"));
