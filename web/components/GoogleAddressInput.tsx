@@ -236,6 +236,7 @@ export default function GoogleAddressInput({
 
           const { postal, city, building: buildingFromComps } = extractAddressParts(place);
 
+
           // ✅ Ensure building is never empty if we have any address text:
           // Priority:
           // 1) premise/poi/establishment from address components
@@ -259,7 +260,11 @@ export default function GoogleAddressInput({
             formattedAddress: fullAddress,
             formatted_address: fullAddress,
             name: place?.name || null,
-            building: (building && building.trim()) || (place?.name ? String(place.name).trim() : "") || fullAddress.split(",")[0].trim() || null,
+            building:
+              (buildingFromComps && buildingFromComps.trim()) ||
+              (place?.name ? String(place.name).trim() : "") ||
+              fullAddress.split(",")[0].trim() ||
+              null,
             lat,
             lng,
             postal,
