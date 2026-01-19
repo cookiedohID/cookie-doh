@@ -4,6 +4,98 @@ import { NextResponse } from "next/server";
 function getSiteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 }
+function mode() {
+  return (process.env.NEXT_PUBLIC_CHECKOUT_MODE || "midtrans").toLowerCase();
+}
+
+function buildItemLines(cart: any) {
+  try {
+    const boxes = cart?.boxes;
+    if (!Array.isArray(boxes)) return "";
+    const lines: string[] = [];
+    for (const b of boxes) {
+      const items = Array.isArray(b?.items) ? b.items : [];
+      for (const it of items) {
+        const name = it?.name || it?.item_name || "Item";
+        const qty = Number(it?.quantity || 0);
+        if (qty > 0) lines.push(`- ${name} ×${qty}`);
+      }
+    }
+    return lines.join("\n");
+  } catch {
+    return "";
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const payload = await req.json();
+    const siteUrl = getSiteUrl();
+
+    const orderId =
+      payload?.orderId ||
+      globalThis.crypto?.randomUUID?.() ||
+      `order_${Date.now()}`;
+
+    const customerName = payload?.customer?.name || "";
+    const customerPhone = payload?.customer?.phone || "";
+
+    const address = payload?.delivery?.address || "";
+    const building = payload?.delivery?.buildingName || "";
+    const postal = payload?.delivery?.postalCode || "";
+    const total =
+      typeof payload?.total === "number"
+        ? payload.total
+        : Array.isArray(payload?.cart?.boxes)
+          ? payload.cart.boxes.reduce((s: number, b: any) => s + (Number(b?.total) || 0), 0)
+          : 0;
+
+    // MANUAL MODE: go to pending with full WA payload
+    if (mode() === "manual") {
+      const u = new URL(`${siteUrl}/checkout/pending`);
+      u.searchParams.set("order_id", orderId);
+      u.searchParams.set("total", String(total || 0));
+      u.searchParams.set("name", customerName);
+      u.searchParams.set("phone", customerPhone);
+      u.searchParams.set("address", address);
+      u.searchParams.set("building", building);
+      u.searchParams.set("postal", postal);
+      u.searchParams.set("items", buildItemLines(payload?.cart));
+
+      return NextResponse.json({
+        ok: true,
+        mode: "manual",
+        order_id: orderId,
+        redirect_url: u.toString(),
+      });
+    }
+
+    // MIDTRANS MODE:
+    // Keep your existing Midtrans create flow here (not deleting).
+    // For now, return a clear error if Midtrans path not wired in this route.
+    return NextResponse.json(
+      { ok: false, mode: "midtrans", error: "Midtrans flow not wired in /api/checkout yet." },
+      { status: 500 }
+    );
+  } catch (e: any) {
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Invalid request body" },
+      { status: 400 }
+    );
+  }
+}
+
+
+
+
+/* 
+
+// web/app/api/checkout/route.ts
+import { NextResponse } from "next/server";
+
+function getSiteUrl() {
+  return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+}
 
 function mode() {
   return (process.env.NEXT_PUBLIC_CHECKOUT_MODE || "midtrans").toLowerCase();
@@ -147,3 +239,4 @@ export async function GET() {
     { status: 200 }
   );
 }
+*/
