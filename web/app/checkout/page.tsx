@@ -821,7 +821,7 @@ export default function CheckoutPage() {
         </header>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
-          {/* CONTACT */}
+          {/* CONTACT */ 
  /*         <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Contact details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>We’ll use this to update you about your order.</div>
@@ -850,7 +850,7 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-          {/* DELIVERY */}
+          {/* DELIVERY */
 /*          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
@@ -862,7 +862,7 @@ export default function CheckoutPage() {
               <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
 
-                {/* ONLY ONE Google input. Do not pass types. */}
+                {/* ONLY ONE Google input. Do not pass types. */
 /*                <GoogleAddressInput
                   apiKey={mapsKey}
                   placeholder="Type building name or address…"
@@ -925,7 +925,7 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-          {/* ORDER SUMMARY */}
+          {/* ORDER SUMMARY */
 /*          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Your order 🤍</div>
 
@@ -968,7 +968,7 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {/* Sticky Place Order */}
+      {/* Sticky Place Order */
 /*      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 -10px 30px rgba(0,0,0,0.05)", padding: "12px 14px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
