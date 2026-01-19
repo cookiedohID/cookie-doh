@@ -696,6 +696,7 @@ export default function CheckoutPage() {
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
           {/* CONTACT */}
+/*          
           <section
             style={{
               borderRadius: 18,
@@ -732,7 +733,7 @@ export default function CheckoutPage() {
           </section>
 
           {/* DELIVERY */}
-          <section
+ /*         <section
             style={{
               borderRadius: 18,
               border: "1px solid rgba(0,0,0,0.10)",
@@ -749,7 +750,7 @@ export default function CheckoutPage() {
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               {/* ✅ ONLY 1 GoogleAddressInput in this file */}
-              <div style={{ display: "grid", gap: 6 }}>
+/*              <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
 
                 <GoogleAddressInput
@@ -787,13 +788,13 @@ export default function CheckoutPage() {
                 )}
 
                 {/* show what google resolved */}
-                <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+/*                <div style={{ fontSize: 12, color: "#6B6B6B" }}>
                   Detected building: <b>{buildingName || "-"}</b>
                 </div>
               </div>
 
               {/* Editable fields (auto-filled) */}
-              <div style={{ display: "grid", gap: 8 }}>
+/*              <div style={{ display: "grid", gap: 8 }}>
                 <input
                   value={buildingName}
                   onChange={(e) => setBuildingName(e.target.value)}
@@ -809,7 +810,7 @@ export default function CheckoutPage() {
               </div>
 
               {/* Notes */}
-              <label style={{ display: "grid", gap: 6 }}>
+/*              <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes (optional)</span>
                 <textarea
                   value={notes}
@@ -827,7 +828,7 @@ export default function CheckoutPage() {
               </label>
 
               {/* Delivery method */}
-              <div style={{ display: "grid", gap: 10 }}>
+/*              <div style={{ display: "grid", gap: 10 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Delivery method</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <button
@@ -867,7 +868,7 @@ export default function CheckoutPage() {
           </section>
 
           {/* ORDER SUMMARY */}
-          <section
+/*          <section
             style={{
               borderRadius: 18,
               border: "1px solid rgba(0,0,0,0.10)",
@@ -929,7 +930,7 @@ export default function CheckoutPage() {
       </div>
 
       {/* Sticky Place Order */}
-      <div
+/*      <div
         style={{
           position: "fixed",
           left: 0,
