@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import SDKClient from "@lalamove/lalamove-js";
+import crypto from "crypto";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -11,7 +11,7 @@ function supaAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function getLalamoveHost() {
+function lalamoveHost() {
   const env = (process.env.LALAMOVE_ENV || "sandbox").toLowerCase();
   return env === "production" ? "https://rest.lalamove.com" : "https://rest.sandbox.lalamove.com";
 }
@@ -45,16 +45,72 @@ async function geocodeAddress(address: string) {
   return { lat: loc.lat, lng: loc.lng, formatted: j.results[0]?.formatted_address || "" };
 }
 
+/**
+ * Lalamove v3 signing:
+ * Authorization: hmac {apiKey}:{signature}:{timestamp}
+ * signature = HMAC_SHA256(secret, timestamp + method + path + body)
+ */
+function signLalamove(secret: string, timestamp: string, method: string, path: string, body: string) {
+  const raw = `${timestamp}${method.toUpperCase()}${path}${body}`;
+  return crypto.createHmac("sha256", secret).update(raw).digest("hex");
+}
+
+async function lalamoveRequest<T>(
+  method: "GET" | "POST",
+  path: string,
+  bodyObj?: any
+): Promise<T> {
+  const apiKey = process.env.LALAMOVE_API_KEY || "";
+  const apiSecret = process.env.LALAMOVE_API_SECRET || "";
+  const market = process.env.LALAMOVE_MARKET || "ID";
+
+  if (!apiKey || !apiSecret) throw new Error("Missing LALAMOVE_API_KEY / LALAMOVE_API_SECRET");
+
+  const host = lalamoveHost();
+  const url = `${host}${path}`;
+
+  const body = bodyObj ? JSON.stringify(bodyObj) : "";
+  const timestamp = `${Date.now()}`; // ms
+
+  const signature = signLalamove(apiSecret, timestamp, method, path, body);
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json; charset=utf-8",
+    Authorization: `hmac ${apiKey}:${signature}:${timestamp}`,
+    Market: market,
+  };
+
+  const res = await fetch(url, {
+    method,
+    headers,
+    body: method === "GET" ? undefined : body,
+  });
+
+  const text = await res.text().catch(() => "");
+  let json: any = null;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+
+  if (!res.ok) {
+    throw new Error(`Lalamove ${method} ${path} failed (HTTP ${res.status}): ${text || "no body"}`);
+  }
+
+  return (json ?? ({} as any)) as T;
+}
+
 export async function POST(_req: Request, context: Ctx) {
   try {
     const { id: orderId } = await context.params;
     const supabase = supaAdmin();
 
-    // IMPORTANT: match your column names
+    // match your schema
     const { data: order, error: e1 } = await supabase
       .from("orders")
       .select(
-        "id, customer_name, customer_phone, shipping_address, building_name, destination_area_label, destination_area_id, tracking_url, fulfillment_status"
+        "id, customer_name, customer_phone, total, shipping_address, building_name, destination_area_label, destination_area_id, tracking_url"
       )
       .eq("id", orderId)
       .maybeSingle();
@@ -70,31 +126,21 @@ export async function POST(_req: Request, context: Ctx) {
 
     if (e2) throw e2;
 
-    const apiKey = process.env.LALAMOVE_API_KEY || "";
-    const apiSecret = process.env.LALAMOVE_API_SECRET || "";
-    const market = process.env.LALAMOVE_MARKET || "ID";
-    const serviceType = process.env.LALAMOVE_SERVICE_TYPE || "MOTORCYCLE";
-    const language = process.env.LALAMOVE_LANGUAGE || "id_ID";
-
-    if (!apiKey || !apiSecret) {
-      return NextResponse.json({ ok: false, error: "Missing LALAMOVE_API_KEY / LALAMOVE_API_SECRET" }, { status: 500 });
-    }
-
-    // Pickup (your kitchen)
+    // Pickup env (your kitchen)
     const pickupName = process.env.LALAMOVE_PICKUP_NAME || "Cookie Doh";
     const pickupPhone = process.env.LALAMOVE_PICKUP_PHONE || "";
     const pickupAddress = process.env.LALAMOVE_PICKUP_ADDRESS || "";
     const pickupLat = Number(process.env.LALAMOVE_PICKUP_LAT || process.env.COOKIE_DOH_ORIGIN_LAT || "");
     const pickupLng = Number(process.env.LALAMOVE_PICKUP_LNG || process.env.COOKIE_DOH_ORIGIN_LNG || "");
+    const serviceType = process.env.LALAMOVE_SERVICE_TYPE || "MOTORCYCLE";
 
-    if (!pickupAddress || !pickupPhone || !pickupLat || !pickupLng) {
+    if (!pickupPhone || !pickupAddress || !pickupLat || !pickupLng) {
       return NextResponse.json(
-        { ok: false, error: "Missing Lalamove pickup env (LALAMOVE_PICKUP_ADDRESS/PHONE/LAT/LNG)" },
+        { ok: false, error: "Missing pickup env (LALAMOVE_PICKUP_ADDRESS/PHONE/LAT/LNG)" },
         { status: 500 }
       );
     }
 
-    // Destination address string for geocoding
     const destText = [
       order.building_name || "",
       order.shipping_address || "",
@@ -106,24 +152,15 @@ export async function POST(_req: Request, context: Ctx) {
 
     const dest = await geocodeAddress(destText);
 
-    const customerName = order.customer_name || "Customer";
-    const customerPhone = order.customer_phone || "";
+    const dropAddress = order.shipping_address || dest.formatted || destText;
 
     const remarks = [
       `Cookie Doh Order: ${orderId}`,
       ...(items || []).slice(0, 12).map((it: any) => `${it.item_name || "Item"} x${it.quantity || 0}`),
     ];
 
-    const client = new SDKClient.Client({
-      apiKey,
-      apiSecret,
-      market,
-      host: getLalamoveHost(),
-      language,
-    });
-
-    // 1) Quotation
-    const quotationPayload: any = {
+    // 1) Create quotation
+    const quotationBody = {
       serviceType,
       stops: [
         {
@@ -132,7 +169,7 @@ export async function POST(_req: Request, context: Ctx) {
         },
         {
           location: { lat: dest.lat, lng: dest.lng },
-          addresses: { en: order.shipping_address || dest.formatted || destText },
+          addresses: { en: dropAddress },
         },
       ],
       item: {
@@ -144,42 +181,43 @@ export async function POST(_req: Request, context: Ctx) {
       isPODEnabled: false,
     };
 
-    const quotation = await client.Quotation.createQuotation(quotationPayload);
-    const quotationId = quotation?.data?.quotationId;
-    if (!quotationId) throw new Error("Failed to get Lalamove quotationId");
+    const quotationResp: any = await lalamoveRequest("POST", "/v3/quotations", quotationBody);
+    const quotationId = quotationResp?.data?.quotationId;
+    const stop0 = quotationResp?.data?.stops?.[0]?.stopId;
+    const stop1 = quotationResp?.data?.stops?.[1]?.stopId;
+
+    if (!quotationId || !stop0 || !stop1) {
+      throw new Error(`Invalid quotation response: ${JSON.stringify(quotationResp)}`);
+    }
 
     // 2) Place order
-    const placeOrderPayload: any = {
+    const placeBody = {
       quotationId,
-      sender: {
-        stopId: quotation?.data?.stops?.[0]?.stopId,
-        name: pickupName,
-        phone: pickupPhone,
-      },
+      sender: { stopId: stop0, name: pickupName, phone: pickupPhone },
       recipients: [
         {
-          stopId: quotation?.data?.stops?.[1]?.stopId,
-          name: customerName,
-          phone: customerPhone,
+          stopId: stop1,
+          name: order.customer_name || "Customer",
+          phone: order.customer_phone || "",
           remarks,
         },
       ],
       metadata: { cookieDohOrderId: orderId },
     };
 
-    const placed = await client.Order.placeOrder(placeOrderPayload);
-    const lalamoveOrderId = placed?.data?.orderId;
-    if (!lalamoveOrderId) throw new Error("Failed to place Lalamove order");
+    const placeResp: any = await lalamoveRequest("POST", "/v3/orders", placeBody);
+    const lalamoveOrderId = placeResp?.data?.orderId;
+    if (!lalamoveOrderId) throw new Error(`Invalid place order response: ${JSON.stringify(placeResp)}`);
 
-    // 3) Get order details to extract share link
-    const details = await client.Order.getOrderDetails({ orderId: lalamoveOrderId } as any);
-    const shareLink = details?.data?.shareLink || "";
+    // 3) Get order details (shareLink)
+    const detailsResp: any = await lalamoveRequest("GET", `/v3/orders/${lalamoveOrderId}`);
+    const shareLink = detailsResp?.data?.shareLink || "";
 
-    // Save tracking + status
+    // Update order with tracking + status
     const patch: any = {
       tracking_url: shareLink || null,
       fulfillment_status: "sent",
-      // optional if your orders table has these columns:
+      // optional fields if you have them:
       // shipping_provider: "lalamove",
       // shipping_ref: lalamoveOrderId,
     };
