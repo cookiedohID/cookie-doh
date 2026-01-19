@@ -101,6 +101,9 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+
+  const [addressTouched, setAddressTouched] = useState(false);
+
   // Basic form fields
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -150,6 +153,12 @@ export default function CheckoutPage() {
   const validate = () => {
     if (!name.trim()) return "Please add your name.";
 
+    const addressError =
+    addressTouched && (!addressBase || !addressResolved)
+    ? "Please select a valid address from the suggestions."
+    : "";
+
+
     const phoneCheck = validatePhone(phone);
     if (!phoneCheck.ok) return phoneCheck.message;
 
@@ -166,6 +175,9 @@ export default function CheckoutPage() {
 
   const placeOrder = async () => {
     setErr(null);
+
+    setPhoneTouched(true);
+    setAddressTouched(true);
 
     const v = validate();
     if (v) {
@@ -374,6 +386,10 @@ export default function CheckoutPage() {
 
                     setAddressLat(lat);
                     setAddressLng(lng);
+                    
+                    setAddressResolved(true);
+                    setAddressTouched(false);
+
 
                     setAddressResolved(!!val?.isResolved || (lat !== null && lng !== null));
 
@@ -390,6 +406,13 @@ export default function CheckoutPage() {
                     if (val?.postal) setPostalCode(String(val.postal));
                   }}
                 />
+
+                 {addressError ? (
+                    <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>
+                      {addressError}
+                    </div>
+                  ) : null}
+
 
                 {/* ✅ Extra details line (does NOT invalidate Google selection) */}
                 <input
