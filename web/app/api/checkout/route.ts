@@ -111,6 +111,10 @@ function mode() {
  *   set CHECKOUT_MIDTRANS_CREATE_URL to that URL (server-only).
  * - Otherwise we return an error telling you what’s missing (instead of fake pending).
  */
+
+
+/*
+
 export async function POST(req: Request) {
   try {
     const payload = await req.json();

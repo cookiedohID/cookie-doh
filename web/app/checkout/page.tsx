@@ -450,6 +450,10 @@ function readCart(): CartState {
 }
 
 /** Normalize Indonesian phone/WA numbers to +62XXXXXXXXXXX */
+
+
+/*
+
 function normalizeIDPhone(input: string) {
   const raw = (input || "").trim();
   const digits = raw.replace(/[^\d+]/g, "");
