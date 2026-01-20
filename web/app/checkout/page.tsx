@@ -11,13 +11,13 @@ type CartItem = {
   name: string;
   quantity: number;
   image?: string;
-  price?: number; // ignored (box pricing)
+  price?: number;
 };
 
 type CartBox = {
   boxSize: number;
   items: CartItem[];
-  total: number; // fixed box price
+  total: number;
 };
 
 type CartState = {
@@ -101,46 +101,39 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-
-  const [addressTouched, setAddressTouched] = useState(false);
-
-  const addressError =
-  addressTouched && (!addressBase || !addressResolved)
-    ? "Please select a valid address from the suggestions."
-    : "";
-
-
   // Basic form fields
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
 
+  // ✅ touched states for inline errors
   const [phoneTouched, setPhoneTouched] = useState(false);
-
+  const [addressTouched, setAddressTouched] = useState(false);
 
   // Address validation state
   const [addressResolved, setAddressResolved] = useState(false);
   const [addressLat, setAddressLat] = useState<number | null>(null);
   const [addressLng, setAddressLng] = useState<number | null>(null);
 
-  // ✅ Split address into:
-  // - addressBase: chosen from Google (validated)
-  // - addressDetail: unit/floor/landmark (free typing, does NOT invalidate Google)
+  // Address fields
   const [addressBase, setAddressBase] = useState("");
   const [addressDetail, setAddressDetail] = useState("");
 
-  // Building & postal (auto-filled from address selection, still editable)
+  // Building & postal
   const [buildingName, setBuildingName] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
-  // Delivery method cards
+  // Delivery method
   const [delivery, setDelivery] = useState<"standard" | "sameday">("standard");
 
   useEffect(() => {
     setCart(readCart());
   }, []);
 
-  const subtotal = useMemo(() => cart.boxes.reduce((s, b) => s + (b.total || 0), 0), [cart]);
+  const subtotal = useMemo(
+    () => cart.boxes.reduce((s, b) => s + (b.total || 0), 0),
+    [cart]
+  );
   const isEmpty = cart.boxes.length === 0;
 
   const allItems = useMemo(() => {
@@ -159,27 +152,22 @@ export default function CheckoutPage() {
     outline: "none",
   };
 
+  // ✅ Derived values MUST live here (not inside validate)
+  const phoneCheck = validatePhone(phone);
+  const phoneError = phoneTouched && !phoneCheck.ok ? phoneCheck.message : "";
+
+  const addressError =
+    addressTouched && (!addressBase.trim() || !addressResolved)
+      ? "Please select a valid address from the suggestions."
+      : "";
+
   const validate = () => {
     if (!name.trim()) return "Please add your name.";
 
-    const addressError =
-    addressTouched && (!addressBase || !addressResolved)
-    ? "Please select a valid address from the suggestions."
-    : "";
-
-
-    const phoneCheck = validatePhone(phone);
-
-    const phoneError =
-    phoneTouched && !phoneCheck.ok ? phoneCheck.message : "";
-
-    
     if (!phoneCheck.ok) return phoneCheck.message;
 
-    // Base address must come from Google
     if (!addressBase.trim()) return "Please choose your address from Google.";
 
-    // Must be selected from Google (valid lat/lng)
     if (!addressResolved || addressLat === null || addressLng === null) {
       return "Please choose a valid address from the Google suggestions.";
     }
@@ -190,6 +178,7 @@ export default function CheckoutPage() {
   const placeOrder = async () => {
     setErr(null);
 
+    // show inline errors
     setPhoneTouched(true);
     setAddressTouched(true);
 
@@ -203,9 +192,8 @@ export default function CheckoutPage() {
       return;
     }
 
-    const normalizedPhone = phoneCheck.normalized || phone;
+    const normalizedPhone = phoneCheck.normalized || normalizeIDPhone(phone);
 
-    // ✅ Combine base + detail (detail does NOT affect resolved status)
     const fullAddress = addressDetail.trim()
       ? `${addressBase}\n${addressDetail.trim()}`
       : addressBase;
@@ -226,6 +214,7 @@ export default function CheckoutPage() {
         },
         notes,
         cart,
+        total: subtotal,
       };
 
       const res = await fetch("/api/checkout", {
@@ -237,9 +226,7 @@ export default function CheckoutPage() {
       if (!res.ok) {
         const body = await readErrorBody(res);
         throw new Error(
-          body
-            ? `Checkout failed (HTTP ${res.status}). ${body}`
-            : `Checkout failed (HTTP ${res.status}). Please try again.`
+          body ? `Checkout failed (HTTP ${res.status}). ${body}` : `Checkout failed (HTTP ${res.status}).`
         );
       }
 
@@ -265,15 +252,7 @@ export default function CheckoutPage() {
           <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>You’re almost there 🤍</p>
 
-          <section
-            style={{
-              marginTop: 16,
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "#FAF7F2",
-              padding: 18,
-            }}
-          >
+          <section style={{ marginTop: 16, borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", background: "#FAF7F2", padding: 18 }}>
             <div style={{ fontWeight: 900, color: "#101010" }}>Your box is waiting 🤍</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>
               Please build your cookie box first.
@@ -299,10 +278,7 @@ export default function CheckoutPage() {
             </Link>
 
             <div style={{ marginTop: 12 }}>
-              <Link
-                href="/cart"
-                style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}
-              >
+              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
                 ← Back to cart
               </Link>
             </div>
@@ -320,17 +296,9 @@ export default function CheckoutPage() {
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>You’re almost there 🤍</p>
         </header>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
+        <div style={{ display: "grid", gap: 14 }}>
           {/* CONTACT */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
+          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Contact details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               We’ll use this to update you about your order.
@@ -347,26 +315,23 @@ export default function CheckoutPage() {
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  onBlur={() => setPhoneTouched(true)}
                   style={sameStyle}
                   placeholder="e.g. 0812xxxxxxx or +62812xxxxxxx"
                 />
-                <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                  We’ll send payment + delivery updates via WhatsApp.
-                </div>
+                {phoneError ? (
+                  <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>{phoneError}</div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+                    We’ll send payment + delivery updates via WhatsApp.
+                  </div>
+                )}
               </label>
             </div>
           </section>
 
           {/* DELIVERY */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
+          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               Please double-check your address to avoid delivery delays.{" "}
@@ -374,60 +339,40 @@ export default function CheckoutPage() {
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              {/* ✅ ONE address field (Google required). Building is extracted here. */}
               <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
 
                 <GoogleAddressInput
                   apiKey={mapsKey}
-                  placeholder="Start typing your address…"
-                  types={["geocode"]}
+                  placeholder="Type building name or address…"
+                  // IMPORTANT: do NOT pass types for building search in the same field
                   onResolved={(val: any) => {
-                    // Prefer the component’s normalized output
-                    const formatted =
-                      val?.formattedAddress ||
-                      val?.formatted_address ||
-                      "";
-
-                    // ✅ base address from Google
-                    setAddressBase(String(formatted));
-
-                    // ✅ resolution must stay TRUE after Google selection
-                    // Use component’s isResolved when available; otherwise infer from lat/lng
+                    const formatted = val?.formattedAddress || val?.formatted_address || "";
                     const lat = typeof val?.lat === "number" ? val.lat : null;
                     const lng = typeof val?.lng === "number" ? val.lng : null;
 
+                    setAddressBase(String(formatted));
                     setAddressLat(lat);
                     setAddressLng(lng);
-                    
-                    setAddressResolved(true);
-                    setAddressTouched(false);
-
 
                     setAddressResolved(!!val?.isResolved || (lat !== null && lng !== null));
+                    setAddressTouched(false);
 
-                    // ✅ Building extraction:
-                    // 1) use val.building or val.name if present
-                    // 2) else take first segment of formatted address before comma
                     const b1 = (val?.building || val?.name || "").toString().trim();
                     const b2 = String(formatted).split(",")[0].trim();
                     const finalBuilding = b1 || b2;
-
                     if (finalBuilding) setBuildingName(finalBuilding);
 
-                    // Postal code
                     if (val?.postal) setPostalCode(String(val.postal));
                   }}
                 />
 
-                 {addressError ? (
-                    <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>
-                      {addressError}
-                    </div>
-                  ) : null}
+                {addressError ? (
+                  <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>
+                    {addressError}
+                  </div>
+                ) : null}
 
-
-                {/* ✅ Extra details line (does NOT invalidate Google selection) */}
                 <input
                   value={addressDetail}
                   onChange={(e) => setAddressDetail(e.target.value)}
@@ -442,72 +387,30 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* Show building + postal (auto-filled but editable) */}
               <div style={{ display: "grid", gap: 8 }}>
-                <input
-                  value={buildingName}
-                  onChange={(e) => setBuildingName(e.target.value)}
-                  placeholder="Building name (auto, editable)"
-                  style={sameStyle}
-                />
-                <input
-                  value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
-                  placeholder="Postal code (auto, editable)"
-                  style={sameStyle}
-                />
+                <input value={buildingName} onChange={(e) => setBuildingName(e.target.value)} placeholder="Building name (auto, editable)" style={sameStyle} />
+                <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Postal code (auto, editable)" style={sameStyle} />
               </div>
 
-              {/* Notes */}
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes (optional)</span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  style={{
-                    minHeight: 90,
-                    borderRadius: 14,
-                    border: "1px solid rgba(0,0,0,0.12)",
-                    padding: "10px 12px",
-                    outline: "none",
-                    resize: "vertical",
-                  }}
+                  style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
                   placeholder="Gift note, delivery timing, special instructions…"
                 />
               </label>
 
-              {/* Delivery method */}
               <div style={{ display: "grid", gap: 10 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Delivery method</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => setDelivery("standard")}
-                    style={{
-                      textAlign: "left",
-                      borderRadius: 16,
-                      padding: 12,
-                      border: delivery === "standard" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
-                      background: delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
-                      cursor: "pointer",
-                    }}
-                  >
+                  <button type="button" onClick={() => setDelivery("standard")} style={{ textAlign: "left", borderRadius: 16, padding: 12, border: delivery === "standard" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)", background: delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2", cursor: "pointer" }}>
                     <div style={{ fontWeight: 900, color: "#101010" }}>Standard</div>
                     <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Reliable & safe</div>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setDelivery("sameday")}
-                    style={{
-                      textAlign: "left",
-                      borderRadius: 16,
-                      padding: 12,
-                      border: delivery === "sameday" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
-                      background: delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
-                      cursor: "pointer",
-                    }}
-                  >
+                  <button type="button" onClick={() => setDelivery("sameday")} style={{ textAlign: "left", borderRadius: 16, padding: 12, border: delivery === "sameday" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)", background: delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2", cursor: "pointer" }}>
                     <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
                     <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>For when you need cookies now 🍪</div>
                   </button>
@@ -517,33 +420,13 @@ export default function CheckoutPage() {
           </section>
 
           {/* ORDER SUMMARY */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
+          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Your order 🤍</div>
 
             <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
               {allItems.map((it, i) => (
-                <div
-                  key={`${it.id}-${i}`}
-                  style={{ display: "flex", justifyContent: "space-between", gap: 10 }}
-                >
-                  <div
-                    style={{
-                      color: "#101010",
-                      fontWeight: 800,
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                <div key={`${it.id}-${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                  <div style={{ color: "#101010", fontWeight: 800, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {it.name} <span style={{ color: "#6B6B6B", fontWeight: 700 }}>×{it.quantity}</span>
                   </div>
                 </div>
@@ -573,14 +456,7 @@ export default function CheckoutPage() {
           </section>
 
           {err && (
-            <section
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(0,0,0,0.10)",
-                padding: 14,
-                background: "#fff",
-              }}
-            >
+            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff" }}>
               <div style={{ fontWeight: 950, color: "#101010" }}>Hmm, something doesn’t look right.</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{err}</div>
             </section>
@@ -589,18 +465,7 @@ export default function CheckoutPage() {
       </div>
 
       {/* Sticky Place Order */}
-      <div
-        style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "#fff",
-          borderTop: "1px solid rgba(0,0,0,0.08)",
-          boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
-          padding: "12px 14px",
-        }}
-      >
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 -10px 30px rgba(0,0,0,0.05)", padding: "12px 14px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
             onClick={placeOrder}
@@ -629,7 +494,6 @@ export default function CheckoutPage() {
     </main>
   );
 }
-
 
 /*
 
