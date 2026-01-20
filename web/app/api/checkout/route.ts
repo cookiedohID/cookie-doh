@@ -70,7 +70,8 @@ export async function POST(req: Request) {
     // Totals
     const subtotal = Number(payload?.subtotal_idr ?? payload?.subtotal ?? computeSubtotalFromCart(cart) ?? 0) || 0;
     const shippingCost = Number(payload?.shipping_cost_idr ?? payload?.shipping_cost ?? 0) || 0;
-    const totalIdr = Number(payload?.total_idr ?? payload?.total ?? (subtotal + shippingCost) ?? 0) || 0;
+    const totalIdr = Number(payload?.total_idr ?? payload?.total ?? (subtotal + shippingCost)) || 0;
+
 
     // Order id: let DB generate uuid. We'll store order_no from DB.
     // But we still want a stable "orderId" in redirect: use the DB uuid after insert.

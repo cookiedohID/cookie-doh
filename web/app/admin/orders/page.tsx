@@ -1,5 +1,165 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type OrderRow = {
+  id?: string;
+  order_no?: string;
+  created_at?: string;
+
+  customer_name?: string;
+  customer_phone?: string;
+
+  payment_status?: string;
+  fullfillment_status?: string;
+  shipment_status?: string;
+
+  tracking_url?: string;
+
+  destination_area_label?: string;
+  destination_area_id?: string;
+
+  shipping_address?: string;
+  building_name?: string;
+
+  total_idr?: number;
+};
+
+const idr = (n?: number) => (typeof n === "number" ? `Rp ${n.toLocaleString("id-ID")}` : "—");
+
+export default function AdminOrdersPage() {
+  const router = useRouter();
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setErr(null);
+        const res = await fetch("/api/admin/orders?limit=80", { cache: "no-store" });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j?.error || "Failed to load orders");
+        setOrders(j.orders || []);
+      } catch (e: any) {
+        setErr(e?.message || "Failed to load orders");
+      }
+    })();
+  }, []);
+
+  return (
+    <main style={{ padding: 18, maxWidth: 1260, margin: "0 auto" }}>
+      <h1 style={{ margin: 0, fontSize: 22 }}>Admin — Orders</h1>
+      <p style={{ marginTop: 6, color: "rgba(0,0,0,0.6)" }}>
+        Click a row to open details. (Paid → Sending → Sent)
+      </p>
+
+      {err && (
+        <div style={{ marginTop: 10, padding: 12, borderRadius: 12, border: "1px solid rgba(0,0,0,0.12)", background: "#fff" }}>
+          <div style={{ color: "crimson", fontWeight: 900 }}>Admin error</div>
+          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.7)" }}>{err}</div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, overflow: "hidden", background: "#fff" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ background: "rgba(0,0,0,0.03)" }}>
+            <tr>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Time</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Order</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Customer</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Destination</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Total</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Payment</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Fulfillment</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Shipment</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Tracking</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {orders.map((o, idx) => {
+              const hasId = typeof o.id === "string" && o.id.length > 10;
+
+              return (
+                <tr
+                  key={o.id || `${o.order_no || "row"}-${idx}`}
+                  style={{
+                    borderTop: "1px solid rgba(0,0,0,0.08)",
+                    cursor: hasId ? "pointer" : "default",
+                  }}
+                  onClick={() => {
+                    if (!hasId) return;
+                    router.push(`/admin/orders/${o.id}`);
+                  }}
+                >
+                  <td style={{ padding: 12, fontSize: 13, color: "rgba(0,0,0,0.7)", whiteSpace: "nowrap" }}>
+                    {o.created_at ? new Date(o.created_at).toLocaleString() : "—"}
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13, minWidth: 170 }}>
+                    <div style={{ fontWeight: 900 }}>{o.order_no || "—"}</div>
+                    <div style={{ marginTop: 4, fontSize: 12, color: "rgba(0,0,0,0.55)" }}>{hasId ? o.id : "Missing id"}</div>
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13, minWidth: 220 }}>
+                    <div style={{ fontWeight: 800 }}>{o.customer_name || "—"}</div>
+                    <div style={{ color: "rgba(0,0,0,0.6)" }}>{o.customer_phone || ""}</div>
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13, minWidth: 360 }}>
+                    <div style={{ fontWeight: 800, color: "rgba(0,0,0,0.80)" }}>{o.destination_area_label || "—"}</div>
+                    <div style={{ color: "rgba(0,0,0,0.6)" }}>{o.shipping_address || "—"}</div>
+                    {o.building_name ? (
+                      <div style={{ marginTop: 4, fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
+                        Building: <span style={{ fontWeight: 800 }}>{o.building_name}</span>
+                      </div>
+                    ) : null}
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13, fontWeight: 900, whiteSpace: "nowrap" }}>
+                    {idr(o.total_idr)}
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13 }}>{o.payment_status || "—"}</td>
+                  <td style={{ padding: 12, fontSize: 13 }}>{o.fullfillment_status || "—"}</td>
+                  <td style={{ padding: 12, fontSize: 13 }}>{o.shipment_status || "—"}</td>
+
+                  <td style={{ padding: 12, fontSize: 13 }}>
+                    {o.tracking_url ? (
+                      <span style={{ color: "#0052CC", fontWeight: 800 }}>Open</span>
+                    ) : (
+                      <span style={{ color: "rgba(0,0,0,0.45)" }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+
+            {orders.length === 0 && !err && (
+              <tr>
+                <td colSpan={9} style={{ padding: 16, color: "rgba(0,0,0,0.6)" }}>
+                  No orders yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ marginTop: 10, fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
+        Tip: Click the row to open details. (Keyboard: Enter on focused row not implemented yet.)
+      </div>
+    </main>
+  );
+}
+
+
+
+/*
+
+"use client";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -155,7 +315,7 @@ export default function AdminOrdersPage() {
   );
 }
 
-
+*/
 
 /*
 "use client";

@@ -104,10 +104,19 @@ export default function CheckoutPage() {
 
   const [addressTouched, setAddressTouched] = useState(false);
 
+  const addressError =
+  addressTouched && (!addressBase || !addressResolved)
+    ? "Please select a valid address from the suggestions."
+    : "";
+
+
   // Basic form fields
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [phoneTouched, setPhoneTouched] = useState(false);
+
 
   // Address validation state
   const [addressResolved, setAddressResolved] = useState(false);
@@ -160,6 +169,11 @@ export default function CheckoutPage() {
 
 
     const phoneCheck = validatePhone(phone);
+
+    const phoneError =
+    phoneTouched && !phoneCheck.ok ? phoneCheck.message : "";
+
+    
     if (!phoneCheck.ok) return phoneCheck.message;
 
     // Base address must come from Google
@@ -189,7 +203,6 @@ export default function CheckoutPage() {
       return;
     }
 
-    const phoneCheck = validatePhone(phone);
     const normalizedPhone = phoneCheck.normalized || phone;
 
     // ✅ Combine base + detail (detail does NOT affect resolved status)
