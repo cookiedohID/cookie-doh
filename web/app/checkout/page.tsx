@@ -420,17 +420,69 @@ export default function CheckoutPage() {
           </section>
 
           {/* ORDER SUMMARY */}
-          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
             <div style={{ fontWeight: 950, color: "#101010" }}>Your order 🤍</div>
 
-            <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
-              {allItems.map((it, i) => (
-                <div key={`${it.id}-${i}`} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                  <div style={{ color: "#101010", fontWeight: 800, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {it.name} <span style={{ color: "#6B6B6B", fontWeight: 700 }}>×{it.quantity}</span>
+            {/* Per-box summary */}
+            <div style={{ marginTop: 10, display: "grid", gap: 12 }}>
+              {cart.boxes.map((box, idx) => {
+                const boxCount = (box.items || []).reduce((s, it) => s + (it.quantity || 0), 0);
+
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      borderRadius: 16,
+                      border: "1px solid rgba(0,0,0,0.08)",
+                      background: "#FAF7F2",
+                      padding: 12,
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                      <div style={{ fontWeight: 900, color: "#101010" }}>
+                        Box of {box.boxSize} <span style={{ color: "#6B6B6B", fontWeight: 700 }}>({boxCount} cookies)</span>
+                      </div>
+                      <div style={{ fontWeight: 900, color: "#101010" }}>
+                        {formatIDR(box.total || 0)}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                      {(box.items || []).map((it, i2) => (
+                        <div
+                          key={`${it.id}-${i2}`}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 10,
+                          }}
+                        >
+                          <div
+                            style={{
+                              color: "#101010",
+                              fontWeight: 800,
+                              minWidth: 0,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {it.name} <span style={{ color: "#6B6B6B", fontWeight: 700 }}>×{it.quantity}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div style={{ marginTop: 12, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
@@ -442,10 +494,6 @@ export default function CheckoutPage() {
                 <div>Delivery</div>
                 <div>Calculated at payment</div>
               </div>
-              <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <div style={{ fontWeight: 950, color: "#101010" }}>Total</div>
-                <div style={{ fontWeight: 950, color: "#101010" }}>{formatIDR(subtotal)}</div>
-              </div>
             </div>
 
             <div style={{ marginTop: 12 }}>
@@ -455,14 +503,6 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-          {err && (
-            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff" }}>
-              <div style={{ fontWeight: 950, color: "#101010" }}>Hmm, something doesn’t look right.</div>
-              <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{err}</div>
-            </section>
-          )}
-        </div>
-      </div>
 
       {/* Sticky Place Order */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 -10px 30px rgba(0,0,0,0.05)", padding: "12px 14px" }}>
