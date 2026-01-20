@@ -11,6 +11,305 @@ type OrderRow = {
   customer_name?: string;
   customer_phone?: string;
 
+  payment_status?: string; // PENDING/PAID/...
+  fullfillment_status?: string; // pending/baking/sending/sent/...
+  shipment_status?: string; // not_created/created/...
+
+  tracking_url?: string;
+
+  destination_area_label?: string;
+  destination_area_id?: string;
+
+  shipping_address?: string;
+  building_name?: string;
+
+  total_idr?: number;
+};
+
+const idr = (n?: number) => (typeof n === "number" ? `Rp ${n.toLocaleString("id-ID")}` : "—");
+
+export default function AdminOrdersPage() {
+  const router = useRouter();
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const load = async () => {
+    const res = await fetch("/api/admin/orders?limit=80", { cache: "no-store" });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j?.error || "Failed to load orders");
+    setOrders(j.orders || []);
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setErr(null);
+        await load();
+      } catch (e: any) {
+        setErr(e?.message || "Failed to load orders");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const patch = async (id: string, body: any) => {
+    const res = await fetch(`/api/admin/orders/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j?.error || "Update failed");
+    return j;
+  };
+
+  const quickPaid = async (id: string) => {
+    setBusyId(id);
+    try {
+      await patch(id, { payment_status: "PAID" });
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const quickSending = async (id: string) => {
+    setBusyId(id);
+    try {
+      await patch(id, { fullfillment_status: "sending" });
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const quickSent = async (id: string) => {
+    setBusyId(id);
+    try {
+      await patch(id, { fullfillment_status: "sent" });
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <main style={{ padding: 18, maxWidth: 1300, margin: "0 auto" }}>
+      <h1 style={{ margin: 0, fontSize: 22 }}>Admin — Orders</h1>
+      <p style={{ marginTop: 6, color: "rgba(0,0,0,0.6)" }}>
+        Click a row to open details. Quick buttons: <b>Paid → Sending → Sent</b>.
+      </p>
+
+      {err && (
+        <div
+          style={{
+            marginTop: 10,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid rgba(0,0,0,0.12)",
+            background: "#fff",
+          }}
+        >
+          <div style={{ color: "crimson", fontWeight: 900 }}>Admin error</div>
+          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.7)" }}>{err}</div>
+        </div>
+      )}
+
+      <div
+        style={{
+          marginTop: 14,
+          border: "1px solid rgba(0,0,0,0.10)",
+          borderRadius: 16,
+          overflow: "hidden",
+          background: "#fff",
+        }}
+      >
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ background: "rgba(0,0,0,0.03)" }}>
+            <tr>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Time</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Order</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Customer</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Destination</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Total</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Payment</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Fulfillment</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Quick status</th>
+              <th style={{ textAlign: "left", padding: 12, fontSize: 12 }}>Tracking</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {orders.map((o, idx) => {
+              const hasId = typeof o.id === "string" && o.id.length > 10;
+              const isBusy = hasId && busyId === o.id;
+
+              return (
+                <tr
+                  key={o.id || `${o.order_no || "row"}-${idx}`}
+                  style={{
+                    borderTop: "1px solid rgba(0,0,0,0.08)",
+                    cursor: hasId ? "pointer" : "default",
+                  }}
+                  onClick={() => {
+                    if (!hasId) return;
+                    router.push(`/admin/orders/${o.id}`);
+                  }}
+                >
+                  <td style={{ padding: 12, fontSize: 13, color: "rgba(0,0,0,0.7)", whiteSpace: "nowrap" }}>
+                    {o.created_at ? new Date(o.created_at).toLocaleString() : "—"}
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13, minWidth: 170 }}>
+                    <div style={{ fontWeight: 900 }}>{o.order_no || "—"}</div>
+                    <div style={{ marginTop: 4, fontSize: 12, color: "rgba(0,0,0,0.55)" }}>{hasId ? o.id : "Missing id"}</div>
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13, minWidth: 220 }}>
+                    <div style={{ fontWeight: 800 }}>{o.customer_name || "—"}</div>
+                    <div style={{ color: "rgba(0,0,0,0.6)" }}>{o.customer_phone || ""}</div>
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13, minWidth: 340 }}>
+                    <div style={{ fontWeight: 800, color: "rgba(0,0,0,0.80)" }}>
+                      {o.destination_area_label || "—"}
+                    </div>
+                    <div style={{ color: "rgba(0,0,0,0.6)" }}>{o.shipping_address || "—"}</div>
+                    {o.building_name ? (
+                      <div style={{ marginTop: 4, fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
+                        Building: <span style={{ fontWeight: 800 }}>{o.building_name}</span>
+                      </div>
+                    ) : null}
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13, fontWeight: 900, whiteSpace: "nowrap" }}>
+                    {idr(o.total_idr)}
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13 }}>{o.payment_status || "—"}</td>
+                  <td style={{ padding: 12, fontSize: 13 }}>{o.fullfillment_status || "—"}</td>
+
+                  {/* QUICK BUTTONS */}
+                  <td style={{ padding: 12, fontSize: 13 }}>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        disabled={!hasId || isBusy}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation(); // ✅ do not open detail
+                          if (!hasId) return;
+                          quickPaid(o.id!);
+                        }}
+                        style={{
+                          height: 34,
+                          padding: "0 10px",
+                          borderRadius: 10,
+                          border: "1px solid rgba(0,0,0,0.12)",
+                          background: "#fff",
+                          fontWeight: 900,
+                          cursor: !hasId || isBusy ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {isBusy ? "…" : "Paid"}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={!hasId || isBusy}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!hasId) return;
+                          quickSending(o.id!);
+                        }}
+                        style={{
+                          height: 34,
+                          padding: "0 10px",
+                          borderRadius: 10,
+                          border: "1px solid rgba(0,0,0,0.12)",
+                          background: "#fff",
+                          fontWeight: 900,
+                          cursor: !hasId || isBusy ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {isBusy ? "…" : "Sending"}
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={!hasId || isBusy}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!hasId) return;
+                          quickSent(o.id!);
+                        }}
+                        style={{
+                          height: 34,
+                          padding: "0 10px",
+                          borderRadius: 10,
+                          border: "1px solid rgba(0,0,0,0.12)",
+                          background: "#fff",
+                          fontWeight: 900,
+                          cursor: !hasId || isBusy ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {isBusy ? "…" : "Sent"}
+                      </button>
+                    </div>
+                  </td>
+
+                  <td style={{ padding: 12, fontSize: 13 }}>
+                    {o.tracking_url ? (
+                      <a
+                        href={o.tracking_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}
+                      >
+                        Open
+                      </a>
+                    ) : (
+                      <span style={{ color: "rgba(0,0,0,0.45)" }}>—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+
+            {orders.length === 0 && !err && (
+              <tr>
+                <td colSpan={9} style={{ padding: 16, color: "rgba(0,0,0,0.6)" }}>
+                  No orders yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </main>
+  );
+}
+
+
+/*
+
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type OrderRow = {
+  id?: string;
+  order_no?: string;
+  created_at?: string;
+
+  customer_name?: string;
+  customer_phone?: string;
+
   payment_status?: string;
   fullfillment_status?: string;
   shipment_status?: string;
