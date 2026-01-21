@@ -33,7 +33,7 @@ function buildBoxesText(cart: any) {
       if (qty > 0) out.push(`- ${name} ×${qty}`);
     });
 
-    out.push(""); // blank line between boxes
+    out.push("");
   });
 
   return out.join("\n").trim();
@@ -59,6 +59,17 @@ function computeSubtotalFromCart(cart: any) {
   const boxes = cart?.boxes;
   if (!Array.isArray(boxes)) return 0;
   return boxes.reduce((s: number, b: any) => s + (Number(b?.total) || 0), 0);
+}
+
+function makeMidtransOrderId(checkoutMode: string) {
+  // Safe placeholder when Midtrans isn't used yet
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const rand = Math.random().toString(16).slice(2, 8).toUpperCase();
+  const prefix = checkoutMode === "manual" ? "CD-MANUAL" : "CD";
+  return `${prefix}-${y}${m}${day}-${rand}`;
 }
 
 export async function POST(req: Request) {
@@ -90,6 +101,11 @@ export async function POST(req: Request) {
 
     const checkoutMode = mode();
 
+    // ✅ IMPORTANT: always set midtrans_order_id (DB requires NOT NULL)
+    const midtransOrderId =
+      (payload?.midtrans_order_id || payload?.midtransOrderId || "").toString().trim() ||
+      makeMidtransOrderId(checkoutMode);
+
     const orderInsert: any = {
       customer_name: customerName || null,
       customer_phone: customerPhone || null,
@@ -109,6 +125,9 @@ export async function POST(req: Request) {
       subtotal_idr: subtotal || null,
       shipping_cost_idr: shippingCost || null,
       total_idr: totalIdr || null,
+
+      // ✅ required by your schema
+      midtrans_order_id: midtransOrderId,
 
       payment_status: "PENDING",
       shipment_status: "not_created",
@@ -130,7 +149,6 @@ export async function POST(req: Request) {
     if (e1) throw e1;
     if (!orderRow?.id) throw new Error("Order insert failed (missing id)");
 
-    // order_items
     if (items.length > 0) {
       const rows = items.map((it) => ({
         order_id: orderRow.id,
@@ -151,8 +169,6 @@ export async function POST(req: Request) {
       u.searchParams.set("address", orderRow.shipping_address || shippingAddress || "");
       u.searchParams.set("building", orderRow.building_name || buildingName || "");
       u.searchParams.set("postal", orderRow.postal || postal || "");
-
-      // ✅ per-box block
       u.searchParams.set("boxes", boxesText);
 
       return NextResponse.json({
