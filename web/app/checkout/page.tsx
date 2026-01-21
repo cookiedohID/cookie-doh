@@ -313,12 +313,19 @@ export default function CheckoutPage() {
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>WhatsApp number</span>
                 <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  onBlur={() => setPhoneTouched(true)}
-                  style={sameStyle}
-                  placeholder="e.g. 0812xxxxxxx or +62812xxxxxxx"
-                />
+                    value={phone}
+                    onChange={(e) => {
+                      // ✅ allow digits only
+                      const digitsOnly = e.target.value.replace(/\D/g, "");
+                      setPhone(digitsOnly);
+                    }}
+                    onBlur={() => setPhoneTouched(true)}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    style={sameStyle}
+                    placeholder="e.g. 0812xxxxxxx"
+                  />
+
                 {phoneError ? (
                   <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>{phoneError}</div>
                 ) : (
