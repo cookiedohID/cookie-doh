@@ -8,25 +8,40 @@ type Stop = {
   address: string;
 };
 
+type NestedStop = {
+  address: string;
+  lat: number;
+  lng: number;
+  contactName: string;
+  contactPhone: string; // "+62..."
+  remarks?: string;
+};
+
 export type CreateLalamoveOrderInput = {
-  pickup: {
-    address: string;
-    lat: number;
-    lng: number;
-    contactName: string;
-    contactPhone: string; // "+62..."
-  };
-  dropoff: {
-    address: string;
-    lat: number;
-    lng: number;
-    contactName: string;
-    contactPhone: string; // "+62..."
-    remarks?: string;
-  };
-  serviceType: string; // e.g. "MOTORCYCLE" (depends on city config)
+  // ✅ Backwards-compatible fields (your current shipments/create route uses these)
+  externalId?: string;
+
+  pickupAddress?: string;
+  pickupLat?: number;
+  pickupLng?: number;
+  pickupContactName?: string;
+  pickupContactPhone?: string;
+
+  dropoffAddress?: string;
+  dropoffLat?: number;
+  dropoffLng?: number;
+  dropoffContactName?: string;
+  dropoffContactPhone?: string;
+  dropoffRemarks?: string;
+
+  // ✅ New preferred shape (used by the admin orders page button flow)
+  pickup?: NestedStop;
+  dropoff?: NestedStop;
+
+  // Common options
+  serviceType: string; // e.g. "MOTORCYCLE"
   language?: string; // default "id_ID"
-  scheduleAt?: string; // ISO string, optional (scheduled / same-day)
+  scheduleAt?: string; // ISO string optional
   isPODEnabled?: boolean;
   metadata?: Record<string, any>;
 };
@@ -60,8 +75,6 @@ export function lalamoveHeaders(opts: {
   const method = opts.method.toUpperCase();
   const body = opts.body ?? "";
 
-  // Raw signature format used by Lalamove:
-  // `${time}\r\n${method}\r\n${path}\r\n\r\n${body}`
   const rawSignature =
     method === "GET"
       ? `${time}\r\n${method}\r\n${opts.path}\r\n\r\n`
@@ -128,7 +141,42 @@ export async function lalamoveRequest<T>(opts: {
   return json as T;
 }
 
-// ✅ THIS is what your route is trying to import:
+// ✅ Normalize input: supports BOTH nested + flat field formats
+function normalizeStops(input: CreateLalamoveOrderInput): {
+  pickup: NestedStop;
+  dropoff: NestedStop;
+} {
+  if (input.pickup && input.dropoff) return { pickup: input.pickup, dropoff: input.dropoff };
+
+  const pickup: NestedStop = {
+    address: String(input.pickupAddress || ""),
+    lat: Number(input.pickupLat),
+    lng: Number(input.pickupLng),
+    contactName: String(input.pickupContactName || ""),
+    contactPhone: String(input.pickupContactPhone || ""),
+  };
+
+  const dropoff: NestedStop = {
+    address: String(input.dropoffAddress || ""),
+    lat: Number(input.dropoffLat),
+    lng: Number(input.dropoffLng),
+    contactName: String(input.dropoffContactName || ""),
+    contactPhone: String(input.dropoffContactPhone || ""),
+    remarks: input.dropoffRemarks || "",
+  };
+
+  return { pickup, dropoff };
+}
+
+function assertStop(s: NestedStop, label: "pickup" | "dropoff") {
+  if (!s.address) throw new Error(`Missing ${label} address`);
+  if (!Number.isFinite(s.lat) || !Number.isFinite(s.lng))
+    throw new Error(`Missing ${label} lat/lng`);
+  if (!s.contactName) throw new Error(`Missing ${label} contact name`);
+  if (!s.contactPhone) throw new Error(`Missing ${label} contact phone`);
+}
+
+// ✅ This is what your route imports
 export async function createLalamoveOrder(
   input: CreateLalamoveOrderInput
 ): Promise<CreateLalamoveOrderResult> {
@@ -140,21 +188,22 @@ export async function createLalamoveOrder(
   if (!apiKey || !apiSecret) {
     throw new Error("Missing LALAMOVE_API_KEY / LALAMOVE_API_SECRET");
   }
+  if (!input.serviceType) {
+    throw new Error("Missing serviceType");
+  }
+
+  const { pickup, dropoff } = normalizeStops(input);
+  assertStop(pickup, "pickup");
+  assertStop(dropoff, "dropoff");
 
   const stops: Stop[] = [
     {
-      coordinates: {
-        lat: String(input.pickup.lat),
-        lng: String(input.pickup.lng),
-      },
-      address: input.pickup.address,
+      coordinates: { lat: String(pickup.lat), lng: String(pickup.lng) },
+      address: pickup.address,
     },
     {
-      coordinates: {
-        lat: String(input.dropoff.lat),
-        lng: String(input.dropoff.lng),
-      },
-      address: input.dropoff.address,
+      coordinates: { lat: String(dropoff.lat), lng: String(dropoff.lng) },
+      address: dropoff.address,
     },
   ];
 
@@ -206,19 +255,22 @@ export async function createLalamoveOrder(
       quotationId,
       sender: {
         stopId: pickupStopId,
-        name: input.pickup.contactName,
-        phone: input.pickup.contactPhone,
+        name: pickup.contactName,
+        phone: pickup.contactPhone,
       },
       recipients: [
         {
           stopId: dropoffStopId,
-          name: input.dropoff.contactName,
-          phone: input.dropoff.contactPhone,
-          remarks: input.dropoff.remarks || "",
+          name: dropoff.contactName,
+          phone: dropoff.contactPhone,
+          remarks: dropoff.remarks || "",
         },
       ],
       isPODEnabled: !!input.isPODEnabled,
-      metadata: input.metadata || {},
+      metadata: {
+        ...(input.metadata || {}),
+        ...(input.externalId ? { externalId: input.externalId } : {}),
+      },
     },
   };
 
@@ -237,10 +289,10 @@ export async function createLalamoveOrder(
 
   const orderId = placeRes?.data?.orderId || null;
 
-  // Some accounts return minimal response; fetch details for shareLink/status when possible
   let shareLink = placeRes?.data?.shareLink || null;
   let status = placeRes?.data?.status || null;
 
+  // If response is minimal, fetch details
   if (orderId && (!shareLink || !status)) {
     const detail = await lalamoveRequest<{
       data: { orderId: string; shareLink?: string; status?: string };
