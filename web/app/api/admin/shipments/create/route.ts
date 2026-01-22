@@ -217,6 +217,16 @@ export async function POST(req: NextRequest) {
       tracking_url,
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message ?? "Unknown error" }, { status: 500 });
-  }
+      console.error("Lalamove error:", e?.message, e?.payload);
+
+      return NextResponse.json(
+        {
+          error: e?.message || "Lalamove request failed",
+          lalamove: e?.payload || null,
+          status: e?.status || null,
+        },
+        { status: 500 }
+      );
+    }
+
 }
