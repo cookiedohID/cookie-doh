@@ -31,17 +31,17 @@ export type CreateLalamoveOrderInput = {
   dropoffLat?: number;
   dropoffLng?: number;
 
-  // old naming variants seen in some implementations
+  // old naming variants
   dropoffContactName?: string;
   dropoffContactPhone?: string;
   dropoffRemarks?: string;
 
-  // ✅ your current error fields (from shipments/create)
+  // ✅ fields your route uses
   recipientName?: string;
   recipientPhone?: string;
   remarks?: string;
 
-  // (optional future-proof variants)
+  // optional variants
   senderName?: string;
   senderPhone?: string;
 
@@ -49,8 +49,9 @@ export type CreateLalamoveOrderInput = {
   pickup?: NestedStop;
   dropoff?: NestedStop;
 
-  // Common options
-  serviceType: string; // e.g. "MOTORCYCLE"
+  // ✅ IMPORTANT: make optional to satisfy your current route call
+  serviceType?: string; // default to "MOTORCYCLE"
+
   language?: string; // default "id_ID"
   scheduleAt?: string; // ISO string optional
   isPODEnabled?: boolean;
@@ -160,17 +161,12 @@ function normalizeStops(input: CreateLalamoveOrderInput): {
   // Preferred nested
   if (input.pickup && input.dropoff) return { pickup: input.pickup, dropoff: input.dropoff };
 
-  const pickupName =
-    input.pickupContactName || input.senderName || "";
-  const pickupPhone =
-    input.pickupContactPhone || input.senderPhone || "";
+  const pickupName = input.pickupContactName || input.senderName || "";
+  const pickupPhone = input.pickupContactPhone || input.senderPhone || "";
 
-  const dropoffName =
-    input.dropoffContactName || input.recipientName || "";
-  const dropoffPhone =
-    input.dropoffContactPhone || input.recipientPhone || "";
-  const dropoffRemarks =
-    input.dropoffRemarks || input.remarks || "";
+  const dropoffName = input.dropoffContactName || input.recipientName || "";
+  const dropoffPhone = input.dropoffContactPhone || input.recipientPhone || "";
+  const dropoffRemarks = input.dropoffRemarks || input.remarks || "";
 
   const pickup: NestedStop = {
     address: String(input.pickupAddress || ""),
@@ -212,9 +208,9 @@ export async function createLalamoveOrder(
   if (!apiKey || !apiSecret) {
     throw new Error("Missing LALAMOVE_API_KEY / LALAMOVE_API_SECRET");
   }
-  if (!input.serviceType) {
-    throw new Error("Missing serviceType");
-  }
+
+  // ✅ default serviceType if route didn't pass it
+  const serviceType = input.serviceType || "MOTORCYCLE";
 
   const { pickup, dropoff } = normalizeStops(input);
   assertStop(pickup, "pickup");
@@ -235,7 +231,7 @@ export async function createLalamoveOrder(
   const quotationPayload = {
     data: {
       language: input.language || "id_ID",
-      serviceType: input.serviceType,
+      serviceType,
       scheduleAt: input.scheduleAt,
       stops,
       item: {
@@ -316,7 +312,7 @@ export async function createLalamoveOrder(
   let shareLink = placeRes?.data?.shareLink || null;
   let status = placeRes?.data?.status || null;
 
-  // Some accounts return minimal response; fetch details if needed
+  // fetch details if needed
   if (orderId && (!shareLink || !status)) {
     const detail = await lalamoveRequest<{
       data: { orderId: string; shareLink?: string; status?: string };
@@ -343,6 +339,7 @@ export async function createLalamoveOrder(
     expiresAt: quotationRes.data.expiresAt || null,
   };
 }
+
 
 
 
