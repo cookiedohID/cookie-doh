@@ -18,7 +18,7 @@ type NestedStop = {
 };
 
 export type CreateLalamoveOrderInput = {
-  // ✅ Backwards-compatible fields (your current shipments/create route uses these)
+  // ✅ Backwards-compatible (your shipments/create route may use these)
   externalId?: string;
 
   pickupAddress?: string;
@@ -30,11 +30,22 @@ export type CreateLalamoveOrderInput = {
   dropoffAddress?: string;
   dropoffLat?: number;
   dropoffLng?: number;
+
+  // old naming variants seen in some implementations
   dropoffContactName?: string;
   dropoffContactPhone?: string;
   dropoffRemarks?: string;
 
-  // ✅ New preferred shape (used by the admin orders page button flow)
+  // ✅ your current error fields (from shipments/create)
+  recipientName?: string;
+  recipientPhone?: string;
+  remarks?: string;
+
+  // (optional future-proof variants)
+  senderName?: string;
+  senderPhone?: string;
+
+  // ✅ New preferred nested shape (admin page can use this)
   pickup?: NestedStop;
   dropoff?: NestedStop;
 
@@ -141,28 +152,41 @@ export async function lalamoveRequest<T>(opts: {
   return json as T;
 }
 
-// ✅ Normalize input: supports BOTH nested + flat field formats
+// ✅ Normalize input: supports BOTH nested + flat formats
 function normalizeStops(input: CreateLalamoveOrderInput): {
   pickup: NestedStop;
   dropoff: NestedStop;
 } {
+  // Preferred nested
   if (input.pickup && input.dropoff) return { pickup: input.pickup, dropoff: input.dropoff };
+
+  const pickupName =
+    input.pickupContactName || input.senderName || "";
+  const pickupPhone =
+    input.pickupContactPhone || input.senderPhone || "";
+
+  const dropoffName =
+    input.dropoffContactName || input.recipientName || "";
+  const dropoffPhone =
+    input.dropoffContactPhone || input.recipientPhone || "";
+  const dropoffRemarks =
+    input.dropoffRemarks || input.remarks || "";
 
   const pickup: NestedStop = {
     address: String(input.pickupAddress || ""),
     lat: Number(input.pickupLat),
     lng: Number(input.pickupLng),
-    contactName: String(input.pickupContactName || ""),
-    contactPhone: String(input.pickupContactPhone || ""),
+    contactName: String(pickupName),
+    contactPhone: String(pickupPhone),
   };
 
   const dropoff: NestedStop = {
     address: String(input.dropoffAddress || ""),
     lat: Number(input.dropoffLat),
     lng: Number(input.dropoffLng),
-    contactName: String(input.dropoffContactName || ""),
-    contactPhone: String(input.dropoffContactPhone || ""),
-    remarks: input.dropoffRemarks || "",
+    contactName: String(dropoffName),
+    contactPhone: String(dropoffPhone),
+    remarks: String(dropoffRemarks || ""),
   };
 
   return { pickup, dropoff };
@@ -176,7 +200,7 @@ function assertStop(s: NestedStop, label: "pickup" | "dropoff") {
   if (!s.contactPhone) throw new Error(`Missing ${label} contact phone`);
 }
 
-// ✅ This is what your route imports
+// ✅ Export used by: /app/api/admin/shipments/create/route.ts
 export async function createLalamoveOrder(
   input: CreateLalamoveOrderInput
 ): Promise<CreateLalamoveOrderResult> {
@@ -207,7 +231,7 @@ export async function createLalamoveOrder(
     },
   ];
 
-  // 1) Quotation
+  // 1) Create quotation
   const quotationPayload = {
     data: {
       language: input.language || "id_ID",
@@ -292,7 +316,7 @@ export async function createLalamoveOrder(
   let shareLink = placeRes?.data?.shareLink || null;
   let status = placeRes?.data?.status || null;
 
-  // If response is minimal, fetch details
+  // Some accounts return minimal response; fetch details if needed
   if (orderId && (!shareLink || !status)) {
     const detail = await lalamoveRequest<{
       data: { orderId: string; shareLink?: string; status?: string };
