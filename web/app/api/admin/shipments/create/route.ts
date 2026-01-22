@@ -3,11 +3,38 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createBiteshipOrder } from "@/lib/biteship";
 import { createLalamoveOrder } from "@/lib/lalamove";
 
-const toE164ID = (p: string) =>
-  p.startsWith("+") ? p : `+62${p.replace(/^0/, "")}`;
-
-
 export const runtime = "nodejs";
+
+// ✅ Phone formatter (Indonesia -> E.164)
+const toE164ID = (p: string) => {
+  const raw = String(p || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("+")) return raw;
+  // turns 0812xxxx -> +62812xxxx
+  return `+62${raw.replace(/^0/, "")}`;
+};
+
+// ✅ Pickup defaults (set these in Vercel env for production)
+function getPickup() {
+  const address = process.env.COOKIE_DOH_PICKUP_ADDRESS || "";
+  const lat = Number(process.env.COOKIE_DOH_PICKUP_LAT || "");
+  const lng = Number(process.env.COOKIE_DOH_PICKUP_LNG || "");
+  const name = process.env.COOKIE_DOH_PICKUP_NAME || "Cookie Doh";
+  const phone = process.env.COOKIE_DOH_PICKUP_PHONE || "";
+
+  if (!address.trim()) throw new Error("Missing env COOKIE_DOH_PICKUP_ADDRESS");
+  if (!Number.isFinite(lat)) throw new Error("Missing/invalid env COOKIE_DOH_PICKUP_LAT");
+  if (!Number.isFinite(lng)) throw new Error("Missing/invalid env COOKIE_DOH_PICKUP_LNG");
+  if (!phone.trim()) throw new Error("Missing env COOKIE_DOH_PICKUP_PHONE");
+
+  return {
+    address: address.trim(),
+    lat,
+    lng,
+    contactName: name.trim() || "Cookie Doh",
+    contactPhone: toE164ID(phone),
+  };
+}
 
 function pickCourier(order: any) {
   const company =
@@ -27,12 +54,16 @@ function pickCourier(order: any) {
 }
 
 function parseLatLngFromShippingJson(shipping_json: any) {
-  // You send destination_lat/lng from checkout -> snap-token.
-  // Most setups store it in shipping_json.
   let obj: any = shipping_json;
+
   if (typeof shipping_json === "string") {
-    try { obj = JSON.parse(shipping_json); } catch { obj = null; }
+    try {
+      obj = JSON.parse(shipping_json);
+    } catch {
+      obj = null;
+    }
   }
+
   const lat = obj?.destination_lat ?? obj?.lat ?? null;
   const lng = obj?.destination_lng ?? obj?.lng ?? null;
 
@@ -83,6 +114,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const midtrans_order_id = String(body?.midtrans_order_id ?? "").trim();
+
     if (!midtrans_order_id) {
       return NextResponse.json({ ok: false, error: "Missing midtrans_order_id" }, { status: 400 });
     }
@@ -119,7 +151,8 @@ export async function POST(req: NextRequest) {
     // Destination basics
     const destination_address = String(order.shipping_address ?? order.address ?? "").trim();
     const recipientName = String(order.customer_name ?? "").trim();
-    const recipientPhone = String(order.customer_phone ?? "").trim();
+    const recipientPhoneRaw = String(order.customer_phone ?? "").trim();
+    const recipientPhone = toE164ID(recipientPhoneRaw);
 
     if (!destination_address || !recipientName || !recipientPhone) {
       await sb.from("orders").update({ shipment_status: "needs_attention" }).eq("midtrans_order_id", midtrans_order_id);
@@ -135,24 +168,32 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, error: "Missing destination lat/lng (shipping_json)" }, { status: 400 });
       }
 
+      const pickup = getPickup();
       const remarks = String(order.notes ?? "");
 
       const llm = await createLalamoveOrder({
-      externalId: midtrans_order_id,
+        externalId: midtrans_order_id,
 
-      dropoffAddress: destination_address,
-      dropoffLat: lat,
-      dropoffLng: lng,
+        // ✅ required pickup
+        pickupAddress: pickup.address,
+        pickupLat: pickup.lat,
+        pickupLng: pickup.lng,
+        pickupContactName: pickup.contactName,
+        pickupContactPhone: pickup.contactPhone,
 
-      recipientName,
-      recipientPhone: toE164ID(recipientPhone),
+        // ✅ required dropoff
+        dropoffAddress: destination_address,
+        dropoffLat: lat,
+        dropoffLng: lng,
 
-      remarks,
+        recipientName,
+        recipientPhone,
+        remarks,
 
-      // optional, but recommended
-      serviceType: "MOTORCYCLE",
-    });
-
+        // ✅ default / safe
+        serviceType: "MOTORCYCLE",
+        language: "id_ID",
+      });
 
       const orderId = llm.orderId ? String(llm.orderId) : null;
       const shareLink = llm.shareLink ? String(llm.shareLink) : null;
@@ -195,7 +236,7 @@ export async function POST(req: NextRequest) {
     const biteshipRes = await createBiteshipOrder({
       external_id: midtrans_order_id,
       destination_contact_name: recipientName,
-      destination_contact_phone: recipientPhone,
+      destination_contact_phone: recipientPhone, // ✅ use E.164 here too
       destination_address,
       destination_postal_code,
       destination_area_id,
@@ -228,16 +269,17 @@ export async function POST(req: NextRequest) {
       tracking_url,
     });
   } catch (e: any) {
-      console.error("Lalamove error:", e?.message, e?.payload);
+    // ✅ show Lalamove payload if available
+    console.error("Shipment create error:", e?.message, e?.payload);
 
-      return NextResponse.json(
-        {
-          error: e?.message || "Lalamove request failed",
-          lalamove: e?.payload || null,
-          status: e?.status || null,
-        },
-        { status: 500 }
-      );
-    }
-
+    return NextResponse.json(
+      {
+        ok: false,
+        error: e?.message || "Shipment create failed",
+        lalamove: e?.payload || null,
+        status: e?.status || null,
+      },
+      { status: 500 }
+    );
+  }
 }
