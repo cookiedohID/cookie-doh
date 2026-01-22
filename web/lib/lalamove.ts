@@ -130,6 +130,18 @@ export async function lalamoveRequest<T>(opts: {
     requestId: opts.requestId,
   });
 
+  console.log("[LALAMOVE]", {
+    env: opts.env,
+    url,
+    market: opts.market,
+    method: opts.method,
+    path: opts.path,
+    requestId: opts.requestId,
+    hasKey: !!opts.apiKey,
+    hasSecret: !!opts.apiSecret,
+  });
+
+
   const res = await fetch(url, {
     method: opts.method,
     headers,
