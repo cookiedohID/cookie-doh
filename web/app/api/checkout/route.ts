@@ -62,7 +62,6 @@ function computeSubtotalFromCart(cart: any) {
 }
 
 function makeMidtransOrderId(checkoutMode: string) {
-  // Safe placeholder when Midtrans isn't used yet
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -101,11 +100,12 @@ export async function POST(req: Request) {
 
     const checkoutMode = mode();
 
-    // ✅ IMPORTANT: always set midtrans_order_id (DB requires NOT NULL)
+    // DB requires NOT NULL midtrans_order_id
     const midtransOrderId =
       (payload?.midtrans_order_id || payload?.midtransOrderId || "").toString().trim() ||
       makeMidtransOrderId(checkoutMode);
 
+    // ✅ Insert into orders only (items_json holds item list)
     const orderInsert: any = {
       customer_name: customerName || null,
       customer_phone: customerPhone || null,
@@ -126,7 +126,6 @@ export async function POST(req: Request) {
       shipping_cost_idr: shippingCost || null,
       total_idr: totalIdr || null,
 
-      // ✅ required by your schema
       midtrans_order_id: midtransOrderId,
 
       payment_status: "PENDING",
@@ -134,7 +133,7 @@ export async function POST(req: Request) {
       fullfillment_status: payload?.fullfillment_status || null,
 
       checkout_mode: checkoutMode,
-      items_json: items,
+      items_json: items, // ✅ jsonb
       customer_json: payload?.customer || null,
       shipping_json: payload?.delivery || null,
       meta: payload?.meta || null,
@@ -149,17 +148,7 @@ export async function POST(req: Request) {
     if (e1) throw e1;
     if (!orderRow?.id) throw new Error("Order insert failed (missing id)");
 
-    if (items.length > 0) {
-      const rows = items.map((it) => ({
-        order_id: orderRow.id,
-        item_name: it.name,
-        quantity: it.quantity,
-      }));
-
-      const { error: e2 } = await supabase.from("order_items").insert(rows);
-      if (e2) throw e2;
-    }
-
+    // Manual mode redirect
     if (checkoutMode === "manual") {
       const u = new URL(`${siteUrl}/checkout/pending`);
       u.searchParams.set("order_id", orderRow.id);
