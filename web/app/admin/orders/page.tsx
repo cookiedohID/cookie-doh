@@ -69,26 +69,30 @@ export default function AdminOrdersPage() {
     if (!res.ok) throw new Error(j?.error || "Update failed");
   };
 
-  const quickPaid = async (id: string) => {
-    setBusyId(id);
-    await patch(id, { payment_status: "PAID" });
-    await load();
-    setBusyId(null);
-  };
+  const quickPaid = async (id?: string) => {
+      if (!id) return;
+      setBusyId(id);
+      await patch(id, { payment_status: "PAID" });
+      await load();
+      setBusyId(null);
+    };
 
-  const quickSending = async (id: string) => {
-    setBusyId(id);
-    await patch(id, { fullfillment_status: "sending" });
-    await load();
-    setBusyId(null);
-  };
+    const quickSending = async (id?: string) => {
+      if (!id) return;
+      setBusyId(id);
+      await patch(id, { fullfillment_status: "sending" });
+      await load();
+      setBusyId(null);
+    };
 
-  const quickSent = async (id: string) => {
-    setBusyId(id);
-    await patch(id, { fullfillment_status: "sent" });
-    await load();
-    setBusyId(null);
-  };
+    const quickSent = async (id?: string) => {
+      if (!id) return;
+      setBusyId(id);
+      await patch(id, { fullfillment_status: "sent" });
+      await load();
+      setBusyId(null);
+    };
+
 
   // 🔍 FILTER LOGIC
   const filteredOrders = useMemo(() => {
@@ -200,33 +204,47 @@ export default function AdminOrdersPage() {
 
                   <td style={{ padding: 12 }}>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <button
-                        disabled={busy}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          quickPaid(o.id!);
-                        }}
-                      >
-                        Paid
-                      </button>
-                      <button
-                        disabled={busy}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          quickSending(o.id!);
-                        }}
-                      >
-                        Sending
-                      </button>
-                      <button
-                        disabled={busy}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          quickSent(o.id!);
-                        }}
-                      >
-                        Sent
-                      </button>
+                      
+                      {o.id ? (
+                      <>
+                        <button
+                          disabled={busy}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            quickPaid(o.id);
+                          }}
+                        >
+                          Paid
+                        </button>
+
+                        <button
+                          disabled={busy}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            quickSending(o.id);
+                          }}
+                        >
+                          Sending
+                        </button>
+
+                        <button
+                          disabled={busy}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            quickSent(o.id);
+                          }}
+                        >
+                          Sent
+                        </button>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 12, color: "#999" }}>No ID</span>
+                    )}
+
+
                     </div>
                   </td>
                 </tr>
