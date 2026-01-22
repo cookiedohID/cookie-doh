@@ -13,7 +13,7 @@ type OrderRow = {
 
   payment_status?: "PENDING" | "PAID" | string;
 
-  // ✅ TypeScript hinted this exists in your codebase:
+  // ✅ Matches your codebase hint ("fulfilment_status")
   fulfilment_status?: "pending" | "sending" | "sent" | string;
 
   shipment_status?: string;
@@ -26,10 +26,10 @@ type OrderRow = {
   total_idr?: number;
 };
 
+type Filter = "all" | "pending" | "paid" | "sending" | "sent";
+
 const idr = (n?: number) =>
   typeof n === "number" ? `Rp ${n.toLocaleString("id-ID")}` : "—";
-
-type Filter = "all" | "pending" | "paid" | "sending" | "sent";
 
 function isUuid(id: unknown): id is string {
   return (
@@ -39,6 +39,20 @@ function isUuid(id: unknown): id is string {
     )
   );
 }
+
+const pillButtonStyle = (
+  bg: string,
+  disabled: boolean
+): React.CSSProperties => ({
+  padding: "6px 10px",
+  borderRadius: 10,
+  border: "1px solid rgba(0,0,0,0.12)",
+  background: bg,
+  color: disabled ? "#777" : "#101010",
+  fontWeight: 900,
+  cursor: disabled ? "not-allowed" : "pointer",
+  opacity: disabled ? 0.6 : 1,
+});
 
 export default function AdminOrdersPage() {
   const router = useRouter();
@@ -76,7 +90,7 @@ export default function AdminOrdersPage() {
     if (!res.ok) throw new Error(j?.error || "Update failed");
   };
 
-  // ✅ one robust handler for all buttons
+  // ✅ One robust handler: reads id from the clicked button
   const onQuick = async (
     e: React.MouseEvent<HTMLButtonElement>,
     action: "paid" | "sending" | "sent"
@@ -93,9 +107,15 @@ export default function AdminOrdersPage() {
 
     setBusyId(id);
     try {
-      if (action === "paid") await patch(id, { payment_status: "PAID" });
-      if (action === "sending") await patch(id, { fulfilment_status: "sending" });
-      if (action === "sent") await patch(id, { fulfilment_status: "sent" });
+      if (action === "paid") {
+        await patch(id, { payment_status: "PAID" });
+      }
+      if (action === "sending") {
+        await patch(id, { fulfilment_status: "sending" });
+      }
+      if (action === "sent") {
+        await patch(id, { fulfilment_status: "sent" });
+      }
 
       await load();
     } finally {
@@ -187,6 +207,15 @@ export default function AdminOrdersPage() {
               const hasId = isUuid(uuid);
               const busy = hasId ? busyId === uuid : false;
 
+              const isPaid = o.payment_status === "PAID";
+              const isSending = o.fulfilment_status === "sending";
+              const isSent = o.fulfilment_status === "sent";
+
+              // Disable rules (clear workflow)
+              const paidDisabled = busy || isPaid;
+              const sendingDisabled = busy || !isPaid || isSending || isSent;
+              const sentDisabled = busy || !isSending || isSent;
+
               return (
                 <tr
                   key={hasId ? uuid : `${o.order_no || "row"}-${idx}`}
@@ -218,57 +247,61 @@ export default function AdminOrdersPage() {
                     </div>
                   </td>
 
-                  <td style={{ padding: 12, fontWeight: 900 }}>{idr(o.total_idr)}</td>
+                  <td style={{ padding: 12, fontWeight: 900 }}>
+                    {idr(o.total_idr)}
+                  </td>
 
                   <td style={{ padding: 12 }}>
                     {hasId ? (
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {/* PAID (blue) */}
                         <button
                           type="button"
                           data-order-id={uuid}
-                          disabled={busy}
+                          disabled={paidDisabled}
                           onClick={(e) => onQuick(e, "paid")}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(0,0,0,0.12)",
-                            background: "#fff",
-                            fontWeight: 900,
-                          }}
+                          style={pillButtonStyle("#EAF2FF", paidDisabled)}
+                          title={
+                            isPaid ? "Already paid" : "Mark payment as PAID"
+                          }
                         >
-                          {busy ? "..." : "Paid"}
+                          {isPaid ? "Paid ✓" : busy ? "..." : "Paid"}
                         </button>
 
+                        {/* SENDING (purple) */}
                         <button
                           type="button"
                           data-order-id={uuid}
-                          disabled={busy}
+                          disabled={sendingDisabled}
                           onClick={(e) => onQuick(e, "sending")}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(0,0,0,0.12)",
-                            background: "#fff",
-                            fontWeight: 900,
-                          }}
+                          style={pillButtonStyle("#F2ECFF", sendingDisabled)}
+                          title={
+                            !isPaid
+                              ? "Pay first"
+                              : isSending || isSent
+                              ? "Already sending"
+                              : "Mark fulfilment as sending"
+                          }
                         >
-                          {busy ? "..." : "Sending"}
+                          {isSending || isSent ? "Sending ✓" : busy ? "..." : "Sending"}
                         </button>
 
+                        {/* SENT (green) */}
                         <button
                           type="button"
                           data-order-id={uuid}
-                          disabled={busy}
+                          disabled={sentDisabled}
                           onClick={(e) => onQuick(e, "sent")}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(0,0,0,0.12)",
-                            background: "#fff",
-                            fontWeight: 900,
-                          }}
+                          style={pillButtonStyle("#E8F7EF", sentDisabled)}
+                          title={
+                            !isSending
+                              ? "Must be sending first"
+                              : isSent
+                              ? "Already sent"
+                              : "Mark fulfilment as sent"
+                          }
                         >
-                          {busy ? "..." : "Sent"}
+                          {isSent ? "Sent ✓" : busy ? "..." : "Sent"}
                         </button>
                       </div>
                     ) : (
