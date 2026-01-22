@@ -1,88 +1,108 @@
+// app/api/admin/orders/[id]/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+// --- UUID guard ---
+function isUuid(id: unknown): id is string {
+  return (
+    typeof id === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+  );
+}
+
+// --- Param extractor (handles folder name mismatch) ---
+// If folder is [id] -> params.id
+// If folder is [orderId] -> params.orderId
+// If folder is [order_id] -> params.order_id
+function getParamId(params: Record<string, string | string[] | undefined>) {
+  const firstKey = Object.keys(params)[0];
+  const raw = (firstKey ? params[firstKey] : undefined) ?? params["id"];
+
+  if (Array.isArray(raw)) return raw[0];
+  return raw;
+}
+
+const supabaseAdmin = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
 
-type Ctx = { params: Promise<{ id: string }> };
-
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-}
-
-export async function GET(_req: Request, context: Ctx) {
-  try {
-    const { id: orderId } = await context.params;
-    if (!orderId || orderId === "undefined" || !isUuid(orderId)) {
-      return NextResponse.json({ ok: false, error: `Invalid order id: ${orderId}` }, { status: 400 });
-    }
-
-    const supabase = supaAdmin();
-
-    const { data: order, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", orderId)
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!order) return NextResponse.json({ ok: false, error: "Order not found" }, { status: 404 });
-
-    // ✅ items come from orders.items_json
-    const items = Array.isArray(order.items_json) ? order.items_json : [];
-
-    // normalize for UI (OrderDetailClient expects item_name + quantity)
-    const itemsNormalized = items.map((it: any) => ({
-      item_name: it?.name || it?.item_name || "Item",
-      quantity: Number(it?.quantity || 0),
-    }));
-
-    return NextResponse.json({ ok: true, order, items: itemsNormalized });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Failed to load order" }, { status: 500 });
+  if (!url || !key) {
+    throw new Error("Missing Supabase env: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
   }
-}
 
-export async function PATCH(req: Request, context: Ctx) {
+  return createClient(url, key, {
+    auth: { persistSession: false },
+  });
+};
+
+type PatchBody = {
+  payment_status?: "PENDING" | "PAID";
+  fullfillment_status?: "pending" | "sending" | "sent";
+  // if you later standardize spelling:
+  fulfillment_status?: "pending" | "sending" | "sent";
+  shipment_status?: string;
+  tracking_url?: string;
+};
+
+export async function PATCH(
+  req: Request,
+  ctx: { params: Record<string, string | string[] | undefined> }
+) {
   try {
-    const { id: orderId } = await context.params;
-    if (!orderId || orderId === "undefined" || !isUuid(orderId)) {
-      return NextResponse.json({ ok: false, error: `Invalid order id: ${orderId}` }, { status: 400 });
+    const id = getParamId(ctx.params);
+
+    // 🔥 This is the line that was causing your "undefined" before:
+    // if you used params.id but folder was [orderId], it becomes undefined.
+    if (!isUuid(id)) {
+      console.error("Invalid order id:", id, "params=", ctx.params);
+      return NextResponse.json({ error: "Invalid order id" }, { status: 400 });
     }
 
-    const supabase = supaAdmin();
-    const body = await req.json().catch(() => ({}));
+    const body = (await req.json()) as PatchBody;
 
-    const patch: Record<string, any> = {};
+    // Allow only known fields
+    const update: Record<string, any> = {};
 
-    if (typeof body.payment_status === "string") {
-      patch.payment_status = body.payment_status;
-      if (body.payment_status.toUpperCase() === "PAID") patch.paid_at = new Date().toISOString();
+    if (body.payment_status) update.payment_status = body.payment_status;
+
+    // Support BOTH spellings safely:
+    const ff =
+      body.fullfillment_status ??
+      body.fulfillment_status;
+
+    if (ff) {
+      // IMPORTANT:
+      // If your DB column is actually "fulfillment_status" (single L),
+      // change the key below to match your DB.
+      //
+      // For now, this keeps your current spelling:
+      update.fullfillment_status = ff;
     }
-    if (typeof body.fullfillment_status === "string") patch.fullfillment_status = body.fullfillment_status;
-    if (typeof body.shipment_status === "string") patch.shipment_status = body.shipment_status;
-    if (typeof body.tracking_url === "string") patch.tracking_url = body.tracking_url;
-    if (typeof body.waybill === "string") patch.waybill = body.waybill;
 
-    if (Object.keys(patch).length === 0) {
-      return NextResponse.json({ ok: false, error: "No valid fields to update" }, { status: 400 });
+    if (typeof body.shipment_status === "string") update.shipment_status = body.shipment_status;
+    if (typeof body.tracking_url === "string") update.tracking_url = body.tracking_url;
+
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const sb = supabaseAdmin();
+
+    const { data, error } = await sb
       .from("orders")
-      .update(patch)
-      .eq("id", orderId)
+      .update(update)
+      .eq("id", id)
       .select("*")
-      .maybeSingle();
+      .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase update error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true, order: data });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Failed to update order" }, { status: 500 });
+    console.error("PATCH /api/admin/orders/[id] error:", e);
+    return NextResponse.json({ error: e?.message || "Server error" }, { status: 500 });
   }
 }
