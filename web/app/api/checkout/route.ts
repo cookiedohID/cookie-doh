@@ -130,7 +130,7 @@ export async function POST(req: Request) {
 
       payment_status: "PENDING",
       shipment_status: "not_created",
-      fullfillment_status: payload?.fullfillment_status || null,
+      fulfillment_status: payload?.fulfillment_status || null,
 
       checkout_mode: checkoutMode,
       items_json: items, // ✅ jsonb
