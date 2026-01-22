@@ -3,47 +3,51 @@ import crypto from "crypto";
 
 type LalamoveEnv = "sandbox" | "production";
 
-export type LalamoveStop = {
+type Stop = {
   coordinates: { lat: string; lng: string };
   address: string;
 };
 
-export type LalamoveQuotationRequest = {
-  language: string; // e.g. "id_ID" or "en_ID"
-  serviceType: string; // e.g. "MOTORCYCLE" (depends on city config)
-  stops: LalamoveStop[];
-  scheduleAt?: string; // ISO string, optional (for scheduled / same-day)
-  item?: {
-    quantity?: string;
-    weight?: string; // e.g. "LESS_THAN_3_KG"
-    categories?: string[];
-    handlingInstructions?: string[];
+export type CreateLalamoveOrderInput = {
+  pickup: {
+    address: string;
+    lat: number;
+    lng: number;
+    contactName: string;
+    contactPhone: string; // "+62..."
   };
-  specialRequests?: string[];
-  isRouteOptimized?: boolean;
-};
-
-export type LalamoveOrderRequest = {
-  quotationId: string;
-  sender: { stopId: string; name: string; phone: string };
-  recipients: Array<{ stopId: string; name: string; phone: string; remarks?: string }>;
+  dropoff: {
+    address: string;
+    lat: number;
+    lng: number;
+    contactName: string;
+    contactPhone: string; // "+62..."
+    remarks?: string;
+  };
+  serviceType: string; // e.g. "MOTORCYCLE" (depends on city config)
+  language?: string; // default "id_ID"
+  scheduleAt?: string; // ISO string, optional (scheduled / same-day)
   isPODEnabled?: boolean;
   metadata?: Record<string, any>;
 };
 
+export type CreateLalamoveOrderResult = {
+  quotationId: string;
+  orderId: string | null;
+  shareLink: string | null;
+  status: string | null;
+  priceBreakdown: any | null;
+  expiresAt: string | null;
+};
+
 function baseUrl(env: LalamoveEnv) {
-  // Docs: Sandbox rest.sandbox.lalamove.com/v3, Prod rest.lalamove.com/v3
   return env === "production"
     ? "https://rest.lalamove.com"
     : "https://rest.sandbox.lalamove.com";
 }
 
-// Signature formula from docs:
-// raw = `${time}\r\n${method}\r\n${path}\r\n\r\n${body}` (or no body for GET)
-// token = `${key}:${time}:${signature}`
-// Authorization: hmac <token>
+// --- Signature + headers ---
 export function lalamoveHeaders(opts: {
-  env: LalamoveEnv;
   apiKey: string;
   apiSecret: string;
   market: string; // "ID"
@@ -53,9 +57,11 @@ export function lalamoveHeaders(opts: {
   requestId: string; // UUID
 }) {
   const time = Date.now().toString();
-
   const method = opts.method.toUpperCase();
   const body = opts.body ?? "";
+
+  // Raw signature format used by Lalamove:
+  // `${time}\r\n${method}\r\n${path}\r\n\r\n${body}`
   const rawSignature =
     method === "GET"
       ? `${time}\r\n${method}\r\n${opts.path}\r\n\r\n`
@@ -64,7 +70,7 @@ export function lalamoveHeaders(opts: {
   const signature = crypto
     .createHmac("sha256", opts.apiSecret)
     .update(rawSignature)
-    .digest("hex"); // lowercase hex
+    .digest("hex");
 
   const token = `${opts.apiKey}:${time}:${signature}`;
 
@@ -90,7 +96,6 @@ export async function lalamoveRequest<T>(opts: {
   const bodyStr = opts.body ? JSON.stringify(opts.body) : undefined;
 
   const headers = lalamoveHeaders({
-    env: opts.env,
     apiKey: opts.apiKey,
     apiSecret: opts.apiSecret,
     market: opts.market,
@@ -122,6 +127,147 @@ export async function lalamoveRequest<T>(opts: {
 
   return json as T;
 }
+
+// ✅ THIS is what your route is trying to import:
+export async function createLalamoveOrder(
+  input: CreateLalamoveOrderInput
+): Promise<CreateLalamoveOrderResult> {
+  const env = (process.env.LALAMOVE_ENV || "sandbox") as LalamoveEnv;
+  const apiKey = process.env.LALAMOVE_API_KEY || "";
+  const apiSecret = process.env.LALAMOVE_API_SECRET || "";
+  const market = process.env.LALAMOVE_MARKET || "ID";
+
+  if (!apiKey || !apiSecret) {
+    throw new Error("Missing LALAMOVE_API_KEY / LALAMOVE_API_SECRET");
+  }
+
+  const stops: Stop[] = [
+    {
+      coordinates: {
+        lat: String(input.pickup.lat),
+        lng: String(input.pickup.lng),
+      },
+      address: input.pickup.address,
+    },
+    {
+      coordinates: {
+        lat: String(input.dropoff.lat),
+        lng: String(input.dropoff.lng),
+      },
+      address: input.dropoff.address,
+    },
+  ];
+
+  // 1) Quotation
+  const quotationPayload = {
+    data: {
+      language: input.language || "id_ID",
+      serviceType: input.serviceType,
+      scheduleAt: input.scheduleAt,
+      stops,
+      item: {
+        quantity: "1",
+        weight: "LESS_THAN_3_KG",
+        categories: ["FOOD_DELIVERY"],
+        handlingInstructions: ["KEEP_UPRIGHT"],
+      },
+    },
+  };
+
+  const quotationRes = await lalamoveRequest<{
+    data: {
+      quotationId: string;
+      stops: Array<{ stopId: string }>;
+      priceBreakdown?: any;
+      expiresAt?: string;
+    };
+  }>({
+    env,
+    apiKey,
+    apiSecret,
+    market,
+    method: "POST",
+    path: "/v3/quotations",
+    requestId: crypto.randomUUID(),
+    body: quotationPayload,
+  });
+
+  const quotationId = quotationRes.data.quotationId;
+  const pickupStopId = quotationRes.data.stops?.[0]?.stopId;
+  const dropoffStopId = quotationRes.data.stops?.[1]?.stopId;
+
+  if (!quotationId || !pickupStopId || !dropoffStopId) {
+    throw new Error("Failed to create quotation (missing quotationId/stopId)");
+  }
+
+  // 2) Place order
+  const orderPayload = {
+    data: {
+      quotationId,
+      sender: {
+        stopId: pickupStopId,
+        name: input.pickup.contactName,
+        phone: input.pickup.contactPhone,
+      },
+      recipients: [
+        {
+          stopId: dropoffStopId,
+          name: input.dropoff.contactName,
+          phone: input.dropoff.contactPhone,
+          remarks: input.dropoff.remarks || "",
+        },
+      ],
+      isPODEnabled: !!input.isPODEnabled,
+      metadata: input.metadata || {},
+    },
+  };
+
+  const placeRes = await lalamoveRequest<{
+    data?: { orderId?: string; shareLink?: string; status?: string };
+  }>({
+    env,
+    apiKey,
+    apiSecret,
+    market,
+    method: "POST",
+    path: "/v3/orders",
+    requestId: crypto.randomUUID(),
+    body: orderPayload,
+  });
+
+  const orderId = placeRes?.data?.orderId || null;
+
+  // Some accounts return minimal response; fetch details for shareLink/status when possible
+  let shareLink = placeRes?.data?.shareLink || null;
+  let status = placeRes?.data?.status || null;
+
+  if (orderId && (!shareLink || !status)) {
+    const detail = await lalamoveRequest<{
+      data: { orderId: string; shareLink?: string; status?: string };
+    }>({
+      env,
+      apiKey,
+      apiSecret,
+      market,
+      method: "GET",
+      path: `/v3/orders/${orderId}`,
+      requestId: crypto.randomUUID(),
+    });
+
+    shareLink = detail.data.shareLink || shareLink;
+    status = detail.data.status || status;
+  }
+
+  return {
+    quotationId,
+    orderId,
+    shareLink,
+    status,
+    priceBreakdown: quotationRes.data.priceBreakdown || null,
+    expiresAt: quotationRes.data.expiresAt || null,
+  };
+}
+
 
 
 /*
