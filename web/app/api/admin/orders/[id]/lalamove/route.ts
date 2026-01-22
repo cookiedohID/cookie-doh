@@ -1,3 +1,273 @@
+// web/app/api/admin/orders/[id]/lalamove/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
+import { lalamoveRequest } from "@/lib/lalamove";
+
+function isUuid(id: unknown): id is string {
+  return (
+    typeof id === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      id
+    )
+  );
+}
+
+const supabaseAdmin = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env vars");
+  return createClient(url, key, { auth: { persistSession: false } });
+};
+
+type Body = {
+  // Pickup (Cookie Doh)
+  pickup: {
+    address: string;
+    lat: number;
+    lng: number;
+    contactName: string;
+    contactPhone: string; // must include country code like +62...
+  };
+
+  // Dropoff (Customer)
+  dropoff: {
+    address: string;
+    lat: number;
+    lng: number;
+    contactName: string;
+    contactPhone: string; // +62...
+  };
+
+  // Lalamove options
+  serviceType: string; // e.g. "MOTORCYCLE" (varies per city)
+  language?: string; // default "id_ID"
+  scheduleAt?: string; // ISO, optional for scheduled (same-day)
+  isPODEnabled?: boolean;
+
+  // optional notes
+  remarks?: string;
+};
+
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "Invalid order id" }, { status: 400 });
+    }
+
+    const env = (process.env.LALAMOVE_ENV || "sandbox") as
+      | "sandbox"
+      | "production";
+    const apiKey = process.env.LALAMOVE_API_KEY || "";
+    const apiSecret = process.env.LALAMOVE_API_SECRET || "";
+    const market = process.env.LALAMOVE_MARKET || "ID";
+
+    if (!apiKey || !apiSecret) {
+      return NextResponse.json(
+        { error: "Missing Lalamove API credentials" },
+        { status: 500 }
+      );
+    }
+
+    const body = (await request.json()) as Body;
+
+    // basic validation
+    if (
+      !body?.pickup?.address ||
+      typeof body.pickup.lat !== "number" ||
+      typeof body.pickup.lng !== "number" ||
+      !body?.dropoff?.address ||
+      typeof body.dropoff.lat !== "number" ||
+      typeof body.dropoff.lng !== "number" ||
+      !body.serviceType
+    ) {
+      return NextResponse.json(
+        { error: "Missing pickup/dropoff/serviceType" },
+        { status: 400 }
+      );
+    }
+
+    const sb = supabaseAdmin();
+
+    // Load order (optional but useful if you want to store status)
+    const { data: order, error: oErr } = await sb
+      .from("orders")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (oErr) {
+      return NextResponse.json({ error: oErr.message }, { status: 500 });
+    }
+
+    // Make a requestId (Lalamove wants Request-ID nonce)
+    const requestId = crypto.randomUUID();
+
+    // 1) Create quotation
+    const quotationPayload = {
+      data: {
+        language: body.language || "id_ID",
+        serviceType: body.serviceType,
+        scheduleAt: body.scheduleAt, // optional
+        stops: [
+          {
+            coordinates: {
+              lat: String(body.pickup.lat),
+              lng: String(body.pickup.lng),
+            },
+            address: body.pickup.address,
+          },
+          {
+            coordinates: {
+              lat: String(body.dropoff.lat),
+              lng: String(body.dropoff.lng),
+            },
+            address: body.dropoff.address,
+          },
+        ],
+        item: {
+          // you can tune these later
+          quantity: "1",
+          weight: "LESS_THAN_3_KG",
+          categories: ["FOOD_DELIVERY"],
+          handlingInstructions: ["KEEP_UPRIGHT"],
+        },
+      },
+    };
+
+    const quotationRes = await lalamoveRequest<{
+      data: {
+        quotationId: string;
+        stops: Array<{ stopId: string }>;
+        priceBreakdown?: any;
+        expiresAt?: string;
+      };
+    }>({
+      env,
+      apiKey,
+      apiSecret,
+      market,
+      method: "POST",
+      path: "/v3/quotations",
+      requestId,
+      body: quotationPayload,
+    });
+
+    const quotationId = quotationRes.data.quotationId;
+    const pickupStopId = quotationRes.data.stops?.[0]?.stopId;
+    const dropoffStopId = quotationRes.data.stops?.[1]?.stopId;
+
+    if (!quotationId || !pickupStopId || !dropoffStopId) {
+      return NextResponse.json(
+        { error: "Failed to create quotation (missing stopId)" },
+        { status: 500 }
+      );
+    }
+
+    // 2) Place order (you only need quotationId + stopId + contacts)
+    const orderPayload = {
+      data: {
+        quotationId,
+        sender: {
+          stopId: pickupStopId,
+          name: body.pickup.contactName,
+          phone: body.pickup.contactPhone,
+        },
+        recipients: [
+          {
+            stopId: dropoffStopId,
+            name: body.dropoff.contactName,
+            phone: body.dropoff.contactPhone,
+            remarks:
+              body.remarks ||
+              `${order?.order_no ? `Order ${order.order_no}\r\n` : ""}${
+                order?.shipping_address ? `${order.shipping_address}\r\n` : ""
+              }`,
+          },
+        ],
+        isPODEnabled: !!body.isPODEnabled,
+        metadata: {
+          orderId: id,
+          orderNo: order?.order_no || "",
+        },
+      },
+    };
+
+    const placeRes = await lalamoveRequest<{
+      data?: { orderId?: string; quotationId?: string; shareLink?: string; status?: string };
+      // some responses may vary; we also fetch details after placing
+    }>({
+      env,
+      apiKey,
+      apiSecret,
+      market,
+      method: "POST",
+      path: "/v3/orders",
+      requestId: crypto.randomUUID(),
+      body: orderPayload,
+    });
+
+    // Some accounts return minimal create response, so fetch order details if needed
+    const lalamoveOrderId = placeRes?.data?.orderId;
+
+    // If we have orderId, retrieve details to get shareLink/status
+    let shareLink: string | undefined = placeRes?.data?.shareLink;
+    let status: string | undefined = placeRes?.data?.status;
+
+    if (lalamoveOrderId && (!shareLink || !status)) {
+      const detail = await lalamoveRequest<{
+        data: { orderId: string; shareLink?: string; status?: string };
+      }>({
+        env,
+        apiKey,
+        apiSecret,
+        market,
+        method: "GET",
+        path: `/v3/orders/${lalamoveOrderId}`,
+        requestId: crypto.randomUUID(),
+      });
+
+      shareLink = detail.data.shareLink;
+      status = detail.data.status;
+    }
+
+    // 3) Save to DB (use fields you already have)
+    // - shipment_status: "BOOKED"
+    // - tracking_url: shareLink
+    // If you want to store lalamoveOrderId, add a new column later.
+    await sb
+      .from("orders")
+      .update({
+        shipment_status: "BOOKED",
+        tracking_url: shareLink || null,
+      })
+      .eq("id", id);
+
+    return NextResponse.json({
+      ok: true,
+      quotationId,
+      lalamoveOrderId: lalamoveOrderId || null,
+      shareLink: shareLink || null,
+      status: status || null,
+      priceBreakdown: quotationRes.data.priceBreakdown || null,
+      expiresAt: quotationRes.data.expiresAt || null,
+    });
+  } catch (e: any) {
+    console.error("Lalamove booking error:", e?.message, e?.payload || "");
+    return NextResponse.json(
+      { error: e?.message || "Lalamove booking failed" },
+      { status: 500 }
+    );
+  }
+}
+
+
+/*
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
@@ -49,7 +319,10 @@ async function geocodeAddress(address: string) {
  * Lalamove v3 signing:
  * Authorization: hmac {apiKey}:{signature}:{timestamp}
  * signature = HMAC_SHA256(secret, timestamp + method + path + body)
- */
+*/
+
+/*
+
 function signLalamove(secret: string, timestamp: string, method: string, path: string, body: string) {
   const raw = `${timestamp}${method.toUpperCase()}${path}${body}`;
   return crypto.createHmac("sha256", secret).update(raw).digest("hex");
@@ -230,3 +503,4 @@ export async function POST(_req: Request, context: Ctx) {
     return NextResponse.json({ ok: false, error: e?.message || "Lalamove create failed" }, { status: 500 });
   }
 }
+*/

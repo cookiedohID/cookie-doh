@@ -1,3 +1,131 @@
+// web/lib/lalamove.ts
+import crypto from "crypto";
+
+type LalamoveEnv = "sandbox" | "production";
+
+export type LalamoveStop = {
+  coordinates: { lat: string; lng: string };
+  address: string;
+};
+
+export type LalamoveQuotationRequest = {
+  language: string; // e.g. "id_ID" or "en_ID"
+  serviceType: string; // e.g. "MOTORCYCLE" (depends on city config)
+  stops: LalamoveStop[];
+  scheduleAt?: string; // ISO string, optional (for scheduled / same-day)
+  item?: {
+    quantity?: string;
+    weight?: string; // e.g. "LESS_THAN_3_KG"
+    categories?: string[];
+    handlingInstructions?: string[];
+  };
+  specialRequests?: string[];
+  isRouteOptimized?: boolean;
+};
+
+export type LalamoveOrderRequest = {
+  quotationId: string;
+  sender: { stopId: string; name: string; phone: string };
+  recipients: Array<{ stopId: string; name: string; phone: string; remarks?: string }>;
+  isPODEnabled?: boolean;
+  metadata?: Record<string, any>;
+};
+
+function baseUrl(env: LalamoveEnv) {
+  // Docs: Sandbox rest.sandbox.lalamove.com/v3, Prod rest.lalamove.com/v3
+  return env === "production"
+    ? "https://rest.lalamove.com"
+    : "https://rest.sandbox.lalamove.com";
+}
+
+// Signature formula from docs:
+// raw = `${time}\r\n${method}\r\n${path}\r\n\r\n${body}` (or no body for GET)
+// token = `${key}:${time}:${signature}`
+// Authorization: hmac <token>
+export function lalamoveHeaders(opts: {
+  env: LalamoveEnv;
+  apiKey: string;
+  apiSecret: string;
+  market: string; // "ID"
+  method: string;
+  path: string; // e.g. "/v3/quotations"
+  body?: string; // JSON string
+  requestId: string; // UUID
+}) {
+  const time = Date.now().toString();
+
+  const method = opts.method.toUpperCase();
+  const body = opts.body ?? "";
+  const rawSignature =
+    method === "GET"
+      ? `${time}\r\n${method}\r\n${opts.path}\r\n\r\n`
+      : `${time}\r\n${method}\r\n${opts.path}\r\n\r\n${body}`;
+
+  const signature = crypto
+    .createHmac("sha256", opts.apiSecret)
+    .update(rawSignature)
+    .digest("hex"); // lowercase hex
+
+  const token = `${opts.apiKey}:${time}:${signature}`;
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: `hmac ${token}`,
+    Market: opts.market,
+    "Request-ID": opts.requestId,
+  } as const;
+}
+
+export async function lalamoveRequest<T>(opts: {
+  env: LalamoveEnv;
+  apiKey: string;
+  apiSecret: string;
+  market: string;
+  method: "GET" | "POST" | "PATCH" | "DELETE";
+  path: string; // must include /v3/...
+  requestId: string;
+  body?: any;
+}) {
+  const url = `${baseUrl(opts.env)}${opts.path}`;
+  const bodyStr = opts.body ? JSON.stringify(opts.body) : undefined;
+
+  const headers = lalamoveHeaders({
+    env: opts.env,
+    apiKey: opts.apiKey,
+    apiSecret: opts.apiSecret,
+    market: opts.market,
+    method: opts.method,
+    path: opts.path,
+    body: bodyStr,
+    requestId: opts.requestId,
+  });
+
+  const res = await fetch(url, {
+    method: opts.method,
+    headers,
+    body: bodyStr,
+    cache: "no-store",
+  });
+
+  const json = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const msg =
+      json?.message ||
+      json?.error ||
+      `Lalamove request failed (${res.status})`;
+    const err = new Error(msg);
+    (err as any).status = res.status;
+    (err as any).payload = json;
+    throw err;
+  }
+
+  return json as T;
+}
+
+
+/*
+
 import crypto from "crypto";
 
 function getEnv(name: string) {
@@ -28,7 +156,9 @@ function nonce() {
  * Market: <YOUR_MARKET>
  * Request-ID: <NONCE>
  */
-function signedHeaders(method: string, path: string, bodyString: string) {
+
+
+/*function signedHeaders(method: string, path: string, bodyString: string) {
   const key = getEnv("LALAMOVE_API_KEY");
   const secret = getEnv("LALAMOVE_API_SECRET");
 
@@ -156,3 +286,4 @@ export async function createLalamoveOrder(input: LalamoveCreateOrderInput) {
     status: orderRes?.data?.status,
   };
 }
+*/

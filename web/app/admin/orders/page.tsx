@@ -13,17 +13,21 @@ type OrderRow = {
 
   payment_status?: "PENDING" | "PAID" | string;
 
-  // ✅ Matches your codebase hint ("fulfilment_status")
+  // ✅ matches your codebase (British spelling)
   fulfilment_status?: "pending" | "sending" | "sent" | string;
 
-  shipment_status?: string;
-  tracking_url?: string;
+  shipment_status?: string; // e.g. "BOOKED"
+  tracking_url?: string; // we’ll store Lalamove shareLink here
 
   destination_area_label?: string;
   shipping_address?: string;
   building_name?: string;
 
   total_idr?: number;
+
+  // (Optional - if you add coords later)
+  shipping_lat?: number;
+  shipping_lng?: number;
 };
 
 type Filter = "all" | "pending" | "paid" | "sending" | "sent";
@@ -40,10 +44,8 @@ function isUuid(id: unknown): id is string {
   );
 }
 
-const pillButtonStyle = (
-  bg: string,
-  disabled: boolean
-): React.CSSProperties => ({
+// ✅ Button style helper (uniform & clear)
+const pillButtonStyle = (bg: string, disabled: boolean): React.CSSProperties => ({
   padding: "6px 10px",
   borderRadius: 10,
   border: "1px solid rgba(0,0,0,0.12)",
@@ -60,6 +62,23 @@ export default function AdminOrdersPage() {
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+
+  // ✅ EDIT THESE ONCE (your Cookie Doh pickup info)
+  const PICKUP = {
+    address: "Cookie Doh HQ (edit this)",
+    lat: -6.200000, // edit this
+    lng: 106.816666, // edit this
+    contactName: "Cookie Doh",
+    contactPhone: "+62XXXXXXXXXXX", // must include +62
+  };
+
+  // ✅ TEMP dropoff coords (until you store shipping_lat/lng)
+  // If your order does not have coords yet, we use a placeholder.
+  // IMPORTANT: Lalamove requires real coordinates. Replace this ASAP.
+  const FALLBACK_DROPOFF = {
+    lat: -6.210000,
+    lng: 106.820000,
+  };
 
   const load = async () => {
     const res = await fetch("/api/admin/orders?limit=80", { cache: "no-store" });
@@ -90,7 +109,7 @@ export default function AdminOrdersPage() {
     if (!res.ok) throw new Error(j?.error || "Update failed");
   };
 
-  // ✅ One robust handler: reads id from the clicked button
+  // ✅ Quick status handler (Paid/Sending/Sent)
   const onQuick = async (
     e: React.MouseEvent<HTMLButtonElement>,
     action: "paid" | "sending" | "sent"
@@ -107,19 +126,53 @@ export default function AdminOrdersPage() {
 
     setBusyId(id);
     try {
-      if (action === "paid") {
-        await patch(id, { payment_status: "PAID" });
-      }
-      if (action === "sending") {
-        await patch(id, { fulfilment_status: "sending" });
-      }
-      if (action === "sent") {
-        await patch(id, { fulfilment_status: "sent" });
-      }
+      if (action === "paid") await patch(id, { payment_status: "PAID" });
+      if (action === "sending") await patch(id, { fulfilment_status: "sending" });
+      if (action === "sent") await patch(id, { fulfilment_status: "sent" });
 
       await load();
+    } catch (e: any) {
+      setErr(e?.message || "Failed to update");
     } finally {
       setBusyId(null);
+    }
+  };
+
+  // ✅ Book Lalamove (calls your API route)
+  const bookLalamove = async (orderId: string, o: OrderRow) => {
+    const dropoffPhoneRaw = o.customer_phone || "";
+    const dropoffPhone =
+      dropoffPhoneRaw.startsWith("+")
+        ? dropoffPhoneRaw
+        : `+62${dropoffPhoneRaw.replace(/^0/, "")}`;
+
+    const dropoffLat =
+      typeof o.shipping_lat === "number" ? o.shipping_lat : FALLBACK_DROPOFF.lat;
+    const dropoffLng =
+      typeof o.shipping_lng === "number" ? o.shipping_lng : FALLBACK_DROPOFF.lng;
+
+    const res = await fetch(`/api/admin/orders/${orderId}/lalamove`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pickup: PICKUP,
+        dropoff: {
+          address: o.shipping_address || "Customer address",
+          lat: dropoffLat,
+          lng: dropoffLng,
+          contactName: o.customer_name || "Customer",
+          contactPhone: dropoffPhone,
+        },
+        serviceType: "MOTORCYCLE",
+        language: "id_ID",
+        isPODEnabled: false,
+        remarks: o.order_no ? `Order ${o.order_no}` : undefined,
+      }),
+    });
+
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(j?.error || "Failed to book Lalamove");
     }
   };
 
@@ -211,10 +264,15 @@ export default function AdminOrdersPage() {
               const isSending = o.fulfilment_status === "sending";
               const isSent = o.fulfilment_status === "sent";
 
-              // Disable rules (clear workflow)
+              const deliveryBooked = o.shipment_status === "BOOKED" || !!o.tracking_url;
+
+              // Disable rules
               const paidDisabled = busy || isPaid;
               const sendingDisabled = busy || !isPaid || isSending || isSent;
               const sentDisabled = busy || !isSending || isSent;
+
+              // Lalamove booking: only after paid, only once
+              const bookDisabled = busy || !isPaid || deliveryBooked;
 
               return (
                 <tr
@@ -247,13 +305,11 @@ export default function AdminOrdersPage() {
                     </div>
                   </td>
 
-                  <td style={{ padding: 12, fontWeight: 900 }}>
-                    {idr(o.total_idr)}
-                  </td>
+                  <td style={{ padding: 12, fontWeight: 900 }}>{idr(o.total_idr)}</td>
 
                   <td style={{ padding: 12 }}>
                     {hasId ? (
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                         {/* PAID (blue) */}
                         <button
                           type="button"
@@ -261,9 +317,7 @@ export default function AdminOrdersPage() {
                           disabled={paidDisabled}
                           onClick={(e) => onQuick(e, "paid")}
                           style={pillButtonStyle("#EAF2FF", paidDisabled)}
-                          title={
-                            isPaid ? "Already paid" : "Mark payment as PAID"
-                          }
+                          title={isPaid ? "Already paid" : "Mark payment as PAID"}
                         >
                           {isPaid ? "Paid ✓" : busy ? "..." : "Paid"}
                         </button>
@@ -275,13 +329,7 @@ export default function AdminOrdersPage() {
                           disabled={sendingDisabled}
                           onClick={(e) => onQuick(e, "sending")}
                           style={pillButtonStyle("#F2ECFF", sendingDisabled)}
-                          title={
-                            !isPaid
-                              ? "Pay first"
-                              : isSending || isSent
-                              ? "Already sending"
-                              : "Mark fulfilment as sending"
-                          }
+                          title={!isPaid ? "Pay first" : isSending || isSent ? "Already sending" : "Mark as sending"}
                         >
                           {isSending || isSent ? "Sending ✓" : busy ? "..." : "Sending"}
                         </button>
@@ -293,16 +341,61 @@ export default function AdminOrdersPage() {
                           disabled={sentDisabled}
                           onClick={(e) => onQuick(e, "sent")}
                           style={pillButtonStyle("#E8F7EF", sentDisabled)}
-                          title={
-                            !isSending
-                              ? "Must be sending first"
-                              : isSent
-                              ? "Already sent"
-                              : "Mark fulfilment as sent"
-                          }
+                          title={!isSending ? "Must be sending first" : isSent ? "Already sent" : "Mark as sent"}
                         >
                           {isSent ? "Sent ✓" : busy ? "..." : "Sent"}
                         </button>
+
+                        {/* BOOK LALAMOVE (orange, matches pending vibe but is “delivery action”) */}
+                        <button
+                          type="button"
+                          disabled={bookDisabled}
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!hasId) return;
+
+                            setBusyId(uuid);
+                            try {
+                              setErr(null);
+                              await bookLalamove(uuid, o);
+                              await load();
+                            } catch (ex: any) {
+                              setErr(ex?.message || "Failed to book Lalamove");
+                            } finally {
+                              setBusyId(null);
+                            }
+                          }}
+                          style={pillButtonStyle("#FFF4E5", bookDisabled)}
+                          title={
+                            !isPaid
+                              ? "Pay first"
+                              : deliveryBooked
+                              ? "Already booked"
+                              : "Book Lalamove"
+                          }
+                        >
+                          {deliveryBooked ? "Lalamove ✓" : busy ? "..." : "Book Lalamove"}
+                        </button>
+
+                        {/* TRACK LINK */}
+                        {o.tracking_url ? (
+                          <a
+                            href={o.tracking_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 900,
+                              color: "#0052CC",
+                              textDecoration: "none",
+                              paddingLeft: 4,
+                            }}
+                          >
+                            Track
+                          </a>
+                        ) : null}
                       </div>
                     ) : (
                       <span style={{ fontSize: 12, color: "#999" }}>No valid ID</span>
