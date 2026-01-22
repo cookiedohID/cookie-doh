@@ -24,15 +24,18 @@ type OrderRow = {
   total_idr?: number;
 };
 
-const idr = (n?: number) =>
-  typeof n === "number" ? `Rp ${n.toLocaleString("id-ID")}` : "—";
+const idr = (n?: number) => (typeof n === "number" ? `Rp ${n.toLocaleString("id-ID")}` : "—");
 
-type Filter =
-  | "all"
-  | "pending"
-  | "paid"
-  | "sending"
-  | "sent";
+type Filter = "all" | "pending" | "paid" | "sending" | "sent";
+
+// ✅ helper MUST be outside component (never inside JSX)
+function isUuid(id?: string): id is string {
+  return (
+    typeof id === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+  );
+}
+
 
 export default function AdminOrdersPage() {
   const router = useRouter();
@@ -59,6 +62,12 @@ export default function AdminOrdersPage() {
     })();
   }, []);
 
+  // Optional: debug invalid ids (SAFE: hook belongs here, not inside JSX)
+  useEffect(() => {
+    const bad = orders.filter((o) => !isUuid(o.id));
+    if (bad.length) console.warn("Orders with invalid id:", bad);
+  }, [orders]);
+
   const patch = async (id: string, body: any) => {
     const res = await fetch(`/api/admin/orders/${id}`, {
       method: "PATCH",
@@ -70,34 +79,46 @@ export default function AdminOrdersPage() {
   };
 
   const quickPaid = async (id?: string) => {
-      if (!id) return;
-      setBusyId(id);
-      await patch(id, { payment_status: "PAID" });
-      await load();
-      setBusyId(null);
-    };
-
-    const quickSending = async (id?: string) => {
-      if (!id) return;
-      setBusyId(id);
-      await patch(id, { fullfillment_status: "sending" });
-      await load();
-      setBusyId(null);
-    };
-
-    const quickSent = async (id?: string) => {
-      if (!id) return;
-      setBusyId(id);
-      await patch(id, { fullfillment_status: "sent" });
-      await load();
-      setBusyId(null);
-    };
+  if (!isUuid(id)) return;
+  const orderId = id; // ✅ now TypeScript knows it's string
+  setBusyId(orderId);
+  try {
+    await patch(orderId, { payment_status: "PAID" });
+    await load();
+  } finally {
+    setBusyId(null);
+  }
+};
 
 
-  // 🔍 FILTER LOGIC
+  const quickSending = async (id?: string) => {
+  if (!isUuid(id)) return;
+  const orderId = id;
+  setBusyId(orderId);
+  try {
+    await patch(orderId, { fullfillment_status: "sending" });
+    await load();
+  } finally {
+    setBusyId(null);
+  }
+};
+
+
+  const quickSent = async (id?: string) => {
+  if (!isUuid(id)) return;
+  const orderId = id;
+  setBusyId(orderId);
+  try {
+    await patch(orderId, { fullfillment_status: "sent" });
+    await load();
+  } finally {
+    setBusyId(null);
+  }
+};
+
+
   const filteredOrders = useMemo(() => {
     if (filter === "all") return orders;
-
     return orders.filter((o) => {
       if (filter === "pending") return o.payment_status === "PENDING";
       if (filter === "paid") return o.payment_status === "PAID";
@@ -107,12 +128,11 @@ export default function AdminOrdersPage() {
     });
   }, [orders, filter]);
 
-  // 🎨 STATUS COLOR
   const rowColor = (o: OrderRow) => {
-    if (o.fullfillment_status === "sent") return "#E8F7EF";     // green
+    if (o.fullfillment_status === "sent") return "#E8F7EF"; // green
     if (o.fullfillment_status === "sending") return "#F2ECFF"; // purple
-    if (o.payment_status === "PAID") return "#EAF2FF";         // blue
-    if (o.payment_status === "PENDING") return "#FFF4E5";     // orange
+    if (o.payment_status === "PAID") return "#EAF2FF"; // blue
+    if (o.payment_status === "PENDING") return "#FFF4E5"; // orange
     return "#fff";
   };
 
@@ -122,16 +142,18 @@ export default function AdminOrdersPage() {
 
       {/* FILTER BAR */}
       <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {[
-          ["all", "All"],
-          ["pending", "Pending payment"],
-          ["paid", "Paid"],
-          ["sending", "Sending"],
-          ["sent", "Sent"],
-        ].map(([key, label]) => (
+        {(
+          [
+            ["all", "All"],
+            ["pending", "Pending payment"],
+            ["paid", "Paid"],
+            ["sending", "Sending"],
+            ["sent", "Sent"],
+          ] as const
+        ).map(([key, label]) => (
           <button
             key={key}
-            onClick={() => setFilter(key as Filter)}
+            onClick={() => setFilter(key)}
             style={{
               padding: "8px 14px",
               borderRadius: 999,
@@ -147,11 +169,7 @@ export default function AdminOrdersPage() {
         ))}
       </div>
 
-      {err && (
-        <div style={{ marginTop: 12, color: "crimson", fontWeight: 900 }}>
-          {err}
-        </div>
-      )}
+      {err && <div style={{ marginTop: 12, color: "crimson", fontWeight: 900 }}>{err}</div>}
 
       <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -166,86 +184,82 @@ export default function AdminOrdersPage() {
           </thead>
 
           <tbody>
-            {filteredOrders.map((o) => {
-              const hasId = !!o.id;
+            {filteredOrders.map((o, idx) => {
+              const hasId = isUuid(o.id);
               const busy = busyId === o.id;
 
               return (
                 <tr
-                  key={o.id}
+                  key={o.id || `${o.order_no || "row"}-${idx}`}
                   style={{
                     background: rowColor(o),
                     borderTop: "1px solid rgba(0,0,0,0.08)",
                     cursor: hasId ? "pointer" : "default",
                   }}
-                  onClick={() => hasId && router.push(`/admin/orders/${o.id}`)}
+                  onClick={() => {
+                    if (!hasId) return;
+                    router.push(`/admin/orders/${o.id}`);
+                  }}
                 >
-                  <td style={{ padding: 12, fontWeight: 900 }}>
-                    {o.order_no}
+                  <td style={{ padding: 12, fontWeight: 900 }}>{o.order_no || "—"}</td>
+
+                  <td style={{ padding: 12 }}>
+                    <div>{o.customer_name || "—"}</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>{o.customer_phone || ""}</div>
                   </td>
 
                   <td style={{ padding: 12 }}>
-                    <div>{o.customer_name}</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                      {o.customer_phone}
-                    </div>
+                    <div>{o.destination_area_label || "—"}</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>{o.shipping_address || "—"}</div>
                   </td>
+
+                  <td style={{ padding: 12, fontWeight: 900 }}>{idr(o.total_idr)}</td>
 
                   <td style={{ padding: 12 }}>
-                    <div>{o.destination_area_label}</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                      {o.shipping_address}
-                    </div>
-                  </td>
-
-                  <td style={{ padding: 12, fontWeight: 900 }}>
-                    {idr(o.total_idr)}
-                  </td>
-
-                  <td style={{ padding: 12 }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      
-                      {o.id ? (
-                      <>
+                    {hasId ? (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         <button
+                          type="button"
                           disabled={busy}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             quickPaid(o.id);
                           }}
+                          style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.12)", background: "#fff", fontWeight: 900 }}
                         >
                           Paid
                         </button>
 
                         <button
+                          type="button"
                           disabled={busy}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             quickSending(o.id);
                           }}
+                          style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.12)", background: "#fff", fontWeight: 900 }}
                         >
                           Sending
                         </button>
 
                         <button
+                          type="button"
                           disabled={busy}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             quickSent(o.id);
                           }}
+                          style={{ padding: "6px 10px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.12)", background: "#fff", fontWeight: 900 }}
                         >
                           Sent
                         </button>
-                      </>
+                      </div>
                     ) : (
                       <span style={{ fontSize: 12, color: "#999" }}>No ID</span>
                     )}
-
-
-                    </div>
                   </td>
                 </tr>
               );
