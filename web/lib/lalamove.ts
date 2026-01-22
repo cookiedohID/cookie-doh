@@ -244,16 +244,11 @@ export async function createLalamoveOrder(
     data: {
       language: input.language || "id_ID",
       serviceType,
-      scheduleAt: input.scheduleAt,
+      ...(input.scheduleAt ? { scheduleAt: input.scheduleAt } : {}),
       stops,
-      item: {
-        quantity: "1",
-        weight: "LESS_THAN_3_KG",
-        categories: ["FOOD_DELIVERY"],
-        handlingInstructions: ["KEEP_UPRIGHT"],
-      },
     },
   };
+
 
   const quotationRes = await lalamoveRequest<{
     data: {

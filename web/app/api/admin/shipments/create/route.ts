@@ -3,6 +3,10 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { createBiteshipOrder } from "@/lib/biteship";
 import { createLalamoveOrder } from "@/lib/lalamove";
 
+const toE164ID = (p: string) =>
+  p.startsWith("+") ? p : `+62${p.replace(/^0/, "")}`;
+
+
 export const runtime = "nodejs";
 
 function pickCourier(order: any) {
@@ -134,14 +138,21 @@ export async function POST(req: NextRequest) {
       const remarks = String(order.notes ?? "");
 
       const llm = await createLalamoveOrder({
-        externalId: midtrans_order_id,
-        dropoffAddress: destination_address,
-        dropoffLat: lat,
-        dropoffLng: lng,
-        recipientName,
-        recipientPhone,
-        remarks,
-      });
+      externalId: midtrans_order_id,
+
+      dropoffAddress: destination_address,
+      dropoffLat: lat,
+      dropoffLng: lng,
+
+      recipientName,
+      recipientPhone: toE164ID(recipientPhone),
+
+      remarks,
+
+      // optional, but recommended
+      serviceType: "MOTORCYCLE",
+    });
+
 
       const orderId = llm.orderId ? String(llm.orderId) : null;
       const shareLink = llm.shareLink ? String(llm.shareLink) : null;
