@@ -24,12 +24,31 @@ type OrderRow = {
 
   total_idr?: number;
 
-  // if you store coords, we can use them
   shipping_lat?: number;
   shipping_lng?: number;
-
-  // OR if you store shipping_json, backend will parse it
   shipping_json?: any;
+};
+
+const ADMIN_WA = "6281932181818"; // your admin WA number (no +)
+
+const waAdminLink = (o: OrderRow) => {
+  const orderNo = o.order_no || o.id || "";
+  const total =
+    typeof o.total_idr === "number" ? `Rp ${o.total_idr.toLocaleString("id-ID")}` : "-";
+
+  const msg =
+    `Cookie Doh — Order Summary\n\n` +
+    `Order: ${orderNo}\n` +
+    `Payment: ${o.payment_status || "-"}\n` +
+    `Fulfilment: ${o.fulfilment_status || "-"}\n` +
+    `Shipment: ${o.shipment_status || "-"}\n\n` +
+    `Customer: ${o.customer_name || "-"}\n` +
+    `Phone: ${o.customer_phone || "-"}\n\n` +
+    `Address:\n${o.shipping_address || "-"}\n\n` +
+    `Total: ${total}\n` +
+    (o.tracking_url ? `\nTracking: ${o.tracking_url}\n` : "");
+
+  return `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(msg)}`;
 };
 
 type Filter = "all" | "pending" | "paid" | "sending" | "sent";
@@ -101,7 +120,6 @@ export default function AdminOrdersPage() {
     const { json, text } = await safeJson(res);
 
     if (!res.ok) {
-      // show the real reason
       const msg = json?.error || `Update failed: ${text?.slice(0, 200)}`;
       const detail = json || text;
       const error = new Error(msg);
@@ -112,7 +130,6 @@ export default function AdminOrdersPage() {
     return json;
   };
 
-  // ✅ Quick status handler
   const onQuick = async (
     e: React.MouseEvent<HTMLButtonElement>,
     action: "paid" | "sending" | "sent"
@@ -146,7 +163,6 @@ export default function AdminOrdersPage() {
     }
   };
 
-  // ✅ Book Lalamove
   const bookLalamove = async (id: string) => {
     const res = await fetch(`/api/admin/orders/${id}/lalamove`, {
       method: "POST",
@@ -179,10 +195,10 @@ export default function AdminOrdersPage() {
   }, [orders, filter]);
 
   const rowColor = (o: OrderRow) => {
-    if (o.fulfilment_status === "sent") return "#E8F7EF"; // green
-    if (o.fulfilment_status === "sending") return "#F2ECFF"; // purple
-    if (o.payment_status === "PAID") return "#EAF2FF"; // blue
-    if (o.payment_status === "PENDING") return "#FFF4E5"; // orange
+    if (o.fulfilment_status === "sent") return "#E8F7EF";
+    if (o.fulfilment_status === "sending") return "#F2ECFF";
+    if (o.payment_status === "PAID") return "#EAF2FF";
+    if (o.payment_status === "PENDING") return "#FFF4E5";
     return "#fff";
   };
 
@@ -352,6 +368,30 @@ export default function AdminOrdersPage() {
                         >
                           {deliveryBooked ? "Lalamove ✓" : busy ? "..." : "Book Lalamove"}
                         </button>
+
+                        {/* ✅ WhatsApp Admin summary */}
+                        <a
+                          href={waAdminLink(o)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 10,
+                            border: "1px solid rgba(0,0,0,0.12)",
+                            background: "#fff",
+                            fontWeight: 900,
+                            textDecoration: "none",
+                            color: "#101010",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 8,
+                            opacity: 1,
+                          }}
+                          title="Send order summary to admin WhatsApp"
+                        >
+                          WhatsApp Admin
+                        </a>
 
                         {o.tracking_url ? (
                           <a
