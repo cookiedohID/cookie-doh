@@ -14,7 +14,6 @@ type SP = {
 // Works whether Next provides searchParams as an object or a Promise
 async function getSearchParams(searchParams: any): Promise<SP> {
   if (!searchParams) return {};
-  // If it's a Promise
   if (typeof searchParams?.then === "function") return (await searchParams) as SP;
   return searchParams as SP;
 }
@@ -23,6 +22,7 @@ function formatIDR(n: number) {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
+// Clears cart on page load
 function ClearCartClient() {
   return (
     <script
@@ -41,7 +41,6 @@ function ClearCartClient() {
 
 export default async function PendingPage(props: { searchParams?: any }) {
   const sp = await getSearchParams(props.searchParams);
-
   const orderId = String(sp.order_id || "").trim();
 
   if (!orderId) {
@@ -58,7 +57,6 @@ export default async function PendingPage(props: { searchParams?: any }) {
     );
   }
 
-  // Optional: show summary from URL (since you're already passing it)
   const total = Number(sp.total || "");
   const name = sp.name ? decodeURIComponent(sp.name) : "";
   const phone = sp.phone ? decodeURIComponent(sp.phone) : "";
@@ -109,6 +107,7 @@ export default async function PendingPage(props: { searchParams?: any }) {
           />
         </div>
 
+        {/* ✅ Payment wording (your request) */}
         <div>
           <h2 style={{ margin: 0, fontSize: 18 }}>Payment Instructions</h2>
 
@@ -128,7 +127,7 @@ export default async function PendingPage(props: { searchParams?: any }) {
             Once the proof of payment is received, we will proceed with processing your order.
           </p>
         </div>
-
+      </section>
 
       {/* ORDER SUMMARY (from URL) */}
       <section
