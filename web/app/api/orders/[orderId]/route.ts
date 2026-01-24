@@ -10,30 +10,46 @@ const supabaseAdmin = () => {
   return createClient(url, key, { auth: { persistSession: false } });
 };
 
+function isUuid(id: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    id
+  );
+}
+
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ orderId: string }> }
 ) {
   try {
     const { orderId } = await context.params;
-
     const sb = supabaseAdmin();
 
-    // Adjust lookup if your order id is not UUID (could be midtrans_order_id)
-    // Here I assume "midtrans_order_id" is what you pass as order_id in URL.
-    const { data: order, error } = await sb
-      .from("orders")
-      .select("*")
-      .eq("midtrans_order_id", orderId)
-      .maybeSingle();
+    let order: any = null;
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // 1) If it's a UUID, lookup by orders.id
+    if (isUuid(orderId)) {
+      const r = await sb.from("orders").select("*").eq("id", orderId).maybeSingle();
+      if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
+      order = r.data;
+    }
+
+    // 2) Fallback: lookup by midtrans_order_id
+    if (!order) {
+      const r = await sb
+        .from("orders")
+        .select("*")
+        .eq("midtrans_order_id", orderId)
+        .maybeSingle();
+      if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
+      order = r.data;
+    }
+
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
-    // Parse items (depends on your schema)
+    // Parse items_json safely
     let items: any[] = [];
-    const raw = order.items_json;
     try {
+      const raw = order.items_json;
       const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
       items = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.items) ? parsed.items : [];
     } catch {
@@ -41,6 +57,9 @@ export async function GET(
     }
 
     const shaped = {
+      id: order.id,
+      order_no: order.order_no,
+      payment_status: order.payment_status,
       customer_name: order.customer_name,
       customer_phone: order.customer_phone,
       shipping_address: order.shipping_address,

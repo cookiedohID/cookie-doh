@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
+    "/((?!_next/static|_next/image|icon.png|robots.txt|sitemap.xml).*)",
   ],
 };
 
@@ -24,7 +24,7 @@ function isApiRoute(pathname: string) {
 function isPublicAsset(pathname: string) {
   return (
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico" ||
+    pathname === "/icon.png" ||
     pathname === "/robots.txt" ||
     pathname === "/sitemap.xml"
   );
