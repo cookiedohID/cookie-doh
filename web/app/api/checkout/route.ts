@@ -81,6 +81,7 @@ export async function POST(req: Request) {
     const customerPhone = (payload?.customer?.phone || "").toString();
     const email = (payload?.customer?.email || payload?.email || "").toString();
 
+    // DELIVERY (may be null if pickup)
     const shippingAddress = (payload?.delivery?.address || payload?.shipping_address || "").toString();
     const buildingName = (payload?.delivery?.buildingName || payload?.building_name || "").toString();
     const destinationAreaId = (payload?.delivery?.destination_area_id || payload?.destination_area_id || "").toString();
@@ -105,12 +106,39 @@ export async function POST(req: Request) {
       (payload?.midtrans_order_id || payload?.midtransOrderId || "").toString().trim() ||
       makeMidtransOrderId(checkoutMode);
 
+    // ✅ NEW: fulfillment scheduling + pickup details (from updated checkout page)
+    const fulfillment = payload?.fulfillment || null; // { type, scheduleDate, scheduleTime }
+    const pickup = payload?.pickup || null; // { pointId, pointName, pointAddress }
+
+    // For backwards-compat, also accept older fields if present:
+    const fulfillmentType =
+      (fulfillment?.type || payload?.fulfillment_type || payload?.fulfillmentType || "").toString() || null;
+
+    const scheduleDate =
+      (fulfillment?.scheduleDate || payload?.scheduleDate || payload?.delivery_date || "").toString() || null;
+
+    const scheduleTime =
+      (fulfillment?.scheduleTime || payload?.scheduleTime || payload?.delivery_time || "").toString() || null;
+
+    // ✅ Store these in meta so no DB migration needed
+    const meta = {
+      ...(payload?.meta || {}),
+      fulfillment: fulfillment || {
+        type: fulfillmentType,
+        scheduleDate,
+        scheduleTime,
+      },
+      pickup: pickup || null,
+      boxes_text: boxesText, // useful for WA + ops without needing to rebuild
+    };
+
     // ✅ Insert into orders only (items_json holds item list)
     const orderInsert: any = {
       customer_name: customerName || null,
       customer_phone: customerPhone || null,
       email: email || null,
 
+      // For delivery, both are set. For pickup, shipping_address may be empty.
       address: shippingAddress || null,
       shipping_address: shippingAddress || null,
       building_name: buildingName || null,
@@ -130,13 +158,21 @@ export async function POST(req: Request) {
 
       payment_status: "PENDING",
       shipment_status: "not_created",
-      fulfillment_status: payload?.fulfillment_status || null,
+
+      // Your DB seems to use "fulfillment_status" (American spelling).
+      // We set it to fulfillment type: "delivery" | "pickup" (or null)
+      fulfillment_status: fulfillmentType,
 
       checkout_mode: checkoutMode,
-      items_json: items, // ✅ jsonb
+
+      // ✅ jsonb columns:
+      items_json: items,
       customer_json: payload?.customer || null,
+
+      // Keep delivery payload in shipping_json (as before)
       shipping_json: payload?.delivery || null,
-      meta: payload?.meta || null,
+
+      meta,
     };
 
     const { data: orderRow, error: e1 } = await supabase
@@ -159,6 +195,15 @@ export async function POST(req: Request) {
       u.searchParams.set("building", orderRow.building_name || buildingName || "");
       u.searchParams.set("postal", orderRow.postal || postal || "");
       u.searchParams.set("boxes", boxesText);
+
+      // ✅ Include schedule info in the pending URL too (optional, helps WhatsApp proof message)
+      if (scheduleDate) u.searchParams.set("date", scheduleDate);
+      if (scheduleTime) u.searchParams.set("time", scheduleTime);
+      if (fulfillmentType) u.searchParams.set("fulfillment", fulfillmentType);
+
+      // Pickup info (optional)
+      if (pickup?.pointName) u.searchParams.set("pickup_point", String(pickup.pointName));
+      if (pickup?.pointAddress) u.searchParams.set("pickup_address", String(pickup.pointAddress));
 
       return NextResponse.json({
         ok: true,

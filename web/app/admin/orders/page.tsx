@@ -12,15 +12,23 @@ type OrderRow = {
   customer_phone?: string;
 
   payment_status?: "PENDING" | "PAID" | string;
+
+  // Some code paths use this spelling
   fulfilment_status?: "pending" | "sending" | "sent" | string;
 
-  shipment_status?: string;
+  // DB column (you inserted in /api/checkout)
+  fulfillment_status?: "delivery" | "pickup" | string;
+
+  shipment_status?: string; // "BOOKED" etc
   tracking_url?: string;
 
   destination_area_label?: string;
   shipping_address?: string;
 
   total_idr?: number;
+
+  // NEW: meta can hold schedule + pickup point
+  meta?: any;
 };
 
 const ADMIN_WA = "6281932181818"; // admin WA number (no +)
@@ -48,6 +56,18 @@ const pillButtonStyle = (bg: string, disabled: boolean): React.CSSProperties => 
   opacity: disabled ? 0.6 : 1,
 });
 
+const badgeStyle = (bg: string): React.CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "4px 10px",
+  borderRadius: 999,
+  border: "1px solid rgba(0,0,0,0.12)",
+  background: bg,
+  fontSize: 12,
+  fontWeight: 900,
+});
+
 async function safeJson(res: Response) {
   const text = await res.text();
   try {
@@ -55,6 +75,35 @@ async function safeJson(res: Response) {
   } catch {
     return { json: null, text };
   }
+}
+
+function parseMeta(meta: any) {
+  if (!meta) return null;
+  if (typeof meta === "object") return meta;
+  if (typeof meta === "string") {
+    try {
+      return JSON.parse(meta);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function getScheduleInfo(o: OrderRow) {
+  const meta = parseMeta(o.meta);
+  const fulfillment = meta?.fulfillment || null; // { type, scheduleDate, scheduleTime }
+  const pickup = meta?.pickup || null; // { pointName, pointAddress }
+
+  const type =
+    (fulfillment?.type || o.fulfillment_status || "").toString().trim() || "";
+
+  const scheduleDate = (fulfillment?.scheduleDate || "").toString().trim();
+  const scheduleTime = (fulfillment?.scheduleTime || "").toString().trim();
+
+  const pickupPoint = (pickup?.pointName || "").toString().trim();
+
+  return { type, scheduleDate, scheduleTime, pickupPoint };
 }
 
 export default function AdminOrdersPage() {
@@ -156,9 +205,8 @@ export default function AdminOrdersPage() {
     return json;
   };
 
-  // ✅ WhatsApp Admin with item breakdown (fetch from server)
+  // ✅ WhatsApp Admin: fetch full summary from server (includes items when available)
   const openWhatsAppAdmin = async (orderId: string) => {
-    // Open immediately to avoid popup blocker
     const tab = window.open("about:blank", "_blank");
     try {
       const res = await fetch(`/api/admin/orders/${orderId}/wa-summary`, {
@@ -197,15 +245,15 @@ export default function AdminOrdersPage() {
   }, [orders, filter]);
 
   const rowColor = (o: OrderRow) => {
-    if (o.fulfilment_status === "sent") return "#E8F7EF";
-    if (o.fulfilment_status === "sending") return "#F2ECFF";
-    if (o.payment_status === "PAID") return "#EAF2FF";
-    if (o.payment_status === "PENDING") return "#FFF4E5";
+    if (o.fulfilment_status === "sent") return "#E8F7EF"; // green
+    if (o.fulfilment_status === "sending") return "#F2ECFF"; // purple
+    if (o.payment_status === "PAID") return "#EAF2FF"; // blue
+    if (o.payment_status === "PENDING") return "#FFF4E5"; // orange
     return "#fff";
   };
 
   return (
-    <main style={{ padding: 18, maxWidth: 1300, margin: "0 auto" }}>
+    <main style={{ padding: 18, maxWidth: 1400, margin: "0 auto" }}>
       <h1 style={{ margin: 0, fontSize: 22 }}>Admin — Orders</h1>
 
       <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -258,13 +306,21 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, overflow: "hidden" }}>
+      <div
+        style={{
+          marginTop: 14,
+          border: "1px solid rgba(0,0,0,0.10)",
+          borderRadius: 16,
+          overflow: "hidden",
+        }}
+      >
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "rgba(0,0,0,0.03)" }}>
             <tr>
               <th style={{ padding: 12, textAlign: "left" }}>Order</th>
               <th style={{ padding: 12, textAlign: "left" }}>Customer</th>
               <th style={{ padding: 12, textAlign: "left" }}>Destination</th>
+              <th style={{ padding: 12, textAlign: "left" }}>Schedule</th>
               <th style={{ padding: 12, textAlign: "left" }}>Total</th>
               <th style={{ padding: 12, textAlign: "left" }}>Actions</th>
             </tr>
@@ -287,6 +343,20 @@ export default function AdminOrdersPage() {
               const sentDisabled = busy || !isSending || isSent;
               const bookDisabled = busy || !isPaid || deliveryBooked;
 
+              const schedule = getScheduleInfo(o);
+
+              const scheduleText =
+                schedule.scheduleDate && schedule.scheduleTime
+                  ? `${schedule.scheduleDate} • ${schedule.scheduleTime}`
+                  : "—";
+
+              const fulfillmentLabel =
+                schedule.type === "pickup"
+                  ? "Pickup"
+                  : schedule.type === "delivery"
+                  ? "Delivery"
+                  : (o.fulfillment_status ? String(o.fulfillment_status) : "—");
+
               return (
                 <tr
                   key={hasId ? uuid : `${o.order_no || "row"}-${idx}`}
@@ -303,13 +373,30 @@ export default function AdminOrdersPage() {
                   <td style={{ padding: 12, fontWeight: 900 }}>{o.order_no || "—"}</td>
 
                   <td style={{ padding: 12 }}>
-                    <div>{o.customer_name || "—"}</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>{o.customer_phone || ""}</div>
+                    <div style={{ fontWeight: 900 }}>{o.customer_name || "—"}</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", fontWeight: 800 }}>
+                      {o.customer_phone || ""}
+                    </div>
                   </td>
 
                   <td style={{ padding: 12 }}>
-                    <div>{o.destination_area_label || "—"}</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>{o.shipping_address || "—"}</div>
+                    <div style={{ fontWeight: 900 }}>{o.destination_area_label || "—"}</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", fontWeight: 800 }}>
+                      {o.shipping_address || "—"}
+                    </div>
+                  </td>
+
+                  {/* ✅ NEW schedule column */}
+                  <td style={{ padding: 12 }}>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                      <span style={badgeStyle("rgba(0,82,204,0.08)")}>{fulfillmentLabel}</span>
+                      <span style={badgeStyle("rgba(0,0,0,0.04)")}>{scheduleText}</span>
+                      {schedule.type === "pickup" && schedule.pickupPoint ? (
+                        <span style={badgeStyle("rgba(0,0,0,0.04)")}>
+                          📍 {schedule.pickupPoint}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
 
                   <td style={{ padding: 12, fontWeight: 900 }}>{idr(o.total_idr)}</td>
@@ -371,7 +458,6 @@ export default function AdminOrdersPage() {
                           {deliveryBooked ? "Lalamove ✓" : busy ? "..." : "Book Lalamove"}
                         </button>
 
-                        {/* ✅ WhatsApp Admin + FULL breakdown */}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -380,6 +466,7 @@ export default function AdminOrdersPage() {
                             openWhatsAppAdmin(uuid);
                           }}
                           style={pillButtonStyle("#fff", false)}
+                          title="Send order summary to admin WhatsApp"
                         >
                           WhatsApp Admin
                         </button>
@@ -390,7 +477,12 @@ export default function AdminOrdersPage() {
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            style={{ fontSize: 12, fontWeight: 900, color: "#0052CC", textDecoration: "none" }}
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 900,
+                              color: "#0052CC",
+                              textDecoration: "none",
+                            }}
                           >
                             Track
                           </a>
@@ -406,7 +498,7 @@ export default function AdminOrdersPage() {
 
             {filteredOrders.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ padding: 16, color: "#6B6B6B" }}>
+                <td colSpan={6} style={{ padding: 16, color: "#6B6B6B" }}>
                   No orders in this filter.
                 </td>
               </tr>

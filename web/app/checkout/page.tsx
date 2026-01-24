@@ -48,10 +48,7 @@ function readCart(): CartState {
 // ✅ Clear cart storage AFTER successful "Place order"
 function clearCartStorage() {
   try {
-    // current key
     localStorage.removeItem(CART_KEY);
-
-    // backups (in case older versions exist)
     localStorage.removeItem("cart");
     localStorage.removeItem("cookie_doh_cart");
     localStorage.removeItem("cookie_doh_cart_v0");
@@ -110,6 +107,58 @@ async function readErrorBody(res: Response) {
   }
 }
 
+// --- Scheduling helpers ---
+function yyyyMmDd(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function buildNextDays(n: number) {
+  const out: { value: string; label: string }[] = [];
+  const today = new Date();
+  for (let i = 0; i < n; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const val = yyyyMmDd(d);
+    const label = d.toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    });
+    out.push({ value: val, label });
+  }
+  return out;
+}
+
+const DELIVERY_TIME_SLOTS = [
+  { value: "10:00-13:00", label: "10:00 – 13:00" },
+  { value: "13:00-16:00", label: "13:00 – 16:00" },
+  { value: "16:00-19:00", label: "16:00 – 19:00" },
+] as const;
+
+const PICKUP_POINTS = [
+  {
+    id: "kemang-village",
+    name: "Kemang Village (Main Lobby)",
+    address: "Kemang Village, Jakarta Selatan",
+  },
+  {
+    id: "pik",
+    name: "PIK (Pickup Spot)",
+    address: "Pantai Indah Kapuk, Jakarta Utara",
+  },
+  {
+    id: "cbd",
+    name: "CBD (Pickup Spot)",
+    address: "Jakarta Pusat",
+  },
+] as const;
+
+type FulfillmentType = "delivery" | "pickup";
+type DeliverySpeed = "standard" | "sameday";
+
 export default function CheckoutPage() {
   const [cart, setCart] = useState<CartState>({ boxes: [] });
   const [loading, setLoading] = useState(false);
@@ -123,6 +172,7 @@ export default function CheckoutPage() {
   // ✅ touched states for inline errors
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [addressTouched, setAddressTouched] = useState(false);
+  const [scheduleTouched, setScheduleTouched] = useState(false);
 
   // Address validation state
   const [addressResolved, setAddressResolved] = useState(false);
@@ -137,8 +187,30 @@ export default function CheckoutPage() {
   const [buildingName, setBuildingName] = useState("");
   const [postalCode, setPostalCode] = useState("");
 
-  // Delivery method
-  const [delivery, setDelivery] = useState<"standard" | "sameday">("standard");
+  // ✅ NEW: fulfillment type (delivery or pickup)
+  const [fulfillment, setFulfillment] = useState<FulfillmentType>("delivery");
+
+  // ✅ NEW: delivery speed (standard/sameday) - only relevant if fulfillment === "delivery"
+  const [deliverySpeed, setDeliverySpeed] = useState<DeliverySpeed>("standard");
+
+  // ✅ NEW: schedule date + time
+  const deliveryDateOptions = useMemo(() => {
+    // standard: next 7 days starting tomorrow
+    // sameday: show today + tomorrow (you can tweak)
+    const days = deliverySpeed === "sameday" ? buildNextDays(2) : buildNextDays(7).slice(1);
+    return days.length ? days : buildNextDays(7);
+  }, [deliverySpeed]);
+
+  const pickupDateOptions = useMemo(() => {
+    // pickup: next 14 days starting tomorrow
+    return buildNextDays(14).slice(1);
+  }, []);
+
+  const [scheduleDate, setScheduleDate] = useState<string>("");
+  const [scheduleTime, setScheduleTime] = useState<string>("");
+
+  // ✅ NEW: pickup point selection
+  const [pickupPointId, setPickupPointId] = useState<string>(PICKUP_POINTS[0]?.id || "");
 
   useEffect(() => {
     setCart(readCart());
@@ -149,12 +221,6 @@ export default function CheckoutPage() {
     [cart]
   );
   const isEmpty = cart.boxes.length === 0;
-
-  const allItems = useMemo(() => {
-    const items: CartItem[] = [];
-    cart.boxes.forEach((b) => b.items.forEach((it) => items.push(it)));
-    return items;
-  }, [cart]);
 
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
@@ -171,19 +237,41 @@ export default function CheckoutPage() {
   const phoneError = phoneTouched && !phoneCheck.ok ? phoneCheck.message : "";
 
   const addressError =
-    addressTouched && (!addressBase.trim() || !addressResolved)
+    fulfillment === "delivery" &&
+    addressTouched &&
+    (!addressBase.trim() || !addressResolved)
       ? "Please select a valid address from the suggestions."
       : "";
 
+  const scheduleError =
+    scheduleTouched && (!scheduleDate || !scheduleTime)
+      ? "Please choose delivery/pickup date and time."
+      : "";
+
+  // Reset schedule when switching types
+  useEffect(() => {
+    setScheduleDate("");
+    setScheduleTime("");
+    setScheduleTouched(false);
+  }, [fulfillment, deliverySpeed]);
+
   const validate = () => {
     if (!name.trim()) return "Please add your name.";
-
     if (!phoneCheck.ok) return phoneCheck.message;
 
-    if (!addressBase.trim()) return "Please choose your address from Google.";
+    if (fulfillment === "delivery") {
+      if (!addressBase.trim()) return "Please choose your address from Google.";
+      if (!addressResolved || addressLat === null || addressLng === null) {
+        return "Please choose a valid address from the Google suggestions.";
+      }
+    }
 
-    if (!addressResolved || addressLat === null || addressLng === null) {
-      return "Please choose a valid address from the Google suggestions.";
+    if (!scheduleDate || !scheduleTime) {
+      return "Please choose delivery/pickup date and time.";
+    }
+
+    if (fulfillment === "pickup" && !pickupPointId) {
+      return "Please choose a pickup point.";
     }
 
     return null;
@@ -195,6 +283,7 @@ export default function CheckoutPage() {
     // show inline errors
     setPhoneTouched(true);
     setAddressTouched(true);
+    setScheduleTouched(true);
 
     const v = validate();
     if (v) {
@@ -214,18 +303,38 @@ export default function CheckoutPage() {
 
     setLoading(true);
     try {
+      const pickupPoint = PICKUP_POINTS.find((p) => p.id === pickupPointId) || null;
+
       const payload = {
         customer: { name: name.trim(), phone: normalizedPhone },
-        delivery: {
-          method: delivery,
-          address: fullAddress,
-          addressBase,
-          addressDetail,
-          lat: addressLat,
-          lng: addressLng,
-          buildingName,
-          postalCode,
+
+        fulfillment: {
+          type: fulfillment, // "delivery" | "pickup"
+          scheduleDate,      // "YYYY-MM-DD"
+          scheduleTime,      // "10:00-13:00"
         },
+
+        delivery: fulfillment === "delivery"
+          ? {
+              speed: deliverySpeed, // "standard" | "sameday"
+              address: fullAddress,
+              addressBase,
+              addressDetail,
+              lat: addressLat,
+              lng: addressLng,
+              buildingName,
+              postalCode,
+            }
+          : null,
+
+        pickup: fulfillment === "pickup"
+          ? {
+              pointId: pickupPoint?.id || pickupPointId,
+              pointName: pickupPoint?.name || "",
+              pointAddress: pickupPoint?.address || "",
+            }
+          : null,
+
         notes,
         cart,
         total: subtotal,
@@ -271,15 +380,7 @@ export default function CheckoutPage() {
           <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>You’re almost there 🤍</p>
 
-          <section
-            style={{
-              marginTop: 16,
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "#FAF7F2",
-              padding: 18,
-            }}
-          >
+          <section style={{ marginTop: 16, borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", background: "#FAF7F2", padding: 18 }}>
             <div style={{ fontWeight: 900, color: "#101010" }}>Your box is waiting 🤍</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>
               Please build your cookie box first.
@@ -305,10 +406,7 @@ export default function CheckoutPage() {
             </Link>
 
             <div style={{ marginTop: 12 }}>
-              <Link
-                href="/cart"
-                style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}
-              >
+              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
                 ← Back to cart
               </Link>
             </div>
@@ -328,15 +426,7 @@ export default function CheckoutPage() {
 
         <div style={{ display: "grid", gap: 14 }}>
           {/* CONTACT */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
+          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Contact details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               We’ll use this to update you about your order.
@@ -344,25 +434,15 @@ export default function CheckoutPage() {
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Name
-                </span>
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  style={sameStyle}
-                  placeholder="Your name"
-                />
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Name</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} style={sameStyle} placeholder="Your name" />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  WhatsApp number
-                </span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>WhatsApp number</span>
                 <input
                   value={phone}
                   onChange={(e) => {
-                    // ✅ allow digits only
                     const digitsOnly = e.target.value.replace(/\D/g, "");
                     setPhone(digitsOnly);
                   }}
@@ -374,9 +454,7 @@ export default function CheckoutPage() {
                 />
 
                 {phoneError ? (
-                  <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>
-                    {phoneError}
-                  </div>
+                  <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>{phoneError}</div>
                 ) : (
                   <div style={{ fontSize: 12, color: "#6B6B6B" }}>
                     We’ll send payment + delivery updates via WhatsApp.
@@ -386,170 +464,259 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-          {/* DELIVERY */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
-            <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
+          {/* ✅ NEW: DELIVERY vs PICKUP */}
+          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+            <div style={{ fontWeight: 950, color: "#101010" }}>Fulfillment</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
-              Please double-check your address to avoid delivery delays.{" "}
-              <span style={{ color: "#3C3C3C" }}>
-                Jakarta same-day available for selected areas ✨
-              </span>
+              Choose delivery or pickup, then select date & time.
             </div>
 
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Address
-                </div>
+            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setFulfillment("delivery")}
+                style={{
+                  textAlign: "left",
+                  borderRadius: 16,
+                  padding: 12,
+                  border: fulfillment === "delivery" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                  background: fulfillment === "delivery" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ fontWeight: 900, color: "#101010" }}>Delivery</div>
+                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>We deliver to your address</div>
+              </button>
 
-                <GoogleAddressInput
-                  apiKey={mapsKey}
-                  placeholder="Type building name or address…"
-                  onResolved={(val: any) => {
-                    const formatted =
-                      val?.formattedAddress || val?.formatted_address || "";
-                    const lat = typeof val?.lat === "number" ? val.lat : null;
-                    const lng = typeof val?.lng === "number" ? val.lng : null;
+              <button
+                type="button"
+                onClick={() => setFulfillment("pickup")}
+                style={{
+                  textAlign: "left",
+                  borderRadius: 16,
+                  padding: 12,
+                  border: fulfillment === "pickup" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                  background: fulfillment === "pickup" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ fontWeight: 900, color: "#101010" }}>Pickup</div>
+                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Collect at our pickup point</div>
+              </button>
+            </div>
 
-                    setAddressBase(String(formatted));
-                    setAddressLat(lat);
-                    setAddressLng(lng);
-
-                    setAddressResolved(!!val?.isResolved || (lat !== null && lng !== null));
-                    setAddressTouched(false);
-
-                    const b1 = (val?.building || val?.name || "").toString().trim();
-                    const b2 = String(formatted).split(",")[0].trim();
-                    const finalBuilding = b1 || b2;
-                    if (finalBuilding) setBuildingName(finalBuilding);
-
-                    if (val?.postal) setPostalCode(String(val.postal));
-                  }}
-                />
-
-                {addressError ? (
-                  <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>
-                    {addressError}
-                  </div>
-                ) : null}
-
-                <input
-                  value={addressDetail}
-                  onChange={(e) => setAddressDetail(e.target.value)}
-                  placeholder="Unit / floor / landmark (optional)"
+            {/* Schedule */}
+            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <label style={{ display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  {fulfillment === "pickup" ? "Pickup date" : "Delivery date"}
+                </span>
+                <select
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  onBlur={() => setScheduleTouched(true)}
                   style={sameStyle}
-                />
-
-                {!mapsKey && (
-                  <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                    (Autocomplete is off because Google Maps API key is not set.)
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: "grid", gap: 8 }}>
-                <input
-                  value={buildingName}
-                  onChange={(e) => setBuildingName(e.target.value)}
-                  placeholder="Building name (auto, editable)"
-                  style={sameStyle}
-                />
-                <input
-                  value={postalCode}
-                  onChange={(e) => setPostalCode(e.target.value)}
-                  placeholder="Postal code (auto, editable)"
-                  style={sameStyle}
-                />
-              </div>
+                >
+                  <option value="">Select date</option>
+                  {(fulfillment === "pickup" ? pickupDateOptions : deliveryDateOptions).map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Notes (optional)
+                  {fulfillment === "pickup" ? "Pickup time" : "Delivery time"}
                 </span>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  style={{
-                    minHeight: 90,
-                    borderRadius: 14,
-                    border: "1px solid rgba(0,0,0,0.12)",
-                    padding: "10px 12px",
-                    outline: "none",
-                    resize: "vertical",
-                  }}
-                  placeholder="Gift note, delivery timing, special instructions…"
-                />
+                <select
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  onBlur={() => setScheduleTouched(true)}
+                  style={sameStyle}
+                >
+                  <option value="">Select time</option>
+                  {DELIVERY_TIME_SLOTS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
               </label>
+            </div>
 
-              <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
-                  Delivery method
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {scheduleError ? (
+              <div style={{ marginTop: 8, fontSize: 12, color: "crimson", fontWeight: 700 }}>
+                {scheduleError}
+              </div>
+            ) : null}
+
+            {/* Delivery speed (only when delivery) */}
+            {fulfillment === "delivery" ? (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Delivery speed</div>
+                <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <button
                     type="button"
-                    onClick={() => setDelivery("standard")}
+                    onClick={() => setDeliverySpeed("standard")}
                     style={{
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border:
-                        delivery === "standard"
-                          ? "2px solid #0052CC"
-                          : "1px solid rgba(0,0,0,0.10)",
-                      background: delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      border: deliverySpeed === "standard" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                      background: deliverySpeed === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
                       cursor: "pointer",
                     }}
                   >
                     <div style={{ fontWeight: 900, color: "#101010" }}>Standard</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                      Reliable & safe
-                    </div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Reliable & safe</div>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => setDelivery("sameday")}
+                    onClick={() => setDeliverySpeed("sameday")}
                     style={{
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border:
-                        delivery === "sameday"
-                          ? "2px solid #0052CC"
-                          : "1px solid rgba(0,0,0,0.10)",
-                      background: delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      border: deliverySpeed === "sameday" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                      background: deliverySpeed === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
                       cursor: "pointer",
                     }}
                   >
                     <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                      For when you need cookies now 🍪
-                    </div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Selected areas only ✨</div>
                   </button>
                 </div>
               </div>
-            </div>
+            ) : null}
+
+            {/* Pickup points (only when pickup) */}
+            {fulfillment === "pickup" ? (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Pickup point</div>
+                <div style={{ marginTop: 8, display: "grid", gap: 10 }}>
+                  {PICKUP_POINTS.map((p) => {
+                    const active = p.id === pickupPointId;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setPickupPointId(p.id)}
+                        style={{
+                          textAlign: "left",
+                          borderRadius: 16,
+                          padding: 12,
+                          border: active ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
+                          background: active ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ fontWeight: 900, color: "#101010" }}>{p.name}</div>
+                        <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>{p.address}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </section>
 
+          {/* DELIVERY DETAILS (only if delivery) */}
+          {fulfillment === "delivery" ? (
+            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+              <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
+              <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
+                Please double-check your address to avoid delivery delays.
+              </div>
+
+              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
+
+                  <GoogleAddressInput
+                    apiKey={mapsKey}
+                    placeholder="Type building name or address…"
+                    onResolved={(val: any) => {
+                      const formatted = val?.formattedAddress || val?.formatted_address || "";
+                      const lat = typeof val?.lat === "number" ? val.lat : null;
+                      const lng = typeof val?.lng === "number" ? val.lng : null;
+
+                      setAddressBase(String(formatted));
+                      setAddressLat(lat);
+                      setAddressLng(lng);
+
+                      setAddressResolved(!!val?.isResolved || (lat !== null && lng !== null));
+                      setAddressTouched(false);
+
+                      const b1 = (val?.building || val?.name || "").toString().trim();
+                      const b2 = String(formatted).split(",")[0].trim();
+                      const finalBuilding = b1 || b2;
+                      if (finalBuilding) setBuildingName(finalBuilding);
+
+                      if (val?.postal) setPostalCode(String(val.postal));
+                    }}
+                  />
+
+                  {addressError ? (
+                    <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>
+                      {addressError}
+                    </div>
+                  ) : null}
+
+                  <input
+                    value={addressDetail}
+                    onChange={(e) => setAddressDetail(e.target.value)}
+                    placeholder="Unit / floor / landmark (optional)"
+                    style={sameStyle}
+                  />
+
+                  {!mapsKey && (
+                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+                      (Autocomplete is off because Google Maps API key is not set.)
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: "grid", gap: 8 }}>
+                  <input value={buildingName} onChange={(e) => setBuildingName(e.target.value)} placeholder="Building name (auto, editable)" style={sameStyle} />
+                  <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Postal code (auto, editable)" style={sameStyle} />
+                </div>
+
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes (optional)</span>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
+                    placeholder="Gift note, delivery timing, special instructions…"
+                  />
+                </label>
+              </div>
+            </section>
+          ) : (
+            // Pickup notes
+            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+              <div style={{ fontWeight: 950, color: "#101010" }}>Pickup notes (optional)</div>
+              <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
+                Tell us anything we should know for pickup.
+              </div>
+
+              <label style={{ marginTop: 12, display: "grid", gap: 6 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes</span>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
+                  placeholder="Pickup instructions…"
+                />
+              </label>
+            </section>
+          )}
+
           {/* ORDER SUMMARY */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
+          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Your order 🤍</div>
 
             <div style={{ marginTop: 10, display: "grid", gap: 12 }}>
@@ -557,45 +724,19 @@ export default function CheckoutPage() {
                 const boxCount = (box.items || []).reduce((s, it) => s + (it.quantity || 0), 0);
 
                 return (
-                  <div
-                    key={idx}
-                    style={{
-                      borderRadius: 16,
-                      border: "1px solid rgba(0,0,0,0.08)",
-                      background: "#FAF7F2",
-                      padding: 12,
-                    }}
-                  >
+                  <div key={idx} style={{ borderRadius: 16, border: "1px solid rgba(0,0,0,0.08)", background: "#FAF7F2", padding: 12 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                       <div style={{ fontWeight: 900, color: "#101010" }}>
                         Box of {box.boxSize}{" "}
                         <span style={{ color: "#6B6B6B", fontWeight: 700 }}>({boxCount} cookies)</span>
                       </div>
-                      <div style={{ fontWeight: 900, color: "#101010" }}>
-                        {formatIDR(box.total || 0)}
-                      </div>
+                      <div style={{ fontWeight: 900, color: "#101010" }}>{formatIDR(box.total || 0)}</div>
                     </div>
 
                     <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                       {(box.items || []).map((it, i2) => (
-                        <div
-                          key={`${it.id}-${i2}`}
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 10,
-                          }}
-                        >
-                          <div
-                            style={{
-                              color: "#101010",
-                              fontWeight: 800,
-                              minWidth: 0,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
+                        <div key={`${it.id}-${i2}`} style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                          <div style={{ color: "#101010", fontWeight: 800, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {it.name}{" "}
                             <span style={{ color: "#6B6B6B", fontWeight: 700 }}>×{it.quantity}</span>
                           </div>
@@ -613,8 +754,10 @@ export default function CheckoutPage() {
                 <div>{formatIDR(subtotal)}</div>
               </div>
               <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", color: "#6B6B6B" }}>
-                <div>Delivery</div>
-                <div>Calculated at payment</div>
+                <div>{fulfillment === "pickup" ? "Pickup" : "Delivery"}</div>
+                <div>
+                  {scheduleDate && scheduleTime ? `${scheduleDate} • ${scheduleTime}` : "Select schedule"}
+                </div>
               </div>
             </div>
 
@@ -635,18 +778,7 @@ export default function CheckoutPage() {
       </div>
 
       {/* Sticky Place Order */}
-      <div
-        style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "#fff",
-          borderTop: "1px solid rgba(0,0,0,0.08)",
-          boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
-          padding: "12px 14px",
-        }}
-      >
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 -10px 30px rgba(0,0,0,0.05)", padding: "12px 14px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
             onClick={placeOrder}
