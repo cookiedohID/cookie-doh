@@ -1,24 +1,28 @@
 import Image from "next/image";
 
-type PendingPageProps = {
-  searchParams: { order_id?: string };
+type SP = {
+  order_id?: string;
+  total?: string;
+  name?: string;
+  phone?: string;
+  address?: string;
+  building?: string;
+  postal?: string;
+  boxes?: string;
 };
 
-async function getOrder(orderId: string) {
-  // You must have this API route. I include it in section #3.
-  const res = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/orders/${orderId}`, {
-    cache: "no-store",
-  });
-  const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(j?.error || "Failed to load order");
-  return j.order;
+// Works whether Next provides searchParams as an object or a Promise
+async function getSearchParams(searchParams: any): Promise<SP> {
+  if (!searchParams) return {};
+  // If it's a Promise
+  if (typeof searchParams?.then === "function") return (await searchParams) as SP;
+  return searchParams as SP;
 }
 
 function formatIDR(n: number) {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
-// Client-side cart clear (runs when page loads)
 function ClearCartClient() {
   return (
     <script
@@ -35,33 +39,40 @@ function ClearCartClient() {
   );
 }
 
-export default async function PendingPage({ searchParams }: PendingPageProps) {
-  const orderId = (searchParams?.order_id || "").trim();
+export default async function PendingPage(props: { searchParams?: any }) {
+  const sp = await getSearchParams(props.searchParams);
+
+  const orderId = String(sp.order_id || "").trim();
 
   if (!orderId) {
     return (
       <main style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
         <h1 style={{ margin: 0, fontSize: 26 }}>Payment Pending</h1>
-        <p style={{ marginTop: 10 }}>Missing order id.</p>
+        <p style={{ marginTop: 10, fontWeight: 800, color: "crimson" }}>
+          Missing order id.
+        </p>
+        <p style={{ marginTop: 8, color: "#555" }}>
+          Tip: URL must contain <code>?order_id=...</code>
+        </p>
       </main>
     );
   }
 
-  let order: any = null;
-  let loadError: string | null = null;
-
-  try {
-    order = await getOrder(orderId);
-  } catch (e: any) {
-    loadError = e?.message || "Failed to load order";
-  }
+  // Optional: show summary from URL (since you're already passing it)
+  const total = Number(sp.total || "");
+  const name = sp.name ? decodeURIComponent(sp.name) : "";
+  const phone = sp.phone ? decodeURIComponent(sp.phone) : "";
+  const address = sp.address ? decodeURIComponent(sp.address) : "";
+  const building = sp.building ? decodeURIComponent(sp.building) : "";
+  const postal = sp.postal ? decodeURIComponent(sp.postal) : "";
+  const boxes = sp.boxes ? decodeURIComponent(sp.boxes) : "";
 
   return (
     <main style={{ padding: 24, maxWidth: 980, margin: "0 auto" }}>
       <ClearCartClient />
 
       <h1 style={{ margin: 0, fontSize: 26 }}>Payment Pending</h1>
-      <p style={{ marginTop: 8, color: "#555", fontWeight: 700 }}>
+      <p style={{ marginTop: 8, color: "#555", fontWeight: 800 }}>
         Order ID: <span style={{ color: "#111" }}>{orderId}</span>
       </p>
 
@@ -110,7 +121,7 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
         </div>
       </section>
 
-      {/* ORDER SUMMARY */}
+      {/* ORDER SUMMARY (from URL) */}
       <section
         style={{
           marginTop: 18,
@@ -122,58 +133,38 @@ export default async function PendingPage({ searchParams }: PendingPageProps) {
       >
         <h2 style={{ margin: 0, fontSize: 18 }}>Order Summary</h2>
 
-        {loadError ? (
-          <p style={{ marginTop: 10, color: "crimson", fontWeight: 900 }}>{loadError}</p>
-        ) : !order ? (
-          <p style={{ marginTop: 10 }}>Loading…</p>
-        ) : (
-          <>
-            <div style={{ marginTop: 10, display: "grid", gap: 6, color: "#222", fontWeight: 800 }}>
-              <div>Customer: {order.customer_name || "—"}</div>
-              <div>Phone: {order.customer_phone || "—"}</div>
-              <div>Address: {order.shipping_address || "—"}</div>
-            </div>
+        <div style={{ marginTop: 10, display: "grid", gap: 6, color: "#222", fontWeight: 800 }}>
+          {name ? <div>Customer: {name}</div> : null}
+          {phone ? <div>Phone: {phone}</div> : null}
+          {building ? <div>Building: {building}</div> : null}
+          {postal ? <div>Postal: {postal}</div> : null}
+          {address ? <div>Address: {address}</div> : null}
+        </div>
 
-            <div style={{ marginTop: 14 }}>
-              <div style={{ fontWeight: 900, marginBottom: 8 }}>Items</div>
-              <div style={{ display: "grid", gap: 8 }}>
-                {(order.items || []).map((it: any, i: number) => (
-                  <div
-                    key={i}
-                    style={{
-                      border: "1px solid rgba(0,0,0,0.08)",
-                      borderRadius: 12,
-                      padding: 10,
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      background: "rgba(0,0,0,0.02)",
-                    }}
-                  >
-                    <div style={{ fontWeight: 900 }}>
-                      {it.name}{" "}
-                      <span style={{ color: "#666", fontWeight: 800 }}>
-                        × {it.quantity || 1}
-                      </span>
-                    </div>
-                    <div style={{ fontWeight: 900 }}>
-                      {typeof it.price_idr === "number" ? formatIDR(it.price_idr) : ""}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {boxes ? (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontWeight: 900, marginBottom: 8 }}>Boxes</div>
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                background: "rgba(0,0,0,0.04)",
+                padding: 12,
+                borderRadius: 12,
+                fontWeight: 800,
+                color: "#111",
+              }}
+            >
+              {boxes}
+            </pre>
+          </div>
+        ) : null}
 
-            <div style={{ marginTop: 14, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900 }}>
-                <div>Total</div>
-                <div>
-                  {typeof order.total_idr === "number" ? formatIDR(order.total_idr) : "—"}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
+        <div style={{ marginTop: 14, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900 }}>
+            <div>Total</div>
+            <div>{Number.isFinite(total) ? formatIDR(total) : "—"}</div>
+          </div>
+        </div>
       </section>
     </main>
   );
