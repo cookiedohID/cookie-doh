@@ -18,6 +18,320 @@ type NestedStop = {
 };
 
 export type CreateLalamoveOrderInput = {
+  externalId?: string;
+
+  pickupAddress?: string;
+  pickupLat?: number;
+  pickupLng?: number;
+  pickupContactName?: string;
+  pickupContactPhone?: string;
+
+  dropoffAddress?: string;
+  dropoffLat?: number;
+  dropoffLng?: number;
+
+  dropoffContactName?: string;
+  dropoffContactPhone?: string;
+  dropoffRemarks?: string;
+
+  recipientName?: string;
+  recipientPhone?: string;
+  remarks?: string;
+
+  senderName?: string;
+  senderPhone?: string;
+
+  pickup?: NestedStop;
+  dropoff?: NestedStop;
+
+  serviceType?: string; // default MOTORCYCLE
+  language?: string; // default id_ID
+  scheduleAt?: string; // ISO UTC
+  isPODEnabled?: boolean;
+  metadata?: Record<string, any>;
+};
+
+export type CreateLalamoveOrderResult = {
+  quotationId: string;
+  orderId: string | null;
+  shareLink: string | null;
+  status: string | null;
+  priceBreakdown: any | null;
+  expiresAt: string | null;
+};
+
+function baseUrl(env: LalamoveEnv) {
+  return env === "production"
+    ? "https://rest.lalamove.com"
+    : "https://rest.sandbox.lalamove.com";
+}
+
+export function lalamoveHeaders(opts: {
+  apiKey: string;
+  apiSecret: string;
+  market: string;
+  method: string;
+  path: string;
+  body?: string;
+  requestId: string;
+}) {
+  const time = Date.now().toString();
+  const method = opts.method.toUpperCase();
+  const body = opts.body ?? "";
+
+  const rawSignature =
+    method === "GET"
+      ? `${time}\r\n${method}\r\n${opts.path}\r\n\r\n`
+      : `${time}\r\n${method}\r\n${opts.path}\r\n\r\n${body}`;
+
+  const signature = crypto
+    .createHmac("sha256", opts.apiSecret)
+    .update(rawSignature)
+    .digest("hex");
+
+  const token = `${opts.apiKey}:${time}:${signature}`;
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: `hmac ${token}`,
+    Market: opts.market,
+    "Request-ID": opts.requestId,
+  } as const;
+}
+
+export async function lalamoveRequest<T>(opts: {
+  env: LalamoveEnv;
+  apiKey: string;
+  apiSecret: string;
+  market: string;
+  method: "GET" | "POST" | "PATCH" | "DELETE";
+  path: string;
+  requestId: string;
+  body?: any;
+}) {
+  const url = `${baseUrl(opts.env)}${opts.path}`;
+  const bodyStr = opts.body ? JSON.stringify(opts.body) : undefined;
+
+  const headers = lalamoveHeaders({
+    apiKey: opts.apiKey,
+    apiSecret: opts.apiSecret,
+    market: opts.market,
+    method: opts.method,
+    path: opts.path,
+    body: bodyStr,
+    requestId: opts.requestId,
+  });
+
+  const res = await fetch(url, {
+    method: opts.method,
+    headers,
+    body: bodyStr,
+    cache: "no-store",
+  });
+
+  const json = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const msg =
+      json?.message ||
+      json?.error ||
+      `Lalamove request failed (${res.status})`;
+    const err = new Error(msg);
+    (err as any).status = res.status;
+    (err as any).payload = json; // ✅ this is what we will display
+    throw err;
+  }
+
+  return json as T;
+}
+
+function normalizeStops(input: CreateLalamoveOrderInput): {
+  pickup: NestedStop;
+  dropoff: NestedStop;
+} {
+  if (input.pickup && input.dropoff) return { pickup: input.pickup, dropoff: input.dropoff };
+
+  const pickupName = input.pickupContactName || input.senderName || "";
+  const pickupPhone = input.pickupContactPhone || input.senderPhone || "";
+
+  const dropoffName = input.dropoffContactName || input.recipientName || "";
+  const dropoffPhone = input.dropoffContactPhone || input.recipientPhone || "";
+  const dropoffRemarks = input.dropoffRemarks || input.remarks || "";
+
+  return {
+    pickup: {
+      address: String(input.pickupAddress || ""),
+      lat: Number(input.pickupLat),
+      lng: Number(input.pickupLng),
+      contactName: String(pickupName),
+      contactPhone: String(pickupPhone),
+    },
+    dropoff: {
+      address: String(input.dropoffAddress || ""),
+      lat: Number(input.dropoffLat),
+      lng: Number(input.dropoffLng),
+      contactName: String(dropoffName),
+      contactPhone: String(dropoffPhone),
+      remarks: String(dropoffRemarks || ""),
+    },
+  };
+}
+
+function assertStop(s: NestedStop, label: "pickup" | "dropoff") {
+  if (!s.address) throw new Error(`Missing ${label} address`);
+  if (!Number.isFinite(s.lat) || !Number.isFinite(s.lng))
+    throw new Error(`Missing ${label} lat/lng`);
+  if (!s.contactName) throw new Error(`Missing ${label} contact name`);
+  if (!s.contactPhone) throw new Error(`Missing ${label} contact phone`);
+}
+
+export async function createLalamoveOrder(
+  input: CreateLalamoveOrderInput
+): Promise<CreateLalamoveOrderResult> {
+  const env = (process.env.LALAMOVE_ENV || "sandbox") as LalamoveEnv;
+  const apiKey = process.env.LALAMOVE_API_KEY || "";
+  const apiSecret = process.env.LALAMOVE_API_SECRET || "";
+  const market = process.env.LALAMOVE_MARKET || "ID";
+
+  if (!apiKey || !apiSecret) throw new Error("Missing LALAMOVE_API_KEY / LALAMOVE_API_SECRET");
+
+  const serviceType = input.serviceType || "MOTORCYCLE";
+  const { pickup, dropoff } = normalizeStops(input);
+  assertStop(pickup, "pickup");
+  assertStop(dropoff, "dropoff");
+
+  const stops: Stop[] = [
+    { coordinates: { lat: String(pickup.lat), lng: String(pickup.lng) }, address: pickup.address },
+    { coordinates: { lat: String(dropoff.lat), lng: String(dropoff.lng) }, address: dropoff.address },
+  ];
+
+  // ✅ Minimal payload (NO item) — safer across markets like ID
+  const quotationPayload = {
+    data: {
+      language: input.language || "id_ID",
+      serviceType,
+      stops,
+      ...(input.scheduleAt ? { scheduleAt: input.scheduleAt } : {}),
+    },
+  };
+
+  const quotationRes = await lalamoveRequest<{
+    data: {
+      quotationId: string;
+      stops: Array<{ stopId: string }>;
+      priceBreakdown?: any;
+      expiresAt?: string;
+    };
+  }>({
+    env,
+    apiKey,
+    apiSecret,
+    market,
+    method: "POST",
+    path: "/v3/quotations",
+    requestId: crypto.randomUUID(),
+    body: quotationPayload,
+  });
+
+  const quotationId = quotationRes.data.quotationId;
+  const pickupStopId = quotationRes.data.stops?.[0]?.stopId;
+  const dropoffStopId = quotationRes.data.stops?.[1]?.stopId;
+
+  if (!quotationId || !pickupStopId || !dropoffStopId) {
+    throw new Error("Failed to create quotation (missing quotationId/stopId)");
+  }
+
+  const orderPayload = {
+    data: {
+      quotationId,
+      sender: {
+        stopId: pickupStopId,
+        name: pickup.contactName,
+        phone: pickup.contactPhone,
+      },
+      recipients: [
+        {
+          stopId: dropoffStopId,
+          name: dropoff.contactName,
+          phone: dropoff.contactPhone,
+          remarks: dropoff.remarks || "",
+        },
+      ],
+      isPODEnabled: !!input.isPODEnabled,
+      metadata: {
+        ...(input.metadata || {}),
+        ...(input.externalId ? { externalId: input.externalId } : {}),
+      },
+    },
+  };
+
+  const placeRes = await lalamoveRequest<{
+    data?: { orderId?: string; shareLink?: string; status?: string };
+  }>({
+    env,
+    apiKey,
+    apiSecret,
+    market,
+    method: "POST",
+    path: "/v3/orders",
+    requestId: crypto.randomUUID(),
+    body: orderPayload,
+  });
+
+  const orderId = placeRes?.data?.orderId || null;
+
+  let shareLink = placeRes?.data?.shareLink || null;
+  let status = placeRes?.data?.status || null;
+
+  if (orderId && (!shareLink || !status)) {
+    const detail = await lalamoveRequest<{
+      data: { orderId: string; shareLink?: string; status?: string };
+    }>({
+      env,
+      apiKey,
+      apiSecret,
+      market,
+      method: "GET",
+      path: `/v3/orders/${orderId}`,
+      requestId: crypto.randomUUID(),
+    });
+
+    shareLink = detail.data.shareLink || shareLink;
+    status = detail.data.status || status;
+  }
+
+  return {
+    quotationId,
+    orderId,
+    shareLink,
+    status,
+    priceBreakdown: quotationRes.data.priceBreakdown || null,
+    expiresAt: quotationRes.data.expiresAt || null,
+  };
+}
+
+
+/*
+// web/lib/lalamove.ts
+import crypto from "crypto";
+
+type LalamoveEnv = "sandbox" | "production";
+
+type Stop = {
+  coordinates: { lat: string; lng: string };
+  address: string;
+};
+
+type NestedStop = {
+  address: string;
+  lat: number;
+  lng: number;
+  contactName: string;
+  contactPhone: string; // "+62..."
+  remarks?: string;
+};
+
+export type CreateLalamoveOrderInput = {
   // ✅ Backwards-compatible (your shipments/create route may use these)
   externalId?: string;
 
@@ -348,7 +662,7 @@ export async function createLalamoveOrder(
 }
 
 
-
+*/
 
 /*
 
