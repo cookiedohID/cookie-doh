@@ -110,16 +110,25 @@ export default async function PendingPage(props: { searchParams?: any }) {
         </div>
 
         <div>
-          <h2 style={{ margin: 0, fontSize: 18 }}>Scan to Pay</h2>
+          <h2 style={{ margin: 0, fontSize: 18 }}>Payment Instructions</h2>
+
           <p style={{ marginTop: 8, marginBottom: 0, color: "#444", fontWeight: 700 }}>
-            Scan the QR code to complete your payment.
+            Please complete your payment by scanning the QR code below for the total amount of{" "}
+            <strong>
+              Rp. {Number.isFinite(total) ? total.toLocaleString("id-ID") : "—"}
+            </strong>.
           </p>
-          <ul style={{ marginTop: 10, color: "#555", fontWeight: 700, paddingLeft: 18 }}>
-            <li>After payment, your order will be processed automatically.</li>
-            <li>If you need help, WhatsApp us with your Order ID.</li>
-          </ul>
+
+          <p style={{ marginTop: 10, color: "#555", fontWeight: 700 }}>
+            After payment has been made, kindly send your proof of payment to us via WhatsApp using
+            the link below.
+          </p>
+
+          <p style={{ marginTop: 6, color: "#555", fontWeight: 700 }}>
+            Once the proof of payment is received, we will proceed with processing your order.
+          </p>
         </div>
-      </section>
+
 
       {/* ORDER SUMMARY (from URL) */}
       <section
