@@ -129,6 +129,44 @@ export default async function PendingPage(props: { searchParams?: any }) {
         </div>
       </section>
 
+      {/* WHATSAPP PAYMENT CONFIRMATION */}
+      <div style={{ marginTop: 14 }}>
+        <a
+          href={`https://wa.me/6281932181818?text=${encodeURIComponent(
+            `Hi Cookie Doh 👋\n\nI have completed payment for my order.\n\nOrder ID: ${orderId}\nTotal: Rp. ${
+              Number.isFinite(total) ? total.toLocaleString("id-ID") : "-"
+            }\n\nHere is my proof of payment. Thank you 🤍`
+          )}`}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "12px 18px",
+            borderRadius: 14,
+            background: "#25D366",
+            color: "#fff",
+            fontWeight: 900,
+            textDecoration: "none",
+            fontSize: 15,
+          }}
+        >
+          {/* WhatsApp icon (inline SVG, no dependency) */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="white"
+          >
+            <path d="M20.52 3.48A11.78 11.78 0 0012.03 0C5.4 0 .02 5.38.02 12a11.88 11.88 0 001.64 5.94L0 24l6.26-1.64A11.88 11.88 0 0012 24c6.62 0 12-5.38 12-12a11.78 11.78 0 00-3.48-8.52zM12 21.82a9.8 9.8 0 01-5-1.36l-.36-.21-3.72.98.99-3.63-.23-.38a9.8 9.8 0 01-1.36-5c0-5.42 4.4-9.82 9.82-9.82s9.82 4.4 9.82 9.82-4.4 9.82-9.82 9.82zm5.38-7.34c-.29-.15-1.72-.85-1.99-.95s-.46-.15-.65.15-.75.95-.92 1.15-.34.22-.63.07a7.9 7.9 0 01-2.33-1.43 8.7 8.7 0 01-1.61-2c-.17-.29 0-.45.13-.6.13-.13.29-.34.43-.51.15-.17.2-.29.29-.49s.05-.36-.02-.51-.65-1.56-.89-2.14c-.23-.55-.46-.48-.65-.49h-.55c-.19 0-.49.07-.75.36s-.98.96-.98 2.34.99 2.71 1.12 2.9c.13.19 1.95 2.97 4.73 4.16.66.28 1.17.45 1.57.58.66.21 1.26.18 1.74.11.53-.08 1.72-.7 1.97-1.38s.25-1.26.17-1.38c-.08-.13-.27-.21-.56-.36z" />
+          </svg>
+          Send Proof of Payment via WhatsApp
+        </a>
+      </div>
+    
+
       {/* ORDER SUMMARY (from URL) */}
       <section
         style={{
@@ -173,6 +211,9 @@ export default async function PendingPage(props: { searchParams?: any }) {
             <div>{Number.isFinite(total) ? formatIDR(total) : "—"}</div>
           </div>
         </div>
+
+
+
       </section>
     </main>
   );
