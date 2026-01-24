@@ -45,6 +45,20 @@ function readCart(): CartState {
   }
 }
 
+// ✅ Clear cart storage AFTER successful "Place order"
+function clearCartStorage() {
+  try {
+    // current key
+    localStorage.removeItem(CART_KEY);
+
+    // backups (in case older versions exist)
+    localStorage.removeItem("cart");
+    localStorage.removeItem("cookie_doh_cart");
+    localStorage.removeItem("cookie_doh_cart_v0");
+    localStorage.removeItem("cart_items");
+  } catch (e) {}
+}
+
 /** Normalize Indonesian phone/WA numbers to +62XXXXXXXXXXX */
 function normalizeIDPhone(input: string) {
   const raw = (input || "").trim();
@@ -226,7 +240,9 @@ export default function CheckoutPage() {
       if (!res.ok) {
         const body = await readErrorBody(res);
         throw new Error(
-          body ? `Checkout failed (HTTP ${res.status}). ${body}` : `Checkout failed (HTTP ${res.status}).`
+          body
+            ? `Checkout failed (HTTP ${res.status}). ${body}`
+            : `Checkout failed (HTTP ${res.status}).`
         );
       }
 
@@ -236,6 +252,9 @@ export default function CheckoutPage() {
       if (!redirectUrl) {
         throw new Error(`Missing redirect_url from server: ${JSON.stringify(data)}`);
       }
+
+      // ✅ SUCCESS: clear cart right before redirect (after order creation succeeded)
+      clearCartStorage();
 
       window.location.href = redirectUrl;
     } catch (e: any) {
@@ -252,7 +271,15 @@ export default function CheckoutPage() {
           <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>You’re almost there 🤍</p>
 
-          <section style={{ marginTop: 16, borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", background: "#FAF7F2", padding: 18 }}>
+          <section
+            style={{
+              marginTop: 16,
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              background: "#FAF7F2",
+              padding: 18,
+            }}
+          >
             <div style={{ fontWeight: 900, color: "#101010" }}>Your box is waiting 🤍</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>
               Please build your cookie box first.
@@ -278,7 +305,10 @@ export default function CheckoutPage() {
             </Link>
 
             <div style={{ marginTop: 12 }}>
-              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+              <Link
+                href="/cart"
+                style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}
+              >
                 ← Back to cart
               </Link>
             </div>
@@ -298,7 +328,15 @@ export default function CheckoutPage() {
 
         <div style={{ display: "grid", gap: 14 }}>
           {/* CONTACT */}
-          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
             <div style={{ fontWeight: 950, color: "#101010" }}>Contact details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               We’ll use this to update you about your order.
@@ -306,28 +344,39 @@ export default function CheckoutPage() {
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Name</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} style={sameStyle} placeholder="Your name" />
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Name
+                </span>
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={sameStyle}
+                  placeholder="Your name"
+                />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>WhatsApp number</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  WhatsApp number
+                </span>
                 <input
-                    value={phone}
-                    onChange={(e) => {
-                      // ✅ allow digits only
-                      const digitsOnly = e.target.value.replace(/\D/g, "");
-                      setPhone(digitsOnly);
-                    }}
-                    onBlur={() => setPhoneTouched(true)}
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    style={sameStyle}
-                    placeholder="e.g. 0812xxxxxxx"
-                  />
+                  value={phone}
+                  onChange={(e) => {
+                    // ✅ allow digits only
+                    const digitsOnly = e.target.value.replace(/\D/g, "");
+                    setPhone(digitsOnly);
+                  }}
+                  onBlur={() => setPhoneTouched(true)}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  style={sameStyle}
+                  placeholder="e.g. 0812xxxxxxx"
+                />
 
                 {phoneError ? (
-                  <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>{phoneError}</div>
+                  <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>
+                    {phoneError}
+                  </div>
                 ) : (
                   <div style={{ fontSize: 12, color: "#6B6B6B" }}>
                     We’ll send payment + delivery updates via WhatsApp.
@@ -338,23 +387,35 @@ export default function CheckoutPage() {
           </section>
 
           {/* DELIVERY */}
-          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
             <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               Please double-check your address to avoid delivery delays.{" "}
-              <span style={{ color: "#3C3C3C" }}>Jakarta same-day available for selected areas ✨</span>
+              <span style={{ color: "#3C3C3C" }}>
+                Jakarta same-day available for selected areas ✨
+              </span>
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <div style={{ display: "grid", gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Address
+                </div>
 
                 <GoogleAddressInput
                   apiKey={mapsKey}
                   placeholder="Type building name or address…"
-                  // IMPORTANT: do NOT pass types for building search in the same field
                   onResolved={(val: any) => {
-                    const formatted = val?.formattedAddress || val?.formatted_address || "";
+                    const formatted =
+                      val?.formattedAddress || val?.formatted_address || "";
                     const lat = typeof val?.lat === "number" ? val.lat : null;
                     const lng = typeof val?.lng === "number" ? val.lng : null;
 
@@ -395,38 +456,91 @@ export default function CheckoutPage() {
               </div>
 
               <div style={{ display: "grid", gap: 8 }}>
-                <input value={buildingName} onChange={(e) => setBuildingName(e.target.value)} placeholder="Building name (auto, editable)" style={sameStyle} />
-                <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Postal code (auto, editable)" style={sameStyle} />
+                <input
+                  value={buildingName}
+                  onChange={(e) => setBuildingName(e.target.value)}
+                  placeholder="Building name (auto, editable)"
+                  style={sameStyle}
+                />
+                <input
+                  value={postalCode}
+                  onChange={(e) => setPostalCode(e.target.value)}
+                  placeholder="Postal code (auto, editable)"
+                  style={sameStyle}
+                />
               </div>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes (optional)</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Notes (optional)
+                </span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
+                  style={{
+                    minHeight: 90,
+                    borderRadius: 14,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    padding: "10px 12px",
+                    outline: "none",
+                    resize: "vertical",
+                  }}
                   placeholder="Gift note, delivery timing, special instructions…"
                 />
               </label>
 
               <div style={{ display: "grid", gap: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Delivery method</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                  Delivery method
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <button type="button" onClick={() => setDelivery("standard")} style={{ textAlign: "left", borderRadius: 16, padding: 12, border: delivery === "standard" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)", background: delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2", cursor: "pointer" }}>
+                  <button
+                    type="button"
+                    onClick={() => setDelivery("standard")}
+                    style={{
+                      textAlign: "left",
+                      borderRadius: 16,
+                      padding: 12,
+                      border:
+                        delivery === "standard"
+                          ? "2px solid #0052CC"
+                          : "1px solid rgba(0,0,0,0.10)",
+                      background: delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      cursor: "pointer",
+                    }}
+                  >
                     <div style={{ fontWeight: 900, color: "#101010" }}>Standard</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Reliable & safe</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                      Reliable & safe
+                    </div>
                   </button>
 
-                  <button type="button" onClick={() => setDelivery("sameday")} style={{ textAlign: "left", borderRadius: 16, padding: 12, border: delivery === "sameday" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)", background: delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2", cursor: "pointer" }}>
+                  <button
+                    type="button"
+                    onClick={() => setDelivery("sameday")}
+                    style={{
+                      textAlign: "left",
+                      borderRadius: 16,
+                      padding: 12,
+                      border:
+                        delivery === "sameday"
+                          ? "2px solid #0052CC"
+                          : "1px solid rgba(0,0,0,0.10)",
+                      background: delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      cursor: "pointer",
+                    }}
+                  >
                     <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>For when you need cookies now 🍪</div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                      For when you need cookies now 🍪
+                    </div>
                   </button>
                 </div>
               </div>
             </div>
           </section>
 
-         {/* ORDER SUMMARY */}
+          {/* ORDER SUMMARY */}
           <section
             style={{
               borderRadius: 18,
@@ -438,7 +552,6 @@ export default function CheckoutPage() {
           >
             <div style={{ fontWeight: 950, color: "#101010" }}>Your order 🤍</div>
 
-            {/* Per-box summary */}
             <div style={{ marginTop: 10, display: "grid", gap: 12 }}>
               {cart.boxes.map((box, idx) => {
                 const boxCount = (box.items || []).reduce((s, it) => s + (it.quantity || 0), 0);
@@ -455,7 +568,8 @@ export default function CheckoutPage() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                       <div style={{ fontWeight: 900, color: "#101010" }}>
-                        Box of {box.boxSize} <span style={{ color: "#6B6B6B", fontWeight: 700 }}>({boxCount} cookies)</span>
+                        Box of {box.boxSize}{" "}
+                        <span style={{ color: "#6B6B6B", fontWeight: 700 }}>({boxCount} cookies)</span>
                       </div>
                       <div style={{ fontWeight: 900, color: "#101010" }}>
                         {formatIDR(box.total || 0)}
@@ -482,7 +596,8 @@ export default function CheckoutPage() {
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {it.name} <span style={{ color: "#6B6B6B", fontWeight: 700 }}>×{it.quantity}</span>
+                            {it.name}{" "}
+                            <span style={{ color: "#6B6B6B", fontWeight: 700 }}>×{it.quantity}</span>
                           </div>
                         </div>
                       ))}
@@ -510,7 +625,6 @@ export default function CheckoutPage() {
             </div>
           </section>
 
-
           {err && (
             <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff" }}>
               <div style={{ fontWeight: 950, color: "#101010" }}>Hmm, something doesn’t look right.</div>
@@ -521,7 +635,18 @@ export default function CheckoutPage() {
       </div>
 
       {/* Sticky Place Order */}
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 -10px 30px rgba(0,0,0,0.05)", padding: "12px 14px" }}>
+      <div
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "#fff",
+          borderTop: "1px solid rgba(0,0,0,0.08)",
+          boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
+          padding: "12px 14px",
+        }}
+      >
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
             onClick={placeOrder}
