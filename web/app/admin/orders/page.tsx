@@ -12,44 +12,18 @@ type OrderRow = {
   customer_phone?: string;
 
   payment_status?: "PENDING" | "PAID" | string;
-
-  // keep your current spelling used in this admin UI
   fulfilment_status?: "pending" | "sending" | "sent" | string;
 
-  shipment_status?: string; // "BOOKED"
+  shipment_status?: string;
   tracking_url?: string;
 
   destination_area_label?: string;
   shipping_address?: string;
 
   total_idr?: number;
-
-  shipping_lat?: number;
-  shipping_lng?: number;
-  shipping_json?: any;
 };
 
-const ADMIN_WA = "6281932181818"; // your admin WA number (no +)
-
-const waAdminLink = (o: OrderRow) => {
-  const orderNo = o.order_no || o.id || "";
-  const total =
-    typeof o.total_idr === "number" ? `Rp ${o.total_idr.toLocaleString("id-ID")}` : "-";
-
-  const msg =
-    `Cookie Doh — Order Summary\n\n` +
-    `Order: ${orderNo}\n` +
-    `Payment: ${o.payment_status || "-"}\n` +
-    `Fulfilment: ${o.fulfilment_status || "-"}\n` +
-    `Shipment: ${o.shipment_status || "-"}\n\n` +
-    `Customer: ${o.customer_name || "-"}\n` +
-    `Phone: ${o.customer_phone || "-"}\n\n` +
-    `Address:\n${o.shipping_address || "-"}\n\n` +
-    `Total: ${total}\n` +
-    (o.tracking_url ? `\nTracking: ${o.tracking_url}\n` : "");
-
-  return `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(msg)}`;
-};
+const ADMIN_WA = "6281932181818"; // admin WA number (no +)
 
 type Filter = "all" | "pending" | "paid" | "sending" | "sent";
 
@@ -180,6 +154,34 @@ export default function AdminOrdersPage() {
     }
 
     return json;
+  };
+
+  // ✅ WhatsApp Admin with item breakdown (fetch from server)
+  const openWhatsAppAdmin = async (orderId: string) => {
+    // Open immediately to avoid popup blocker
+    const tab = window.open("about:blank", "_blank");
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/wa-summary`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const { json, text } = await safeJson(res);
+
+      if (!res.ok) {
+        const msg = json?.error || `Failed to build WA message: ${text?.slice(0, 200)}`;
+        throw new Error(msg);
+      }
+
+      const message = String(json?.message || "").trim();
+      const waUrl = `https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(message)}`;
+
+      if (tab) tab.location.href = waUrl;
+      else window.location.href = waUrl;
+    } catch (e: any) {
+      if (tab) tab.close();
+      setErr(e?.message || "Failed to open WhatsApp");
+    }
   };
 
   const filteredOrders = useMemo(() => {
@@ -369,29 +371,18 @@ export default function AdminOrdersPage() {
                           {deliveryBooked ? "Lalamove ✓" : busy ? "..." : "Book Lalamove"}
                         </button>
 
-                        {/* ✅ WhatsApp Admin summary */}
-                        <a
-                          href={waAdminLink(o)}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          style={{
-                            padding: "6px 10px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(0,0,0,0.12)",
-                            background: "#fff",
-                            fontWeight: 900,
-                            textDecoration: "none",
-                            color: "#101010",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 8,
-                            opacity: 1,
+                        {/* ✅ WhatsApp Admin + FULL breakdown */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openWhatsAppAdmin(uuid);
                           }}
-                          title="Send order summary to admin WhatsApp"
+                          style={pillButtonStyle("#fff", false)}
                         >
                           WhatsApp Admin
-                        </a>
+                        </button>
 
                         {o.tracking_url ? (
                           <a
