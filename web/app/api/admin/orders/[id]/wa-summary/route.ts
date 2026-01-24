@@ -21,28 +21,68 @@ function formatIDR(n: number) {
   return `Rp ${n.toLocaleString("id-ID")}`;
 }
 
-function parseItems(itemsJson: any) {
-  let items: any[] = [];
-
-  try {
-    if (Array.isArray(itemsJson)) items = itemsJson;
-    else if (typeof itemsJson === "string") {
-      const parsed = JSON.parse(itemsJson);
-      if (Array.isArray(parsed)) items = parsed;
-      else if (parsed && Array.isArray(parsed.items)) items = parsed.items;
-    } else if (itemsJson && typeof itemsJson === "object") {
-      if (Array.isArray((itemsJson as any).items)) items = (itemsJson as any).items;
+function tryParseJson(x: any) {
+  if (!x) return null;
+  if (typeof x === "string") {
+    try {
+      return JSON.parse(x);
+    } catch {
+      return null;
     }
-  } catch {
-    items = [];
+  }
+  return x;
+}
+
+function extractItemsFromUnknown(order: any): { lines: string[]; source: string } {
+  // 1) items_json (string or object)
+  const fromItemsJson = tryParseJson(order.items_json);
+  if (Array.isArray(fromItemsJson)) {
+    return {
+      source: "items_json[]",
+      lines: fromItemsJson.map((it: any) => `- ${String(it.name ?? it.title ?? "Cookie")} ×${Number(it.quantity ?? 1)}`),
+    };
+  }
+  if (fromItemsJson && Array.isArray(fromItemsJson.items)) {
+    return {
+      source: "items_json.items[]",
+      lines: fromItemsJson.items.map((it: any) => `- ${String(it.name ?? it.title ?? "Cookie")} ×${Number(it.quantity ?? 1)}`),
+    };
   }
 
-  return items.map((it: any) => ({
-    name: String(it.name ?? it.title ?? "Cookie"),
-    quantity: Number(it.quantity ?? 1),
-    // optional if you store it
-    boxLabel: String(it.boxLabel ?? it.box ?? ""),
-  }));
+  // 2) items (some schemas store an array directly)
+  const fromItems = tryParseJson(order.items);
+  if (Array.isArray(fromItems)) {
+    return {
+      source: "items[]",
+      lines: fromItems.map((it: any) => `- ${String(it.name ?? it.title ?? "Cookie")} ×${Number(it.quantity ?? 1)}`),
+    };
+  }
+  if (fromItems && Array.isArray(fromItems.items)) {
+    return {
+      source: "items.items[]",
+      lines: fromItems.items.map((it: any) => `- ${String(it.name ?? it.title ?? "Cookie")} ×${Number(it.quantity ?? 1)}`),
+    };
+  }
+
+  // 3) boxes / box summary string (your pending URL had this “boxes” block)
+  const boxesText =
+    String(order.boxes ?? order.boxes_text ?? order.box_summary ?? order.boxes_summary ?? "").trim();
+  if (boxesText) {
+    // Keep it readable in WhatsApp
+    const cleaned = boxesText.replace(/\r\n/g, "\n");
+    return {
+      source: "boxes_text",
+      lines: cleaned.split("\n").map((s) => s.trim()).filter(Boolean).map((s) => `- ${s}`),
+    };
+  }
+
+  // 4) last fallback: notes sometimes include box breakdown
+  const notes = String(order.notes ?? order.order_note ?? "").trim();
+  if (notes) {
+    return { source: "notes", lines: notes.split("\n").map((s) => s.trim()).filter(Boolean).map((s) => `- ${s}`) };
+  }
+
+  return { source: "none", lines: [] };
 }
 
 export async function GET(
@@ -67,10 +107,10 @@ export async function GET(
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     if (!order) return NextResponse.json({ ok: false, error: "Order not found" }, { status: 404 });
 
-    const items = parseItems(order.items_json);
-
     const orderNo = String(order.order_no ?? order.id);
     const total = typeof order.total_idr === "number" ? formatIDR(order.total_idr) : "-";
+
+    const { lines: itemLines, source } = extractItemsFromUnknown(order);
 
     const lines: string[] = [];
     lines.push("Cookie Doh — Order Summary");
@@ -89,17 +129,25 @@ export async function GET(
     lines.push("");
     lines.push(`Total: ${total}`);
 
-    if (items.length) {
-      lines.push("");
-      lines.push("Items:");
-      items.forEach((it) => {
-        lines.push(`- ${it.name} ×${it.quantity}`);
-      });
+    lines.push("");
+    lines.push("Items:");
+    if (itemLines.length) {
+      itemLines.forEach((l) => lines.push(l));
+    } else {
+      lines.push("- (Item breakdown not found in database yet)");
     }
+
+    // Debug hint (won’t show to customer, only admin WhatsApp)
+    lines.push("");
+    lines.push(`(debug: items source = ${source})`);
 
     return NextResponse.json({
       ok: true,
       message: lines.join("\n"),
+      debug: {
+        source,
+        keys: Object.keys(order),
+      },
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
