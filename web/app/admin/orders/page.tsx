@@ -13,21 +13,23 @@ type OrderRow = {
 
   payment_status?: "PENDING" | "PAID" | string;
 
-  // ✅ matches your codebase (British spelling)
+  // keep your current spelling used in this admin UI
   fulfilment_status?: "pending" | "sending" | "sent" | string;
 
-  shipment_status?: string; // e.g. "BOOKED"
-  tracking_url?: string; // we’ll store Lalamove shareLink here
+  shipment_status?: string; // "BOOKED"
+  tracking_url?: string;
 
   destination_area_label?: string;
   shipping_address?: string;
-  building_name?: string;
 
   total_idr?: number;
 
-  // (Optional - if you add coords later)
+  // if you store coords, we can use them
   shipping_lat?: number;
   shipping_lng?: number;
+
+  // OR if you store shipping_json, backend will parse it
+  shipping_json?: any;
 };
 
 type Filter = "all" | "pending" | "paid" | "sending" | "sent";
@@ -38,13 +40,10 @@ const idr = (n?: number) =>
 function isUuid(id: unknown): id is string {
   return (
     typeof id === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-      id
-    )
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
   );
 }
 
-// ✅ Button style helper (uniform & clear)
 const pillButtonStyle = (bg: string, disabled: boolean): React.CSSProperties => ({
   padding: "6px 10px",
   borderRadius: 10,
@@ -56,41 +55,35 @@ const pillButtonStyle = (bg: string, disabled: boolean): React.CSSProperties => 
   opacity: disabled ? 0.6 : 1,
 });
 
+async function safeJson(res: Response) {
+  const text = await res.text();
+  try {
+    return { json: JSON.parse(text), text };
+  } catch {
+    return { json: null, text };
+  }
+}
+
 export default function AdminOrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [errDetail, setErrDetail] = useState<any>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
 
-  // ✅ EDIT THESE ONCE (your Cookie Doh pickup info)
-  const PICKUP = {
-    address: "Cookie Doh HQ (edit this)",
-    lat: -6.200000, // edit this
-    lng: 106.816666, // edit this
-    contactName: "Cookie Doh",
-    contactPhone: "+62XXXXXXXXXXX", // must include +62
-  };
-
-  // ✅ TEMP dropoff coords (until you store shipping_lat/lng)
-  // If your order does not have coords yet, we use a placeholder.
-  // IMPORTANT: Lalamove requires real coordinates. Replace this ASAP.
-  const FALLBACK_DROPOFF = {
-    lat: -6.210000,
-    lng: 106.820000,
-  };
-
   const load = async () => {
     const res = await fetch("/api/admin/orders?limit=80", { cache: "no-store" });
-    const j = await res.json();
-    if (!res.ok) throw new Error(j?.error || "Failed to load orders");
-    setOrders(Array.isArray(j.orders) ? j.orders : []);
+    const { json, text } = await safeJson(res);
+    if (!res.ok) throw new Error(json?.error || `Failed to load orders: ${text?.slice(0, 200)}`);
+    setOrders(Array.isArray(json?.orders) ? json.orders : []);
   };
 
   useEffect(() => {
     (async () => {
       try {
         setErr(null);
+        setErrDetail(null);
         await load();
       } catch (e: any) {
         setErr(e?.message || "Failed to load orders");
@@ -105,11 +98,21 @@ export default function AdminOrdersPage() {
       body: JSON.stringify(body),
     });
 
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(j?.error || "Update failed");
+    const { json, text } = await safeJson(res);
+
+    if (!res.ok) {
+      // show the real reason
+      const msg = json?.error || `Update failed: ${text?.slice(0, 200)}`;
+      const detail = json || text;
+      const error = new Error(msg);
+      (error as any).detail = detail;
+      throw error;
+    }
+
+    return json;
   };
 
-  // ✅ Quick status handler (Paid/Sending/Sent)
+  // ✅ Quick status handler
   const onQuick = async (
     e: React.MouseEvent<HTMLButtonElement>,
     action: "paid" | "sending" | "sent"
@@ -120,60 +123,47 @@ export default function AdminOrdersPage() {
     const id = e.currentTarget.dataset.orderId;
 
     if (!isUuid(id)) {
-      console.error("Invalid order id:", id);
+      setErr("Invalid order id");
+      setErrDetail({ id });
       return;
     }
 
     setBusyId(id);
     try {
+      setErr(null);
+      setErrDetail(null);
+
       if (action === "paid") await patch(id, { payment_status: "PAID" });
       if (action === "sending") await patch(id, { fulfilment_status: "sending" });
       if (action === "sent") await patch(id, { fulfilment_status: "sent" });
 
       await load();
     } catch (e: any) {
-      setErr(e?.message || "Failed to update");
+      setErr(e?.message || "Update failed");
+      setErrDetail(e?.detail || null);
     } finally {
       setBusyId(null);
     }
   };
 
-  // ✅ Book Lalamove (calls your API route)
-  const bookLalamove = async (orderId: string, o: OrderRow) => {
-    const dropoffPhoneRaw = o.customer_phone || "";
-    const dropoffPhone =
-      dropoffPhoneRaw.startsWith("+")
-        ? dropoffPhoneRaw
-        : `+62${dropoffPhoneRaw.replace(/^0/, "")}`;
-
-    const dropoffLat =
-      typeof o.shipping_lat === "number" ? o.shipping_lat : FALLBACK_DROPOFF.lat;
-    const dropoffLng =
-      typeof o.shipping_lng === "number" ? o.shipping_lng : FALLBACK_DROPOFF.lng;
-
-    const res = await fetch(`/api/admin/orders/${orderId}/lalamove`, {
+  // ✅ Book Lalamove
+  const bookLalamove = async (id: string) => {
+    const res = await fetch(`/api/admin/orders/${id}/lalamove`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        pickup: PICKUP,
-        dropoff: {
-          address: o.shipping_address || "Customer address",
-          lat: dropoffLat,
-          lng: dropoffLng,
-          contactName: o.customer_name || "Customer",
-          contactPhone: dropoffPhone,
-        },
-        serviceType: "MOTORCYCLE",
-        language: "id_ID",
-        isPODEnabled: false,
-        remarks: o.order_no ? `Order ${o.order_no}` : undefined,
-      }),
+      body: JSON.stringify({}),
     });
 
-    const j = await res.json().catch(() => ({}));
+    const { json, text } = await safeJson(res);
+
     if (!res.ok) {
-      throw new Error(j?.error || "Failed to book Lalamove");
+      const msg = json?.error || `Lalamove failed: ${text?.slice(0, 200)}`;
+      const error = new Error(msg);
+      (error as any).detail = json || text;
+      throw error;
     }
+
+    return json;
   };
 
   const filteredOrders = useMemo(() => {
@@ -200,7 +190,6 @@ export default function AdminOrdersPage() {
     <main style={{ padding: 18, maxWidth: 1300, margin: "0 auto" }}>
       <h1 style={{ margin: 0, fontSize: 22 }}>Admin — Orders</h1>
 
-      {/* FILTER BAR */}
       <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
         {(
           [
@@ -232,17 +221,26 @@ export default function AdminOrdersPage() {
       {err && (
         <div style={{ marginTop: 12, color: "crimson", fontWeight: 900 }}>
           {err}
+          {errDetail ? (
+            <pre
+              style={{
+                marginTop: 8,
+                background: "rgba(0,0,0,0.04)",
+                padding: 12,
+                borderRadius: 12,
+                overflow: "auto",
+                fontSize: 12,
+                fontWeight: 700,
+                color: "#111",
+              }}
+            >
+              {typeof errDetail === "string" ? errDetail : JSON.stringify(errDetail, null, 2)}
+            </pre>
+          ) : null}
         </div>
       )}
 
-      <div
-        style={{
-          marginTop: 14,
-          border: "1px solid rgba(0,0,0,0.10)",
-          borderRadius: 16,
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "rgba(0,0,0,0.03)" }}>
             <tr>
@@ -250,7 +248,7 @@ export default function AdminOrdersPage() {
               <th style={{ padding: 12, textAlign: "left" }}>Customer</th>
               <th style={{ padding: 12, textAlign: "left" }}>Destination</th>
               <th style={{ padding: 12, textAlign: "left" }}>Total</th>
-              <th style={{ padding: 12, textAlign: "left" }}>Quick</th>
+              <th style={{ padding: 12, textAlign: "left" }}>Actions</th>
             </tr>
           </thead>
 
@@ -266,12 +264,9 @@ export default function AdminOrdersPage() {
 
               const deliveryBooked = o.shipment_status === "BOOKED" || !!o.tracking_url;
 
-              // Disable rules
               const paidDisabled = busy || isPaid;
               const sendingDisabled = busy || !isPaid || isSending || isSent;
               const sentDisabled = busy || !isSending || isSent;
-
-              // Lalamove booking: only after paid, only once
               const bookDisabled = busy || !isPaid || deliveryBooked;
 
               return (
@@ -287,22 +282,16 @@ export default function AdminOrdersPage() {
                     router.push(`/admin/orders/${uuid}`);
                   }}
                 >
-                  <td style={{ padding: 12, fontWeight: 900 }}>
-                    {o.order_no || "—"}
-                  </td>
+                  <td style={{ padding: 12, fontWeight: 900 }}>{o.order_no || "—"}</td>
 
                   <td style={{ padding: 12 }}>
                     <div>{o.customer_name || "—"}</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                      {o.customer_phone || ""}
-                    </div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>{o.customer_phone || ""}</div>
                   </td>
 
                   <td style={{ padding: 12 }}>
                     <div>{o.destination_area_label || "—"}</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                      {o.shipping_address || "—"}
-                    </div>
+                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>{o.shipping_address || "—"}</div>
                   </td>
 
                   <td style={{ padding: 12, fontWeight: 900 }}>{idr(o.total_idr)}</td>
@@ -310,88 +299,67 @@ export default function AdminOrdersPage() {
                   <td style={{ padding: 12 }}>
                     {hasId ? (
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                        {/* PAID (blue) */}
                         <button
                           type="button"
                           data-order-id={uuid}
                           disabled={paidDisabled}
                           onClick={(e) => onQuick(e, "paid")}
                           style={pillButtonStyle("#EAF2FF", paidDisabled)}
-                          title={isPaid ? "Already paid" : "Mark payment as PAID"}
                         >
                           {isPaid ? "Paid ✓" : busy ? "..." : "Paid"}
                         </button>
 
-                        {/* SENDING (purple) */}
                         <button
                           type="button"
                           data-order-id={uuid}
                           disabled={sendingDisabled}
                           onClick={(e) => onQuick(e, "sending")}
                           style={pillButtonStyle("#F2ECFF", sendingDisabled)}
-                          title={!isPaid ? "Pay first" : isSending || isSent ? "Already sending" : "Mark as sending"}
                         >
                           {isSending || isSent ? "Sending ✓" : busy ? "..." : "Sending"}
                         </button>
 
-                        {/* SENT (green) */}
                         <button
                           type="button"
                           data-order-id={uuid}
                           disabled={sentDisabled}
                           onClick={(e) => onQuick(e, "sent")}
                           style={pillButtonStyle("#E8F7EF", sentDisabled)}
-                          title={!isSending ? "Must be sending first" : isSent ? "Already sent" : "Mark as sent"}
                         >
                           {isSent ? "Sent ✓" : busy ? "..." : "Sent"}
                         </button>
 
-                        {/* BOOK LALAMOVE (orange, matches pending vibe but is “delivery action”) */}
                         <button
                           type="button"
                           disabled={bookDisabled}
                           onClick={async (e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (!hasId) return;
-
                             setBusyId(uuid);
                             try {
                               setErr(null);
-                              await bookLalamove(uuid, o);
+                              setErrDetail(null);
+                              await bookLalamove(uuid);
                               await load();
                             } catch (ex: any) {
-                              setErr(ex?.message || "Failed to book Lalamove");
+                              setErr(ex?.message || "Lalamove failed");
+                              setErrDetail(ex?.detail || null);
                             } finally {
                               setBusyId(null);
                             }
                           }}
                           style={pillButtonStyle("#FFF4E5", bookDisabled)}
-                          title={
-                            !isPaid
-                              ? "Pay first"
-                              : deliveryBooked
-                              ? "Already booked"
-                              : "Book Lalamove"
-                          }
                         >
                           {deliveryBooked ? "Lalamove ✓" : busy ? "..." : "Book Lalamove"}
                         </button>
 
-                        {/* TRACK LINK */}
                         {o.tracking_url ? (
                           <a
                             href={o.tracking_url}
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 900,
-                              color: "#0052CC",
-                              textDecoration: "none",
-                              paddingLeft: 4,
-                            }}
+                            style={{ fontSize: 12, fontWeight: 900, color: "#0052CC", textDecoration: "none" }}
                           >
                             Track
                           </a>
