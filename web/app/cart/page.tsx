@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
-import { clearCart, getCart, removeBoxAt, removeSoldOutItemsFromCart, type CartState } from "@/lib/cart";
+import {
+  clearCart,
+  getCart,
+  removeBoxAt,
+  removeSoldOutItemsFromCart,
+  type CartState,
+} from "@/lib/cart";
 
 const COLORS = {
   blue: "#0052CC",
@@ -38,7 +44,10 @@ export default function CartPage() {
     return s;
   }, []);
 
-  const subtotal = useMemo(() => cart.boxes.reduce((sum, b) => sum + (b.total || 0), 0), [cart]);
+  const subtotal = useMemo(
+    () => cart.boxes.reduce((sum, b) => sum + (b.total || 0), 0),
+    [cart]
+  );
 
   const totalItems = useMemo(() => {
     return cart.boxes.reduce((sum, b) => {
@@ -49,7 +58,8 @@ export default function CartPage() {
 
   const unavailableCount = useMemo(() => {
     let n = 0;
-    for (const b of cart.boxes) for (const it of b.items) if (soldOutSet.has(String(it.id))) n += 1;
+    for (const b of cart.boxes)
+      for (const it of b.items) if (soldOutSet.has(String(it.id))) n += 1;
     return n;
   }, [cart, soldOutSet]);
 
@@ -79,8 +89,12 @@ export default function CartPage() {
     <main style={{ minHeight: "100vh", background: COLORS.white }}>
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px 120px" }}>
         <header style={{ marginBottom: 18 }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Your cookie box 🤍</h1>
-          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>Freshly baked and packed with care.</p>
+          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>
+            Your cookie box 🤍
+          </h1>
+          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
+            Freshly baked and packed with care.
+          </p>
         </header>
 
         {!isEmpty && hasUnavailable && (
@@ -95,7 +109,9 @@ export default function CartPage() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
               <div>
-                <div style={{ fontWeight: 950, color: COLORS.black }}>Some items are sold out</div>
+                <div style={{ fontWeight: 950, color: COLORS.black }}>
+                  Some items are sold out
+                </div>
                 <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", lineHeight: 1.5 }}>
                   Remove sold out items to continue to checkout.
                 </div>
@@ -131,7 +147,9 @@ export default function CartPage() {
               padding: 18,
             }}
           >
-            <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.black }}>Your box is waiting 🤍</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.black }}>
+              Your box is waiting 🤍
+            </div>
             <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>
               Start building your cookie box and we’ll bake the rest.
             </div>
@@ -157,6 +175,7 @@ export default function CartPage() {
           </section>
         ) : (
           <>
+            {/* Items */}
             <section style={{ display: "grid", gap: 12 }}>
               {cart.boxes.map((box, idx) => {
                 const boxCount = box.items.reduce((s, it) => s + (it.quantity || 0), 0);
@@ -259,6 +278,48 @@ export default function CartPage() {
               })}
             </section>
 
+            {/* Delivery quote expectation strip */}
+            <section
+              style={{
+                marginTop: 14,
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,0.10)",
+                background: "rgba(0,82,204,0.06)",
+                padding: 14,
+              }}
+            >
+              <div style={{ fontWeight: 950, color: COLORS.black }}>Delivery fee</div>
+              <div style={{ marginTop: 6, color: "rgba(0,0,0,0.68)", lineHeight: 1.55 }}>
+                Delivery is a <b>live quote</b> (Lalamove) and is calculated at checkout based on your address and time.
+              </div>
+
+              <button
+                type="button"
+                onClick={goCheckout}
+                disabled={hasUnavailable}
+                style={{
+                  marginTop: 10,
+                  width: "100%",
+                  borderRadius: 999,
+                  height: 44,
+                  border: "1px solid rgba(0,0,0,0.12)",
+                  background: "#fff",
+                  cursor: hasUnavailable ? "not-allowed" : "pointer",
+                  color: COLORS.black,
+                  fontWeight: 950,
+                }}
+              >
+                Calculate delivery fee at checkout
+              </button>
+
+              {hasUnavailable && (
+                <div style={{ marginTop: 8, color: "rgba(0,0,0,0.62)", fontWeight: 800, fontSize: 12 }}>
+                  Remove sold out items first.
+                </div>
+              )}
+            </section>
+
+            {/* Reassurance */}
             <section
               style={{
                 marginTop: 16,
@@ -276,14 +337,16 @@ export default function CartPage() {
               </div>
             </section>
 
+            {/* Summary */}
             <section style={{ marginTop: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div style={{ fontWeight: 800, color: COLORS.black }}>Subtotal</div>
                 <div style={{ fontWeight: 950, color: COLORS.black }}>{formatIDR(subtotal)}</div>
               </div>
+
               <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "baseline", color: "#6B6B6B" }}>
                 <div>Delivery</div>
-                <div>Calculated at checkout</div>
+                <div style={{ fontWeight: 800 }}>Live quote at checkout (Lalamove)</div>
               </div>
 
               <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -308,6 +371,7 @@ export default function CartPage() {
         )}
       </div>
 
+      {/* Sticky CTA */}
       {!isEmpty && (
         <div
           style={{

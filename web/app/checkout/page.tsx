@@ -27,6 +27,14 @@ type CartState = {
   boxes: CartBox[];
 };
 
+const COLORS = {
+  blue: "#0052CC",
+  orange: "#FF5A00",
+  black: "#101010",
+  white: "#FFFFFF",
+  sand: "#FAF7F2",
+};
+
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -135,6 +143,10 @@ function jakartaHourNow() {
   return Number(h || "0");
 }
 
+function fmtTimeHm(d: Date) {
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
 const INSTANT_SLOTS = [
   { value: "10:00-15:00", label: "10:00 – 15:00" },
   { value: "15:00-18:00", label: "15:00 – 18:00" },
@@ -218,7 +230,15 @@ export default function CheckoutPage() {
   const [shippingCost, setShippingCost] = useState<number | null>(null);
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingError, setShippingError] = useState<string | null>(null);
+
   const [quoteMeta, setQuoteMeta] = useState<any>(null);
+  const [quoteUpdatedAt, setQuoteUpdatedAt] = useState<Date | null>(null);
+
+  // New fields from API
+  const [quoteLabel, setQuoteLabel] = useState<string | null>(null);
+  const [quoteEtaHint, setQuoteEtaHint] = useState<string | null>(null);
+  const [quoteDistanceKm, setQuoteDistanceKm] = useState<number | null>(null);
+  const [quoteRequestId, setQuoteRequestId] = useState<string | null>(null);
 
   const quoteAbortRef = useRef<AbortController | null>(null);
 
@@ -295,7 +315,16 @@ export default function CheckoutPage() {
     setScheduleTouched(false);
   }, [fulfillment, deliverySpeed]);
 
-  const fetchQuote = async () => {
+  const canQuote = fulfillment === "delivery" && addressResolved && addressLat !== null && addressLng !== null;
+
+  const resetQuoteUi = () => {
+    setQuoteLabel(null);
+    setQuoteEtaHint(null);
+    setQuoteDistanceKm(null);
+    setQuoteRequestId(null);
+  };
+
+  const fetchQuote = async (opts?: { manual?: boolean }) => {
     if (fulfillment !== "delivery") return;
     if (!addressResolved || addressLat === null || addressLng === null) return;
 
@@ -315,46 +344,72 @@ export default function CheckoutPage() {
       });
 
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.error || "Failed to calculate delivery fee");
+      if (!res.ok || j?.ok === false) throw new Error(j?.error || "Failed to calculate delivery fee");
 
       const price = Number(j?.price);
       if (!Number.isFinite(price)) throw new Error("Invalid quote price");
 
-      setShippingCost(ceilToThousand(price));
+      const rounded = ceilToThousand(price);
+      setShippingCost(rounded);
+
+      // Use server timestamps when possible (quoteAt), fallback to now
+      const now = j?.quoteAt ? new Date(String(j.quoteAt)) : new Date();
+      setQuoteUpdatedAt(now);
+
+      // New UI fields from API
+      setQuoteLabel(typeof j?.liveQuoteLabel === "string" ? j.liveQuoteLabel : null);
+      setQuoteEtaHint(typeof j?.etaHint === "string" ? j.etaHint : null);
+      setQuoteDistanceKm(Number.isFinite(Number(j?.distanceKm)) ? Number(j.distanceKm) : null);
+      setQuoteRequestId(typeof j?.requestId === "string" ? j.requestId : null);
+
       setQuoteMeta({
-        provider: "lalamove",
-        speed: deliverySpeed,
+        provider: j?.provider || "lalamove",
+        providerLabel: j?.providerLabel || "Lalamove",
+        speed: j?.speed || deliverySpeed,
         serviceType: j?.serviceType || null,
         origin: j?.origin || null,
         rawPrice: j?.rawPrice || null,
-        roundedPrice: price,
-        quotedAt: new Date().toISOString(),
+        roundedPrice: rounded,
+        quotedAt: String(j?.quoteAt || now.toISOString()),
+        requestId: String(j?.requestId || ""),
       });
     } catch (e: any) {
       if (e?.name === "AbortError") return;
-      setShippingCost(null);
-      setQuoteMeta(null);
+
       setShippingError(e?.message || "Unable to calculate delivery fee");
+
+      if (opts?.manual) {
+        // keep previous visible if any
+      } else {
+        setShippingCost(null);
+        setQuoteMeta(null);
+        setQuoteUpdatedAt(null);
+        resetQuoteUi();
+      }
     } finally {
       setShippingLoading(false);
     }
   };
 
+  // Auto re-quote on address/speed change (debounced)
   useEffect(() => {
     if (fulfillment !== "delivery") {
       setShippingCost(0);
       setShippingError(null);
       setShippingLoading(false);
       setQuoteMeta(null);
+      setQuoteUpdatedAt(null);
+      resetQuoteUi();
       return;
     }
-    if (!addressResolved || addressLat === null || addressLng === null) return;
+    if (!canQuote) return;
 
     const t = setTimeout(() => {
-      fetchQuote();
+      fetchQuote({ manual: false });
     }, 450);
 
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fulfillment, deliverySpeed, addressResolved, addressLat, addressLng]);
 
   const deliveryFee = fulfillment === "delivery" ? shippingCost : 0;
@@ -369,7 +424,7 @@ export default function CheckoutPage() {
       if (!addressResolved || addressLat === null || addressLng === null) {
         return "Please choose a valid address from the Google suggestions.";
       }
-      if (shippingCost == null) return "Delivery fee unavailable. Please reselect your address.";
+      if (shippingCost == null) return "Delivery fee unavailable. Please recalculate delivery fee.";
     }
 
     if (!scheduleDate || !scheduleTime) return "Please choose delivery/pickup date and time.";
@@ -399,7 +454,6 @@ export default function CheckoutPage() {
     }
 
     const normalizedPhone = phoneCheck.normalized || normalizeIDPhone(phone);
-
     const fullAddress = addressDetail.trim() ? `${addressBase}\n${addressDetail.trim()}` : addressBase;
 
     setLoading(true);
@@ -443,7 +497,10 @@ export default function CheckoutPage() {
         cart,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
         total: grandTotal,
-        meta: { quote: quoteMeta },
+        meta: {
+          quote: quoteMeta,
+          quote_request_id: quoteRequestId,
+        },
       };
 
       const res = await fetch("/api/checkout", {
@@ -454,7 +511,9 @@ export default function CheckoutPage() {
 
       if (!res.ok) {
         const body = await readErrorBody(res);
-        throw new Error(body ? `Checkout failed (HTTP ${res.status}). ${body}` : `Checkout failed (HTTP ${res.status}).`);
+        throw new Error(
+          body ? `Checkout failed (HTTP ${res.status}). ${body}` : `Checkout failed (HTTP ${res.status}).`
+        );
       }
 
       const data = await res.json().catch(() => ({} as any));
@@ -471,11 +530,21 @@ export default function CheckoutPage() {
     }
   };
 
+  const fallbackLabel = useMemo(() => {
+    if (fulfillment !== "delivery") return null;
+    const provider = quoteMeta?.provider ? String(quoteMeta.provider).toUpperCase() : "LALAMOVE";
+    const speed = deliverySpeed === "instant" ? "Instant" : "Same-day";
+    const svc = quoteMeta?.serviceType ? ` • ${String(quoteMeta.serviceType)}` : "";
+    return `Live quote (${provider}) • ${speed}${svc}`;
+  }, [fulfillment, quoteMeta, deliverySpeed]);
+
+  const shownLabel = quoteLabel || fallbackLabel || (fulfillment === "delivery" ? "Live quote (Lalamove)" : null);
+
   if (booting) {
     return (
       <main style={{ minHeight: "100vh", background: "#fff" }}>
         <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px" }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
+          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Checkout</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>Checking your cart…</p>
         </div>
       </main>
@@ -486,26 +555,26 @@ export default function CheckoutPage() {
     <main style={{ minHeight: "100vh", background: "#fff" }}>
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px 120px" }}>
         <header style={{ marginBottom: 18 }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
+          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Checkout</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>You’re almost there 🤍</p>
         </header>
 
         <div style={{ display: "grid", gap: 14 }}>
           {/* CONTACT */}
           <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
-            <div style={{ fontWeight: 950, color: "#101010" }}>Contact details</div>
+            <div style={{ fontWeight: 950, color: COLORS.black }}>Contact details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               We’ll use this to update you about your order.
             </div>
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Name</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Name</span>
                 <input value={name} onChange={(e) => setName(e.target.value)} style={sameStyle} placeholder="Your name" />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>WhatsApp number</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>WhatsApp number</span>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
@@ -529,7 +598,7 @@ export default function CheckoutPage() {
 
           {/* Fulfillment */}
           <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
-            <div style={{ fontWeight: 950, color: "#101010" }}>Fulfillment</div>
+            <div style={{ fontWeight: 950, color: COLORS.black }}>Fulfillment</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               Choose delivery or pickup, then select date & time.
             </div>
@@ -542,12 +611,12 @@ export default function CheckoutPage() {
                   textAlign: "left",
                   borderRadius: 16,
                   padding: 12,
-                  border: fulfillment === "delivery" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
-                  background: fulfillment === "delivery" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                  border: fulfillment === "delivery" ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
+                  background: fulfillment === "delivery" ? "rgba(0,82,204,0.06)" : COLORS.sand,
                   cursor: "pointer",
                 }}
               >
-                <div style={{ fontWeight: 900, color: "#101010" }}>Delivery</div>
+                <div style={{ fontWeight: 900, color: COLORS.black }}>Delivery</div>
                 <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>We deliver to your address</div>
               </button>
 
@@ -558,19 +627,19 @@ export default function CheckoutPage() {
                   textAlign: "left",
                   borderRadius: 16,
                   padding: 12,
-                  border: fulfillment === "pickup" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
-                  background: fulfillment === "pickup" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                  border: fulfillment === "pickup" ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
+                  background: fulfillment === "pickup" ? "rgba(0,82,204,0.06)" : COLORS.sand,
                   cursor: "pointer",
                 }}
               >
-                <div style={{ fontWeight: 900, color: "#101010" }}>Pickup</div>
+                <div style={{ fontWeight: 900, color: COLORS.black }}>Pickup</div>
                 <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Collect at our pickup point</div>
               </button>
             </div>
 
             {fulfillment === "delivery" ? (
               <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Delivery type</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Delivery type</div>
                 <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <button
                     type="button"
@@ -579,12 +648,12 @@ export default function CheckoutPage() {
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border: deliverySpeed === "instant" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
-                      background: deliverySpeed === "instant" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      border: deliverySpeed === "instant" ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
+                      background: deliverySpeed === "instant" ? "rgba(0,82,204,0.06)" : COLORS.sand,
                       cursor: "pointer",
                     }}
                   >
-                    <div style={{ fontWeight: 900, color: "#101010" }}>Instant</div>
+                    <div style={{ fontWeight: 900, color: COLORS.black }}>Instant</div>
                     <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Two time slots</div>
                   </button>
 
@@ -596,13 +665,13 @@ export default function CheckoutPage() {
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border: deliverySpeed === "sameday" ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
-                      background: deliverySpeed === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                      border: deliverySpeed === "sameday" ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
+                      background: deliverySpeed === "sameday" ? "rgba(0,82,204,0.06)" : COLORS.sand,
                       cursor: samedayDisabled ? "not-allowed" : "pointer",
                       opacity: samedayDisabled ? 0.55 : 1,
                     }}
                   >
-                    <div style={{ fontWeight: 900, color: "#101010" }}>Same-day</div>
+                    <div style={{ fontWeight: 900, color: COLORS.black }}>Same-day</div>
                     <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
                       08:00 – 22:00 {samedayDisabled ? "• Cutoff 12:00" : ""}
                     </div>
@@ -618,7 +687,7 @@ export default function CheckoutPage() {
             {/* Schedule */}
             <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>
                   {fulfillment === "pickup" ? "Pickup date" : "Delivery date"}
                 </span>
                 <select value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} onBlur={() => setScheduleTouched(true)} style={sameStyle}>
@@ -630,7 +699,7 @@ export default function CheckoutPage() {
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>
                   {fulfillment === "pickup" ? "Pickup time" : "Delivery time"}
                 </span>
 
@@ -656,7 +725,7 @@ export default function CheckoutPage() {
 
             {fulfillment === "pickup" ? (
               <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Pickup point</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Pickup point</div>
 
                 {!pickupPoints.length ? (
                   <div style={{ marginTop: 8, color: "crimson", fontWeight: 800, fontSize: 12 }}>
@@ -675,12 +744,12 @@ export default function CheckoutPage() {
                             textAlign: "left",
                             borderRadius: 16,
                             padding: 12,
-                            border: active ? "2px solid #0052CC" : "1px solid rgba(0,0,0,0.10)",
-                            background: active ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                            border: active ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
+                            background: active ? "rgba(0,82,204,0.06)" : COLORS.sand,
                             cursor: "pointer",
                           }}
                         >
-                          <div style={{ fontWeight: 900, color: "#101010" }}>{p.name}</div>
+                          <div style={{ fontWeight: 900, color: COLORS.black }}>{p.name}</div>
                           <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>{p.address}</div>
                         </button>
                       );
@@ -694,14 +763,14 @@ export default function CheckoutPage() {
           {/* Delivery details */}
           {fulfillment === "delivery" ? (
             <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
-              <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
+              <div style={{ fontWeight: 950, color: COLORS.black }}>Delivery details</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
                 Please double-check your address to avoid delivery delays.
               </div>
 
               <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                 <div style={{ display: "grid", gap: 6 }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Address</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Address</div>
 
                   <GoogleAddressInput
                     apiKey={mapsKey}
@@ -734,13 +803,89 @@ export default function CheckoutPage() {
                   {!mapsKey && <div style={{ fontSize: 12, color: "#6B6B6B" }}>(Autocomplete is off because Google Maps API key is not set.)</div>}
                 </div>
 
+                {/* Live quote controls */}
+                <div
+                  style={{
+                    borderRadius: 16,
+                    border: "1px solid rgba(0,0,0,0.10)",
+                    background: COLORS.sand,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                    <div style={{ fontWeight: 950, color: COLORS.black }}>
+                      {shownLabel || "Live quote (Lalamove)"}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fetchQuote({ manual: true })}
+                      disabled={!canQuote || shippingLoading}
+                      style={{
+                        border: "1px solid rgba(0,0,0,0.12)",
+                        background: "#fff",
+                        borderRadius: 999,
+                        padding: "10px 12px",
+                        fontWeight: 900,
+                        cursor: !canQuote || shippingLoading ? "not-allowed" : "pointer",
+                        opacity: !canQuote || shippingLoading ? 0.6 : 1,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {shippingLoading ? "Recalculating…" : "Recalculate"}
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
+                      {quoteUpdatedAt ? `Updated ${fmtTimeHm(quoteUpdatedAt)}` : "Select an address to get a live quote"}
+                    </div>
+                    <div style={{ fontWeight: 950, color: COLORS.black }}>
+                      {shippingLoading ? "Calculating…" : shippingCost != null ? formatIDR(shippingCost) : "—"}
+                    </div>
+                  </div>
+
+                  {/* New: ETA hint + distance */}
+                  {(quoteEtaHint || quoteDistanceKm != null) && !shippingError ? (
+                    <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                      {quoteEtaHint ? (
+                        <div style={{ color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
+                          {quoteEtaHint}
+                        </div>
+                      ) : null}
+                      {quoteDistanceKm != null ? (
+                        <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
+                          Distance: ~{quoteDistanceKm} km
+                        </div>
+                      ) : null}
+                      {quoteRequestId ? (
+                        <div style={{ color: "rgba(0,0,0,0.45)", fontWeight: 800, fontSize: 11 }}>
+                          Quote ID: {quoteRequestId}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {shippingError ? (
+                    <div style={{ marginTop: 8, color: "crimson", fontWeight: 900, fontSize: 12, lineHeight: 1.4 }}>
+                      {shippingError}
+                      <span style={{ color: "rgba(0,0,0,0.55)", fontWeight: 800 }}>
+                        {" "}— try “Recalculate” or reselect your address.
+                      </span>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 8, color: "#6B6B6B", fontWeight: 700, fontSize: 12 }}>
+                      Live quote may change based on traffic and driver availability.
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ display: "grid", gap: 8 }}>
                   <input value={buildingName} onChange={(e) => setBuildingName(e.target.value)} placeholder="Building name (auto, editable)" style={sameStyle} />
                   <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Postal code (auto, editable)" style={sameStyle} />
                 </div>
 
                 <label style={{ display: "grid", gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes (optional)</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Notes (optional)</span>
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
@@ -752,13 +897,13 @@ export default function CheckoutPage() {
             </section>
           ) : (
             <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
-              <div style={{ fontWeight: 950, color: "#101010" }}>Pickup notes (optional)</div>
+              <div style={{ fontWeight: 950, color: COLORS.black }}>Pickup notes (optional)</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
                 Tell us anything we should know for pickup.
               </div>
 
               <label style={{ marginTop: 12, display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Notes</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Notes</span>
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -771,7 +916,7 @@ export default function CheckoutPage() {
 
           {/* Order summary */}
           <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
-            <div style={{ fontWeight: 950, color: "#101010" }}>Your order 🤍</div>
+            <div style={{ fontWeight: 950, color: COLORS.black }}>Your order 🤍</div>
 
             <div style={{ marginTop: 12, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", color: "#6B6B6B", fontWeight: 800 }}>
@@ -794,11 +939,11 @@ export default function CheckoutPage() {
 
               {fulfillment === "delivery" && shippingError ? (
                 <div style={{ marginTop: 6, color: "crimson", fontWeight: 900, fontSize: 12 }}>
-                  {shippingError} (please reselect address)
+                  Delivery quote failed. Please press <b>Recalculate</b> in Delivery details.
                 </div>
               ) : null}
 
-              <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", color: "#101010", fontWeight: 950 }}>
+              <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", color: COLORS.black, fontWeight: 950 }}>
                 <div>Total</div>
                 <div>{formatIDR(grandTotal)}</div>
               </div>
@@ -820,7 +965,7 @@ export default function CheckoutPage() {
             </div>
 
             <div style={{ marginTop: 12 }}>
-              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+              <Link href="/cart" style={{ color: COLORS.blue, fontWeight: 800, textDecoration: "none" }}>
                 ← Back to cart
               </Link>
             </div>
@@ -828,7 +973,7 @@ export default function CheckoutPage() {
 
           {err && (
             <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff" }}>
-              <div style={{ fontWeight: 950, color: "#101010" }}>Hmm, something doesn’t look right.</div>
+              <div style={{ fontWeight: 950, color: COLORS.black }}>Hmm, something doesn’t look right.</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{err}</div>
             </section>
           )}
@@ -840,19 +985,23 @@ export default function CheckoutPage() {
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
             onClick={placeOrder}
-            disabled={loading || (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading))}
+            disabled={
+              loading ||
+              (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading))
+            }
             style={{
               width: "100%",
               borderRadius: 999,
               height: 52,
               border: "none",
               cursor: loading ? "not-allowed" : "pointer",
-              background: loading ? "rgba(0,82,204,0.55)" : "#0052CC",
+              background: loading ? "rgba(0,82,204,0.55)" : COLORS.blue,
               color: "#fff",
               fontWeight: 950,
               fontSize: 16,
               boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
-              opacity: fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading) ? 0.6 : 1,
+              opacity:
+                (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading)) ? 0.6 : 1,
             }}
           >
             {loading ? "Preparing payment…" : "Place order"}
