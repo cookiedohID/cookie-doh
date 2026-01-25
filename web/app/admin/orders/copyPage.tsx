@@ -1,3 +1,6 @@
+
+
+/*
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -6,16 +9,20 @@ import { useRouter } from "next/navigation";
 type OrderRow = {
   id: string;
   order_no?: string;
+  created_at?: string;
 
   customer_name?: string;
   customer_phone?: string;
 
   payment_status?: "PENDING" | "PAID" | string;
 
+  // Some code paths use this spelling
   fulfilment_status?: "pending" | "sending" | "sent" | string;
+
+  // DB column (you inserted in /api/checkout)
   fulfillment_status?: "delivery" | "pickup" | string;
 
-  shipment_status?: string;
+  shipment_status?: string; // "BOOKED" etc
   tracking_url?: string;
 
   destination_area_label?: string;
@@ -23,10 +30,11 @@ type OrderRow = {
 
   total_idr?: number;
 
+  // NEW: meta can hold schedule + pickup point
   meta?: any;
 };
 
-const ADMIN_WA = "6281932181818";
+const ADMIN_WA = "6281932181818"; // admin WA number (no +)
 
 type Filter = "all" | "pending" | "paid" | "sending" | "sent";
 
@@ -87,12 +95,15 @@ function parseMeta(meta: any) {
 
 function getScheduleInfo(o: OrderRow) {
   const meta = parseMeta(o.meta);
-  const fulfillment = meta?.fulfillment || null;
-  const pickup = meta?.pickup || null;
+  const fulfillment = meta?.fulfillment || null; // { type, scheduleDate, scheduleTime }
+  const pickup = meta?.pickup || null; // { pointName, pointAddress }
 
-  const type = (fulfillment?.type || o.fulfillment_status || "").toString().trim() || "";
+  const type =
+    (fulfillment?.type || o.fulfillment_status || "").toString().trim() || "";
+
   const scheduleDate = (fulfillment?.scheduleDate || "").toString().trim();
   const scheduleTime = (fulfillment?.scheduleTime || "").toString().trim();
+
   const pickupPoint = (pickup?.pointName || "").toString().trim();
 
   return { type, scheduleDate, scheduleTime, pickupPoint };
@@ -197,6 +208,7 @@ export default function AdminOrdersPage() {
     return json;
   };
 
+  // ✅ WhatsApp Admin: fetch full summary from server (includes items when available)
   const openWhatsAppAdmin = async (orderId: string) => {
     const tab = window.open("about:blank", "_blank");
     try {
@@ -236,10 +248,10 @@ export default function AdminOrdersPage() {
   }, [orders, filter]);
 
   const rowColor = (o: OrderRow) => {
-    if (o.fulfilment_status === "sent") return "#E8F7EF";
-    if (o.fulfilment_status === "sending") return "#F2ECFF";
-    if (o.payment_status === "PAID") return "#EAF2FF";
-    if (o.payment_status === "PENDING") return "#FFF4E5";
+    if (o.fulfilment_status === "sent") return "#E8F7EF"; // green
+    if (o.fulfilment_status === "sending") return "#F2ECFF"; // purple
+    if (o.payment_status === "PAID") return "#EAF2FF"; // blue
+    if (o.payment_status === "PENDING") return "#FFF4E5"; // orange
     return "#fff";
   };
 
@@ -297,7 +309,14 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, overflow: "hidden" }}>
+      <div
+        style={{
+          marginTop: 14,
+          border: "1px solid rgba(0,0,0,0.10)",
+          borderRadius: 16,
+          overflow: "hidden",
+        }}
+      >
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "rgba(0,0,0,0.03)" }}>
             <tr>
@@ -328,6 +347,7 @@ export default function AdminOrdersPage() {
               const bookDisabled = busy || !isPaid || deliveryBooked;
 
               const schedule = getScheduleInfo(o);
+
               const scheduleText =
                 schedule.scheduleDate && schedule.scheduleTime
                   ? `${schedule.scheduleDate} • ${schedule.scheduleTime}`
@@ -369,12 +389,15 @@ export default function AdminOrdersPage() {
                     </div>
                   </td>
 
-                  <td style={{ padding: 12 }}>
+                  {/* ✅ NEW schedule column */}
+/*                  <td style={{ padding: 12 }}>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                       <span style={badgeStyle("rgba(0,82,204,0.08)")}>{fulfillmentLabel}</span>
                       <span style={badgeStyle("rgba(0,0,0,0.04)")}>{scheduleText}</span>
                       {schedule.type === "pickup" && schedule.pickupPoint ? (
-                        <span style={badgeStyle("rgba(0,0,0,0.04)")}>📍 {schedule.pickupPoint}</span>
+                        <span style={badgeStyle("rgba(0,0,0,0.04)")}>
+                          📍 {schedule.pickupPoint}
+                        </span>
                       ) : null}
                     </div>
                   </td>
@@ -446,6 +469,7 @@ export default function AdminOrdersPage() {
                             openWhatsAppAdmin(uuid);
                           }}
                           style={pillButtonStyle("#fff", false)}
+                          title="Send order summary to admin WhatsApp"
                         >
                           WhatsApp Admin
                         </button>
@@ -456,7 +480,12 @@ export default function AdminOrdersPage() {
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            style={{ fontSize: 12, fontWeight: 900, color: "#0052CC", textDecoration: "none" }}
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 900,
+                              color: "#0052CC",
+                              textDecoration: "none",
+                            }}
                           >
                             Track
                           </a>
@@ -483,3 +512,4 @@ export default function AdminOrdersPage() {
     </main>
   );
 }
+*/
