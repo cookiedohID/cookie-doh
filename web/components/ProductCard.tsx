@@ -92,18 +92,13 @@ export default function ProductCard({
         {/* Badges */}
         {!isSoldOut &&
           topBadges.map((b, i) => (
-            <div
-              key={b}
-              className={styles.badge}
-              style={{ top: 10 + i * 36 }}
-            >
+            <div key={b} className={styles.badge} style={{ top: 10 + i * 36 }}>
               {b}
             </div>
           ))}
       </div>
 
       <div className={styles.body}>
-        {/* Title only (quantity removed from here) */}
         <h3 className={styles.title}>{flavor.name}</h3>
 
         <p className={styles.ingredients} title={flavor.ingredients}>
@@ -165,15 +160,18 @@ export default function ProductCard({
             {ctaText}
             <span className={styles.plus}>+</span>
 
-            {/* ✅ Quantity now lives HERE */}
+            {/* ✅ Quantity pill — warm white / beige for contrast */}
             {quantity > 0 && (
               <span
                 style={{
                   marginLeft: 6,
                   minWidth: 22,
                   height: 22,
+                  padding: "0 6px",
                   borderRadius: 999,
-                  background: "rgba(255,255,255,0.2)",
+                  background: "#FFF7EC", // soft warm white / beige
+                  color: "#101010",
+                  border: "1px solid rgba(0,0,0,0.18)",
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
