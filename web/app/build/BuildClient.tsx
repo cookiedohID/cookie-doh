@@ -1,14 +1,13 @@
-// web/app/build/BuildClient.tsx
 "use client";
 
+// web/app/build/BuildClient.tsx
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addBoxToCart } from "@/lib/cart";
 import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
-import { useFlavorAvailability } from "@/lib/useFlavorAvailability";
 
-type BoxSize = 1 | 3 | 6;
+type BoxSize = 3 | 6;
 
 const COLORS = {
   blue: "#0052CC",
@@ -27,14 +26,26 @@ const formatIDR = (n: number) =>
   }).format(n);
 
 const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
-  { size: 1, title: "1 cookie", desc: "Just one, just because" },
   { size: 3, title: "3 cookies", desc: "Perfect for a little treat" },
   { size: 6, title: "6 cookies", desc: "Just right for sharing" },
 ];
 
+function toCardFlavor(f: any): CardFlavorUI {
+  return {
+    id: String(f.id),
+    name: String(f.name ?? ""),
+    image: String(f.image ?? ""),
+    ingredients: String(f.description ?? ""),
+    textureTags: Array.isArray(f.tags) ? f.tags : [],
+    intensity: f.intensity,
+    badges: Array.isArray(f.badges) ? f.badges : [],
+    price: COOKIE_PRICE,
+    soldOut: Boolean(f.soldOut),
+  };
+}
+
 export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: BoxSize }) {
   const router = useRouter();
-  const { map: availabilityMap } = useFlavorAvailability();
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -42,30 +53,9 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
   const pulseKeyRef = useRef(0);
   const [pulseKey, setPulseKey] = useState(0);
 
-  const cardFlavors = useMemo(() => {
-    return CATALOG_FLAVORS.map((f: any) => {
-      const override = availabilityMap[String(f.id)];
-      const soldOut = typeof override === "boolean" ? override : Boolean(f.soldOut);
+  const cardFlavors = useMemo(() => CATALOG_FLAVORS.map(toCardFlavor), []);
 
-      const out: CardFlavorUI = {
-        id: String(f.id),
-        name: String(f.name ?? ""),
-        image: String(f.image ?? ""),
-        ingredients: String(f.description ?? ""),
-        textureTags: Array.isArray(f.tags) ? f.tags : [],
-        intensity: f.intensity,
-        badges: Array.isArray(f.badges) ? f.badges : [],
-        price: COOKIE_PRICE,
-        soldOut,
-      };
-      return out;
-    });
-  }, [availabilityMap]);
-
-  const totalCount = useMemo(
-    () => Object.values(qty).reduce((a, b) => a + b, 0),
-    [qty]
-  );
+  const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
 
   const remaining = Math.max(0, boxSize - totalCount);
   const canAddMore = totalCount < boxSize;
@@ -113,6 +103,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
     router.push("/cart");
   };
 
+  // Locked: ONLY “Add X more”
   const bannerText = isFull
     ? "Box complete"
     : isEmpty
@@ -120,9 +111,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       : `Add ${remaining} more`;
 
   const bannerBg = isFull ? "rgba(0,0,0,0.03)" : "rgba(0,82,204,0.06)";
-  const bannerBorder = isFull
-    ? "1px solid rgba(0,0,0,0.10)"
-    : "1px solid rgba(0,82,204,0.25)";
+  const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,82,204,0.25)";
 
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
@@ -141,10 +130,11 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           </p>
         </header>
 
+        {/* Box size cards (ONLY 3 & 6) */}
         <section
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
             gap: 10,
             marginBottom: 14,
           }}
@@ -176,6 +166,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           })}
         </section>
 
+        {/* Progress banner */}
         <section style={{ marginBottom: 18 }}>
           <div
             key={pulseKey}
@@ -232,6 +223,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           )}
         </section>
 
+        {/* Flavor grid */}
         <section
           style={{
             display: "grid",
@@ -253,6 +245,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         </section>
       </div>
 
+      {/* Sticky bottom bar */}
       <div
         style={{
           position: "fixed",
