@@ -61,7 +61,7 @@ export default function ProductCard({
           sizes="(max-width: 768px) 50vw, 25vw"
         />
 
-        {/* SOLD OUT OVERLAY (clear + obvious) */}
+        {/* SOLD OUT overlay */}
         {isSoldOut && (
           <div
             style={{
@@ -103,10 +103,8 @@ export default function ProductCard({
       </div>
 
       <div className={styles.body}>
-        <div className={styles.redRow}>
-          <h3 className={styles.title}>{flavor.name}</h3>
-          <div className={styles.qtyPill}>{quantity}</div>
-        </div>
+        {/* Title only (quantity removed from here) */}
+        <h3 className={styles.title}>{flavor.name}</h3>
 
         <p className={styles.ingredients} title={flavor.ingredients}>
           {flavor.ingredients}
@@ -147,6 +145,7 @@ export default function ProductCard({
           </div>
         )}
 
+        {/* CTA row */}
         <div className={styles.ctaRow}>
           <button
             className={styles.minusBtn}
@@ -163,7 +162,28 @@ export default function ProductCard({
             disabled={addDisabled}
             aria-label={isSoldOut ? "Sold out" : `Add ${flavor.name}`}
           >
-            {ctaText} <span className={styles.plus}>+</span>
+            {ctaText}
+            <span className={styles.plus}>+</span>
+
+            {/* ✅ Quantity now lives HERE */}
+            {quantity > 0 && (
+              <span
+                style={{
+                  marginLeft: 6,
+                  minWidth: 22,
+                  height: 22,
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.2)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 12,
+                  fontWeight: 900,
+                }}
+              >
+                {quantity}
+              </span>
+            )}
           </button>
         </div>
       </div>
