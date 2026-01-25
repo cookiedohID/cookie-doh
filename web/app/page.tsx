@@ -5,17 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
+import { addBoxToCart, type CartBox } from "@/lib/cart";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
-
-type CartItem = {
-  boxSize: 1 | 3 | 6;
-  items: { flavorId: string; qty: number }[];
-  price: number;
-  createdAt: number;
-  giftNote?: string;
-};
-
-const CART_KEY = "cookieDohCart";
 
 const COLORS = {
   blue: "#0052CC", // Pantone 293C vibe
@@ -25,26 +16,24 @@ const COLORS = {
   orange: "#FF5A00", // Accent (021C-ish)
 };
 
+const COOKIE_PRICE = 32500; // builder uses fixed per-cookie price; box total comes from BOX_PRICES
+
 function safeGetName(flavorId: string) {
   const f = FLAVORS.find((x: any) => x.id === flavorId);
   return f?.name ?? flavorId;
 }
 
-/**
- * Homepage uses ProductCard to display flavors consistently.
- * We normalize catalog flavors into ProductCard's expected shape.
- */
 function toCardFlavor(f: any): CardFlavorUI {
   return {
     id: String(f.id),
     name: String(f.name ?? ""),
     image: String(f.image ?? ""),
-    ingredients: String(f.ingredients ?? f.description ?? ""),
-    textureTags: Array.isArray(f.textureTags) ? f.textureTags : Array.isArray(f.tags) ? f.tags : [],
+    ingredients: String(f.description ?? ""),
+    textureTags: Array.isArray(f.tags) ? f.tags : [],
     intensity: f.intensity,
     badges: Array.isArray(f.badges) ? f.badges : [],
-    price: typeof f.price === "number" ? f.price : undefined,
-    soldOut: Boolean(f.soldOut), // if your catalog has it
+    price: COOKIE_PRICE,
+    soldOut: Boolean(f.soldOut),
   };
 }
 
@@ -72,22 +61,28 @@ export default function HomePage() {
   );
 
   function addPresetToCart(boxSize: 3 | 6, items: { flavorId: string; qty: number }[]) {
-    const item: CartItem = {
+    // Convert preset items into the unified cart schema
+    const cartItems = items
+      .map((x) => {
+        const f = FLAVORS.find((ff: any) => ff.id === x.flavorId);
+        if (!f) return null;
+        return {
+          id: String(f.id),
+          name: String(f.name),
+          image: String(f.image ?? ""),
+          quantity: Number(x.qty),
+          price: COOKIE_PRICE,
+        };
+      })
+      .filter(Boolean) as CartBox["items"];
+
+    const box: CartBox = {
       boxSize,
-      items,
-      price: BOX_PRICES[boxSize],
-      createdAt: Date.now(),
+      items: cartItems,
+      total: BOX_PRICES[boxSize],
     };
 
-    try {
-      const raw = localStorage.getItem(CART_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const current: CartItem[] = Array.isArray(parsed) ? parsed : [];
-      localStorage.setItem(CART_KEY, JSON.stringify([item, ...current]));
-    } catch {
-      // ignore
-    }
-
+    addBoxToCart(box);
     router.push("/cart");
   }
 
@@ -288,7 +283,7 @@ export default function HomePage() {
                 </button>
 
                 <Link
-                  href="/build/3"
+                  href="/build"
                   style={{
                     textAlign: "center",
                     textDecoration: "none",
@@ -356,7 +351,7 @@ export default function HomePage() {
                 </button>
 
                 <Link
-                  href="/build/6"
+                  href="/build"
                   style={{
                     textAlign: "center",
                     textDecoration: "none",
@@ -377,7 +372,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FLAVOURS (uses ProductCard system) */}
+      {/* FLAVOURS */}
       <section style={{ background: COLORS.bg, padding: "44px 16px 70px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 14 }}>
@@ -387,7 +382,6 @@ export default function HomePage() {
               </h2>
               <p style={{ margin: "8px 0 0", color: "#6B6B6B", maxWidth: 560 }}>
                 Tap any flavour to start building your box.
-                <span style={{ color: COLORS.orange, fontWeight: 800 }}> </span>
               </p>
             </div>
 

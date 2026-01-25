@@ -1,30 +1,11 @@
+// web/app/cart/page.tsx
 "use client";
 
-// web/app/cart/page.tsx
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
-
-type CartItem = {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  image?: string;
-};
-
-type CartBox = {
-  boxSize: number;
-  items: CartItem[];
-  total: number;
-};
-
-type CartState = {
-  boxes: CartBox[];
-};
-
-const CART_KEY = "cookie_doh_cart_v1";
+import { clearCart, getCart, removeBoxAt, removeSoldOutItemsFromCart, type CartState } from "@/lib/cart";
 
 const COLORS = {
   blue: "#0052CC",
@@ -41,28 +22,12 @@ const formatIDR = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-function readCart(): CartState {
-  try {
-    const raw = localStorage.getItem(CART_KEY);
-    if (!raw) return { boxes: [] };
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.boxes)) return { boxes: [] };
-    return parsed as CartState;
-  } catch {
-    return { boxes: [] };
-  }
-}
-
-function writeCart(state: CartState) {
-  localStorage.setItem(CART_KEY, JSON.stringify(state));
-}
-
 export default function CartPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartState>({ boxes: [] });
 
   useEffect(() => {
-    setCart(readCart());
+    setCart(getCart());
   }, []);
 
   const soldOutSet = useMemo(() => {
@@ -73,9 +38,7 @@ export default function CartPage() {
     return s;
   }, []);
 
-  const subtotal = useMemo(() => {
-    return cart.boxes.reduce((sum, b) => sum + (b.total || 0), 0);
-  }, [cart]);
+  const subtotal = useMemo(() => cart.boxes.reduce((sum, b) => sum + (b.total || 0), 0), [cart]);
 
   const totalItems = useMemo(() => {
     return cart.boxes.reduce((sum, b) => {
@@ -86,54 +49,25 @@ export default function CartPage() {
 
   const unavailableCount = useMemo(() => {
     let n = 0;
-    for (const b of cart.boxes) {
-      for (const it of b.items) {
-        if (soldOutSet.has(String(it.id))) n += 1;
-      }
-    }
+    for (const b of cart.boxes) for (const it of b.items) if (soldOutSet.has(String(it.id))) n += 1;
     return n;
   }, [cart, soldOutSet]);
 
   const hasUnavailable = unavailableCount > 0;
+  const isEmpty = cart.boxes.length === 0;
 
-  const removeBox = (idx: number) => {
-    setCart((prev) => {
-      const next = { boxes: prev.boxes.slice() };
-      next.boxes.splice(idx, 1);
-      writeCart(next);
-      return next;
-    });
+  const onRemoveBox = (idx: number) => {
+    removeBoxAt(idx);
+    setCart(getCart());
   };
 
-  const removeUnavailableItems = () => {
-    setCart((prev) => {
-      const next: CartState = {
-        boxes: prev.boxes
-          .map((b) => ({
-            ...b,
-            items: b.items.filter((it) => !soldOutSet.has(String(it.id))),
-          }))
-          .filter((b) => b.items.length > 0),
-      };
-
-      // Recompute totals for boxes (keep safe even if totals were precomputed)
-      next.boxes = next.boxes.map((b) => {
-        const total = b.items.reduce(
-          (sum, it) => sum + Number(it.price || 0) * Number(it.quantity || 0),
-          0
-        );
-        return { ...b, total: b.total && b.total > 0 ? b.total : total };
-      });
-
-      writeCart(next);
-      return next;
-    });
+  const onClearCart = () => {
+    clearCart();
+    setCart(getCart());
   };
 
-  const clearCart = () => {
-    const next = { boxes: [] as CartBox[] };
-    writeCart(next);
-    setCart(next);
+  const onRemoveSoldOut = () => {
+    setCart(removeSoldOutItemsFromCart());
   };
 
   const goCheckout = () => {
@@ -141,21 +75,14 @@ export default function CartPage() {
     router.push("/checkout");
   };
 
-  const isEmpty = cart.boxes.length === 0;
-
   return (
     <main style={{ minHeight: "100vh", background: COLORS.white }}>
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px 120px" }}>
         <header style={{ marginBottom: 18 }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>
-            Your cookie box 🤍
-          </h1>
-          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
-            Freshly baked and packed with care.
-          </p>
+          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Your cookie box 🤍</h1>
+          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>Freshly baked and packed with care.</p>
         </header>
 
-        {/* Unavailable alert */}
         {!isEmpty && hasUnavailable && (
           <section
             style={{
@@ -168,17 +95,15 @@ export default function CartPage() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
               <div>
-                <div style={{ fontWeight: 950, color: COLORS.black }}>
-                  Some items are sold out
-                </div>
+                <div style={{ fontWeight: 950, color: COLORS.black }}>Some items are sold out</div>
                 <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", lineHeight: 1.5 }}>
-                  Remove the sold out items to continue to checkout.
+                  Remove sold out items to continue to checkout.
                 </div>
               </div>
 
               <button
                 type="button"
-                onClick={removeUnavailableItems}
+                onClick={onRemoveSoldOut}
                 style={{
                   border: "none",
                   background: COLORS.blue,
@@ -206,9 +131,7 @@ export default function CartPage() {
               padding: 18,
             }}
           >
-            <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.black }}>
-              Your box is waiting 🤍
-            </div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: COLORS.black }}>Your box is waiting 🤍</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>
               Start building your cookie box and we’ll bake the rest.
             </div>
@@ -234,7 +157,6 @@ export default function CartPage() {
           </section>
         ) : (
           <>
-            {/* Items */}
             <section style={{ display: "grid", gap: 12 }}>
               {cart.boxes.map((box, idx) => {
                 const boxCount = box.items.reduce((s, it) => s + (it.quantity || 0), 0);
@@ -250,20 +172,13 @@ export default function CartPage() {
                       boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        alignItems: "baseline",
-                      }}
-                    >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
                       <div style={{ fontWeight: 950, color: COLORS.black }}>
                         Box of {box.boxSize} • {boxCount} cookies
                       </div>
 
                       <button
-                        onClick={() => removeBox(idx)}
+                        onClick={() => onRemoveBox(idx)}
                         style={{
                           border: "none",
                           background: "transparent",
@@ -279,7 +194,6 @@ export default function CartPage() {
                     <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                       {box.items.map((it) => {
                         const isSoldOut = soldOutSet.has(String(it.id));
-
                         return (
                           <div
                             key={it.id}
@@ -308,14 +222,7 @@ export default function CartPage() {
                               </div>
 
                               {isSoldOut && (
-                                <div
-                                  style={{
-                                    marginTop: 6,
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 8,
-                                  }}
-                                >
+                                <div style={{ marginTop: 6, display: "inline-flex", alignItems: "center", gap: 8 }}>
                                   <span
                                     style={{
                                       display: "inline-flex",
@@ -343,25 +250,15 @@ export default function CartPage() {
                       })}
                     </div>
 
-                    <div
-                      style={{
-                        marginTop: 12,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "baseline",
-                      }}
-                    >
+                    <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                       <div style={{ color: "#6B6B6B" }}>Box total</div>
-                      <div style={{ fontWeight: 950, color: COLORS.black }}>
-                        {formatIDR(box.total || 0)}
-                      </div>
+                      <div style={{ fontWeight: 950, color: COLORS.black }}>{formatIDR(box.total || 0)}</div>
                     </div>
                   </article>
                 );
               })}
             </section>
 
-            {/* Reassurance */}
             <section
               style={{
                 marginTop: 16,
@@ -371,15 +268,7 @@ export default function CartPage() {
                 padding: 14,
               }}
             >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 10,
-                  color: "#3C3C3C",
-                  fontSize: 13,
-                }}
-              >
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, color: "#3C3C3C", fontSize: 13 }}>
                 <div>✨ Baked fresh on order</div>
                 <div>✨ Limited daily batches</div>
                 <div>✨ Jakarta delivery</div>
@@ -387,41 +276,22 @@ export default function CartPage() {
               </div>
             </section>
 
-            {/* Summary */}
             <section style={{ marginTop: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div style={{ fontWeight: 800, color: COLORS.black }}>Subtotal</div>
                 <div style={{ fontWeight: 950, color: COLORS.black }}>{formatIDR(subtotal)}</div>
               </div>
-
-              <div
-                style={{
-                  marginTop: 6,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "baseline",
-                  color: "#6B6B6B",
-                }}
-              >
+              <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "baseline", color: "#6B6B6B" }}>
                 <div>Delivery</div>
                 <div>Calculated at checkout</div>
               </div>
 
-              <div
-                style={{
-                  marginTop: 14,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  flexWrap: "wrap",
-                }}
-              >
+              <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                 <Link href="/build" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
                   ← Add more cookies
                 </Link>
-
                 <button
-                  onClick={clearCart}
+                  onClick={onClearCart}
                   style={{
                     border: "none",
                     background: "transparent",
@@ -438,7 +308,6 @@ export default function CartPage() {
         )}
       </div>
 
-      {/* Sticky CTA */}
       {!isEmpty && (
         <div
           style={{
@@ -455,9 +324,7 @@ export default function CartPage() {
           <div style={{ maxWidth: 980, margin: "0 auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
               <div style={{ fontWeight: 900, color: COLORS.black }}>{totalItems} cookies</div>
-              <div style={{ color: "#6B6B6B", fontWeight: 800 }}>
-                Subtotal: {formatIDR(subtotal)}
-              </div>
+              <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Subtotal: {formatIDR(subtotal)}</div>
             </div>
 
             <button

@@ -34,21 +34,19 @@ const formatIDR = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-// ✅ Clear cart storage AFTER successful "Place order"
+// Clear cart storage AFTER successful "Place order"
 function clearCartStorage() {
   try {
-    // single source of truth
     clearCart();
 
-    // legacy keys (cleanup)
+    // legacy cleanup
     localStorage.removeItem(CART_KEY);
     localStorage.removeItem("cart");
     localStorage.removeItem("cookie_doh_cart");
     localStorage.removeItem("cookie_doh_cart_v0");
     localStorage.removeItem("cart_items");
     localStorage.removeItem("cookieDohCart");
-    localStorage.removeItem("cookie_doh_cart");
-  } catch (e) {}
+  } catch {}
 }
 
 /** Normalize Indonesian phone/WA numbers to +62XXXXXXXXXXX */
@@ -207,16 +205,16 @@ export default function CheckoutPage() {
   const [fulfillment, setFulfillment] = useState<FulfillmentType>("delivery");
   const [deliverySpeed, setDeliverySpeed] = useState<DeliverySpeed>("instant");
 
-  // Schedule (next 30 days)
+  // Schedule
   const dateOptions = useMemo(() => nextDays(30), []);
   const [scheduleDate, setScheduleDate] = useState<string>("");
   const [scheduleTime, setScheduleTime] = useState<string>("");
 
-  // Pickup points (editable via NEXT_PUBLIC_PICKUP_POINTS_JSON)
+  // Pickup points
   const pickupPoints = useMemo(() => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON), []);
   const [pickupPointId, setPickupPointId] = useState<string>(() => pickupPoints[0]?.id || "");
 
-  // Shipping quote (delivery only)
+  // Shipping quote
   const [shippingCost, setShippingCost] = useState<number | null>(null);
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingError, setShippingError] = useState<string | null>(null);
@@ -226,20 +224,18 @@ export default function CheckoutPage() {
 
   const soldOutSet = useMemo(() => {
     const s = new Set<string>();
-    for (const f of CATALOG_FLAVORS as any[]) {
-      if (f?.soldOut) s.add(String(f.id));
-    }
+    for (const f of CATALOG_FLAVORS as any[]) if (f?.soldOut) s.add(String(f.id));
     return s;
   }, []);
 
-  // ✅ Boot / Guard: empty cart => /build, sold out in cart => /cart
+  // ✅ Checkout guard: empty -> /build, soldout -> /cart
   useEffect(() => {
     const c = getCart() as any;
     const next: CartState = c && Array.isArray(c.boxes) ? c : { boxes: [] };
     setCart(next);
 
-    const isEmpty = !next.boxes || next.boxes.length === 0;
-    if (isEmpty) {
+    const empty = !next.boxes || next.boxes.length === 0;
+    if (empty) {
       router.replace("/build");
       return;
     }
@@ -263,11 +259,7 @@ export default function CheckoutPage() {
     setBooting(false);
   }, [router, soldOutSet]);
 
-  const subtotal = useMemo(
-    () => cart.boxes.reduce((s, b) => s + (b.total || 0), 0),
-    [cart]
-  );
-
+  const subtotal = useMemo(() => cart.boxes.reduce((s, b) => s + (b.total || 0), 0), [cart]);
   const isEmpty = cart.boxes.length === 0;
 
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -284,36 +276,25 @@ export default function CheckoutPage() {
   const phoneError = phoneTouched && !phoneCheck.ok ? phoneCheck.message : "";
 
   const addressError =
-    fulfillment === "delivery" &&
-    addressTouched &&
-    (!addressBase.trim() || !addressResolved)
+    fulfillment === "delivery" && addressTouched && (!addressBase.trim() || !addressResolved)
       ? "Please select a valid address from the suggestions."
       : "";
 
-  const scheduleError =
-    scheduleTouched && (!scheduleDate || !scheduleTime)
-      ? "Please choose date and time."
-      : "";
+  const scheduleError = scheduleTouched && (!scheduleDate || !scheduleTime) ? "Please choose date and time." : "";
 
-  // Same-day cutoff
   const isAfterNoonJakarta = jakartaHourNow() >= 12;
   const samedayDisabled = isAfterNoonJakarta;
 
-  // auto-switch away from sameday if it becomes invalid
   useEffect(() => {
-    if (deliverySpeed === "sameday" && samedayDisabled) {
-      setDeliverySpeed("instant");
-    }
+    if (deliverySpeed === "sameday" && samedayDisabled) setDeliverySpeed("instant");
   }, [deliverySpeed, samedayDisabled]);
 
-  // Reset schedule when switching fulfillment
   useEffect(() => {
     setScheduleDate("");
     setScheduleTime("");
     setScheduleTouched(false);
   }, [fulfillment, deliverySpeed]);
 
-  // Quote function
   const fetchQuote = async () => {
     if (fulfillment !== "delivery") return;
     if (!addressResolved || addressLat === null || addressLng === null) return;
@@ -330,11 +311,7 @@ export default function CheckoutPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: ac.signal,
-        body: JSON.stringify({
-          lat: addressLat,
-          lng: addressLng,
-          speed: deliverySpeed, // "instant" | "sameday"
-        }),
+        body: JSON.stringify({ lat: addressLat, lng: addressLng, speed: deliverySpeed }),
       });
 
       const j = await res.json().catch(() => ({}));
@@ -363,7 +340,6 @@ export default function CheckoutPage() {
     }
   };
 
-  // Auto re-quote on address/speed change (debounced)
   useEffect(() => {
     if (fulfillment !== "delivery") {
       setShippingCost(0);
@@ -396,13 +372,8 @@ export default function CheckoutPage() {
       if (shippingCost == null) return "Delivery fee unavailable. Please reselect your address.";
     }
 
-    if (!scheduleDate || !scheduleTime) {
-      return "Please choose delivery/pickup date and time.";
-    }
-
-    if (fulfillment === "pickup" && !pickupPointId) {
-      return "Please choose a pickup point.";
-    }
+    if (!scheduleDate || !scheduleTime) return "Please choose delivery/pickup date and time.";
+    if (fulfillment === "pickup" && !pickupPointId) return "Please choose a pickup point.";
 
     return null;
   };
@@ -414,16 +385,10 @@ export default function CheckoutPage() {
     setScheduleTouched(true);
 
     const v = validate();
-    if (v) {
-      setErr(v);
-      return;
-    }
-    if (isEmpty) {
-      setErr("Your cart is empty. Please build a box first.");
-      return;
-    }
+    if (v) return setErr(v);
+    if (isEmpty) return setErr("Your cart is empty. Please build a box first.");
 
-    // Final safety check (in case stock changed while user is on checkout)
+    // Final safety check
     for (const b of cart.boxes) {
       for (const it of b.items || []) {
         if (soldOutSet.has(String(it.id))) {
@@ -435,9 +400,7 @@ export default function CheckoutPage() {
 
     const normalizedPhone = phoneCheck.normalized || normalizeIDPhone(phone);
 
-    const fullAddress = addressDetail.trim()
-      ? `${addressBase}\n${addressDetail.trim()}`
-      : addressBase;
+    const fullAddress = addressDetail.trim() ? `${addressBase}\n${addressDetail.trim()}` : addressBase;
 
     setLoading(true);
     try {
@@ -447,7 +410,7 @@ export default function CheckoutPage() {
         customer: { name: name.trim(), phone: normalizedPhone },
 
         fulfillment: {
-          type: fulfillment, // delivery | pickup
+          type: fulfillment,
           scheduleDate,
           scheduleTime,
           deliverySpeed: fulfillment === "delivery" ? deliverySpeed : null,
@@ -480,10 +443,7 @@ export default function CheckoutPage() {
         cart,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
         total: grandTotal,
-
-        meta: {
-          quote: quoteMeta,
-        },
+        meta: { quote: quoteMeta },
       };
 
       const res = await fetch("/api/checkout", {
@@ -494,17 +454,13 @@ export default function CheckoutPage() {
 
       if (!res.ok) {
         const body = await readErrorBody(res);
-        throw new Error(
-          body ? `Checkout failed (HTTP ${res.status}). ${body}` : `Checkout failed (HTTP ${res.status}).`
-        );
+        throw new Error(body ? `Checkout failed (HTTP ${res.status}). ${body}` : `Checkout failed (HTTP ${res.status}).`);
       }
 
       const data = await res.json().catch(() => ({} as any));
       const redirectUrl = data?.redirect_url || data?.redirectUrl;
 
-      if (!redirectUrl) {
-        throw new Error(`Missing redirect_url from server: ${JSON.stringify(data)}`);
-      }
+      if (!redirectUrl) throw new Error(`Missing redirect_url from server: ${JSON.stringify(data)}`);
 
       clearCartStorage();
       window.location.href = redirectUrl;
@@ -515,68 +471,12 @@ export default function CheckoutPage() {
     }
   };
 
-  // During guard redirects, avoid flashing checkout UI
   if (booting) {
     return (
       <main style={{ minHeight: "100vh", background: "#fff" }}>
         <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px" }}>
           <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>Checking your cart…</p>
-          <div style={{ marginTop: 14, color: "#6B6B6B", fontWeight: 800 }}>
-            Redirecting if needed.
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  // (Should not happen because we redirect, but keep a safe fallback)
-  if (isEmpty) {
-    return (
-      <main style={{ minHeight: "100vh", background: "#fff" }}>
-        <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px" }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
-          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>You’re almost there 🤍</p>
-
-          <section
-            style={{
-              marginTop: 16,
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "#FAF7F2",
-              padding: 18,
-            }}
-          >
-            <div style={{ fontWeight: 900, color: "#101010" }}>Your box is waiting 🤍</div>
-            <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>
-              Please build your cookie box first.
-            </div>
-
-            <Link
-              href="/build"
-              style={{
-                marginTop: 14,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 999,
-                padding: "14px 22px",
-                background: "#0052CC",
-                color: "#fff",
-                fontWeight: 900,
-                textDecoration: "none",
-                boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
-              }}
-            >
-              Build your box 🍪
-            </Link>
-
-            <div style={{ marginTop: 12 }}>
-              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
-                ← Back to cart
-              </Link>
-            </div>
-          </section>
         </div>
       </main>
     );
@@ -592,15 +492,7 @@ export default function CheckoutPage() {
 
         <div style={{ display: "grid", gap: 14 }}>
           {/* CONTACT */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
+          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Contact details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               We’ll use this to update you about your order.
@@ -616,10 +508,7 @@ export default function CheckoutPage() {
                 <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>WhatsApp number</span>
                 <input
                   value={phone}
-                  onChange={(e) => {
-                    const digitsOnly = e.target.value.replace(/\D/g, "");
-                    setPhone(digitsOnly);
-                  }}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                   onBlur={() => setPhoneTouched(true)}
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -639,15 +528,7 @@ export default function CheckoutPage() {
           </section>
 
           {/* Fulfillment */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
+          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Fulfillment</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               Choose delivery or pickup, then select date & time.
@@ -687,7 +568,6 @@ export default function CheckoutPage() {
               </button>
             </div>
 
-            {/* Delivery speed (only when delivery) */}
             {fulfillment === "delivery" ? (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Delivery type</div>
@@ -729,7 +609,6 @@ export default function CheckoutPage() {
                   </button>
                 </div>
 
-                {/* ✅ tiny reassurance (requested) */}
                 <div style={{ marginTop: 8, fontSize: 12, color: "#6B6B6B", fontWeight: 700 }}>
                   You’ll see the final total before paying.
                 </div>
@@ -742,17 +621,10 @@ export default function CheckoutPage() {
                 <span style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>
                   {fulfillment === "pickup" ? "Pickup date" : "Delivery date"}
                 </span>
-                <select
-                  value={scheduleDate}
-                  onChange={(e) => setScheduleDate(e.target.value)}
-                  onBlur={() => setScheduleTouched(true)}
-                  style={sameStyle}
-                >
+                <select value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} onBlur={() => setScheduleTouched(true)} style={sameStyle}>
                   <option value="">Select date</option>
                   {dateOptions.map((d) => (
-                    <option key={d.value} value={d.value}>
-                      {d.label}
-                    </option>
+                    <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
                 </select>
               </label>
@@ -763,27 +635,15 @@ export default function CheckoutPage() {
                 </span>
 
                 {fulfillment === "delivery" && deliverySpeed === "sameday" ? (
-                  <select
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    onBlur={() => setScheduleTouched(true)}
-                    style={sameStyle}
-                  >
+                  <select value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} onBlur={() => setScheduleTouched(true)} style={sameStyle}>
                     <option value="">Select time</option>
                     <option value={SAMEDAY_SLOT.value}>{SAMEDAY_SLOT.label}</option>
                   </select>
                 ) : (
-                  <select
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    onBlur={() => setScheduleTouched(true)}
-                    style={sameStyle}
-                  >
+                  <select value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} onBlur={() => setScheduleTouched(true)} style={sameStyle}>
                     <option value="">Select time</option>
                     {INSTANT_SLOTS.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
+                      <option key={t.value} value={t.value}>{t.label}</option>
                     ))}
                   </select>
                 )}
@@ -791,12 +651,9 @@ export default function CheckoutPage() {
             </div>
 
             {scheduleError ? (
-              <div style={{ marginTop: 8, fontSize: 12, color: "crimson", fontWeight: 700 }}>
-                {scheduleError}
-              </div>
+              <div style={{ marginTop: 8, fontSize: 12, color: "crimson", fontWeight: 700 }}>{scheduleError}</div>
             ) : null}
 
-            {/* Pickup points */}
             {fulfillment === "pickup" ? (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#101010" }}>Pickup point</div>
@@ -836,15 +693,7 @@ export default function CheckoutPage() {
 
           {/* Delivery details */}
           {fulfillment === "delivery" ? (
-            <section
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(0,0,0,0.10)",
-                padding: 14,
-                background: "#fff",
-                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-              }}
-            >
+            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
               <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
                 Please double-check your address to avoid delivery delays.
@@ -878,39 +727,16 @@ export default function CheckoutPage() {
                     }}
                   />
 
-                  {addressError ? (
-                    <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>
-                      {addressError}
-                    </div>
-                  ) : null}
+                  {addressError ? <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>{addressError}</div> : null}
 
-                  <input
-                    value={addressDetail}
-                    onChange={(e) => setAddressDetail(e.target.value)}
-                    placeholder="Unit / floor / landmark (optional)"
-                    style={sameStyle}
-                  />
+                  <input value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)} placeholder="Unit / floor / landmark (optional)" style={sameStyle} />
 
-                  {!mapsKey && (
-                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-                      (Autocomplete is off because Google Maps API key is not set.)
-                    </div>
-                  )}
+                  {!mapsKey && <div style={{ fontSize: 12, color: "#6B6B6B" }}>(Autocomplete is off because Google Maps API key is not set.)</div>}
                 </div>
 
                 <div style={{ display: "grid", gap: 8 }}>
-                  <input
-                    value={buildingName}
-                    onChange={(e) => setBuildingName(e.target.value)}
-                    placeholder="Building name (auto, editable)"
-                    style={sameStyle}
-                  />
-                  <input
-                    value={postalCode}
-                    onChange={(e) => setPostalCode(e.target.value)}
-                    placeholder="Postal code (auto, editable)"
-                    style={sameStyle}
-                  />
+                  <input value={buildingName} onChange={(e) => setBuildingName(e.target.value)} placeholder="Building name (auto, editable)" style={sameStyle} />
+                  <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Postal code (auto, editable)" style={sameStyle} />
                 </div>
 
                 <label style={{ display: "grid", gap: 6 }}>
@@ -918,29 +744,14 @@ export default function CheckoutPage() {
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    style={{
-                      minHeight: 90,
-                      borderRadius: 14,
-                      border: "1px solid rgba(0,0,0,0.12)",
-                      padding: "10px 12px",
-                      outline: "none",
-                      resize: "vertical",
-                    }}
+                    style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
                     placeholder="Gift note, delivery timing, special instructions…"
                   />
                 </label>
               </div>
             </section>
           ) : (
-            <section
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(0,0,0,0.10)",
-                padding: 14,
-                background: "#fff",
-                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-              }}
-            >
+            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
               <div style={{ fontWeight: 950, color: "#101010" }}>Pickup notes (optional)</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
                 Tell us anything we should know for pickup.
@@ -951,14 +762,7 @@ export default function CheckoutPage() {
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  style={{
-                    minHeight: 90,
-                    borderRadius: 14,
-                    border: "1px solid rgba(0,0,0,0.12)",
-                    padding: "10px 12px",
-                    outline: "none",
-                    resize: "vertical",
-                  }}
+                  style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
                   placeholder="Pickup instructions…"
                 />
               </label>
@@ -966,15 +770,7 @@ export default function CheckoutPage() {
           )}
 
           {/* Order summary */}
-          <section
-            style={{
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              padding: 14,
-              background: "#fff",
-              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
-            }}
-          >
+          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
             <div style={{ fontWeight: 950, color: "#101010" }}>Your order 🤍</div>
 
             <div style={{ marginTop: 12, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
@@ -1009,9 +805,7 @@ export default function CheckoutPage() {
 
               <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", color: "#6B6B6B", fontWeight: 800 }}>
                 <div>{fulfillment === "pickup" ? "Pickup schedule" : "Delivery schedule"}</div>
-                <div>
-                  {scheduleDate && scheduleTime ? `${scheduleDate} • ${scheduleTime}` : "Select schedule"}
-                </div>
+                <div>{scheduleDate && scheduleTime ? `${scheduleDate} • ${scheduleTime}` : "Select schedule"}</div>
               </div>
 
               {fulfillment === "pickup" && pickupPointId ? (
@@ -1020,7 +814,6 @@ export default function CheckoutPage() {
                 </div>
               ) : null}
 
-              {/* ✅ Payment reassurance */}
               <div style={{ marginTop: 10, color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
                 Secure checkout via Midtrans.
               </div>
@@ -1043,25 +836,11 @@ export default function CheckoutPage() {
       </div>
 
       {/* Sticky Place Order */}
-      <div
-        style={{
-          position: "fixed",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "#fff",
-          borderTop: "1px solid rgba(0,0,0,0.08)",
-          boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
-          padding: "12px 14px",
-        }}
-      >
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 -10px 30px rgba(0,0,0,0.05)", padding: "12px 14px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
             onClick={placeOrder}
-            disabled={
-              loading ||
-              (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading))
-            }
+            disabled={loading || (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading))}
             style={{
               width: "100%",
               borderRadius: 999,
@@ -1073,8 +852,7 @@ export default function CheckoutPage() {
               fontWeight: 950,
               fontSize: 16,
               boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
-              opacity:
-                (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading)) ? 0.6 : 1,
+              opacity: fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading) ? 0.6 : 1,
             }}
           >
             {loading ? "Preparing payment…" : "Place order"}

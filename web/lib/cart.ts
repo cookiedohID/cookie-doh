@@ -4,13 +4,13 @@ import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
 export type CartItem = {
   id: string; // flavor id
   name: string;
-  price: number; // per-cookie price (for display + migration safety)
+  price: number; // per-cookie price
   quantity: number;
   image?: string;
 };
 
 export type CartBox = {
-  boxSize: number; // 1 | 3 | 6 (kept flexible for now)
+  boxSize: number; // 1 | 3 | 6
   items: CartItem[];
   total: number; // box total (authoritative)
 };
@@ -19,13 +19,11 @@ export type CartState = {
   boxes: CartBox[];
 };
 
-// ✅ Single source of truth
 export const CART_KEY = "cookie_doh_cart_v1";
 
-// Legacy keys we’ve seen in the project
-const LEGACY_KEYS = ["cookieDohCart", "cookie_doh_cart", "cookie_doh_cart_v0"];
+// Legacy keys seen before
+const LEGACY_KEYS = ["cookieDohCart", "cookie_doh_cart", "cookie_doh_cart_v0", "cart", "cart_items"];
 
-// Used only for migration (safe fallback)
 const DEFAULT_COOKIE_PRICE = 32500;
 
 function safeJSONParse<T = any>(raw: string | null): T | null {
@@ -54,30 +52,23 @@ function normalizeBox(box: any): CartBox | null {
       const id = String(it.id ?? it.flavorId ?? "");
       if (!id) return null;
 
-      const name = String(it.name ?? "");
-      const image = it.image ? String(it.image) : undefined;
       const quantity = Number(it.quantity ?? it.qty ?? 0);
-      const price = Number(it.price ?? DEFAULT_COOKIE_PRICE);
-
       if (!quantity || quantity <= 0) return null;
 
-      // Resolve missing name/image from catalog when possible
       const cat = (CATALOG_FLAVORS as any[]).find((f) => String(f.id) === id);
-      return {
-        id,
-        name: name || String(cat?.name ?? id),
-        image: image || String(cat?.image ?? ""),
-        quantity,
-        price: Number.isFinite(price) && price > 0 ? price : DEFAULT_COOKIE_PRICE,
-      };
+
+      const name = String(it.name ?? cat?.name ?? id);
+      const image = String(it.image ?? cat?.image ?? "");
+      const priceRaw = Number(it.price ?? DEFAULT_COOKIE_PRICE);
+      const price = Number.isFinite(priceRaw) && priceRaw > 0 ? priceRaw : DEFAULT_COOKIE_PRICE;
+
+      return { id, name, image, quantity, price };
     })
     .filter(Boolean) as CartItem[];
 
   if (normItems.length === 0) return null;
 
-  // If total is missing/invalid, compute a safe fallback
-  const computed =
-    normItems.reduce((sum, it) => sum + it.price * it.quantity, 0) || 0;
+  const computed = normItems.reduce((sum, it) => sum + it.price * it.quantity, 0);
 
   return {
     boxSize,
@@ -89,16 +80,14 @@ function normalizeBox(box: any): CartBox | null {
 function migrateLegacyIfNeeded(): CartState | null {
   if (typeof window === "undefined") return null;
 
-  // If new cart already exists, do nothing
   const existing = safeJSONParse<any>(localStorage.getItem(CART_KEY));
   if (isCartState(existing)) return null;
 
-  // 1) Try legacy array format: [{ boxSize, items:[{flavorId,qty}], price, createdAt }]
   for (const k of LEGACY_KEYS) {
     const legacy = safeJSONParse<any>(localStorage.getItem(k));
     if (!legacy) continue;
 
-    // Legacy homepage preset format = array
+    // Legacy homepage preset format: array of { boxSize, items:[{flavorId,qty}], price }
     if (Array.isArray(legacy)) {
       const boxes: CartBox[] = legacy
         .map((entry: any) => {
@@ -125,7 +114,6 @@ function migrateLegacyIfNeeded(): CartState | null {
 
           if (items.length === 0) return null;
 
-          // entry.price is the box total in that legacy format; otherwise fallback to BOX_PRICES
           const total =
             Number(entry.price) ||
             (BOX_PRICES as any)[boxSize] ||
@@ -138,12 +126,11 @@ function migrateLegacyIfNeeded(): CartState | null {
       if (boxes.length > 0) {
         const next: CartState = { boxes };
         localStorage.setItem(CART_KEY, JSON.stringify(next));
-        // leave legacy key untouched (safe), but you can later clean it up
         return next;
       }
     }
 
-    // 2) Try legacy object format but different key name
+    // Legacy object state with boxes
     if (isCartState(legacy)) {
       const boxes = (legacy.boxes as any[])
         .map(normalizeBox)
@@ -161,13 +148,11 @@ function migrateLegacyIfNeeded(): CartState | null {
 function readCart(): CartState {
   if (typeof window === "undefined") return { boxes: [] };
 
-  // migrate if needed
   const migrated = migrateLegacyIfNeeded();
   if (migrated) return migrated;
 
   const parsed = safeJSONParse<any>(localStorage.getItem(CART_KEY));
-  if (!parsed) return { boxes: [] };
-  if (!isCartState(parsed)) return { boxes: [] };
+  if (!parsed || !isCartState(parsed)) return { boxes: [] };
 
   const boxes = (parsed.boxes as any[])
     .map(normalizeBox)
@@ -181,17 +166,13 @@ function writeCart(state: CartState) {
   localStorage.setItem(CART_KEY, JSON.stringify(state));
 }
 
-// ---------- Public API (single source of truth) ----------
-
+// Public API
 export function getCart(): CartState {
   return readCart();
 }
 
 export function setCart(next: CartState) {
-  // normalize before saving
-  const boxes = (next?.boxes ?? [])
-    .map(normalizeBox)
-    .filter(Boolean) as CartBox[];
+  const boxes = (next?.boxes ?? []).map(normalizeBox).filter(Boolean) as CartBox[];
   writeCart({ boxes });
 }
 
@@ -216,10 +197,6 @@ export function clearCart() {
   writeCart({ boxes: [] });
 }
 
-/**
- * Helper: remove sold-out items based on catalog flags.
- * (Cart page can call this instead of re-implementing.)
- */
 export function removeSoldOutItemsFromCart(): CartState {
   const soldOut = new Set<string>();
   for (const f of CATALOG_FLAVORS as any[]) {
@@ -236,7 +213,7 @@ export function removeSoldOutItemsFromCart(): CartState {
       .filter((b) => b.items.length > 0),
   };
 
-  // keep existing totals; if a box changed, recompute a safe total fallback
+  // Recompute safe totals if needed
   next.boxes = next.boxes.map((b) => {
     const computed = b.items.reduce((sum, it) => sum + it.price * it.quantity, 0);
     return { ...b, total: Number.isFinite(b.total) && b.total > 0 ? b.total : computed };

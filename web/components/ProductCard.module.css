@@ -24,7 +24,7 @@
   object-fit: cover;
 }
 
-/* Badge: prevent clipping + keep readable */
+/* Badge */
 .badge {
   position: absolute;
   left: 10px;
@@ -49,14 +49,6 @@
   gap: 10px;
 }
 
-/* Flavor / quantity zone */
-.redRow {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 8px;
-}
-
 .title {
   margin: 0;
   font-size: 18px;
@@ -65,22 +57,7 @@
   color: #101010;
 }
 
-.qtyPill {
-  min-width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  border: 2px solid rgba(0, 82, 204, 0.18);
-  background: rgba(0, 82, 204, 0.06);
-  font-weight: 900;
-  color: #101010;
-
-  justify-self: end;
-  margin-right: 10px;
-}
-
-/* Ingredients zone */
+/* Ingredients */
 .ingredients {
   margin: 0;
   font-size: 13px;
@@ -94,7 +71,7 @@
   overflow: hidden;
 }
 
-/* Texture zone */
+/* Texture */
 .textureRow {
   display: flex;
   flex-wrap: wrap;
@@ -111,7 +88,7 @@
   font-weight: 800;
 }
 
-/* Intensity (compact) */
+/* Intensity */
 .intensityWrap {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -146,12 +123,12 @@
   background: rgba(0, 0, 0, 0.12);
 }
 
-/* ✅ Accent: tiny 021C-ish orange */
+/* Accent orange */
 .dotOn {
   background: rgba(255, 90, 0, 0.92);
 }
 
-/* CTA row */
+/* CTA */
 .ctaRow {
   display: grid;
   grid-template-columns: 44px 1fr;
@@ -222,14 +199,13 @@
   font-weight: 950;
 }
 
-/* Focus rings (keyboard-friendly) */
+/* Focus rings */
 .minusBtn:focus-visible,
 .addBtn:focus-visible {
   outline: 3px solid rgba(0, 82, 204, 0.22);
   outline-offset: 2px;
 }
 
-/* Small phones: tiny tighten */
 @media (max-width: 380px) {
   .title { font-size: 17px; }
   .ingredients { font-size: 12.5px; }
@@ -237,7 +213,6 @@
   .intensityWrap { padding: 6px; }
 }
 
-/* Desktop scaling */
 @media (min-width: 900px) {
   .title { font-size: 20px; }
   .ingredients { font-size: 14px; }

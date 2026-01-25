@@ -10,14 +10,12 @@ import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/Product
 type BoxSize = 1 | 3 | 6;
 
 const COLORS = {
-  blue: "#0052CC", // Pantone 293C vibe
+  blue: "#0052CC",
   black: "#101010",
   white: "#FFFFFF",
-  orange: "#FF5A00", // Accent (021C-ish)
+  orange: "#FF5A00",
 };
 
-// Your current system prices cookies at 32,500 in the builder UI.
-// If you later move to per-flavor pricing, we can replace this.
 const COOKIE_PRICE = 32500;
 
 const formatIDR = (n: number) =>
@@ -38,9 +36,7 @@ function toCardFlavor(f: any): CardFlavorUI {
     id: String(f.id),
     name: String(f.name ?? ""),
     image: String(f.image ?? ""),
-    // ProductCard expects `ingredients` (we use catalog description)
     ingredients: String(f.description ?? ""),
-    // ProductCard expects `textureTags` (we use catalog tags)
     textureTags: Array.isArray(f.tags) ? f.tags : [],
     intensity: f.intensity,
     badges: Array.isArray(f.badges) ? f.badges : [],
@@ -55,14 +51,10 @@ export default function BuildABoxPage() {
   const [boxSize, setBoxSize] = useState<BoxSize>(6);
   const [qty, setQty] = useState<Record<string, number>>({});
 
-  // pulse once on box selection (kept)
   const pulseKeyRef = useRef(0);
   const [pulseKey, setPulseKey] = useState(0);
 
-  const cardFlavors = useMemo(
-    () => CATALOG_FLAVORS.map(toCardFlavor),
-    []
-  );
+  const cardFlavors = useMemo(() => CATALOG_FLAVORS.map(toCardFlavor), []);
 
   const totalCount = useMemo(
     () => Object.values(qty).reduce((a, b) => a + b, 0),
@@ -74,9 +66,7 @@ export default function BuildABoxPage() {
   const isFull = remaining === 0;
   const isEmpty = totalCount === 0;
 
-  const totalPrice = useMemo(() => {
-    return isFull ? BOX_PRICES[boxSize] : 0;
-  }, [boxSize, isFull]);
+  const totalPrice = useMemo(() => (isFull ? BOX_PRICES[boxSize] : 0), [boxSize, isFull]);
 
   const inc = (id: string) => {
     if (!canAddMore) return;
@@ -115,7 +105,7 @@ export default function BuildABoxPage() {
     router.push("/cart");
   };
 
-  // Lock B: ONLY "Add X more"
+  // Locked: ONLY “Add X more”
   const bannerText = isFull
     ? "Box complete"
     : isEmpty
@@ -138,9 +128,7 @@ export default function BuildABoxPage() {
 
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "20px 16px 140px" }}>
         <header style={{ marginBottom: 18 }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>
-            Build your cookie box
-          </h1>
+          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Build your cookie box</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
@@ -239,7 +227,7 @@ export default function BuildABoxPage() {
           )}
         </section>
 
-        {/* Flavor grid using ProductCard (soldOut now works from catalog.ts) */}
+        {/* Flavor grid */}
         <section
           style={{
             display: "grid",

@@ -7,16 +7,16 @@ export type Flavor = {
   name: string;
   description?: string;
 
-  image?: string; // e.g. "/flavors/choco-chip.jpg"
-  badges?: FlavorBadge[]; // e.g. ["Bestseller", "Classic"]
-  tags?: string[]; // e.g. ["Chewy", "Chunky", "Nutty"]
+  image?: string;
+  badges?: FlavorBadge[];
+  tags?: string[];
   intensity?: {
     chocolate?: 0 | 1 | 2 | 3 | 4 | 5;
     sweetness?: 1 | 2 | 3 | 4 | 5;
   };
 
-  // ✅ NEW: Stock / availability (Lock C)
-  soldOut?: boolean; // when true => disable add + show "Sold out"
+  // ✅ Availability
+  soldOut?: boolean;
 };
 
 export const FLAVORS: Flavor[] = [
@@ -62,8 +62,8 @@ export const FLAVORS: Flavor[] = [
     badges: ["New"],
     tags: ["Earthy", "Creamy"],
     intensity: { chocolate: 2, sweetness: 3 },
-    soldOut: true,
-    // soldOut: true, // <- toggle to test sold-out UX
+    soldOut: false,
+    // soldOut: true, // toggle to test sold-out UX everywhere
   },
   {
     id: "orange-in-the-dark",
@@ -76,7 +76,6 @@ export const FLAVORS: Flavor[] = [
     intensity: { chocolate: 3, sweetness: 4 },
     soldOut: false,
   },
-  // ...your other flavors
 ];
 
 export const BOX_PRICES: Record<1 | 3 | 6, number> = {

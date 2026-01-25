@@ -8,10 +8,7 @@ export type FlavorUI = {
   image: string;
   ingredients: string;
   textureTags: string[];
-  intensity?: {
-    chocolate?: 0 | 1 | 2 | 3 | 4 | 5;
-    sweetness?: 1 | 2 | 3 | 4 | 5;
-  };
+  intensity?: { chocolate?: 0 | 1 | 2 | 3 | 4 | 5; sweetness?: 1 | 2 | 3 | 4 | 5 };
   price?: number;
   badges?: string[];
   soldOut?: boolean;
@@ -119,10 +116,7 @@ export default function ProductCard({
               <div className={styles.intensityLabel}>Chocolate</div>
               <div className={styles.dots}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`${styles.dot} ${i < chocolate ? styles.dotOn : ""}`}
-                  />
+                  <span key={i} className={`${styles.dot} ${i < chocolate ? styles.dotOn : ""}`} />
                 ))}
               </div>
             </div>
@@ -130,17 +124,13 @@ export default function ProductCard({
               <div className={styles.intensityLabel}>Sweetness</div>
               <div className={styles.dots}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`${styles.dot} ${i < sweetness ? styles.dotOn : ""}`}
-                  />
+                  <span key={i} className={`${styles.dot} ${i < sweetness ? styles.dotOn : ""}`} />
                 ))}
               </div>
             </div>
           </div>
         )}
 
-        {/* CTA row */}
         <div className={styles.ctaRow}>
           <button
             className={styles.minusBtn}
@@ -156,11 +146,11 @@ export default function ProductCard({
             onClick={onAdd}
             disabled={addDisabled}
             aria-label={isSoldOut ? "Sold out" : `Add ${flavor.name}`}
+            title={isSoldOut ? "Sold out" : undefined}
           >
-            {ctaText}
-            <span className={styles.plus}>+</span>
+            {ctaText} <span className={styles.plus}>+</span>
 
-            {/* ✅ Quantity pill — warm white / beige for contrast */}
+            {/* Quantity pill moved next to CTA (beige/white) */}
             {quantity > 0 && (
               <span
                 style={{
@@ -169,7 +159,7 @@ export default function ProductCard({
                   height: 22,
                   padding: "0 6px",
                   borderRadius: 999,
-                  background: "#FFF7EC", // soft warm white / beige
+                  background: "#FFF7EC",
                   color: "#101010",
                   border: "1px solid rgba(0,0,0,0.18)",
                   display: "inline-flex",
@@ -184,6 +174,12 @@ export default function ProductCard({
             )}
           </button>
         </div>
+
+        {isSoldOut && (
+          <div style={{ marginTop: 8, color: "rgba(0,0,0,0.62)", fontWeight: 800, fontSize: 12 }}>
+            Unavailable right now.
+          </div>
+        )}
       </div>
     </article>
   );

@@ -1,62 +1,294 @@
+// web/app/checkout/success/successClient.tsx
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+
+const COLORS = {
+  blue: "#0052CC",
+  orange: "#FF5A00",
+  black: "#101010",
+  white: "#FFFFFF",
+  sand: "#FAF7F2",
+};
+
+function formatIDRLoose(amount: string | null) {
+  if (!amount) return null;
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return null;
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+function normalizeWaNumber(raw: string) {
+  const s = (raw || "").trim().replace(/[^\d+]/g, "");
+  if (!s) return "";
+  if (s.startsWith("+")) return s;
+  if (s.startsWith("62")) return `+${s}`;
+  if (s.startsWith("0")) return `+62${s.slice(1)}`;
+  return s;
+}
+
+function waLink(number: string, text: string) {
+  const phone = normalizeWaNumber(number).replace(/[^\d]/g, "");
+  const msg = encodeURIComponent(text);
+  return `https://wa.me/${phone}?text=${msg}`;
+}
+
+function statusLabel(txStatus: string | null) {
+  const s = (txStatus || "").toLowerCase();
+
+  // Midtrans common statuses: settlement, capture, pending, deny, cancel, expire, failure
+  if (s === "settlement" || s === "capture") return { kind: "success" as const, title: "Payment received" };
+  if (s === "pending") return { kind: "pending" as const, title: "Payment pending" };
+  if (s === "deny" || s === "cancel" || s === "expire" || s === "failure") return { kind: "failed" as const, title: "Payment not completed" };
+
+  // Unknown / missing
+  return { kind: "success" as const, title: "Order received" };
+}
 
 export default function SuccessClient() {
   const sp = useSearchParams();
-  const orderId = sp.get("order_id") || sp.get("orderId") || "";
-  const status = sp.get("transaction_status") || sp.get("status") || "success";
+  const router = useRouter();
+
+  const orderId = sp.get("order_id") || sp.get("orderId") || sp.get("id");
+  const txStatus = sp.get("transaction_status") || sp.get("transactionStatus");
+  const paymentType = sp.get("payment_type") || sp.get("paymentType");
+  const grossAmount = sp.get("gross_amount") || sp.get("grossAmount");
+  const amountText = useMemo(() => formatIDRLoose(grossAmount), [grossAmount]);
+
+  const status = useMemo(() => statusLabel(txStatus), [txStatus]);
+
+  const businessWa =
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
+    process.env.NEXT_PUBLIC_WA_NUMBER ||
+    "6281234567890"; // fallback placeholder (replace in env)
+
+  const waMessage = useMemo(() => {
+    const parts = [
+      "Hi Cookie Doh 👋",
+      "I just completed checkout.",
+      orderId ? `Order ID: ${orderId}` : null,
+      txStatus ? `Status: ${txStatus}` : null,
+      paymentType ? `Payment: ${paymentType}` : null,
+      amountText ? `Total: ${amountText}` : null,
+      "",
+      "Can you help confirm my order? धन्यवाद / thank you 🤍",
+    ].filter(Boolean);
+    return parts.join("\n");
+  }, [orderId, txStatus, paymentType, amountText]);
+
+  const toneBlock = (() => {
+    if (status.kind === "success") {
+      return {
+        bg: "rgba(0,82,204,0.06)",
+        border: "1px solid rgba(0,82,204,0.18)",
+        badgeBg: COLORS.blue,
+        badgeText: "CONFIRMED",
+        title: "Thank you 🤍",
+        subtitle: "Your order is in. We’ll send updates via WhatsApp.",
+      };
+    }
+    if (status.kind === "pending") {
+      return {
+        bg: "rgba(255,90,0,0.08)",
+        border: "1px solid rgba(255,90,0,0.25)",
+        badgeBg: COLORS.orange,
+        badgeText: "PENDING",
+        title: "Almost there",
+        subtitle: "Your payment is still processing. If it takes too long, message us on WhatsApp.",
+      };
+    }
+    return {
+      bg: "rgba(0,0,0,0.04)",
+      border: "1px solid rgba(0,0,0,0.12)",
+      badgeBg: "#111",
+      badgeText: "NEEDS ACTION",
+      title: "Payment not completed",
+      subtitle: "No worries — you can try again or contact us for help.",
+    };
+  })();
 
   return (
-    <main style={{ minHeight: "100vh", background: "#FAF7F2" }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "64px 16px" }}>
-        <div
+    <main style={{ minHeight: "100vh", background: COLORS.white }}>
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "28px 16px 120px" }}>
+        {/* Header card */}
+        <section
           style={{
-            borderRadius: 20,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: "#fff",
-            padding: 18,
-            boxShadow: "0 14px 30px rgba(0,0,0,0.06)",
-            textAlign: "center",
+            borderRadius: 18,
+            border: toneBlock.border,
+            background: toneBlock.bg,
+            padding: 16,
           }}
         >
-          <div style={{ fontSize: 18, fontWeight: 950, color: "#101010" }}>Order confirmed 🤍</div>
-          <div style={{ marginTop: 8, color: "#6B6B6B", lineHeight: 1.6 }}>
-            Your cookies are being prepared. We’ll update you as soon as they’re out of the oven 🍪
-          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 12 }}>
+            <div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  background: toneBlock.badgeBg,
+                  color: "#fff",
+                  fontWeight: 950,
+                  fontSize: 12,
+                  letterSpacing: "0.08em",
+                }}
+              >
+                {toneBlock.badgeText}
+              </div>
 
-          {orderId && (
-            <div style={{ marginTop: 12, fontSize: 13, color: "#3C3C3C" }}>
-              Order ID: <span style={{ fontWeight: 900 }}>{orderId}</span>
+              <h1 style={{ margin: "10px 0 6px", fontSize: 26, color: COLORS.black }}>
+                {toneBlock.title}
+              </h1>
+
+              <p style={{ margin: 0, color: "rgba(0,0,0,0.65)", lineHeight: 1.6 }}>
+                {toneBlock.subtitle}
+              </p>
             </div>
-          )}
 
-          <div style={{ marginTop: 18, display: "grid", gap: 10, justifyItems: "center" }}>
-            <Link
-              href="/"
+            <button
+              type="button"
+              onClick={() => router.push("/")}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
+                border: "1px solid rgba(0,0,0,0.12)",
+                background: "#fff",
                 borderRadius: 999,
-                padding: "14px 22px",
-                background: "#0052CC",
-                color: "#fff",
-                fontWeight: 950,
-                textDecoration: "none",
-                boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
-                minWidth: 220,
+                padding: "10px 12px",
+                fontWeight: 900,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
               }}
             >
-              Back to home
-            </Link>
+              Back home
+            </button>
+          </div>
 
-            <div style={{ fontSize: 12, color: "#6B6B6B" }}>
-              Status: <span style={{ fontWeight: 800 }}>{status}</span>
+          {/* Order meta */}
+          <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
+            {orderId ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Order ID</div>
+                <div style={{ fontWeight: 950, color: COLORS.black }}>{orderId}</div>
+              </div>
+            ) : null}
+
+            {amountText ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Total</div>
+                <div style={{ fontWeight: 950, color: COLORS.black }}>{amountText}</div>
+              </div>
+            ) : null}
+
+            {paymentType ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Payment</div>
+                <div style={{ fontWeight: 900, color: COLORS.black, textTransform: "uppercase", fontSize: 12 }}>
+                  {paymentType}
+                </div>
+              </div>
+            ) : null}
+
+            {txStatus ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Status</div>
+                <div style={{ fontWeight: 900, color: COLORS.black }}>{txStatus}</div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        {/* Next steps */}
+        <section
+          style={{
+            marginTop: 14,
+            borderRadius: 18,
+            border: "1px solid rgba(0,0,0,0.10)",
+            background: COLORS.sand,
+            padding: 16,
+          }}
+        >
+          <div style={{ fontWeight: 950, color: COLORS.black }}>What happens next</div>
+          <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 999, background: "#fff", border: "1px solid rgba(0,0,0,0.10)", display: "grid", placeItems: "center", fontWeight: 900 }}>
+                1
+              </div>
+              <div style={{ color: "rgba(0,0,0,0.70)", lineHeight: 1.55 }}>
+                We review your order and confirm it in WhatsApp.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 999, background: "#fff", border: "1px solid rgba(0,0,0,0.10)", display: "grid", placeItems: "center", fontWeight: 900 }}>
+                2
+              </div>
+              <div style={{ color: "rgba(0,0,0,0.70)", lineHeight: 1.55 }}>
+                Your cookies are baked fresh and packed with care.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 999, background: "#fff", border: "1px solid rgba(0,0,0,0.10)", display: "grid", placeItems: "center", fontWeight: 900 }}>
+                3
+              </div>
+              <div style={{ color: "rgba(0,0,0,0.70)", lineHeight: 1.55 }}>
+                For delivery, we’ll share driver details when your order is on the way.
+              </div>
             </div>
           </div>
-        </div>
+        </section>
+
+        {/* Actions */}
+        <section style={{ marginTop: 14, display: "grid", gap: 10 }}>
+          <a
+            href={waLink(businessWa, waMessage)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 999,
+              height: 52,
+              background: COLORS.blue,
+              color: "#fff",
+              fontWeight: 950,
+              textDecoration: "none",
+              boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
+              padding: "0 14px",
+            }}
+          >
+            Contact us on WhatsApp
+          </a>
+
+          <Link
+            href="/build"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 999,
+              height: 52,
+              border: "1px solid rgba(0,0,0,0.14)",
+              background: "#fff",
+              color: COLORS.black,
+              fontWeight: 950,
+              textDecoration: "none",
+              padding: "0 14px",
+            }}
+          >
+            Build another box
+          </Link>
+
+          <div style={{ marginTop: 4, color: "#6B6B6B", fontSize: 12, textAlign: "center", fontWeight: 800 }}>
+            Secure checkout via Midtrans · Freshly baked · Gift-ready
+          </div>
+        </section>
       </div>
     </main>
   );
