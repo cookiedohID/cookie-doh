@@ -62,7 +62,7 @@ export const FLAVORS: Flavor[] = [
     badges: ["New"],
     tags: ["Earthy", "Creamy"],
     intensity: { chocolate: 2, sweetness: 3 },
-    soldOut: false,
+    soldOut: true,
     // soldOut: true, // <- toggle to test sold-out UX
   },
   {
