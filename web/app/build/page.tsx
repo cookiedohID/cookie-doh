@@ -4,6 +4,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addBoxToCart } from "@/lib/cart";
+import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
 
 type BoxSize = 1 | 3 | 6;
@@ -15,6 +16,10 @@ const COLORS = {
   orange: "#FF5A00", // Accent (021C-ish)
 };
 
+// Your current system prices cookies at 32,500 in the builder UI.
+// If you later move to per-flavor pricing, we can replace this.
+const COOKIE_PRICE = 32500;
+
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -22,126 +27,27 @@ const formatIDR = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-const BOX_PRICE: Record<BoxSize, number> = {
-  1: 32500,
-  3: 90000,
-  6: 180000,
-};
-
 const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
   { size: 1, title: "1 cookie", desc: "Just one, just because" },
   { size: 3, title: "3 cookies", desc: "Perfect for a little treat" },
   { size: 6, title: "6 cookies", desc: "Just right for sharing" },
 ];
 
-/**
- * IMPORTANT:
- * ProductCard expects:
- * - image (string)
- * - ingredients (string)
- * - textureTags (string[])
- *
- * If you don’t want textureTags in Build, we still pass a tiny default so UI stays consistent.
- */
-const FLAVORS: CardFlavorUI[] = [
-  {
-    id: "the-one",
-    name: "The One",
-    image: "/flavors/the-one.jpg",
-    price: 32500,
-    ingredients: "Bold dark cookie + white chocolate chips.",
-    textureTags: ["Chewy", "Chunky"],
-    badges: ["Bestseller", "Classic"],
-  },
-  {
-    id: "the-other-one",
-    name: "The Other One",
-    image: "/flavors/the-other-one.jpg",
-    price: 32500,
-    ingredients: "Dark + milk chocolate chips.",
-    textureTags: ["Gooey", "Rich"],
-    badges: ["Fan Favorite"],
-  },
-  {
-    id: "the-comfort",
-    name: "The Comfort",
-    image: "/flavors/the-comfort.jpg",
-    price: 32500,
-    ingredients: "Oats, raisins, cinnamon hug.",
-    textureTags: ["Soft", "Buttery"],
-    badges: ["Classic"],
-  },
-  {
-    id: "matcha-magic",
-    name: "Matcha Magic",
-    image: "/flavors/matcha-magic.jpg",
-    price: 32500,
-    ingredients: "Vibrant matcha + sweet clouds.",
-    textureTags: ["Smooth", "Creamy"],
-    badges: ["New"],
-    // soldOut: true, // ✅ toggle to test sold-out behavior
-  },
-  {
-    id: "orange-in-the-dark",
-    name: "Orange In The Dark",
-    image: "/flavors/orange-in-the-dark.jpg",
-    price: 32500,
-    ingredients: "Chocolate + orange peel twist.",
-    textureTags: ["Bold", "Zesty"],
-    badges: ["Limited"],
-  },
-];
-
-// ✅ Quick pick combos (editable anytime)
-const QUICK_PICKS: Record<
-  BoxSize,
-  { title: string; desc: string; picks: Record<string, number> }[]
-> = {
-  1: [
-    { title: "Classic Bestie", desc: "The One ×1", picks: { "the-one": 1 } },
-    { title: "Comfort Solo", desc: "The Comfort ×1", picks: { "the-comfort": 1 } },
-  ],
-  3: [
-    {
-      title: "Crowd Pleaser",
-      desc: "The One ×2 + The Other One ×1",
-      picks: { "the-one": 2, "the-other-one": 1 },
-    },
-    {
-      title: "Balanced Trio",
-      desc: "The One ×1 + The Other One ×1 + The Comfort ×1",
-      picks: { "the-one": 1, "the-other-one": 1, "the-comfort": 1 },
-    },
-  ],
-  6: [
-    {
-      title: "Best Seller Mix",
-      desc: "The One ×2 + The Other One ×2 + The Comfort ×1 + Matcha ×1",
-      picks: {
-        "the-one": 2,
-        "the-other-one": 2,
-        "the-comfort": 1,
-        "matcha-magic": 1,
-      },
-    },
-    {
-      title: "Choco Lover",
-      desc: "The One ×3 + The Other One ×3",
-      picks: { "the-one": 3, "the-other-one": 3 },
-    },
-    {
-      title: "Adventure Box",
-      desc: "Mix everything",
-      picks: {
-        "the-one": 1,
-        "the-other-one": 2,
-        "the-comfort": 1,
-        "matcha-magic": 1,
-        "orange-in-the-dark": 1,
-      },
-    },
-  ],
-};
+function toCardFlavor(f: any): CardFlavorUI {
+  return {
+    id: String(f.id),
+    name: String(f.name ?? ""),
+    image: String(f.image ?? ""),
+    // ProductCard expects `ingredients` (we use catalog description)
+    ingredients: String(f.description ?? ""),
+    // ProductCard expects `textureTags` (we use catalog tags)
+    textureTags: Array.isArray(f.tags) ? f.tags : [],
+    intensity: f.intensity,
+    badges: Array.isArray(f.badges) ? f.badges : [],
+    price: COOKIE_PRICE,
+    soldOut: Boolean(f.soldOut),
+  };
+}
 
 export default function BuildABoxPage() {
   const router = useRouter();
@@ -149,9 +55,14 @@ export default function BuildABoxPage() {
   const [boxSize, setBoxSize] = useState<BoxSize>(6);
   const [qty, setQty] = useState<Record<string, number>>({});
 
-  // Progress pulse (kept from your original)
+  // pulse once on box selection (kept)
   const pulseKeyRef = useRef(0);
   const [pulseKey, setPulseKey] = useState(0);
+
+  const cardFlavors = useMemo(
+    () => CATALOG_FLAVORS.map(toCardFlavor),
+    []
+  );
 
   const totalCount = useMemo(
     () => Object.values(qty).reduce((a, b) => a + b, 0),
@@ -164,9 +75,8 @@ export default function BuildABoxPage() {
   const isEmpty = totalCount === 0;
 
   const totalPrice = useMemo(() => {
-    if (totalCount === boxSize) return BOX_PRICE[boxSize];
-    return 0;
-  }, [boxSize, totalCount]);
+    return isFull ? BOX_PRICES[boxSize] : 0;
+  }, [boxSize, isFull]);
 
   const inc = (id: string) => {
     if (!canAddMore) return;
@@ -183,31 +93,29 @@ export default function BuildABoxPage() {
     });
   };
 
-  const applyQuickPick = (picks: Record<string, number>) => {
-    setQty(picks);
-  };
-
   const onAddToCart = () => {
-    if (!isFull) return; // guarded
+    if (!isFull) return;
 
-    const items = FLAVORS.filter((f) => (qty[f.id] ?? 0) > 0).map((f) => ({
-      id: String(f.id),
-      name: String(f.name),
-      price: Number(f.price ?? 0),
-      quantity: Number(qty[f.id] ?? 0),
-      image: String(f.image ?? ""),
-    }));
+    const items = cardFlavors
+      .filter((f) => (qty[f.id] ?? 0) > 0)
+      .map((f) => ({
+        id: String(f.id),
+        name: String(f.name),
+        price: Number(f.price ?? COOKIE_PRICE),
+        quantity: Number(qty[f.id] ?? 0),
+        image: String(f.image ?? ""),
+      }));
 
     addBoxToCart({
       boxSize,
       items,
-      total: BOX_PRICE[boxSize],
+      total: BOX_PRICES[boxSize],
     });
 
     router.push("/cart");
   };
 
-  // Lock B: ONLY "Add X more" (no 3/12)
+  // Lock B: ONLY "Add X more"
   const bannerText = isFull
     ? "Box complete"
     : isEmpty
@@ -268,43 +176,13 @@ export default function BuildABoxPage() {
                 }}
               >
                 <div style={{ fontWeight: 800, color: COLORS.black }}>{opt.title}</div>
-                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                  {opt.desc}
-                </div>
+                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>{opt.desc}</div>
               </button>
             );
           })}
         </section>
 
-        {/* Quick Picks */}
-        <section style={{ marginBottom: 14 }}>
-          <div style={{ fontWeight: 950, color: COLORS.black }}>Quick picks</div>
-          <div style={{ marginTop: 8, display: "grid", gap: 10 }}>
-            {QUICK_PICKS[boxSize].map((qp) => (
-              <button
-                key={qp.title}
-                type="button"
-                onClick={() => applyQuickPick(qp.picks)}
-                style={{
-                  textAlign: "left",
-                  borderRadius: 16,
-                  padding: 12,
-                  border: "1px solid rgba(0,0,0,0.10)",
-                  background: COLORS.white,
-                  cursor: "pointer",
-                  boxShadow: "0 10px 22px rgba(0,0,0,0.04)",
-                }}
-              >
-                <div style={{ fontWeight: 900, color: COLORS.black }}>{qp.title}</div>
-                <div style={{ marginTop: 4, fontSize: 12, color: "#6B6B6B", fontWeight: 800 }}>
-                  {qp.desc}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Progress banner (pulse once on box selection) */}
+        {/* Progress banner */}
         <section style={{ marginBottom: 18 }}>
           <div
             key={pulseKey}
@@ -361,7 +239,7 @@ export default function BuildABoxPage() {
           )}
         </section>
 
-        {/* Flavor grid (now using ProductCard) */}
+        {/* Flavor grid using ProductCard (soldOut now works from catalog.ts) */}
         <section
           style={{
             display: "grid",
@@ -369,7 +247,7 @@ export default function BuildABoxPage() {
             gap: 14,
           }}
         >
-          {FLAVORS.map((f) => (
+          {cardFlavors.map((f) => (
             <ProductCard
               key={f.id}
               flavor={f}
