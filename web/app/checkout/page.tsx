@@ -4,7 +4,10 @@
 import type { CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
+import { FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
+import { clearCart, getCart, CART_KEY } from "@/lib/cart";
 
 type CartItem = {
   id: string;
@@ -24,8 +27,6 @@ type CartState = {
   boxes: CartBox[];
 };
 
-const CART_KEY = "cookie_doh_cart_v1";
-
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -33,26 +34,20 @@ const formatIDR = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-function readCart(): CartState {
-  try {
-    const raw = localStorage.getItem(CART_KEY);
-    if (!raw) return { boxes: [] };
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.boxes)) return { boxes: [] };
-    return parsed as CartState;
-  } catch {
-    return { boxes: [] };
-  }
-}
-
 // ✅ Clear cart storage AFTER successful "Place order"
 function clearCartStorage() {
   try {
+    // single source of truth
+    clearCart();
+
+    // legacy keys (cleanup)
     localStorage.removeItem(CART_KEY);
     localStorage.removeItem("cart");
     localStorage.removeItem("cookie_doh_cart");
     localStorage.removeItem("cookie_doh_cart_v0");
     localStorage.removeItem("cart_items");
+    localStorage.removeItem("cookieDohCart");
+    localStorage.removeItem("cookie_doh_cart");
   } catch (e) {}
 }
 
@@ -177,7 +172,11 @@ function ceilToThousand(n: number) {
 }
 
 export default function CheckoutPage() {
+  const router = useRouter();
+
   const [cart, setCart] = useState<CartState>({ boxes: [] });
+  const [booting, setBooting] = useState(true);
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -214,10 +213,7 @@ export default function CheckoutPage() {
   const [scheduleTime, setScheduleTime] = useState<string>("");
 
   // Pickup points (editable via NEXT_PUBLIC_PICKUP_POINTS_JSON)
-  const pickupPoints = useMemo(() => {
-    const pts = parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON);
-    return pts;
-  }, []);
+  const pickupPoints = useMemo(() => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON), []);
   const [pickupPointId, setPickupPointId] = useState<string>(() => pickupPoints[0]?.id || "");
 
   // Shipping quote (delivery only)
@@ -228,9 +224,44 @@ export default function CheckoutPage() {
 
   const quoteAbortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    setCart(readCart());
+  const soldOutSet = useMemo(() => {
+    const s = new Set<string>();
+    for (const f of CATALOG_FLAVORS as any[]) {
+      if (f?.soldOut) s.add(String(f.id));
+    }
+    return s;
   }, []);
+
+  // ✅ Boot / Guard: empty cart => /build, sold out in cart => /cart
+  useEffect(() => {
+    const c = getCart() as any;
+    const next: CartState = c && Array.isArray(c.boxes) ? c : { boxes: [] };
+    setCart(next);
+
+    const isEmpty = !next.boxes || next.boxes.length === 0;
+    if (isEmpty) {
+      router.replace("/build");
+      return;
+    }
+
+    let hasSoldOut = false;
+    for (const b of next.boxes) {
+      for (const it of b.items || []) {
+        if (soldOutSet.has(String(it.id))) {
+          hasSoldOut = true;
+          break;
+        }
+      }
+      if (hasSoldOut) break;
+    }
+
+    if (hasSoldOut) {
+      router.replace("/cart");
+      return;
+    }
+
+    setBooting(false);
+  }, [router, soldOutSet]);
 
   const subtotal = useMemo(
     () => cart.boxes.reduce((s, b) => s + (b.total || 0), 0),
@@ -392,6 +423,16 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Final safety check (in case stock changed while user is on checkout)
+    for (const b of cart.boxes) {
+      for (const it of b.items || []) {
+        if (soldOutSet.has(String(it.id))) {
+          router.replace("/cart");
+          return;
+        }
+      }
+    }
+
     const normalizedPhone = phoneCheck.normalized || normalizeIDPhone(phone);
 
     const fullAddress = addressDetail.trim()
@@ -440,7 +481,6 @@ export default function CheckoutPage() {
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
         total: grandTotal,
 
-        // pass quote meta so backend can store origin/service used
         meta: {
           quote: quoteMeta,
         },
@@ -475,6 +515,22 @@ export default function CheckoutPage() {
     }
   };
 
+  // During guard redirects, avoid flashing checkout UI
+  if (booting) {
+    return (
+      <main style={{ minHeight: "100vh", background: "#fff" }}>
+        <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px" }}>
+          <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
+          <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>Checking your cart…</p>
+          <div style={{ marginTop: 14, color: "#6B6B6B", fontWeight: 800 }}>
+            Redirecting if needed.
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // (Should not happen because we redirect, but keep a safe fallback)
   if (isEmpty) {
     return (
       <main style={{ minHeight: "100vh", background: "#fff" }}>
@@ -482,7 +538,15 @@ export default function CheckoutPage() {
           <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>Checkout</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>You’re almost there 🤍</p>
 
-          <section style={{ marginTop: 16, borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", background: "#FAF7F2", padding: 18 }}>
+          <section
+            style={{
+              marginTop: 16,
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              background: "#FAF7F2",
+              padding: 18,
+            }}
+          >
             <div style={{ fontWeight: 900, color: "#101010" }}>Your box is waiting 🤍</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", lineHeight: 1.6 }}>
               Please build your cookie box first.
@@ -528,7 +592,15 @@ export default function CheckoutPage() {
 
         <div style={{ display: "grid", gap: 14 }}>
           {/* CONTACT */}
-          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
             <div style={{ fontWeight: 950, color: "#101010" }}>Contact details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               We’ll use this to update you about your order.
@@ -567,7 +639,15 @@ export default function CheckoutPage() {
           </section>
 
           {/* Fulfillment */}
-          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
             <div style={{ fontWeight: 950, color: "#101010" }}>Fulfillment</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               Choose delivery or pickup, then select date & time.
@@ -647,6 +727,11 @@ export default function CheckoutPage() {
                       08:00 – 22:00 {samedayDisabled ? "• Cutoff 12:00" : ""}
                     </div>
                   </button>
+                </div>
+
+                {/* ✅ tiny reassurance (requested) */}
+                <div style={{ marginTop: 8, fontSize: 12, color: "#6B6B6B", fontWeight: 700 }}>
+                  You’ll see the final total before paying.
                 </div>
               </div>
             ) : null}
@@ -751,7 +836,15 @@ export default function CheckoutPage() {
 
           {/* Delivery details */}
           {fulfillment === "delivery" ? (
-            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+            <section
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,0.10)",
+                padding: 14,
+                background: "#fff",
+                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+              }}
+            >
               <div style={{ fontWeight: 950, color: "#101010" }}>Delivery details</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
                 Please double-check your address to avoid delivery delays.
@@ -806,8 +899,18 @@ export default function CheckoutPage() {
                 </div>
 
                 <div style={{ display: "grid", gap: 8 }}>
-                  <input value={buildingName} onChange={(e) => setBuildingName(e.target.value)} placeholder="Building name (auto, editable)" style={sameStyle} />
-                  <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Postal code (auto, editable)" style={sameStyle} />
+                  <input
+                    value={buildingName}
+                    onChange={(e) => setBuildingName(e.target.value)}
+                    placeholder="Building name (auto, editable)"
+                    style={sameStyle}
+                  />
+                  <input
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    placeholder="Postal code (auto, editable)"
+                    style={sameStyle}
+                  />
                 </div>
 
                 <label style={{ display: "grid", gap: 6 }}>
@@ -815,14 +918,29 @@ export default function CheckoutPage() {
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
+                    style={{
+                      minHeight: 90,
+                      borderRadius: 14,
+                      border: "1px solid rgba(0,0,0,0.12)",
+                      padding: "10px 12px",
+                      outline: "none",
+                      resize: "vertical",
+                    }}
                     placeholder="Gift note, delivery timing, special instructions…"
                   />
                 </label>
               </div>
             </section>
           ) : (
-            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+            <section
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,0.10)",
+                padding: 14,
+                background: "#fff",
+                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+              }}
+            >
               <div style={{ fontWeight: 950, color: "#101010" }}>Pickup notes (optional)</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
                 Tell us anything we should know for pickup.
@@ -833,7 +951,14 @@ export default function CheckoutPage() {
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
+                  style={{
+                    minHeight: 90,
+                    borderRadius: 14,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    padding: "10px 12px",
+                    outline: "none",
+                    resize: "vertical",
+                  }}
                   placeholder="Pickup instructions…"
                 />
               </label>
@@ -841,7 +966,15 @@ export default function CheckoutPage() {
           )}
 
           {/* Order summary */}
-          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
             <div style={{ fontWeight: 950, color: "#101010" }}>Your order 🤍</div>
 
             <div style={{ marginTop: 12, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
@@ -886,6 +1019,11 @@ export default function CheckoutPage() {
                   Pickup point: {pickupPoints.find((p) => p.id === pickupPointId)?.name || "—"}
                 </div>
               ) : null}
+
+              {/* ✅ Payment reassurance */}
+              <div style={{ marginTop: 10, color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
+                Secure checkout via Midtrans.
+              </div>
             </div>
 
             <div style={{ marginTop: 12 }}>
@@ -905,7 +1043,18 @@ export default function CheckoutPage() {
       </div>
 
       {/* Sticky Place Order */}
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 -10px 30px rgba(0,0,0,0.05)", padding: "12px 14px" }}>
+      <div
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "#fff",
+          borderTop: "1px solid rgba(0,0,0,0.08)",
+          boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
+          padding: "12px 14px",
+        }}
+      >
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
             onClick={placeOrder}
