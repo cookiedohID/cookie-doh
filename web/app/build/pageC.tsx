@@ -1,7 +1,9 @@
+
+/*
 // web/app/build/page.tsx
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { addBoxToCart } from "@/lib/cart";
@@ -14,7 +16,9 @@ type FlavorUI = {
   image?: string;
   ingredients?: string;
   textureTags?: string[];
+  intensity?: { chocolate?: number; sweetness?: number };
   price?: number;
+  badges?: string[];
 };
 
 const formatIDR = (n: number) =>
@@ -37,38 +41,68 @@ const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
 ];
 
 const FLAVORS: FlavorUI[] = [
-  { id: "the-one", name: "The One", image: "/flavors/the-one.jpg", price: 32500, ingredients: "Bold dark cookie + white chocolate chips." },
-  { id: "the-other-one", name: "The Other One", image: "/flavors/the-other-one.jpg", price: 32500, ingredients: "Dark + milk chocolate chips." },
-  { id: "the-comfort", name: "The Comfort", image: "/flavors/the-comfort.jpg", price: 32500, ingredients: "Oats, raisins, cinnamon hug." },
-  { id: "matcha-magic", name: "Matcha Magic", image: "/flavors/matcha-magic.jpg", price: 32500, ingredients: "Vibrant matcha + sweet clouds." },
-  { id: "orange-in-the-dark", name: "Orange In The Dark", image: "/flavors/orange-in-the-dark.jpg", price: 32500, ingredients: "Chocolate + orange peel twist." },
+  {
+    id: "the-one",
+    name: "The One",
+    image: "/flavors/the-one.jpg",
+    ingredients:
+      "Decadent dark cookie studded with creamy white Belgian chocolate chips - a bold, blissful contrast in every bite",
+    textureTags: ["Soft", "Chewy"],
+    intensity: { chocolate: 5, sweetness: 3 },
+    price: 32500,
+    badges: ["Bestseller", "Classic"],
+  },
+  {
+    id: "the-other-one",
+    name: "The Other One",
+    image: "/flavors/the-other-one.jpg",
+    ingredients:
+      "Sinfully rich chocolate cookie loaded with dark + milk Belgian chocolate chips - pure bliss in every bite",
+    textureTags: ["Earthy", "Creamy"],
+    intensity: { chocolate: 4, sweetness: 4 },
+    price: 32500,
+    badges: ["Fan Favorite"],
+  },
+  {
+    id: "the-comfort",
+    name: "The Comfort",
+    image: "/flavors/the-comfort.jpg",
+    ingredients:
+      "Hearty oats, plump raisins, and a warm cinnamon hug - chewy, golden and baked with old fashioned love.",
+    textureTags: ["Earthy", "Creamy"],
+    intensity: { chocolate: 0, sweetness: 3 },
+    price: 32500,
+    badges: ["The Classic"],
+  },
+  {
+    id: "matcha-magic",
+    name: "Matcha Magic",
+    image: "/flavors/matcha-magic.jpg",
+    ingredients:
+      "Like a serene Japanese garden in cookie form: vibrant matcha, sweet chocolate clouds and pure melt-in-your-mouth magic.",
+    textureTags: ["Earthy", "Creamy"],
+    intensity: { chocolate: 2, sweetness: 3 },
+    price: 32500,
+    badges: ["Matcha Lover"],
+  },
+  {
+    id: "orange-in-the-dark",
+    name: "Orange In The Dark",
+    image: "/flavors/orange-in-the-dark.jpg",
+    ingredients:
+      "Rich, fudgy chocolate cookie packed with dark chocolate chips and a citrusy twist of orange peel - decadence with a zing.",
+    textureTags: ["Citrusy", "Creamy"],
+    intensity: { chocolate: 3, sweetness: 4 },
+    price: 32500,
+    badges: ["Classic with a twist"],
+  },
 ];
-
-// ✅ Quick pick combos (editable anytime)
-const QUICK_PICKS: Record<BoxSize, { title: string; desc: string; picks: Record<string, number> }[]> = {
-  1: [
-    { title: "Classic Bestie", desc: "The One ×1", picks: { "the-one": 1 } },
-    { title: "Comfort Solo", desc: "The Comfort ×1", picks: { "the-comfort": 1 } },
-  ],
-  3: [
-    { title: "Crowd Pleaser", desc: "The One ×2 + The Other One ×1", picks: { "the-one": 2, "the-other-one": 1 } },
-    { title: "Balanced Trio", desc: "The One ×1 + The Other One ×1 + The Comfort ×1", picks: { "the-one": 1, "the-other-one": 1, "the-comfort": 1 } },
-  ],
-  6: [
-    { title: "Best Seller Mix", desc: "The One ×2 + The Other One ×2 + The Comfort ×1 + Matcha ×1", picks: { "the-one": 2, "the-other-one": 2, "the-comfort": 1, "matcha-magic": 1 } },
-    { title: "Choco Lover", desc: "The One ×3 + The Other One ×3", picks: { "the-one": 3, "the-other-one": 3 } },
-    { title: "Adventure Box", desc: "Mix everything", picks: { "the-one": 1, "the-other-one": 2, "the-comfort": 1, "matcha-magic": 1, "orange-in-the-dark": 1 } },
-  ],
-};
 
 export default function BuildABoxPage() {
   const router = useRouter();
 
   const [boxSize, setBoxSize] = useState<BoxSize>(6);
   const [qty, setQty] = useState<Record<string, number>>({});
-
-  const pulseKeyRef = useRef(0); // increments on box change (pulse once)
-  const [pulseKey, setPulseKey] = useState(0);
 
   const totalCount = useMemo(
     () => Object.values(qty).reduce((a, b) => a + b, 0),
@@ -98,10 +132,6 @@ export default function BuildABoxPage() {
     });
   };
 
-  const applyQuickPick = (picks: Record<string, number>) => {
-    setQty(picks);
-  };
-
   const onAddToCart = () => {
     if (totalCount === 0) return;
 
@@ -127,6 +157,8 @@ export default function BuildABoxPage() {
 
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {/* MINUS */}
+/*
         <button
           type="button"
           onClick={() => dec(id)}
@@ -141,10 +173,13 @@ export default function BuildABoxPage() {
             cursor: v === 0 ? "not-allowed" : "pointer",
             opacity: v === 0 ? 0.45 : 1,
           }}
+          aria-label="Decrease quantity"
         >
           −
         </button>
 
+        {/* PLUS WITH COUNT RIGHT NEXT TO IT */}
+/*
         <button
           type="button"
           onClick={() => inc(id)}
@@ -162,8 +197,12 @@ export default function BuildABoxPage() {
             alignItems: "center",
             gap: 10,
           }}
+          aria-label="Increase quantity"
         >
           <span style={{ fontSize: 16 }}>+</span>
+
+          {/* COUNT BADGE */}
+/*
           <span
             style={{
               minWidth: 26,
@@ -186,23 +225,9 @@ export default function BuildABoxPage() {
     );
   };
 
-  const bannerBg =
-    remaining === 0 ? "rgba(30,170,120,0.12)" : "rgba(0,82,204,0.08)";
-  const bannerBorder =
-    remaining === 0 ? "2px solid #1EAA78" : "2px solid #0052CC";
-  const bannerText =
-    remaining === 0 ? "Box complete ✓" : `Choose ${remaining} more`;
-
   return (
     <main style={{ background: "#fff", minHeight: "100vh" }}>
-      <style>{`
-        @keyframes cd_pulse {
-          0% { transform: scale(0.985); }
-          100% { transform: scale(1); }
-        }
-      `}</style>
-
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "20px 16px 140px" }}>
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "20px 16px 120px" }}>
         <header style={{ marginBottom: 18 }}>
           <h1 style={{ margin: 0, fontSize: 22, color: "#101010" }}>
             Build your cookie box
@@ -213,12 +238,13 @@ export default function BuildABoxPage() {
         </header>
 
         {/* Box size cards */}
+/*
         <section
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
             gap: 10,
-            marginBottom: 14,
+            marginBottom: 18,
           }}
         >
           {BOX_OPTIONS.map((opt) => {
@@ -229,8 +255,6 @@ export default function BuildABoxPage() {
                 onClick={() => {
                   setBoxSize(opt.size);
                   setQty({});
-                  pulseKeyRef.current += 1;
-                  setPulseKey(pulseKeyRef.current);
                 }}
                 style={{
                   textAlign: "left",
@@ -250,58 +274,15 @@ export default function BuildABoxPage() {
           })}
         </section>
 
-        {/* Quick Picks */}
-        <section style={{ marginBottom: 14 }}>
-          <div style={{ fontWeight: 950, color: "#101010" }}>Quick picks</div>
-          <div style={{ marginTop: 8, display: "grid", gap: 10 }}>
-            {QUICK_PICKS[boxSize].map((qp) => (
-              <button
-                key={qp.title}
-                type="button"
-                onClick={() => applyQuickPick(qp.picks)}
-                style={{
-                  textAlign: "left",
-                  borderRadius: 16,
-                  padding: 12,
-                  border: "1px solid rgba(0,0,0,0.10)",
-                  background: "#fff",
-                  cursor: "pointer",
-                  boxShadow: "0 10px 22px rgba(0,0,0,0.04)",
-                }}
-              >
-                <div style={{ fontWeight: 900, color: "#101010" }}>{qp.title}</div>
-                <div style={{ marginTop: 4, fontSize: 12, color: "#6B6B6B", fontWeight: 800 }}>
-                  {qp.desc}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Progress banner (pulse once on box selection) */}
+        {/* Progress */}
+/*
         <section style={{ marginBottom: 18 }}>
-          <div
-            key={pulseKey}
-            style={{
-              padding: "10px 14px",
-              borderRadius: 14,
-              border: bannerBorder,
-              background: bannerBg,
-              fontWeight: 950,
-              color: "#101010",
-              animation: "cd_pulse 0.6s ease-out",
-            }}
-          >
-            Box of {boxSize} • {bannerText}
-          </div>
-
-          <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", color: "#3C3C3C" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "#3C3C3C" }}>
             <div style={{ fontWeight: 800 }}>
               You’ve added {totalCount} of {boxSize} cookies
             </div>
             <div style={{ color: "#6B6B6B", fontWeight: 800 }}>{remaining} more</div>
           </div>
-
           <div
             style={{
               marginTop: 10,
@@ -322,13 +303,14 @@ export default function BuildABoxPage() {
           </div>
 
           {!canAddMore && (
-            <div style={{ marginTop: 10, color: "#6B6B6B", fontWeight: 800 }}>
+            <div style={{ marginTop: 10, color: "#6B6B6B", fontWeight: 700 }}>
               Your box is full 🤍 Remove one cookie to add another.
             </div>
           )}
         </section>
 
-        {/* Flavor grid */}
+        {/* Flavor grid (inline cards) */}
+/*
         <section
           style={{
             display: "grid",
@@ -375,6 +357,27 @@ export default function BuildABoxPage() {
                   </div>
                 ) : null}
 
+                {f.textureTags?.length ? (
+                  <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {f.textureTags.map((t) => (
+                      <span
+                        key={t}
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 900,
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                          background: "rgba(0,82,204,0.08)",
+                          border: "1px solid rgba(0,0,0,0.08)",
+                          color: "#101010",
+                        }}
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
                 <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <QtyControls id={f.id} />
                   <div style={{ fontWeight: 900, color: "#6B6B6B", fontSize: 12 }}>
@@ -388,6 +391,7 @@ export default function BuildABoxPage() {
       </div>
 
       {/* Sticky bottom bar */}
+/*
       <div
         style={{
           position: "fixed",
@@ -435,4 +439,4 @@ export default function BuildABoxPage() {
     </main>
   );
 }
-
+*/
