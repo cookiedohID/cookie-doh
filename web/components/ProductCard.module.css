@@ -6,6 +6,11 @@
   overflow: hidden;
   background: #fff;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.05);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.card:focus-within {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
 }
 
 .imageWrap {
@@ -26,8 +31,8 @@
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 800;
-  background: rgba(255, 255, 255, 0.82);
+  font-weight: 850;
+  background: rgba(255, 255, 255, 0.86);
   backdrop-filter: blur(6px);
   border: 1px solid rgba(0, 0, 0, 0.10);
   color: #111;
@@ -44,7 +49,7 @@
   gap: 10px;
 }
 
-/* 🔴 Flavor / quantity zone */
+/* Flavor / quantity zone */
 .redRow {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -57,10 +62,9 @@
   font-size: 18px;
   line-height: 1.2;
   font-weight: 850;
-  color: #111;
+  color: #101010;
 }
 
-/* 1) Quantity button move a bit left */
 .qtyPill {
   min-width: 32px;
   height: 32px;
@@ -70,20 +74,19 @@
   border: 2px solid rgba(0, 82, 204, 0.18);
   background: rgba(0, 82, 204, 0.06);
   font-weight: 900;
-  color: #111;
+  color: #101010;
 
   justify-self: end;
-  margin-right: 10px; /* <-- more left */
+  margin-right: 10px;
 }
 
-/* 🟢 Ingredients zone */
-/* 2) Make into 3 lines */
+/* Ingredients zone */
 .ingredients {
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-  color: #2B6A3B;
-  opacity: 0.95;
+  color: rgba(0, 0, 0, 0.62);
+  opacity: 0.98;
 
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -91,7 +94,7 @@
   overflow: hidden;
 }
 
-/* 🔵 Texture zone */
+/* Texture zone */
 .textureRow {
   display: flex;
   flex-wrap: wrap;
@@ -102,13 +105,13 @@
   font-size: 12px;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 48, 120, 0.18);
+  border: 1px solid rgba(0, 82, 204, 0.18);
   color: #003078;
-  background: rgba(0, 48, 120, 0.05);
-  font-weight: 750;
+  background: rgba(0, 82, 204, 0.05);
+  font-weight: 800;
 }
 
-/* 3) Chocolate & Sweetness texts and circles smaller so it fits the box */
+/* Intensity (compact) */
 .intensityWrap {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -143,11 +146,12 @@
   background: rgba(0, 0, 0, 0.12);
 }
 
+/* ✅ Accent: tiny 021C-ish orange */
 .dotOn {
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(255, 90, 0, 0.92);
 }
 
-/* 4) “-“ and “add” make slight smaller to fit box */
+/* CTA row */
 .ctaRow {
   display: grid;
   grid-template-columns: 44px 1fr;
@@ -165,10 +169,22 @@
   font-weight: 900;
   color: rgba(0, 0, 0, 0.55);
   line-height: 1;
+  cursor: pointer;
+  transition: transform 90ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.minusBtn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.16);
+}
+
+.minusBtn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .minusBtn:disabled {
   opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .addBtn {
@@ -184,14 +200,33 @@
   justify-content: center;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
+  transition: transform 90ms ease, box-shadow 120ms ease, opacity 120ms ease,
+    background 120ms ease;
+}
+
+.addBtn:hover:not(:disabled) {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.10);
+}
+
+.addBtn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .addBtn:disabled {
   opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .plus {
   font-weight: 950;
+}
+
+/* Focus rings (keyboard-friendly) */
+.minusBtn:focus-visible,
+.addBtn:focus-visible {
+  outline: 3px solid rgba(0, 82, 204, 0.22);
+  outline-offset: 2px;
 }
 
 /* Small phones: tiny tighten */

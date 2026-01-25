@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
+import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
 
 type CartItem = {
   boxSize: 1 | 3 | 6;
@@ -16,9 +17,35 @@ type CartItem = {
 
 const CART_KEY = "cookieDohCart";
 
+const COLORS = {
+  blue: "#0052CC", // Pantone 293C vibe
+  black: "#101010",
+  white: "#FFFFFF",
+  bg: "#FAF7F2",
+  orange: "#FF5A00", // Accent (021C-ish)
+};
+
 function safeGetName(flavorId: string) {
   const f = FLAVORS.find((x: any) => x.id === flavorId);
   return f?.name ?? flavorId;
+}
+
+/**
+ * Homepage uses ProductCard to display flavors consistently.
+ * We normalize catalog flavors into ProductCard's expected shape.
+ */
+function toCardFlavor(f: any): CardFlavorUI {
+  return {
+    id: String(f.id),
+    name: String(f.name ?? ""),
+    image: String(f.image ?? ""),
+    ingredients: String(f.ingredients ?? f.description ?? ""),
+    textureTags: Array.isArray(f.textureTags) ? f.textureTags : Array.isArray(f.tags) ? f.tags : [],
+    intensity: f.intensity,
+    badges: Array.isArray(f.badges) ? f.badges : [],
+    price: typeof f.price === "number" ? f.price : undefined,
+    soldOut: Boolean(f.soldOut), // if your catalog has it
+  };
 }
 
 export default function HomePage() {
@@ -64,8 +91,10 @@ export default function HomePage() {
     router.push("/cart");
   }
 
+  const cardFlavors = useMemo(() => FLAVORS.map(toCardFlavor), []);
+
   return (
-    <main style={{ background: "#FAF7F2" }}>
+    <main style={{ background: COLORS.bg }}>
       {/* HERO */}
       <section
         style={{
@@ -88,18 +117,18 @@ export default function HomePage() {
               fontSize: 12,
               letterSpacing: "0.08em",
               margin: "0 auto 28px",
-              maxWidth: 520,
+              maxWidth: 560,
               padding: "0 14px",
             }}
           >
-            ✨ Freshly baked daily • Small batches • Jakarta delivery
+            Freshly baked daily • Small batches • Jakarta delivery
           </div>
 
           <div
             style={{
               fontSize: 12,
               letterSpacing: "0.12em",
-              color: "#1F1F1F",
+              color: COLORS.black,
               opacity: 0.7,
               marginBottom: 12,
             }}
@@ -113,7 +142,7 @@ export default function HomePage() {
               lineHeight: 1.15,
               fontWeight: 600,
               margin: "0 0 18px",
-              color: "#101010",
+              color: COLORS.black,
             }}
           >
             Where the
@@ -124,7 +153,7 @@ export default function HomePage() {
           <p
             style={{
               margin: "0 auto 28px",
-              maxWidth: 420,
+              maxWidth: 440,
               fontSize: 16,
               lineHeight: 1.6,
               color: "#3C3C3C",
@@ -134,12 +163,13 @@ export default function HomePage() {
             <br />
             Thoughtfully baked in small batches, with soft centers and golden edges.
             <br />
-            Pick your favorites — we’ll take care of the rest.
+            Pick your favourites — we’ll take care of the rest.
           </p>
 
           {/* Primary CTA */}
           <div style={{ display: "grid", gap: 10, justifyItems: "center" }}>
             <div style={{ fontSize: 14, color: "#3C3C3C" }}>Build your perfect box</div>
+
             <Link
               href="/build"
               style={{
@@ -148,16 +178,20 @@ export default function HomePage() {
                 justifyContent: "center",
                 borderRadius: 999,
                 padding: "14px 24px",
-                background: "#0052CC",
-                color: "#fff",
-                fontWeight: 600,
+                background: COLORS.blue,
+                color: COLORS.white,
+                fontWeight: 700,
                 textDecoration: "none",
                 boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
                 minHeight: 48,
               }}
             >
-              Build your box 🍪
+              Build your box
             </Link>
+
+            <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
+              Freshly baked · Packed with care · Gift-ready
+            </div>
           </div>
 
           {/* Cozy divider */}
@@ -173,14 +207,14 @@ export default function HomePage() {
       </section>
 
       {/* CROWD FAVORITES + QUICK PICKS */}
-      <section style={{ background: "#fff", padding: "48px 16px 56px" }}>
+      <section style={{ background: COLORS.white, padding: "48px 16px 56px" }}>
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <h2
             style={{
               fontSize: 24,
               lineHeight: 1.25,
               margin: "0 0 10px",
-              color: "#101010",
+              color: COLORS.black,
               fontWeight: 600,
             }}
           >
@@ -218,6 +252,7 @@ export default function HomePage() {
                     {preset3.map((x) => safeGetName(x.flavorId)).join(" • ")}
                   </div>
                 </div>
+
                 <div
                   style={{
                     padding: "6px 10px",
@@ -242,9 +277,9 @@ export default function HomePage() {
                     borderRadius: 999,
                     padding: "12px 14px",
                     border: "none",
-                    background: "#0052CC",
-                    color: "#fff",
-                    fontWeight: 800,
+                    background: COLORS.blue,
+                    color: COLORS.white,
+                    fontWeight: 850,
                     cursor: "pointer",
                     boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
                   }}
@@ -285,6 +320,7 @@ export default function HomePage() {
                       .join(" • ")}
                   </div>
                 </div>
+
                 <div
                   style={{
                     padding: "6px 10px",
@@ -309,9 +345,9 @@ export default function HomePage() {
                     borderRadius: 999,
                     padding: "12px 14px",
                     border: "none",
-                    background: "#0052CC",
-                    color: "#fff",
-                    fontWeight: 800,
+                    background: COLORS.blue,
+                    color: COLORS.white,
+                    fontWeight: 850,
                     cursor: "pointer",
                     boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
                   }}
@@ -337,6 +373,56 @@ export default function HomePage() {
 
           <div style={{ marginTop: 18, fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
             Prefer full control? Build from scratch anytime.
+          </div>
+        </div>
+      </section>
+
+      {/* FLAVOURS (uses ProductCard system) */}
+      <section style={{ background: COLORS.bg, padding: "44px 16px 70px" }}>
+        <div style={{ maxWidth: 980, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 14 }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 650, color: COLORS.black }}>
+                Explore flavours
+              </h2>
+              <p style={{ margin: "8px 0 0", color: "#6B6B6B", maxWidth: 560 }}>
+                Tap any flavour to start building your box.
+                <span style={{ color: COLORS.orange, fontWeight: 800 }}> </span>
+              </p>
+            </div>
+
+            <Link
+              href="/build"
+              style={{
+                textDecoration: "none",
+                fontWeight: 800,
+                color: COLORS.blue,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Build a box →
+            </Link>
+          </div>
+
+          <div
+            style={{
+              marginTop: 16,
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 14,
+            }}
+          >
+            {cardFlavors.map((f) => (
+              <ProductCard
+                key={f.id}
+                flavor={f}
+                quantity={0}
+                onAdd={() => router.push("/build")}
+                onRemove={() => {}}
+                disabledAdd={false}
+                addLabel="Build a box"
+              />
+            ))}
           </div>
         </div>
       </section>

@@ -6,12 +6,31 @@ export type FlavorUI = {
   id: string;
   name: string;
   image: string;
-  ingredients: string; // 🟢
-  textureTags: string[]; // 🔵
-  intensity?: { chocolate?: 0 | 1 | 2 | 3 | 4 | 5; sweetness?: 1 | 2 | 3 | 4 | 5 };
+  ingredients: string;
+  textureTags: string[];
+  intensity?: {
+    chocolate?: 0 | 1 | 2 | 3 | 4 | 5;
+    sweetness?: 1 | 2 | 3 | 4 | 5;
+  };
   price?: number; // not used for box pricing
   badges?: string[];
+  soldOut?: boolean; // ✅ Lock C: disable + show "Sold out"
 };
+
+const BADGE_PRIORITY = ["Bestseller", "Limited", "New", "Classic"] as const;
+
+function sortBadges(badges: string[] | undefined) {
+  if (!badges || badges.length === 0) return [];
+  const rank = new Map<string, number>();
+  BADGE_PRIORITY.forEach((b, i) => rank.set(b, i));
+
+  return [...badges].sort((a, b) => {
+    const ra = rank.has(a) ? (rank.get(a) as number) : 999;
+    const rb = rank.has(b) ? (rank.get(b) as number) : 999;
+    if (ra !== rb) return ra - rb;
+    return a.localeCompare(b);
+  });
+}
 
 export default function ProductCard({
   flavor,
@@ -19,18 +38,31 @@ export default function ProductCard({
   onAdd,
   onRemove,
   disabledAdd,
+  addLabel,
 }: {
   flavor: FlavorUI;
   quantity: number;
   onAdd: () => void;
   onRemove: () => void;
   disabledAdd?: boolean;
+  addLabel?: string; // ✅ lets you reuse card outside Build Box (default: "Add to box")
 }) {
   const chocolate = flavor.intensity?.chocolate ?? 0;
   const sweetness = flavor.intensity?.sweetness ?? 0;
 
+  const isSoldOut = !!flavor.soldOut;
+  const addDisabled = !!disabledAdd || isSoldOut;
+  const removeDisabled = quantity === 0;
+
+  const topBadges = sortBadges(flavor.badges).slice(0, 2);
+  const ctaText = addLabel ?? "Add to box";
+
   return (
-    <article className={styles.card}>
+    <article
+      className={styles.card}
+      aria-label={flavor.name}
+      style={{ opacity: isSoldOut ? 0.88 : 1 }}
+    >
       <div className={styles.imageWrap}>
         <Image
           src={flavor.image}
@@ -41,12 +73,32 @@ export default function ProductCard({
           priority={false}
         />
 
+        {/* ✅ Lock C: Sold out label */}
+        {isSoldOut && (
+          <div
+            className={styles.badge}
+            style={{
+              top: 10,
+              left: 10,
+              right: "auto",
+              background: "rgba(0,0,0,0.75)",
+              color: "#fff",
+            }}
+          >
+            Sold out
+          </div>
+        )}
+
         {/* Badges (stack vertically so they don't overlap/clamp weirdly) */}
-        {flavor.badges?.slice(0, 2).map((b, i) => (
+        {topBadges.map((b, i) => (
           <div
             key={b}
             className={styles.badge}
-            style={{ top: 10 + i * 36 }} // <-- stack
+            style={{
+              top: 10 + i * 36,
+              // if sold out exists, shift badges down so it stays first
+              transform: isSoldOut ? "translateY(36px)" : "none",
+            }}
           >
             {b}
           </div>
@@ -54,18 +106,20 @@ export default function ProductCard({
       </div>
 
       <div className={styles.body}>
-        {/* 🔴 Flavor + qty */}
+        {/* Flavor + qty */}
         <div className={styles.redRow}>
           <h3 className={styles.title}>{flavor.name}</h3>
-          <div className={styles.qtyPill}>{quantity}</div>
+          <div className={styles.qtyPill} aria-label="Selected quantity">
+            {quantity}
+          </div>
         </div>
 
-        {/* 🟢 Ingredients */}
+        {/* Ingredients */}
         <p className={styles.ingredients} title={flavor.ingredients}>
           {flavor.ingredients}
         </p>
 
-        {/* 🔵 Texture */}
+        {/* Texture */}
         <div className={styles.textureRow}>
           {flavor.textureTags.slice(0, 2).map((t) => (
             <span key={t} className={styles.texturePill}>
@@ -79,7 +133,7 @@ export default function ProductCard({
           <div className={styles.intensityWrap}>
             <div className={styles.intensityBlock}>
               <div className={styles.intensityLabel}>Chocolate</div>
-              <div className={styles.dots}>
+              <div className={styles.dots} aria-label={`Chocolate intensity ${chocolate}/5`}>
                 {Array.from({ length: 5 }).map((_, i) => (
                   <span
                     key={i}
@@ -90,7 +144,7 @@ export default function ProductCard({
             </div>
             <div className={styles.intensityBlock}>
               <div className={styles.intensityLabel}>Sweetness</div>
-              <div className={styles.dots}>
+              <div className={styles.dots} aria-label={`Sweetness intensity ${sweetness}/5`}>
                 {Array.from({ length: 5 }).map((_, i) => (
                   <span
                     key={i}
@@ -107,7 +161,7 @@ export default function ProductCard({
           <button
             className={styles.minusBtn}
             onClick={onRemove}
-            disabled={quantity === 0}
+            disabled={removeDisabled}
             aria-label={`Remove ${flavor.name}`}
           >
             –
@@ -116,10 +170,15 @@ export default function ProductCard({
           <button
             className={styles.addBtn}
             onClick={onAdd}
-            disabled={!!disabledAdd}
-            aria-label={`Add ${flavor.name}`}
+            disabled={addDisabled}
+            aria-label={
+              isSoldOut
+                ? `${flavor.name} is sold out`
+                : `Add ${flavor.name}`
+            }
+            title={isSoldOut ? "Sold out" : undefined}
           >
-            Add <span className={styles.plus}>+</span>
+            {ctaText} <span className={styles.plus}>+</span>
           </button>
         </div>
       </div>
