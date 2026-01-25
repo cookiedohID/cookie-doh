@@ -250,15 +250,8 @@ export default function CheckoutPage() {
   const [shippingCost, setShippingCost] = useState<number | null>(null);
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingError, setShippingError] = useState<string | null>(null);
-
   const [quoteMeta, setQuoteMeta] = useState<any>(null);
   const [quoteUpdatedAt, setQuoteUpdatedAt] = useState<Date | null>(null);
-
-  // New fields from API
-  const [quoteLabel, setQuoteLabel] = useState<string | null>(null);
-  const [quoteEtaHint, setQuoteEtaHint] = useState<string | null>(null);
-  const [quoteDistanceKm, setQuoteDistanceKm] = useState<number | null>(null);
-  const [quoteRequestId, setQuoteRequestId] = useState<string | null>(null);
 
   const quoteAbortRef = useRef<AbortController | null>(null);
 
@@ -320,15 +313,13 @@ export default function CheckoutPage() {
       ? "Please select a valid address from the suggestions."
       : "";
 
-  // ✅ Jakarta-based slot rules
+  // ✅ FIX: ensure booleans only
   const todayJakarta = useMemo(() => jakartaTodayYMD(), []);
-  const isScheduleTodayJakarta = scheduleDate && scheduleDate === todayJakarta;
   const nowMinJakarta = useMemo(() => jakartaMinutesNow(), [scheduleDate, deliverySpeed]);
+  const isScheduleTodayJakarta = !!scheduleDate && scheduleDate === todayJakarta; // ✅ boolean now
 
-  // ✅ Same-day disabled ONLY if scheduleDate is today AND after 12:00
   const samedayDisabled = fulfillment === "delivery" && isScheduleTodayJakarta && nowMinJakarta >= 12 * 60;
 
-  // ✅ Instant slots filtered for today only
   const instantSlotOptions = useMemo(() => {
     if (!isScheduleTodayJakarta) return INSTANT_SLOTS.map((s) => ({ value: s.value, label: s.label }));
     return INSTANT_SLOTS.filter((s) => nowMinJakarta < s.endMin).map((s) => ({ value: s.value, label: s.label }));
@@ -340,7 +331,6 @@ export default function CheckoutPage() {
     isScheduleTodayJakarta &&
     instantSlotOptions.length === 0;
 
-  // Auto-switch away from sameday only when invalid for today
   useEffect(() => {
     if (deliverySpeed === "sameday" && samedayDisabled) setDeliverySpeed("instant");
   }, [deliverySpeed, samedayDisabled]);
@@ -352,16 +342,8 @@ export default function CheckoutPage() {
         ? "No delivery slots left for today. Please choose another date."
         : "";
 
-  // Quote availability
   const canQuote =
     fulfillment === "delivery" && addressResolved && addressLat !== null && addressLng !== null;
-
-  const resetQuoteUi = () => {
-    setQuoteLabel(null);
-    setQuoteEtaHint(null);
-    setQuoteDistanceKm(null);
-    setQuoteRequestId(null);
-  };
 
   const fetchQuote = async (opts?: { manual?: boolean }) => {
     if (fulfillment !== "delivery") return;
@@ -394,11 +376,6 @@ export default function CheckoutPage() {
       const now = j?.quoteAt ? new Date(String(j.quoteAt)) : new Date();
       setQuoteUpdatedAt(now);
 
-      setQuoteLabel(typeof j?.liveQuoteLabel === "string" ? j.liveQuoteLabel : null);
-      setQuoteEtaHint(typeof j?.etaHint === "string" ? j.etaHint : null);
-      setQuoteDistanceKm(Number.isFinite(Number(j?.distanceKm)) ? Number(j.distanceKm) : null);
-      setQuoteRequestId(typeof j?.requestId === "string" ? j.requestId : null);
-
       setQuoteMeta({
         provider: j?.provider || "lalamove",
         providerLabel: j?.providerLabel || "Lalamove",
@@ -411,26 +388,21 @@ export default function CheckoutPage() {
         requestId: String(j?.requestId || ""),
         etaHint: j?.etaHint || null,
         distanceKm: j?.distanceKm || null,
+        liveQuoteLabel: j?.liveQuoteLabel || null,
       });
     } catch (e: any) {
       if (e?.name === "AbortError") return;
-
       setShippingError(e?.message || "Unable to calculate delivery fee");
-
-      if (opts?.manual) {
-        // keep previous visible if any
-      } else {
+      if (!opts?.manual) {
         setShippingCost(null);
         setQuoteMeta(null);
         setQuoteUpdatedAt(null);
-        resetQuoteUi();
       }
     } finally {
       setShippingLoading(false);
     }
   };
 
-  // Auto re-quote on address/speed change (debounced)
   useEffect(() => {
     if (fulfillment !== "delivery") {
       setShippingCost(0);
@@ -438,7 +410,6 @@ export default function CheckoutPage() {
       setShippingLoading(false);
       setQuoteMeta(null);
       setQuoteUpdatedAt(null);
-      resetQuoteUi();
       return;
     }
     if (!canQuote) return;
@@ -483,7 +454,6 @@ export default function CheckoutPage() {
     if (v) return setErr(v);
     if (isEmpty) return setErr("Your cart is empty. Please build a box first.");
 
-    // Final safety check
     for (const b of cart.boxes) {
       for (const it of b.items || []) {
         if (soldOutSet.has(String(it.id))) {
@@ -502,14 +472,12 @@ export default function CheckoutPage() {
 
       const payload: any = {
         customer: { name: name.trim(), phone: normalizedPhone },
-
         fulfillment: {
           type: fulfillment,
           scheduleDate,
           scheduleTime,
           deliverySpeed: fulfillment === "delivery" ? deliverySpeed : null,
         },
-
         delivery:
           fulfillment === "delivery"
             ? {
@@ -523,7 +491,6 @@ export default function CheckoutPage() {
                 speed: deliverySpeed,
               }
             : null,
-
         pickup:
           fulfillment === "pickup"
             ? {
@@ -532,12 +499,11 @@ export default function CheckoutPage() {
                 pointAddress: pickupPoint?.address || "",
               }
             : null,
-
         notes,
         cart,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
         total: grandTotal,
-        meta: { quote: quoteMeta, quote_request_id: quoteRequestId },
+        meta: { quote: quoteMeta },
       };
 
       const res = await fetch("/api/checkout", {
@@ -564,16 +530,6 @@ export default function CheckoutPage() {
     }
   };
 
-  const fallbackLabel = useMemo(() => {
-    if (fulfillment !== "delivery") return null;
-    const provider = quoteMeta?.provider ? String(quoteMeta.provider).toUpperCase() : "LALAMOVE";
-    const speed = deliverySpeed === "instant" ? "Instant" : "Same-day";
-    const svc = quoteMeta?.serviceType ? ` • ${String(quoteMeta.serviceType)}` : "";
-    return `Live quote (${provider}) • ${speed}${svc}`;
-  }, [fulfillment, quoteMeta, deliverySpeed]);
-
-  const shownLabel = quoteLabel || fallbackLabel || (fulfillment === "delivery" ? "Live quote (Lalamove)" : null);
-
   if (booting) {
     return (
       <main style={{ minHeight: "100vh", background: "#fff" }}>
@@ -585,6 +541,7 @@ export default function CheckoutPage() {
     );
   }
 
+  // --- UI (kept same structure; shortened text only where necessary) ---
   return (
     <main style={{ minHeight: "100vh", background: "#fff" }}>
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px 120px" }}>
@@ -713,7 +670,7 @@ export default function CheckoutPage() {
                 </div>
 
                 <div style={{ marginTop: 8, fontSize: 12, color: "#6B6B6B", fontWeight: 700 }}>
-                  Same-day is available for future dates. For today, cutoff is 12:00 (Jakarta time).
+                  Same-day is only disabled for today after 12:00 (Jakarta time).
                 </div>
               </div>
             ) : null}
@@ -778,6 +735,7 @@ export default function CheckoutPage() {
               </div>
             ) : null}
 
+            {/* Pickup points */}
             {fulfillment === "pickup" ? (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Pickup point</div>
@@ -869,7 +827,7 @@ export default function CheckoutPage() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                     <div style={{ fontWeight: 950, color: COLORS.black }}>
-                      {shownLabel || "Live quote (Lalamove)"}
+                      {quoteMeta?.liveQuoteLabel || "Live quote (Lalamove)"}
                     </div>
                     <button
                       type="button"
@@ -899,21 +857,21 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  {(quoteEtaHint || quoteDistanceKm != null) && !shippingError ? (
+                  {quoteMeta?.etaHint || quoteMeta?.distanceKm ? (
                     <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-                      {quoteEtaHint ? (
+                      {quoteMeta?.etaHint ? (
                         <div style={{ color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
-                          {quoteEtaHint}
+                          {String(quoteMeta.etaHint)}
                         </div>
                       ) : null}
-                      {quoteDistanceKm != null ? (
+                      {quoteMeta?.distanceKm ? (
                         <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
-                          Distance: ~{quoteDistanceKm} km
+                          Distance: ~{Number(quoteMeta.distanceKm)} km
                         </div>
                       ) : null}
-                      {quoteRequestId ? (
+                      {quoteMeta?.requestId ? (
                         <div style={{ color: "rgba(0,0,0,0.45)", fontWeight: 800, fontSize: 11 }}>
-                          Quote ID: {quoteRequestId}
+                          Quote ID: {String(quoteMeta.requestId)}
                         </div>
                       ) : null}
                     </div>
@@ -1039,10 +997,7 @@ export default function CheckoutPage() {
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
             onClick={placeOrder}
-            disabled={
-              loading ||
-              (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday))
-            }
+            disabled={loading || (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday))}
             style={{
               width: "100%",
               borderRadius: 999,
@@ -1054,8 +1009,7 @@ export default function CheckoutPage() {
               fontWeight: 950,
               fontSize: 16,
               boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
-              opacity:
-                (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday)) ? 0.6 : 1,
+              opacity: loading || (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday)) ? 0.6 : 1,
             }}
           >
             {loading ? "Preparing payment…" : "Place order"}
