@@ -108,8 +108,41 @@ async function readErrorBody(res: Response) {
   }
 }
 
+/** Jakarta YYYY-MM-DD */
+function jakartaTodayYMD() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const y = parts.find((p) => p.type === "year")?.value || "1970";
+  const m = parts.find((p) => p.type === "month")?.value || "01";
+  const d = parts.find((p) => p.type === "day")?.value || "01";
+  return `${y}-${m}-${d}`;
+}
+
+/** Jakarta minutes now */
+function jakartaMinutesNow() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+
+  const hh = Number(parts.find((p) => p.type === "hour")?.value || "0");
+  const mm = Number(parts.find((p) => p.type === "minute")?.value || "0");
+  return hh * 60 + mm;
+}
+
+function fmtTimeHm(d: Date) {
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
 // --- Scheduling helpers ---
-function yyyyMmDd(d: Date) {
+function yyyyMmDdLocal(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -122,8 +155,9 @@ function nextDays(n: number) {
   for (let i = 0; i < n; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
-    const val = yyyyMmDd(d);
+    const val = yyyyMmDdLocal(d);
     const label = d.toLocaleDateString("en-GB", {
+      timeZone: "Asia/Jakarta",
       weekday: "short",
       day: "2-digit",
       month: "short",
@@ -133,23 +167,9 @@ function nextDays(n: number) {
   return out;
 }
 
-function jakartaHourNow() {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Jakarta",
-    hour: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date());
-  const h = parts.find((p) => p.type === "hour")?.value;
-  return Number(h || "0");
-}
-
-function fmtTimeHm(d: Date) {
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-}
-
 const INSTANT_SLOTS = [
-  { value: "10:00-15:00", label: "10:00 – 15:00" },
-  { value: "15:00-18:00", label: "15:00 – 18:00" },
+  { value: "10:00-15:00", label: "10:00 – 15:00", endMin: 15 * 60 },
+  { value: "15:00-18:00", label: "15:00 – 18:00", endMin: 18 * 60 },
 ] as const;
 
 const SAMEDAY_SLOT = { value: "08:00-22:00", label: "08:00 – 22:00" } as const;
@@ -300,22 +320,41 @@ export default function CheckoutPage() {
       ? "Please select a valid address from the suggestions."
       : "";
 
-  const scheduleError = scheduleTouched && (!scheduleDate || !scheduleTime) ? "Please choose date and time." : "";
+  // ✅ Jakarta-based slot rules
+  const todayJakarta = useMemo(() => jakartaTodayYMD(), []);
+  const isScheduleTodayJakarta = scheduleDate && scheduleDate === todayJakarta;
+  const nowMinJakarta = useMemo(() => jakartaMinutesNow(), [scheduleDate, deliverySpeed]);
 
-  const isAfterNoonJakarta = jakartaHourNow() >= 12;
-  const samedayDisabled = isAfterNoonJakarta;
+  // ✅ Same-day disabled ONLY if scheduleDate is today AND after 12:00
+  const samedayDisabled = fulfillment === "delivery" && isScheduleTodayJakarta && nowMinJakarta >= 12 * 60;
 
+  // ✅ Instant slots filtered for today only
+  const instantSlotOptions = useMemo(() => {
+    if (!isScheduleTodayJakarta) return INSTANT_SLOTS.map((s) => ({ value: s.value, label: s.label }));
+    return INSTANT_SLOTS.filter((s) => nowMinJakarta < s.endMin).map((s) => ({ value: s.value, label: s.label }));
+  }, [isScheduleTodayJakarta, nowMinJakarta]);
+
+  const noSlotsLeftToday =
+    fulfillment === "delivery" &&
+    deliverySpeed === "instant" &&
+    isScheduleTodayJakarta &&
+    instantSlotOptions.length === 0;
+
+  // Auto-switch away from sameday only when invalid for today
   useEffect(() => {
     if (deliverySpeed === "sameday" && samedayDisabled) setDeliverySpeed("instant");
   }, [deliverySpeed, samedayDisabled]);
 
-  useEffect(() => {
-    setScheduleDate("");
-    setScheduleTime("");
-    setScheduleTouched(false);
-  }, [fulfillment, deliverySpeed]);
+  const scheduleError =
+    scheduleTouched && (!scheduleDate || !scheduleTime)
+      ? "Please choose date and time."
+      : noSlotsLeftToday
+        ? "No delivery slots left for today. Please choose another date."
+        : "";
 
-  const canQuote = fulfillment === "delivery" && addressResolved && addressLat !== null && addressLng !== null;
+  // Quote availability
+  const canQuote =
+    fulfillment === "delivery" && addressResolved && addressLat !== null && addressLng !== null;
 
   const resetQuoteUi = () => {
     setQuoteLabel(null);
@@ -352,11 +391,9 @@ export default function CheckoutPage() {
       const rounded = ceilToThousand(price);
       setShippingCost(rounded);
 
-      // Use server timestamps when possible (quoteAt), fallback to now
       const now = j?.quoteAt ? new Date(String(j.quoteAt)) : new Date();
       setQuoteUpdatedAt(now);
 
-      // New UI fields from API
       setQuoteLabel(typeof j?.liveQuoteLabel === "string" ? j.liveQuoteLabel : null);
       setQuoteEtaHint(typeof j?.etaHint === "string" ? j.etaHint : null);
       setQuoteDistanceKm(Number.isFinite(Number(j?.distanceKm)) ? Number(j.distanceKm) : null);
@@ -372,6 +409,8 @@ export default function CheckoutPage() {
         roundedPrice: rounded,
         quotedAt: String(j?.quoteAt || now.toISOString()),
         requestId: String(j?.requestId || ""),
+        etaHint: j?.etaHint || null,
+        distanceKm: j?.distanceKm || null,
       });
     } catch (e: any) {
       if (e?.name === "AbortError") return;
@@ -425,6 +464,7 @@ export default function CheckoutPage() {
         return "Please choose a valid address from the Google suggestions.";
       }
       if (shippingCost == null) return "Delivery fee unavailable. Please recalculate delivery fee.";
+      if (noSlotsLeftToday) return "No delivery slots left for today. Please choose another date.";
     }
 
     if (!scheduleDate || !scheduleTime) return "Please choose delivery/pickup date and time.";
@@ -497,10 +537,7 @@ export default function CheckoutPage() {
         cart,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
         total: grandTotal,
-        meta: {
-          quote: quoteMeta,
-          quote_request_id: quoteRequestId,
-        },
+        meta: { quote: quoteMeta, quote_request_id: quoteRequestId },
       };
 
       const res = await fetch("/api/checkout", {
@@ -511,14 +548,11 @@ export default function CheckoutPage() {
 
       if (!res.ok) {
         const body = await readErrorBody(res);
-        throw new Error(
-          body ? `Checkout failed (HTTP ${res.status}). ${body}` : `Checkout failed (HTTP ${res.status}).`
-        );
+        throw new Error(body ? `Checkout failed (HTTP ${res.status}). ${body}` : `Checkout failed (HTTP ${res.status}).`);
       }
 
       const data = await res.json().catch(() => ({} as any));
       const redirectUrl = data?.redirect_url || data?.redirectUrl;
-
       if (!redirectUrl) throw new Error(`Missing redirect_url from server: ${JSON.stringify(data)}`);
 
       clearCartStorage();
@@ -673,13 +707,13 @@ export default function CheckoutPage() {
                   >
                     <div style={{ fontWeight: 900, color: COLORS.black }}>Same-day</div>
                     <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                      08:00 – 22:00 {samedayDisabled ? "• Cutoff 12:00" : ""}
+                      08:00 – 22:00 {samedayDisabled ? "• Cutoff today 12:00" : ""}
                     </div>
                   </button>
                 </div>
 
                 <div style={{ marginTop: 8, fontSize: 12, color: "#6B6B6B", fontWeight: 700 }}>
-                  You’ll see the final total before paying.
+                  Same-day is available for future dates. For today, cutoff is 12:00 (Jakarta time).
                 </div>
               </div>
             ) : null}
@@ -690,10 +724,17 @@ export default function CheckoutPage() {
                 <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>
                   {fulfillment === "pickup" ? "Pickup date" : "Delivery date"}
                 </span>
-                <select value={scheduleDate} onChange={(e) => setScheduleDate(e.target.value)} onBlur={() => setScheduleTouched(true)} style={sameStyle}>
+                <select
+                  value={scheduleDate}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  onBlur={() => setScheduleTouched(true)}
+                  style={sameStyle}
+                >
                   <option value="">Select date</option>
                   {dateOptions.map((d) => (
-                    <option key={d.value} value={d.value}>{d.label}</option>
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -704,15 +745,27 @@ export default function CheckoutPage() {
                 </span>
 
                 {fulfillment === "delivery" && deliverySpeed === "sameday" ? (
-                  <select value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} onBlur={() => setScheduleTouched(true)} style={sameStyle}>
+                  <select
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                    onBlur={() => setScheduleTouched(true)}
+                    style={sameStyle}
+                  >
                     <option value="">Select time</option>
                     <option value={SAMEDAY_SLOT.value}>{SAMEDAY_SLOT.label}</option>
                   </select>
                 ) : (
-                  <select value={scheduleTime} onChange={(e) => setScheduleTime(e.target.value)} onBlur={() => setScheduleTouched(true)} style={sameStyle}>
+                  <select
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                    onBlur={() => setScheduleTouched(true)}
+                    style={sameStyle}
+                  >
                     <option value="">Select time</option>
-                    {INSTANT_SLOTS.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                    {instantSlotOptions.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
                     ))}
                   </select>
                 )}
@@ -720,7 +773,9 @@ export default function CheckoutPage() {
             </div>
 
             {scheduleError ? (
-              <div style={{ marginTop: 8, fontSize: 12, color: "crimson", fontWeight: 700 }}>{scheduleError}</div>
+              <div style={{ marginTop: 8, fontSize: 12, color: "crimson", fontWeight: 700 }}>
+                {scheduleError}
+              </div>
             ) : null}
 
             {fulfillment === "pickup" ? (
@@ -844,7 +899,6 @@ export default function CheckoutPage() {
                     </div>
                   </div>
 
-                  {/* New: ETA hint + distance */}
                   {(quoteEtaHint || quoteDistanceKm != null) && !shippingError ? (
                     <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
                       {quoteEtaHint ? (
@@ -987,7 +1041,7 @@ export default function CheckoutPage() {
             onClick={placeOrder}
             disabled={
               loading ||
-              (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading))
+              (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday))
             }
             style={{
               width: "100%",
@@ -1001,7 +1055,7 @@ export default function CheckoutPage() {
               fontSize: 16,
               boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
               opacity:
-                (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading)) ? 0.6 : 1,
+                (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday)) ? 0.6 : 1,
             }}
           >
             {loading ? "Preparing payment…" : "Place order"}
