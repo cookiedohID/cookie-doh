@@ -9,7 +9,7 @@ import { addBoxToCart, type CartBox } from "@/lib/cart";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
 
 const COLORS = {
-  blue: ""#0014a7"", // Pantone 293C vibe
+  blue: ""#0014a7", // Pantone 293C vibe
   black: "#101010",
   white: "#FFFFFF",
   bg: "#FAF7F2",
