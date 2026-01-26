@@ -7,7 +7,17 @@ import { useMemo } from "react";
 import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
 
+type BoxSize = 3 | 6;
 type PresetItem = { flavorId: string; qty: number };
+
+type Preset = {
+  key: string;
+  title: string;
+  badge: string;
+  boxSize: BoxSize;
+  items: PresetItem[];
+  note?: string;
+};
 
 const COLORS = {
   blue: "#0052CC",
@@ -43,7 +53,7 @@ function safeGetName(id: string) {
   return f?.name ?? id;
 }
 
-function presetToCartBox(boxSize: 3 | 6, items: PresetItem[]): CartBox {
+function presetToCartBox(boxSize: BoxSize, items: PresetItem[]): CartBox {
   const cartItems = items
     .map((x) => {
       const f = FLAVORS.find((ff: any) => ff.id === x.flavorId);
@@ -61,7 +71,7 @@ function presetToCartBox(boxSize: 3 | 6, items: PresetItem[]): CartBox {
   return {
     boxSize,
     items: cartItems,
-    total: BOX_PRICES[boxSize],
+    total: BOX_PRICES[boxSize], // ✅ typed
   };
 }
 
@@ -69,67 +79,65 @@ export default function AssortmentsPage() {
   const router = useRouter();
   const today = useMemo(() => jakartaTodayYMD(), []);
 
-  const basePresets = useMemo(
+  const basePresets: Preset[] = useMemo(
     () => [
       {
         key: "box3-crowd",
         title: "Box of 3 · Crowd Favorites",
         badge: "Bestseller",
-        boxSize: 3 as const,
+        boxSize: 3,
         items: [
           { flavorId: "the-one", qty: 1 },
           { flavorId: "the-other-one", qty: 1 },
           { flavorId: "matcha-magic", qty: 1 },
-        ] as PresetItem[],
+        ],
       },
       {
         key: "box6-bestmix",
         title: "Box of 6 · Best Mix",
         badge: "Fan Favorite",
-        boxSize: 6 as const,
+        boxSize: 6,
         items: [
           { flavorId: "the-one", qty: 2 },
           { flavorId: "the-other-one", qty: 2 },
           { flavorId: "matcha-magic", qty: 1 },
           { flavorId: "the-comfort", qty: 1 },
-        ] as PresetItem[],
+        ],
       },
     ],
     []
   );
 
-  // Seasonal logic (example)
-  // Adjust the dates any time (Jakarta date)
+  // Seasonal logic (example dates; edit anytime)
   const seasonalPreset = useMemo(() => {
     const seasonStart = "2026-01-15";
     const seasonEnd = "2026-02-20";
     const active = inRange(today, seasonStart, seasonEnd);
 
-    return {
+    const preset: Preset = {
       key: "seasonal-limited",
-      active,
-      seasonStart,
-      seasonEnd,
       title: "Seasonal · Limited Assortment",
       badge: "Limited",
-      boxSize: 6 as const,
+      boxSize: 6,
       items: [
         { flavorId: "the-one", qty: 2 },
         { flavorId: "the-other-one", qty: 2 },
         { flavorId: "orange-in-the-dark", qty: 1 },
         { flavorId: "the-comfort", qty: 1 },
-      ] as PresetItem[],
+      ],
       note: "Limited window — while batches last.",
     };
+
+    return { active, seasonStart, seasonEnd, preset };
   }, [today]);
 
-  const presets = useMemo(() => {
+  const presets: Preset[] = useMemo(() => {
     const out = [...basePresets];
-    if (seasonalPreset.active) out.unshift(seasonalPreset);
+    if (seasonalPreset.active) out.unshift(seasonalPreset.preset);
     return out;
   }, [basePresets, seasonalPreset]);
 
-  function addPreset(boxSize: 3 | 6, items: PresetItem[]) {
+  function addPreset(boxSize: BoxSize, items: PresetItem[]) {
     const box = presetToCartBox(boxSize, items);
     addBoxToCart(box);
     router.push("/cart");
@@ -166,7 +174,7 @@ export default function AssortmentsPage() {
         )}
 
         <section style={{ display: "grid", gap: 14 }}>
-          {presets.map((p: any) => (
+          {presets.map((p) => (
             <article
               key={p.key}
               style={{
@@ -184,7 +192,7 @@ export default function AssortmentsPage() {
 
                   <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.4 }}>
                     {p.items
-                      .map((i: PresetItem) => `${safeGetName(i.flavorId)}${i.qty > 1 ? ` ×${i.qty}` : ""}`)
+                      .map((i) => `${safeGetName(i.flavorId)}${i.qty > 1 ? ` ×${i.qty}` : ""}`)
                       .join(" • ")}
                   </div>
 
@@ -216,7 +224,7 @@ export default function AssortmentsPage() {
                 </div>
 
                 <button
-                  onClick={() => addPreset(p.boxSize as 3 | 6, p.items as PresetItem[])}
+                  onClick={() => addPreset(p.boxSize, p.items)}
                   style={{
                     border: "none",
                     borderRadius: 999,

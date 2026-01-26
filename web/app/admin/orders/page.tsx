@@ -1,6 +1,8 @@
+// web/app/admin/orders/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 type OrderRow = {
@@ -145,10 +147,7 @@ export default function AdminOrdersPage() {
     return json;
   };
 
-  const onQuick = async (
-    e: React.MouseEvent<HTMLButtonElement>,
-    action: "paid" | "sending" | "sent"
-  ) => {
+  const onQuick = async (e: React.MouseEvent<HTMLButtonElement>, action: "paid" | "sending" | "sent") => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -245,7 +244,22 @@ export default function AdminOrdersPage() {
 
   return (
     <main style={{ padding: 18, maxWidth: 1400, margin: "0 auto" }}>
-      <h1 style={{ margin: 0, fontSize: 22 }}>Admin — Orders</h1>
+      {/* ✅ Admin top nav */}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
+        <h1 style={{ margin: 0, fontSize: 22 }}>Admin — Orders</h1>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <Link href="/admin/orders" style={{ color: "#0052CC", fontWeight: 900, textDecoration: "none" }}>
+            Orders
+          </Link>
+          <Link href="/admin/flavors" style={{ color: "#0052CC", fontWeight: 900, textDecoration: "none" }}>
+            Flavors
+          </Link>
+          <Link href="/admin/assortments" style={{ color: "#0052CC", fontWeight: 900, textDecoration: "none" }}>
+            Assortments
+          </Link>
+        </div>
+      </div>
 
       <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
         {(
