@@ -342,7 +342,7 @@ export default function CheckoutPage() {
                 justifyContent: "center",
                 borderRadius: 999,
                 padding: "14px 22px",
-                background: "#0052CC",
+                background: "#0014a7",
                 color: "#fff",
                 fontWeight: 900,
                 textDecoration: "none",
@@ -353,7 +353,7 @@ export default function CheckoutPage() {
             </Link>
 
             <div style={{ marginTop: 12 }}>
-              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+              <Link href="/cart" style={{ color: "#0014a7", fontWeight: 800, textDecoration: "none" }}>
                 ← Back to cart
               </Link>
             </div>
@@ -569,7 +569,7 @@ export default function CheckoutPage() {
                         padding: 12,
                         border:
                           delivery === "standard"
-                            ? "2px solid #0052CC"
+                            ? "2px solid #0014a7"
                             : "1px solid rgba(0,0,0,0.10)",
                         background:
                           delivery === "standard" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
@@ -591,7 +591,7 @@ export default function CheckoutPage() {
                         padding: 12,
                         border:
                           delivery === "sameday"
-                            ? "2px solid #0052CC"
+                            ? "2px solid #0014a7"
                             : "1px solid rgba(0,0,0,0.10)",
                         background:
                           delivery === "sameday" ? "rgba(0,82,204,0.06)" : "#FAF7F2",
@@ -652,7 +652,7 @@ export default function CheckoutPage() {
             </div>
 
             <div style={{ marginTop: 12 }}>
-              <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+              <Link href="/cart" style={{ color: "#0014a7", fontWeight: 800, textDecoration: "none" }}>
                 ← Back to cart
               </Link>
             </div>
@@ -689,7 +689,7 @@ export default function CheckoutPage() {
               height: 52,
               border: "none",
               cursor: loading ? "not-allowed" : "pointer",
-              background: loading ? "rgba(0,82,204,0.55)" : "#0052CC",
+              background: loading ? "rgba(0,82,204,0.55)" : "#0014a7",
               color: "#fff",
               fontWeight: 950,
               fontSize: 16,

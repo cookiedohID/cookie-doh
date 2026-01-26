@@ -249,13 +249,13 @@ export default function AdminOrdersPage() {
         <h1 style={{ margin: 0, fontSize: 22 }}>Admin — Orders</h1>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <Link href="/admin/orders" style={{ color: "#0052CC", fontWeight: 900, textDecoration: "none" }}>
+          <Link href="/admin/orders" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
             Orders
           </Link>
-          <Link href="/admin/flavors" style={{ color: "#0052CC", fontWeight: 900, textDecoration: "none" }}>
+          <Link href="/admin/flavors" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
             Flavors
           </Link>
-          <Link href="/admin/assortments" style={{ color: "#0052CC", fontWeight: 900, textDecoration: "none" }}>
+          <Link href="/admin/assortments" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
             Assortments
           </Link>
         </div>
@@ -278,7 +278,7 @@ export default function AdminOrdersPage() {
               padding: "8px 14px",
               borderRadius: 999,
               border: "1px solid rgba(0,0,0,0.12)",
-              background: filter === key ? "#0052CC" : "#fff",
+              background: filter === key ? "#0014a7" : "#fff",
               color: filter === key ? "#fff" : "#101010",
               fontWeight: 800,
               cursor: "pointer",
@@ -470,7 +470,7 @@ export default function AdminOrdersPage() {
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            style={{ fontSize: 12, fontWeight: 900, color: "#0052CC", textDecoration: "none" }}
+                            style={{ fontSize: 12, fontWeight: 900, color: "#0014a7", textDecoration: "none" }}
                           >
                             Track
                           </a>

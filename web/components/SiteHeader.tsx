@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const COLORS = {
-  blue: "#0052CC",
+  blue: "#0014a7",
   black: "#101010",
   white: "#FFFFFF",
 };

@@ -152,7 +152,7 @@ export default async function PendingPage(props: { searchParams?: any }) {
             gap: 10,
             padding: "14px 20px",
             borderRadius: 16,
-            background: "#0052CC",
+            background: "#0014a7",
             color: "#fff",
             fontWeight: 900,
             textDecoration: "none",

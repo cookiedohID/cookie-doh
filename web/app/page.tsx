@@ -108,7 +108,7 @@ export default function HomePage() {
               placeItems: "center",
               borderRadius: 999,
               background: "rgba(0, 82, 204, 0.10)",
-              color: "#003A8C",
+              color: "#0014a7",
               fontSize: 12,
               letterSpacing: "0.08em",
               margin: "0 auto 28px",

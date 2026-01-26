@@ -41,7 +41,7 @@ export default function FailedClient() {
                 justifyContent: "center",
                 borderRadius: 999,
                 padding: "14px 22px",
-                background: "#0052CC",
+                background: "#0014a7",
                 color: "#fff",
                 fontWeight: 950,
                 textDecoration: "none",
@@ -52,7 +52,7 @@ export default function FailedClient() {
               Try checkout again
             </Link>
 
-            <Link href="/cart" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+            <Link href="/cart" style={{ color: "#0014a7", fontWeight: 800, textDecoration: "none" }}>
               ← Back to cart
             </Link>
 

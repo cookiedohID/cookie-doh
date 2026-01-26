@@ -10,7 +10,7 @@ import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/Product
 type BoxSize = 3 | 6;
 
 const COLORS = {
-  blue: "#0052CC",
+  blue: "#0014a7",
   black: "#101010",
   white: "#FFFFFF",
   orange: "#FF5A00",

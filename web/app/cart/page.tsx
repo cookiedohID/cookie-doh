@@ -14,7 +14,7 @@ import {
 } from "@/lib/cart";
 
 const COLORS = {
-  blue: "#0052CC",
+  blue: "#0014a7",
   orange: "#FF5A00",
   black: "#101010",
   white: "#FFFFFF",

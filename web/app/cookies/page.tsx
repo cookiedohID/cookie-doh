@@ -8,7 +8,7 @@ import { FLAVORS } from "@/lib/catalog";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
 
 const COLORS = {
-  blue: "#0052CC",
+  blue: "#0014a7",
   black: "#101010",
   white: "#FFFFFF",
   sand: "#FAF7F2",
