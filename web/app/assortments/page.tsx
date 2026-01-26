@@ -3,21 +3,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
 
-type BoxSize = 3 | 6;
 type PresetItem = { flavorId: string; qty: number };
-
-type Preset = {
-  key: string;
-  title: string;
-  badge: string;
-  boxSize: BoxSize;
-  items: PresetItem[];
-  note?: string;
-};
 
 const COLORS = {
   blue: "#0052CC",
@@ -28,6 +18,23 @@ const COLORS = {
 };
 
 const COOKIE_PRICE = 32500;
+
+type SeasonalSettings = {
+  enabled: boolean;
+  seasonStart: string; // YYYY-MM-DD
+  seasonEnd: string; // YYYY-MM-DD
+};
+
+const DEFAULTS: SeasonalSettings = {
+  enabled: false,
+  seasonStart: "2026-01-15",
+  seasonEnd: "2026-02-20",
+};
+
+function safeGetName(id: string) {
+  const f = FLAVORS.find((x: any) => x.id === id);
+  return f?.name ?? id;
+}
 
 // YYYY-MM-DD in Asia/Jakarta
 function jakartaTodayYMD() {
@@ -48,12 +55,7 @@ function inRange(today: string, start: string, end: string) {
   return today >= start && today <= end;
 }
 
-function safeGetName(id: string) {
-  const f = FLAVORS.find((x: any) => x.id === id);
-  return f?.name ?? id;
-}
-
-function presetToCartBox(boxSize: BoxSize, items: PresetItem[]): CartBox {
+function presetToCartBox(boxSize: 3 | 6, items: PresetItem[]): CartBox {
   const cartItems = items
     .map((x) => {
       const f = FLAVORS.find((ff: any) => ff.id === x.flavorId);
@@ -71,7 +73,7 @@ function presetToCartBox(boxSize: BoxSize, items: PresetItem[]): CartBox {
   return {
     boxSize,
     items: cartItems,
-    total: BOX_PRICES[boxSize], // ✅ typed
+    total: BOX_PRICES[boxSize],
   };
 }
 
@@ -79,65 +81,87 @@ export default function AssortmentsPage() {
   const router = useRouter();
   const today = useMemo(() => jakartaTodayYMD(), []);
 
-  const basePresets: Preset[] = useMemo(
+  const [settings, setSettings] = useState<SeasonalSettings>(DEFAULTS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/assortments/settings", { cache: "no-store" });
+        const j = await res.json().catch(() => ({}));
+        const s = j?.settings;
+
+        if (s && typeof s === "object") {
+          setSettings({
+            enabled: Boolean(s.enabled),
+            seasonStart: String(s.seasonStart || DEFAULTS.seasonStart),
+            seasonEnd: String(s.seasonEnd || DEFAULTS.seasonEnd),
+          });
+        } else {
+          setSettings(DEFAULTS);
+        }
+      } catch {
+        setSettings(DEFAULTS);
+      } finally {
+        setSettingsLoaded(true);
+      }
+    })();
+  }, []);
+
+  const basePresets = useMemo(
     () => [
       {
         key: "box3-crowd",
         title: "Box of 3 · Crowd Favorites",
         badge: "Bestseller",
-        boxSize: 3,
+        boxSize: 3 as const,
         items: [
           { flavorId: "the-one", qty: 1 },
           { flavorId: "the-other-one", qty: 1 },
           { flavorId: "matcha-magic", qty: 1 },
-        ],
+        ] as PresetItem[],
       },
       {
         key: "box6-bestmix",
         title: "Box of 6 · Best Mix",
         badge: "Fan Favorite",
-        boxSize: 6,
+        boxSize: 6 as const,
         items: [
           { flavorId: "the-one", qty: 2 },
           { flavorId: "the-other-one", qty: 2 },
           { flavorId: "matcha-magic", qty: 1 },
           { flavorId: "the-comfort", qty: 1 },
-        ],
+        ] as PresetItem[],
       },
     ],
     []
   );
 
-  // Seasonal logic (example dates; edit anytime)
   const seasonalPreset = useMemo(() => {
-    const seasonStart = "2026-01-15";
-    const seasonEnd = "2026-02-20";
-    const active = inRange(today, seasonStart, seasonEnd);
-
-    const preset: Preset = {
+    const active = !!settings.enabled && inRange(today, settings.seasonStart, settings.seasonEnd);
+    return {
       key: "seasonal-limited",
+      active,
       title: "Seasonal · Limited Assortment",
       badge: "Limited",
-      boxSize: 6,
+      boxSize: 6 as const,
       items: [
         { flavorId: "the-one", qty: 2 },
         { flavorId: "the-other-one", qty: 2 },
         { flavorId: "orange-in-the-dark", qty: 1 },
         { flavorId: "the-comfort", qty: 1 },
-      ],
+      ] as PresetItem[],
       note: "Limited window — while batches last.",
     };
+  }, [settings.enabled, settings.seasonStart, settings.seasonEnd, today]);
 
-    return { active, seasonStart, seasonEnd, preset };
-  }, [today]);
-
-  const presets: Preset[] = useMemo(() => {
+  const presets = useMemo(() => {
     const out = [...basePresets];
-    if (seasonalPreset.active) out.unshift(seasonalPreset.preset);
+    if (seasonalPreset.active) out.unshift(seasonalPreset);
     return out;
   }, [basePresets, seasonalPreset]);
 
-  function addPreset(boxSize: BoxSize, items: PresetItem[]) {
+  function addPreset(boxSize: 3 | 6, items: PresetItem[]) {
     const box = presetToCartBox(boxSize, items);
     addBoxToCart(box);
     router.push("/cart");
@@ -155,26 +179,28 @@ export default function AssortmentsPage() {
           </p>
         </header>
 
-        {/* Seasonal banner (only when active) */}
-        {seasonalPreset.active && (
+        {/* Seasonal status strip (only show after settings loaded to avoid flicker) */}
+        {settingsLoaded && settings.enabled && (
           <section
             style={{
               borderRadius: 18,
               border: "1px solid rgba(0,0,0,0.10)",
-              background: "rgba(255,90,0,0.08)",
+              background: seasonalPreset.active ? "rgba(255,90,0,0.08)" : "rgba(0,0,0,0.03)",
               padding: 14,
               marginBottom: 14,
             }}
           >
-            <div style={{ fontWeight: 950, color: COLORS.black }}>Seasonal drop is live</div>
+            <div style={{ fontWeight: 950, color: COLORS.black }}>
+              Seasonal window: {settings.seasonStart} → {settings.seasonEnd}
+            </div>
             <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", lineHeight: 1.5 }}>
-              Limited window: {seasonalPreset.seasonStart} → {seasonalPreset.seasonEnd}
+              {seasonalPreset.active ? "Seasonal assortment is live." : "Seasonal assortment is currently off (out of window)."}
             </div>
           </section>
         )}
 
         <section style={{ display: "grid", gap: 14 }}>
-          {presets.map((p) => (
+          {presets.map((p: any) => (
             <article
               key={p.key}
               style={{
@@ -191,7 +217,7 @@ export default function AssortmentsPage() {
                   </div>
 
                   <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.4 }}>
-                    {p.items
+                    {(p.items as PresetItem[])
                       .map((i) => `${safeGetName(i.flavorId)}${i.qty > 1 ? ` ×${i.qty}` : ""}`)
                       .join(" • ")}
                   </div>
@@ -224,7 +250,7 @@ export default function AssortmentsPage() {
                 </div>
 
                 <button
-                  onClick={() => addPreset(p.boxSize, p.items)}
+                  onClick={() => addPreset(p.boxSize as 3 | 6, p.items as PresetItem[])}
                   style={{
                     border: "none",
                     borderRadius: 999,
