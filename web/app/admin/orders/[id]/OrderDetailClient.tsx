@@ -125,7 +125,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
   return (
     <main style={{ padding: 18, maxWidth: 980, margin: "0 auto" }}>
-      <Link href="/admin/orders" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+      <Link href="/admin/orders" style={{ color: "#003A8C", fontWeight: 800, textDecoration: "none" }}>
         ← Back to orders
       </Link>
 
