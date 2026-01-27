@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { addBoxToCart } from "@/lib/cart";
 import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
-import { parsePickupPoints, useStoreStock } from "@/lib/storeStock";
 
 type BoxSize = 3 | 6;
 
@@ -34,17 +33,30 @@ const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
 export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: BoxSize }) {
   const router = useRouter();
 
-  const SHOW_STORE_SELECTOR =
-    String(process.env.NEXT_PUBLIC_SHOW_STORE_SELECTOR || "").toLowerCase() === "true";
+  // ✅ Hard lock to Kemang for go-live
+  const STORE_ID = "kemang";
 
-  const points = useMemo(() => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON), []);
-  const { storeId, setStore, storeName, stock, loading: stockLoading } = useStoreStock(points);
+  const [stock, setStock] = useState<Record<string, number>>({});
+  const [stockLoading, setStockLoading] = useState(true);
+  const [stockError, setStockError] = useState<string | null>(null);
 
-  // When selector is hidden: lock to Kemang
   useEffect(() => {
-    if (!SHOW_STORE_SELECTOR && storeId !== "kemang") setStore("kemang");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [SHOW_STORE_SELECTOR, storeId]);
+    (async () => {
+      setStockLoading(true);
+      setStockError(null);
+      try {
+        const res = await fetch(`/api/stock/availability?store_id=${STORE_ID}`, { cache: "no-store" });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || j?.ok !== true) throw new Error(j?.error || "Failed to load stock");
+        setStock(j?.stock && typeof j.stock === "object" ? j.stock : {});
+      } catch (e: any) {
+        setStock({});
+        setStockError(e?.message || "Failed to load stock");
+      } finally {
+        setStockLoading(false);
+      }
+    })();
+  }, []);
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -56,7 +68,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
     return CATALOG_FLAVORS.map((f: any) => {
       const fid = String(f.id);
       const available = Number(stock?.[fid] ?? 0);
-      const soldOut = available <= 0;
+      const soldOut = stockLoading ? true : available <= 0;
 
       const out: CardFlavorUI = {
         id: fid,
@@ -71,10 +83,11 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       };
       return out;
     });
-  }, [stock]);
+  }, [stock, stockLoading]);
 
-  // Remove selections that become sold out when store changes
+  // When stock loads, remove selections that became unavailable
   useEffect(() => {
+    if (stockLoading) return;
     setQty((prev) => {
       const next: Record<string, number> = { ...prev };
       let changed = false;
@@ -85,11 +98,14 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         if (available <= 0) {
           delete next[fid];
           changed = true;
+        } else if (selected > available) {
+          next[fid] = available;
+          changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [stock]);
+  }, [stockLoading, stock]);
 
   const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
 
@@ -102,6 +118,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
   const inc = (id: string) => {
     if (!canAddMore) return;
+    if (stockLoading) return;
 
     const available = Number(stock?.[id] ?? 0);
     const current = qty[id] ?? 0;
@@ -124,6 +141,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
   const onAddToCart = () => {
     if (!isFull) return;
+    if (stockLoading) return;
 
     const items = cardFlavors
       .filter((f) => (qty[f.id] ?? 0) > 0)
@@ -165,69 +183,19 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
+          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
+            Stock is currently based on: <b>Kemang</b>
+          </div>
 
-          {!SHOW_STORE_SELECTOR && (
-            <div style={{ marginTop: 6, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
-              Stock is currently based on: <b>Kemang</b>
+          {stockError ? (
+            <div style={{ marginTop: 10, color: "crimson", fontWeight: 900 }}>
+              Stock error: {stockError}
             </div>
-          )}
+          ) : null}
         </header>
 
-        {/* Store selector (HIDDEN by default) */}
-        {SHOW_STORE_SELECTOR && (
-          <section
-            style={{
-              marginBottom: 14,
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "#FAF7F2",
-              padding: 12,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-              <div style={{ fontWeight: 950, color: COLORS.black }}>Store</div>
-              <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
-                {stockLoading ? "Checking stock…" : `Stock for: ${storeName}`}
-              </div>
-            </div>
-
-            <select
-              value={storeId}
-              onChange={(e) => setStore(e.target.value)}
-              style={{
-                marginTop: 10,
-                width: "100%",
-                height: 46,
-                borderRadius: 14,
-                border: "1px solid rgba(0,0,0,0.12)",
-                padding: "0 12px",
-                outline: "none",
-                background: "#fff",
-                fontWeight: 900,
-              }}
-            >
-              {points.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-
-            <div style={{ marginTop: 8, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
-              Sold out items are disabled automatically.
-            </div>
-          </section>
-        )}
-
         {/* Box size cards */}
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: 10,
-            marginBottom: 14,
-          }}
-        >
+        <section style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 14 }}>
           {BOX_OPTIONS.map((opt) => {
             const active = opt.size === boxSize;
             return (
@@ -275,55 +243,25 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           >
             <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
               <div style={{ fontWeight: 950 }}>Box of {boxSize}</div>
-              <div style={{ color: "#3C3C3C", fontWeight: 900 }}>{bannerText}</div>
+              <div style={{ color: "#3C3C3C", fontWeight: 900 }}>
+                {stockLoading ? "Checking stock…" : bannerText}
+              </div>
             </div>
 
-            {!isFull && (
+            {!isFull && !stockLoading && (
               <div style={{ fontWeight: 950, color: COLORS.orange, whiteSpace: "nowrap" }}>
                 {remaining} left
               </div>
             )}
           </div>
-
-          <div
-            style={{
-              marginTop: 10,
-              height: 10,
-              borderRadius: 999,
-              background: "rgba(0,0,0,0.08)",
-              overflow: "hidden",
-            }}
-            aria-label="Progress"
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${Math.min(100, (totalCount / boxSize) * 100)}%`,
-                background: COLORS.orange,
-                borderRadius: 999,
-              }}
-            />
-          </div>
-
-          {!canAddMore && (
-            <div style={{ marginTop: 10, color: "#6B6B6B", fontWeight: 800 }}>
-              Box is full. Remove one cookie to add another.
-            </div>
-          )}
         </section>
 
         {/* Flavor grid */}
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: 14,
-          }}
-        >
+        <section style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
           {cardFlavors.map((f) => {
             const available = Number(stock?.[f.id] ?? 0);
             const selected = qty[f.id] ?? 0;
-            const hitLimit = available > 0 && selected >= available;
+            const hitLimit = !stockLoading && available > 0 && selected >= available;
 
             return (
               <ProductCard
@@ -332,8 +270,8 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
                 quantity={selected}
                 onAdd={() => inc(f.id)}
                 onRemove={() => dec(f.id)}
-                disabledAdd={!canAddMore || f.soldOut || hitLimit}
-                addLabel={f.soldOut ? "Sold out" : hitLimit ? "Limit reached" : "Add to box"}
+                disabledAdd={stockLoading || !canAddMore || f.soldOut || hitLimit}
+                addLabel={stockLoading ? "Loading…" : f.soldOut ? "Sold out" : hitLimit ? "Limit reached" : "Add to box"}
               />
             );
           })}
@@ -356,25 +294,25 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
             <div style={{ fontWeight: 900, color: COLORS.black }}>
-              {isFull ? "Box complete" : `Add ${remaining} more`}
+              {stockLoading ? "Checking stock…" : isFull ? "Box complete" : `Add ${remaining} more`}
             </div>
 
             <div style={{ color: "#6B6B6B", fontWeight: 900 }}>
-              Total: {formatIDR(isFull ? totalPrice : 0)}
+              Total: {formatIDR(!stockLoading && isFull ? totalPrice : 0)}
             </div>
           </div>
 
           <button
             onClick={onAddToCart}
-            disabled={!isFull}
+            disabled={stockLoading || !isFull}
             style={{
               marginTop: 10,
               width: "100%",
               borderRadius: 999,
               height: 52,
               border: "none",
-              cursor: !isFull ? "not-allowed" : "pointer",
-              background: !isFull ? "rgba(0,20,167,0.45)" : COLORS.blue,
+              cursor: stockLoading || !isFull ? "not-allowed" : "pointer",
+              background: stockLoading || !isFull ? "rgba(0,20,167,0.45)" : COLORS.blue,
               color: COLORS.white,
               fontWeight: 900,
               fontSize: 16,
@@ -385,7 +323,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           </button>
 
           <div style={{ marginTop: 8, color: "#6B6B6B", fontWeight: 800, fontSize: 12, textAlign: "center" }}>
-            Stock is based on {SHOW_STORE_SELECTOR ? storeName : "Kemang"}.
+            Stock is based on Kemang for initial go-live.
           </div>
         </div>
       </div>
