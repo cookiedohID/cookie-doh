@@ -37,15 +37,9 @@ export async function GET() {
       stock[sid][fid] = Number.isFinite(qty) ? qty : 0;
     }
 
-    return NextResponse.json(
-      { ok: true, stores: storesRes.data || [], stock },
-      { status: 200 }
-    );
+    return NextResponse.json({ ok: true, stores: storesRes.data || [], stock }, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message || "Unknown error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: e?.message || "Unknown error" }, { status: 500 });
   }
 }
 
@@ -56,30 +50,42 @@ export async function POST(req: Request) {
 
     const store_id = String(body?.store_id || "").trim();
     const flavor_id = String(body?.flavor_id || "").trim();
-    const qty = Number(body?.qty);
+    const qtyNum = Number(body?.qty);
 
-    if (!store_id || !flavor_id || !Number.isFinite(qty) || qty < 0) {
+    if (!store_id || !flavor_id || !Number.isFinite(qtyNum) || qtyNum < 0) {
       return NextResponse.json(
         { ok: false, error: "Invalid store_id / flavor_id / qty" },
         { status: 400 }
       );
     }
 
-    const { error } = await supa
+    const qty = Math.floor(qtyNum);
+
+    const { error: upsertErr } = await supa
       .from("flavor_stock")
       .upsert(
         {
           store_id,
           flavor_id,
-          qty: Math.floor(qty),
+          qty,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "store_id,flavor_id" }
       );
 
-    if (error) throw new Error(error.message);
+    if (upsertErr) throw new Error(upsertErr.message);
 
-    return NextResponse.json({ ok: true }, { status: 200 });
+    // ✅ Read back what we saved (hard proof)
+    const { data, error: readErr } = await supa
+      .from("flavor_stock")
+      .select("store_id, flavor_id, qty, updated_at")
+      .eq("store_id", store_id)
+      .eq("flavor_id", flavor_id)
+      .maybeSingle();
+
+    if (readErr) throw new Error(readErr.message);
+
+    return NextResponse.json({ ok: true, row: data || null }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json(
       { ok: false, error: e?.message || "Unknown error" },
