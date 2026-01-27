@@ -6,24 +6,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
+import { parsePickupPoints, useStoreStock } from "@/lib/storeStock";
 
-type BoxSize = 3 | 6;
 type PresetItem = { flavorId: string; qty: number };
-
-type SeasonalSettings = {
-  enabled: boolean;
-  seasonStart: string; // YYYY-MM-DD
-  seasonEnd: string; // YYYY-MM-DD
-};
-
-type Preset = {
-  key: string;
-  title: string;
-  badge: string;
-  boxSize: BoxSize;
-  items: PresetItem[];
-  note?: string;
-};
 
 const COLORS = {
   blue: "#0014a7",
@@ -34,6 +19,12 @@ const COLORS = {
 };
 
 const COOKIE_PRICE = 32500;
+
+type SeasonalSettings = {
+  enabled: boolean;
+  seasonStart: string;
+  seasonEnd: string;
+};
 
 const DEFAULTS: SeasonalSettings = {
   enabled: false,
@@ -46,7 +37,6 @@ function safeGetName(id: string) {
   return f?.name ?? id;
 }
 
-// YYYY-MM-DD in Asia/Jakarta
 function jakartaTodayYMD() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
@@ -65,7 +55,7 @@ function inRange(today: string, start: string, end: string) {
   return today >= start && today <= end;
 }
 
-function presetToCartBox(boxSize: BoxSize, items: PresetItem[]): CartBox {
+function presetToCartBox(boxSize: 3 | 6, items: PresetItem[]): CartBox {
   const cartItems = items
     .map((x) => {
       const f = FLAVORS.find((ff: any) => ff.id === x.flavorId);
@@ -87,9 +77,20 @@ function presetToCartBox(boxSize: BoxSize, items: PresetItem[]): CartBox {
   };
 }
 
+function presetFitsStock(items: PresetItem[], stock: Record<string, number>) {
+  for (const it of items) {
+    const available = Number(stock?.[it.flavorId] ?? 0);
+    if (available < it.qty) return false;
+  }
+  return true;
+}
+
 export default function AssortmentsPage() {
   const router = useRouter();
   const today = useMemo(() => jakartaTodayYMD(), []);
+
+  const points = useMemo(() => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON), []);
+  const { storeId, setStore, storeName, stock, loading: stockLoading } = useStoreStock(points);
 
   const [settings, setSettings] = useState<SeasonalSettings>(DEFAULTS);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -103,9 +104,9 @@ export default function AssortmentsPage() {
 
         if (s && typeof s === "object") {
           setSettings({
-            enabled: Boolean((s as any).enabled),
-            seasonStart: String((s as any).seasonStart || DEFAULTS.seasonStart),
-            seasonEnd: String((s as any).seasonEnd || DEFAULTS.seasonEnd),
+            enabled: Boolean(s.enabled),
+            seasonStart: String(s.seasonStart || DEFAULTS.seasonStart),
+            seasonEnd: String(s.seasonEnd || DEFAULTS.seasonEnd),
           });
         } else {
           setSettings(DEFAULTS);
@@ -118,62 +119,60 @@ export default function AssortmentsPage() {
     })();
   }, []);
 
-  const basePresets: Preset[] = useMemo(
+  const basePresets = useMemo(
     () => [
       {
         key: "box3-crowd",
         title: "Box of 3 · Crowd Favorites",
         badge: "Bestseller",
-        boxSize: 3,
+        boxSize: 3 as const,
         items: [
           { flavorId: "the-one", qty: 1 },
           { flavorId: "the-other-one", qty: 1 },
           { flavorId: "matcha-magic", qty: 1 },
-        ],
+        ] as PresetItem[],
       },
       {
         key: "box6-bestmix",
         title: "Box of 6 · Best Mix",
         badge: "Fan Favorite",
-        boxSize: 6,
+        boxSize: 6 as const,
         items: [
           { flavorId: "the-one", qty: 2 },
           { flavorId: "the-other-one", qty: 2 },
           { flavorId: "matcha-magic", qty: 1 },
           { flavorId: "the-comfort", qty: 1 },
-        ],
+        ] as PresetItem[],
       },
     ],
     []
   );
 
   const seasonalPreset = useMemo(() => {
-    const active = Boolean(settings.enabled) && inRange(today, settings.seasonStart, settings.seasonEnd);
-
-    const preset: Preset = {
+    const active = !!settings.enabled && inRange(today, settings.seasonStart, settings.seasonEnd);
+    return {
       key: "seasonal-limited",
+      active,
       title: "Seasonal · Limited Assortment",
       badge: "Limited",
-      boxSize: 6,
+      boxSize: 6 as const,
       items: [
         { flavorId: "the-one", qty: 2 },
         { flavorId: "the-other-one", qty: 2 },
         { flavorId: "orange-in-the-dark", qty: 1 },
         { flavorId: "the-comfort", qty: 1 },
-      ],
+      ] as PresetItem[],
       note: "Limited window — while batches last.",
     };
-
-    return { active, preset };
   }, [settings.enabled, settings.seasonStart, settings.seasonEnd, today]);
 
-  const presets: Preset[] = useMemo(() => {
-    const out: Preset[] = [...basePresets];
-    if (seasonalPreset.active) out.unshift(seasonalPreset.preset);
+  const presets = useMemo(() => {
+    const out = [...basePresets];
+    if (seasonalPreset.active) out.unshift(seasonalPreset);
     return out;
-  }, [basePresets, seasonalPreset.active, seasonalPreset.preset]);
+  }, [basePresets, seasonalPreset]);
 
-  function addPreset(boxSize: BoxSize, items: PresetItem[]) {
+  function addPreset(boxSize: 3 | 6, items: PresetItem[]) {
     const box = presetToCartBox(boxSize, items);
     addBoxToCart(box);
     router.push("/cart");
@@ -182,7 +181,7 @@ export default function AssortmentsPage() {
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "28px 16px 80px" }}>
-        <header style={{ marginBottom: 18 }}>
+        <header style={{ marginBottom: 14 }}>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900, color: COLORS.black }}>
             Assortments
           </h1>
@@ -190,6 +189,46 @@ export default function AssortmentsPage() {
             Ready-made boxes — easy choices, crowd favorites.
           </p>
         </header>
+
+        {/* Store selector */}
+        <section
+          style={{
+            marginBottom: 14,
+            borderRadius: 18,
+            border: "1px solid rgba(0,0,0,0.10)",
+            background: COLORS.sand,
+            padding: 12,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+            <div style={{ fontWeight: 950, color: COLORS.black }}>Store</div>
+            <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
+              {stockLoading ? "Checking stock…" : `Stock for: ${storeName}`}
+            </div>
+          </div>
+
+          <select
+            value={storeId}
+            onChange={(e) => setStore(e.target.value)}
+            style={{
+              marginTop: 10,
+              width: "100%",
+              height: 46,
+              borderRadius: 14,
+              border: "1px solid rgba(0,0,0,0.12)",
+              padding: "0 12px",
+              outline: "none",
+              background: "#fff",
+              fontWeight: 900,
+            }}
+          >
+            {points.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </section>
 
         {/* Seasonal status strip */}
         {settingsLoaded && settings.enabled && (
@@ -206,80 +245,89 @@ export default function AssortmentsPage() {
               Seasonal window: {settings.seasonStart} → {settings.seasonEnd}
             </div>
             <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", lineHeight: 1.5 }}>
-              {seasonalPreset.active
-                ? "Seasonal assortment is live."
-                : "Seasonal assortment is currently off (out of window)."}
+              {seasonalPreset.active ? "Seasonal assortment is live." : "Seasonal assortment is currently off (out of window)."}
             </div>
           </section>
         )}
 
         <section style={{ display: "grid", gap: 14 }}>
-          {presets.map((p) => (
-            <article
-              key={p.key}
-              style={{
-                borderRadius: 18,
-                border: "1px solid rgba(0,0,0,0.10)",
-                background: COLORS.sand,
-                padding: 16,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 950, fontSize: 16, color: COLORS.black }}>
-                    {p.title}
-                  </div>
-
-                  <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.4 }}>
-                    {p.items
-                      .map((i) => `${safeGetName(i.flavorId)}${i.qty > 1 ? ` ×${i.qty}` : ""}`)
-                      .join(" • ")}
-                  </div>
-
-                  {p.note ? (
-                    <div style={{ marginTop: 8, fontSize: 12, fontWeight: 800, color: "rgba(0,0,0,0.65)" }}>
-                      {p.note}
+          {presets.map((p: any) => {
+            const ok = presetFitsStock(p.items as PresetItem[], stock);
+            return (
+              <article
+                key={p.key}
+                style={{
+                  borderRadius: 18,
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  background: COLORS.sand,
+                  padding: 16,
+                  opacity: ok ? 1 : 0.85,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 950, fontSize: 16, color: COLORS.black }}>
+                      {p.title}
                     </div>
-                  ) : null}
+
+                    <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.4 }}>
+                      {(p.items as PresetItem[])
+                        .map((i) => `${safeGetName(i.flavorId)}${i.qty > 1 ? ` ×${i.qty}` : ""}`)
+                        .join(" • ")}
+                    </div>
+
+                    {!ok && (
+                      <div style={{ marginTop: 8, color: "rgba(0,0,0,0.65)", fontWeight: 900, fontSize: 12 }}>
+                        Some items are sold out at this store.
+                      </div>
+                    )}
+
+                    {p.note ? (
+                      <div style={{ marginTop: 8, fontSize: 12, fontWeight: 800, color: "rgba(0,0,0,0.65)" }}>
+                        {p.note}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 999,
+                      border: "1px solid rgba(0,0,0,0.12)",
+                      background: "#fff",
+                      fontSize: 12,
+                      fontWeight: 950,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {p.badge}
+                  </div>
                 </div>
 
-                <div
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(0,0,0,0.12)",
-                    background: "#fff",
-                    fontSize: 12,
-                    fontWeight: 950,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {p.badge}
-                </div>
-              </div>
+                <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontWeight: 950, color: COLORS.black }}>
+                    IDR {BOX_PRICES[p.boxSize].toLocaleString("id-ID")}
+                  </div>
 
-              <div style={{ marginTop: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontWeight: 950, color: COLORS.black }}>
-                  IDR {BOX_PRICES[p.boxSize].toLocaleString("id-ID")}
+                  <button
+                    onClick={() => addPreset(p.boxSize as 3 | 6, p.items as PresetItem[])}
+                    disabled={!ok}
+                    style={{
+                      border: "none",
+                      borderRadius: 999,
+                      padding: "12px 16px",
+                      background: !ok ? "rgba(0,82,204,0.45)" : COLORS.blue,
+                      color: COLORS.white,
+                      fontWeight: 950,
+                      cursor: !ok ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {!ok ? "Unavailable" : "Add to cart"}
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => addPreset(p.boxSize, p.items)}
-                  style={{
-                    border: "none",
-                    borderRadius: 999,
-                    padding: "12px 16px",
-                    background: COLORS.blue,
-                    color: COLORS.white,
-                    fontWeight: 950,
-                    cursor: "pointer",
-                  }}
-                >
-                  Add to cart
-                </button>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </section>
 
         <div style={{ marginTop: 24 }}>
