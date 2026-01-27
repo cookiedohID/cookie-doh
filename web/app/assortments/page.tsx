@@ -8,17 +8,17 @@ import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
 import { parsePickupPoints, useStoreStock } from "@/lib/storeStock";
 
+type BoxSize = 3 | 6;
 type PresetItem = { flavorId: string; qty: number };
 
-const COLORS = {
-  blue: "#0014a7",
-  orange: "#FF5A00",
-  black: "#101010",
-  white: "#FFFFFF",
-  sand: "#FAF7F2",
+type Preset = {
+  key: string;
+  title: string;
+  badge: string;
+  boxSize: BoxSize;
+  items: PresetItem[];
+  note?: string;
 };
-
-const COOKIE_PRICE = 32500;
 
 type SeasonalSettings = {
   enabled: boolean;
@@ -31,6 +31,16 @@ const DEFAULTS: SeasonalSettings = {
   seasonStart: "2026-01-15",
   seasonEnd: "2026-02-20",
 };
+
+const COLORS = {
+  blue: "#0014A7",
+  orange: "#FF5A00",
+  black: "#101010",
+  white: "#FFFFFF",
+  sand: "#FAF7F2",
+};
+
+const COOKIE_PRICE = 32500;
 
 function safeGetName(id: string) {
   const f = FLAVORS.find((x: any) => x.id === id);
@@ -55,7 +65,7 @@ function inRange(today: string, start: string, end: string) {
   return today >= start && today <= end;
 }
 
-function presetToCartBox(boxSize: 3 | 6, items: PresetItem[]): CartBox {
+function presetToCartBox(boxSize: BoxSize, items: PresetItem[]): CartBox {
   const cartItems = items
     .map((x) => {
       const f = FLAVORS.find((ff: any) => ff.id === x.flavorId);
@@ -70,11 +80,7 @@ function presetToCartBox(boxSize: 3 | 6, items: PresetItem[]): CartBox {
     })
     .filter(Boolean) as CartBox["items"];
 
-  return {
-    boxSize,
-    items: cartItems,
-    total: BOX_PRICES[boxSize],
-  };
+  return { boxSize, items: cartItems, total: BOX_PRICES[boxSize] };
 }
 
 function presetFitsStock(items: PresetItem[], stock: Record<string, number>) {
@@ -104,9 +110,9 @@ export default function AssortmentsPage() {
 
         if (s && typeof s === "object") {
           setSettings({
-            enabled: Boolean(s.enabled),
-            seasonStart: String(s.seasonStart || DEFAULTS.seasonStart),
-            seasonEnd: String(s.seasonEnd || DEFAULTS.seasonEnd),
+            enabled: Boolean((s as any).enabled),
+            seasonStart: String((s as any).seasonStart || DEFAULTS.seasonStart),
+            seasonEnd: String((s as any).seasonEnd || DEFAULTS.seasonEnd),
           });
         } else {
           setSettings(DEFAULTS);
@@ -119,62 +125,63 @@ export default function AssortmentsPage() {
     })();
   }, []);
 
-  const basePresets = useMemo(
+  const basePresets: Preset[] = useMemo(
     () => [
       {
         key: "box3-crowd",
         title: "Box of 3 · Crowd Favorites",
         badge: "Bestseller",
-        boxSize: 3 as const,
+        boxSize: 3,
         items: [
           { flavorId: "the-one", qty: 1 },
           { flavorId: "the-other-one", qty: 1 },
           { flavorId: "matcha-magic", qty: 1 },
-        ] as PresetItem[],
+        ],
       },
       {
         key: "box6-bestmix",
         title: "Box of 6 · Best Mix",
         badge: "Fan Favorite",
-        boxSize: 6 as const,
+        boxSize: 6,
         items: [
           { flavorId: "the-one", qty: 2 },
           { flavorId: "the-other-one", qty: 2 },
           { flavorId: "matcha-magic", qty: 1 },
           { flavorId: "the-comfort", qty: 1 },
-        ] as PresetItem[],
+        ],
       },
     ],
     []
   );
 
-  const seasonalPreset = useMemo(() => {
+  const seasonalPreset = useMemo((): (Preset & { active: boolean }) => {
     const active = !!settings.enabled && inRange(today, settings.seasonStart, settings.seasonEnd);
     return {
       key: "seasonal-limited",
       active,
       title: "Seasonal · Limited Assortment",
       badge: "Limited",
-      boxSize: 6 as const,
+      boxSize: 6,
       items: [
         { flavorId: "the-one", qty: 2 },
         { flavorId: "the-other-one", qty: 2 },
         { flavorId: "orange-in-the-dark", qty: 1 },
         { flavorId: "the-comfort", qty: 1 },
-      ] as PresetItem[],
+      ],
       note: "Limited window — while batches last.",
     };
   }, [settings.enabled, settings.seasonStart, settings.seasonEnd, today]);
 
-  const presets = useMemo(() => {
+  const presets: Preset[] = useMemo(() => {
     const out = [...basePresets];
     if (seasonalPreset.active) out.unshift(seasonalPreset);
     return out;
   }, [basePresets, seasonalPreset]);
 
-  function addPreset(boxSize: 3 | 6, items: PresetItem[]) {
-    const box = presetToCartBox(boxSize, items);
-    addBoxToCart(box);
+  function addPreset(boxSize: BoxSize, items: PresetItem[]) {
+    const ok = presetFitsStock(items, stock);
+    if (!ok) return;
+    addBoxToCart(presetToCartBox(boxSize, items));
     router.push("/cart");
   }
 
@@ -251,8 +258,9 @@ export default function AssortmentsPage() {
         )}
 
         <section style={{ display: "grid", gap: 14 }}>
-          {presets.map((p: any) => {
-            const ok = presetFitsStock(p.items as PresetItem[], stock);
+          {presets.map((p) => {
+            const ok = presetFitsStock(p.items, stock);
+
             return (
               <article
                 key={p.key}
@@ -271,7 +279,7 @@ export default function AssortmentsPage() {
                     </div>
 
                     <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.4 }}>
-                      {(p.items as PresetItem[])
+                      {p.items
                         .map((i) => `${safeGetName(i.flavorId)}${i.qty > 1 ? ` ×${i.qty}` : ""}`)
                         .join(" • ")}
                     </div>
@@ -310,13 +318,13 @@ export default function AssortmentsPage() {
                   </div>
 
                   <button
-                    onClick={() => addPreset(p.boxSize as 3 | 6, p.items as PresetItem[])}
+                    onClick={() => addPreset(p.boxSize, p.items)}
                     disabled={!ok}
                     style={{
                       border: "none",
                       borderRadius: 999,
                       padding: "12px 16px",
-                      background: !ok ? "rgba(0,82,204,0.45)" : COLORS.blue,
+                      background: !ok ? "rgba(0,20,167,0.45)" : COLORS.blue,
                       color: COLORS.white,
                       fontWeight: 950,
                       cursor: !ok ? "not-allowed" : "pointer",
