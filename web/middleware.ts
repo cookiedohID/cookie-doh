@@ -1,8 +1,7 @@
-// web/middleware.ts
 import { NextRequest, NextResponse } from "next/server";
 
 export const config = {
-  matcher: ["/:path*"], // run middleware for all paths (we'll allowlist assets inside)
+  matcher: ["/:path*"],
 };
 
 function basicUnauthorized() {
@@ -13,12 +12,8 @@ function basicUnauthorized() {
 }
 
 function isAdminRoute(pathname: string) {
-  return (
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/api/admin")
-  );
+  return pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
 }
-
 
 function isApiRoute(pathname: string) {
   return pathname.startsWith("/api");
@@ -26,7 +21,7 @@ function isApiRoute(pathname: string) {
 
 function isPublicAsset(pathname: string) {
   return (
-    pathname.startsWith("/_next/") || // ✅ critical for hydration
+    pathname.startsWith("/_next/") || // ✅ includes _next/static, _next/image, _next/data
     pathname === "/favicon.ico" ||
     pathname === "/icon.png" ||
     pathname === "/robots.txt" ||
@@ -66,28 +61,14 @@ function checkAdminBasicAuth(req: NextRequest) {
 export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // ✅ 0) Always allow Next.js assets + public images
   if (isPublicAsset(pathname)) return NextResponse.next();
 
-  // ✅ 1) Admin protection (Basic Auth)
   if (isAdminRoute(pathname)) {
     if (!checkAdminBasicAuth(req)) return basicUnauthorized();
     return NextResponse.next();
   }
 
-  // 2) Allow PUBLIC APIs (stock, checkout helpers, etc.)
-if (
-  pathname.startsWith("/api/stock") ||
-  pathname.startsWith("/api/shipping") ||
-  pathname.startsWith("/api/checkout")
-) {
-  return NextResponse.next();
-}
+  if (isApiRoute(pathname)) return NextResponse.next();
 
-// 3) Allow other non-admin APIs
-if (isApiRoute(pathname)) return NextResponse.next();
-
-
-  // ✅ 3) Everything else is public
   return NextResponse.next();
 }
