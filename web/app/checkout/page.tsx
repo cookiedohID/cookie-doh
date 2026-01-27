@@ -28,7 +28,7 @@ type CartState = {
 };
 
 const COLORS = {
-  blue: "#003A8C",
+  blue: "#0052CC",
   orange: "#FF5A00",
   black: "#101010",
   white: "#FFFFFF",
@@ -313,13 +313,15 @@ export default function CheckoutPage() {
       ? "Please select a valid address from the suggestions."
       : "";
 
-  // ✅ FIX: ensure booleans only
+  // ✅ Jakarta-based slot rules
   const todayJakarta = useMemo(() => jakartaTodayYMD(), []);
   const nowMinJakarta = useMemo(() => jakartaMinutesNow(), [scheduleDate, deliverySpeed]);
-  const isScheduleTodayJakarta = !!scheduleDate && scheduleDate === todayJakarta; // ✅ boolean now
+  const isScheduleTodayJakarta = !!scheduleDate && scheduleDate === todayJakarta;
 
+  // ✅ Same-day disabled ONLY if scheduleDate is today AND after 12:00
   const samedayDisabled = fulfillment === "delivery" && isScheduleTodayJakarta && nowMinJakarta >= 12 * 60;
 
+  // ✅ Instant slots filtered for today only
   const instantSlotOptions = useMemo(() => {
     if (!isScheduleTodayJakarta) return INSTANT_SLOTS.map((s) => ({ value: s.value, label: s.label }));
     return INSTANT_SLOTS.filter((s) => nowMinJakarta < s.endMin).map((s) => ({ value: s.value, label: s.label }));
@@ -342,6 +344,7 @@ export default function CheckoutPage() {
         ? "No delivery slots left for today. Please choose another date."
         : "";
 
+  // Quote function
   const canQuote =
     fulfillment === "delivery" && addressResolved && addressLat !== null && addressLng !== null;
 
@@ -370,39 +373,26 @@ export default function CheckoutPage() {
       const price = Number(j?.price);
       if (!Number.isFinite(price)) throw new Error("Invalid quote price");
 
-      const rounded = ceilToThousand(price);
-      setShippingCost(rounded);
+      setShippingCost(ceilToThousand(price));
+      setQuoteMeta(j);
 
       const now = j?.quoteAt ? new Date(String(j.quoteAt)) : new Date();
       setQuoteUpdatedAt(now);
-
-      setQuoteMeta({
-        provider: j?.provider || "lalamove",
-        providerLabel: j?.providerLabel || "Lalamove",
-        speed: j?.speed || deliverySpeed,
-        serviceType: j?.serviceType || null,
-        origin: j?.origin || null,
-        rawPrice: j?.rawPrice || null,
-        roundedPrice: rounded,
-        quotedAt: String(j?.quoteAt || now.toISOString()),
-        requestId: String(j?.requestId || ""),
-        etaHint: j?.etaHint || null,
-        distanceKm: j?.distanceKm || null,
-        liveQuoteLabel: j?.liveQuoteLabel || null,
-      });
     } catch (e: any) {
       if (e?.name === "AbortError") return;
+      setShippingCost(null);
+      setQuoteMeta(null);
+      setQuoteUpdatedAt(null);
       setShippingError(e?.message || "Unable to calculate delivery fee");
-      if (!opts?.manual) {
-        setShippingCost(null);
-        setQuoteMeta(null);
-        setQuoteUpdatedAt(null);
+      if (opts?.manual) {
+        // keep same behavior; user can retry
       }
     } finally {
       setShippingLoading(false);
     }
   };
 
+  // Auto re-quote on address/speed change (debounced)
   useEffect(() => {
     if (fulfillment !== "delivery") {
       setShippingCost(0);
@@ -444,6 +434,65 @@ export default function CheckoutPage() {
     return null;
   };
 
+  // ✅ NEW: Stock check based on chosen store
+  const buildStoreIdForStock = () => {
+    if (fulfillment === "pickup") return String(pickupPointId || "").trim();
+    // delivery: use quote origin store if present, else default kemang
+    return String(quoteMeta?.origin?.id || "kemang").trim();
+  };
+
+  const buildCartItemsForStock = () => {
+    const map = new Map<string, number>();
+    for (const b of cart.boxes || []) {
+      for (const it of b.items || []) {
+        const fid = String(it.id);
+        const q = Number(it.quantity || 0);
+        if (!fid || !Number.isFinite(q) || q <= 0) continue;
+        map.set(fid, (map.get(fid) || 0) + q);
+      }
+    }
+    return Array.from(map.entries()).map(([flavor_id, qty]) => ({ flavor_id, qty }));
+  };
+
+  const stockCheckOrMessage = async (): Promise<string | null> => {
+    const store_id = buildStoreIdForStock();
+    const items = buildCartItemsForStock();
+
+    if (!store_id || items.length === 0) return null;
+
+    try {
+      const res = await fetch("/api/stock/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ store_id, items }),
+      });
+
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || j?.ok === false) {
+        return j?.error || "Stock check failed. Please try again.";
+      }
+
+      const insufficient = Array.isArray(j?.insufficient) ? j.insufficient : [];
+      if (!insufficient.length) return null;
+
+      const lines = insufficient.map((x: any) => {
+        const fid = String(x?.flavor_id || "");
+        const requested = Number(x?.requested ?? 0);
+        const available = Number(x?.available ?? 0);
+        return `• ${fid} (need ${requested}, available ${available})`;
+      });
+
+      const storeName =
+        fulfillment === "pickup"
+          ? (pickupPoints.find((p) => p.id === pickupPointId)?.name || store_id)
+          : (quoteMeta?.origin?.name || store_id);
+
+      return `Some items are out of stock for:\n${storeName}\n\n${lines.join("\n")}\n\nPlease adjust your box or choose a different pickup point.`;
+    } catch {
+      return "Stock check failed. Please try again.";
+    }
+  };
+
   const placeOrder = async () => {
     setErr(null);
     setPhoneTouched(true);
@@ -454,6 +503,7 @@ export default function CheckoutPage() {
     if (v) return setErr(v);
     if (isEmpty) return setErr("Your cart is empty. Please build a box first.");
 
+    // Final safety check (catalog soldOut)
     for (const b of cart.boxes) {
       for (const it of b.items || []) {
         if (soldOutSet.has(String(it.id))) {
@@ -462,6 +512,10 @@ export default function CheckoutPage() {
         }
       }
     }
+
+    // ✅ NEW: stock check per store
+    const stockMsg = await stockCheckOrMessage();
+    if (stockMsg) return setErr(stockMsg);
 
     const normalizedPhone = phoneCheck.normalized || normalizeIDPhone(phone);
     const fullAddress = addressDetail.trim() ? `${addressBase}\n${addressDetail.trim()}` : addressBase;
@@ -472,12 +526,14 @@ export default function CheckoutPage() {
 
       const payload: any = {
         customer: { name: name.trim(), phone: normalizedPhone },
+
         fulfillment: {
           type: fulfillment,
           scheduleDate,
           scheduleTime,
           deliverySpeed: fulfillment === "delivery" ? deliverySpeed : null,
         },
+
         delivery:
           fulfillment === "delivery"
             ? {
@@ -491,6 +547,7 @@ export default function CheckoutPage() {
                 speed: deliverySpeed,
               }
             : null,
+
         pickup:
           fulfillment === "pickup"
             ? {
@@ -499,6 +556,7 @@ export default function CheckoutPage() {
                 pointAddress: pickupPoint?.address || "",
               }
             : null,
+
         notes,
         cart,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
@@ -519,6 +577,7 @@ export default function CheckoutPage() {
 
       const data = await res.json().catch(() => ({} as any));
       const redirectUrl = data?.redirect_url || data?.redirectUrl;
+
       if (!redirectUrl) throw new Error(`Missing redirect_url from server: ${JSON.stringify(data)}`);
 
       clearCartStorage();
@@ -529,6 +588,17 @@ export default function CheckoutPage() {
       setLoading(false);
     }
   };
+
+  const shownLabel = useMemo(() => {
+    if (fulfillment !== "delivery") return null;
+    const apiLabel = typeof quoteMeta?.liveQuoteLabel === "string" ? quoteMeta.liveQuoteLabel : null;
+    if (apiLabel) return apiLabel;
+
+    const provider = quoteMeta?.provider ? String(quoteMeta.provider).toUpperCase() : "LALAMOVE";
+    const speed = deliverySpeed === "instant" ? "Instant" : "Same-day";
+    const svc = quoteMeta?.serviceType ? ` • ${String(quoteMeta.serviceType)}` : "";
+    return `Live quote (${provider}) • ${speed}${svc}`;
+  }, [fulfillment, quoteMeta, deliverySpeed]);
 
   if (booting) {
     return (
@@ -541,7 +611,6 @@ export default function CheckoutPage() {
     );
   }
 
-  // --- UI (kept same structure; shortened text only where necessary) ---
   return (
     <main style={{ minHeight: "100vh", background: "#fff" }}>
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "22px 16px 120px" }}>
@@ -827,7 +896,7 @@ export default function CheckoutPage() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                     <div style={{ fontWeight: 950, color: COLORS.black }}>
-                      {quoteMeta?.liveQuoteLabel || "Live quote (Lalamove)"}
+                      {shownLabel || "Live quote (Lalamove)"}
                     </div>
                     <button
                       type="button"
@@ -864,7 +933,7 @@ export default function CheckoutPage() {
                           {String(quoteMeta.etaHint)}
                         </div>
                       ) : null}
-                      {quoteMeta?.distanceKm ? (
+                      {quoteMeta?.distanceKm != null ? (
                         <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
                           Distance: ~{Number(quoteMeta.distanceKm)} km
                         </div>
@@ -872,6 +941,11 @@ export default function CheckoutPage() {
                       {quoteMeta?.requestId ? (
                         <div style={{ color: "rgba(0,0,0,0.45)", fontWeight: 800, fontSize: 11 }}>
                           Quote ID: {String(quoteMeta.requestId)}
+                        </div>
+                      ) : null}
+                      {quoteMeta?.origin?.name ? (
+                        <div style={{ color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 11 }}>
+                          From: {String(quoteMeta.origin.name)}
                         </div>
                       ) : null}
                     </div>
@@ -997,7 +1071,10 @@ export default function CheckoutPage() {
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
             onClick={placeOrder}
-            disabled={loading || (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday))}
+            disabled={
+              loading ||
+              (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday))
+            }
             style={{
               width: "100%",
               borderRadius: 999,
@@ -1009,7 +1086,8 @@ export default function CheckoutPage() {
               fontWeight: 950,
               fontSize: 16,
               boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
-              opacity: loading || (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday)) ? 0.6 : 1,
+              opacity:
+                (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday)) ? 0.6 : 1,
             }}
           >
             {loading ? "Preparing payment…" : "Place order"}
