@@ -9,11 +9,20 @@ type Store = { id: string; name: string };
 type StockMap = Record<string, Record<string, number>>; // storeId -> flavorId -> qty
 
 const COLORS = {
-  blue: "#0014a7",
+  blue: "#0014A7",
   black: "#101010",
   white: "#FFFFFF",
   sand: "#FAF7F2",
 };
+
+async function safeJsonWithText(res: Response) {
+  const text = await res.text();
+  try {
+    return { json: JSON.parse(text), text };
+  } catch {
+    return { json: null, text };
+  }
+}
 
 export default function StockAdminClient() {
   const [stores, setStores] = useState<Store[]>([]);
@@ -21,20 +30,52 @@ export default function StockAdminClient() {
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [debug, setDebug] = useState<string | null>(null);
+
+  const storeCols = useMemo(() => stores, [stores]);
 
   const load = async () => {
     setLoading(true);
     setErr(null);
-    try {
-      const res = await fetch("/api/admin/stock", { cache: "no-store" });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || j?.ok === false) throw new Error(j?.error || "Failed to load stock");
+    setDebug(null);
 
-      setStores(Array.isArray(j?.stores) ? j.stores : []);
-      setStock(j?.stock && typeof j.stock === "object" ? j.stock : {});
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), 8000);
+
+    try {
+      const res = await fetch("/api/admin/stock", {
+        cache: "no-store",
+        signal: ac.signal,
+      });
+
+      const { json, text } = await safeJsonWithText(res);
+
+      if (!res.ok) {
+        setErr(`Failed to load stock (HTTP ${res.status})`);
+        setDebug(text?.slice(0, 800) || null);
+        setStores([]);
+        setStock({});
+        return;
+      }
+
+      if (!json || (json as any)?.ok === false) {
+        setErr((json as any)?.error || "Failed to load stock");
+        setDebug(text?.slice(0, 800) || null);
+        setStores([]);
+        setStock({});
+        return;
+      }
+
+      setStores(Array.isArray((json as any).stores) ? (json as any).stores : []);
+      setStock((json as any).stock && typeof (json as any).stock === "object" ? (json as any).stock : {});
     } catch (e: any) {
-      setErr(e?.message || "Failed to load stock");
+      if (e?.name === "AbortError") {
+        setErr("Stock API timed out (8s). Check Supabase env vars in Vercel or API route health.");
+      } else {
+        setErr(e?.message || "Failed to load stock");
+      }
     } finally {
+      clearTimeout(t);
       setLoading(false);
     }
   };
@@ -43,27 +84,27 @@ export default function StockAdminClient() {
     load();
   }, []);
 
-  const storeCols = useMemo(() => stores, [stores]);
-
   async function saveQty(storeId: string, flavorId: string, qty: number) {
     const key = `${storeId}:${flavorId}`;
     setBusyKey(key);
     setErr(null);
+    setDebug(null);
+
     try {
       const res = await fetch("/api/admin/stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          store_id: storeId,
-          flavor_id: flavorId,
-          qty,
-        }),
+        body: JSON.stringify({ store_id: storeId, flavor_id: flavorId, qty }),
       });
 
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || j?.ok === false) throw new Error(j?.error || "Failed to save");
+      const { json, text } = await safeJsonWithText(res);
 
-      // optimistic update
+      if (!res.ok || !json || (json as any)?.ok === false) {
+        setErr((json as any)?.error || `Failed to save (HTTP ${res.status})`);
+        setDebug(text?.slice(0, 800) || null);
+        return;
+      }
+
       setStock((prev) => ({
         ...prev,
         [storeId]: { ...(prev[storeId] || {}), [flavorId]: qty },
@@ -78,16 +119,7 @@ export default function StockAdminClient() {
   return (
     <main style={{ minHeight: "100vh", background: COLORS.white }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 16px 80px" }}>
-        {/* Admin nav */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 12,
-            alignItems: "baseline",
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
           <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Admin — Stock</h1>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -110,29 +142,80 @@ export default function StockAdminClient() {
           Set stock per store. <b>0 = sold out</b>.
         </p>
 
+        <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={load}
+            style={{
+              height: 40,
+              padding: "0 14px",
+              borderRadius: 999,
+              border: "1px solid rgba(0,0,0,0.12)",
+              background: "#fff",
+              fontWeight: 900,
+              cursor: "pointer",
+            }}
+          >
+            Retry
+          </button>
+
+          <a
+            href="/api/admin/stock"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              height: 40,
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "0 14px",
+              borderRadius: 999,
+              border: "1px solid rgba(0,0,0,0.12)",
+              background: "#fff",
+              fontWeight: 900,
+              cursor: "pointer",
+              textDecoration: "none",
+              color: COLORS.black,
+            }}
+          >
+            Open API
+          </a>
+        </div>
+
         {err ? (
-          <div style={{ marginTop: 10, color: "crimson", fontWeight: 900 }}>{err}</div>
+          <div style={{ marginTop: 12, color: "crimson", fontWeight: 950 }}>
+            {err}
+            {debug ? (
+              <pre
+                style={{
+                  marginTop: 10,
+                  background: "rgba(0,0,0,0.04)",
+                  padding: 12,
+                  borderRadius: 12,
+                  overflow: "auto",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: "#111",
+                  whiteSpace: "pre-wrap",
+                }}
+              >
+                {debug}
+              </pre>
+            ) : null}
+          </div>
         ) : null}
 
         {loading ? (
           <div style={{ marginTop: 10, color: "#6B6B6B", fontWeight: 800 }}>Loading…</div>
         ) : null}
 
-        {!loading && storeCols.length === 0 ? (
+        {!loading && storeCols.length === 0 && !err ? (
           <div style={{ marginTop: 12, color: "#6B6B6B", fontWeight: 800 }}>
-            No stores found. Please create / seed <b>store_locations</b> table first.
+            No stores found. Confirm you seeded <b>store_locations</b>.
           </div>
         ) : null}
 
         {!loading && storeCols.length > 0 ? (
-          <div
-            style={{
-              marginTop: 14,
-              border: "1px solid rgba(0,0,0,0.10)",
-              borderRadius: 16,
-              overflow: "auto",
-            }}
-          >
+          <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead style={{ background: "rgba(0,0,0,0.03)" }}>
                 <tr>
