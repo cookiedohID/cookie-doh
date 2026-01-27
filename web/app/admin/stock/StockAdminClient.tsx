@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FLAVORS } from "@/lib/catalog";
 
 type Store = { id: string; name: string };
-type StockMap = Record<string, Record<string, number>>; // storeId -> flavorId -> qty
+type StockMap = Record<string, Record<string, number>>;
 
 const COLORS = {
   blue: "#0014A7",
@@ -15,12 +15,22 @@ const COLORS = {
   sand: "#FAF7F2",
 };
 
-async function safeJsonWithText(res: Response) {
-  const text = await res.text();
+async function fetchJsonWithTimeout(url: string, ms = 8000) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms);
+
   try {
-    return { json: JSON.parse(text), text };
-  } catch {
-    return { json: null, text };
+    const res = await fetch(url, { cache: "no-store", signal: ac.signal });
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = null;
+    }
+    return { res, json, text };
+  } finally {
+    clearTimeout(t);
   }
 }
 
@@ -39,43 +49,34 @@ export default function StockAdminClient() {
     setErr(null);
     setDebug(null);
 
-    const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), 8000);
-
     try {
-      const res = await fetch("/api/admin/stock", {
-        cache: "no-store",
-        signal: ac.signal,
-      });
-
-      const { json, text } = await safeJsonWithText(res);
+      const { res, json, text } = await fetchJsonWithTimeout("/api/admin/stock", 8000);
 
       if (!res.ok) {
         setErr(`Failed to load stock (HTTP ${res.status})`);
-        setDebug(text?.slice(0, 800) || null);
+        setDebug(text.slice(0, 1200));
         setStores([]);
         setStock({});
         return;
       }
 
-      if (!json || (json as any)?.ok === false) {
-        setErr((json as any)?.error || "Failed to load stock");
-        setDebug(text?.slice(0, 800) || null);
+      if (!json || json.ok !== true) {
+        setErr(json?.error || "Failed to load stock (invalid response)");
+        setDebug(text.slice(0, 1200));
         setStores([]);
         setStock({});
         return;
       }
 
-      setStores(Array.isArray((json as any).stores) ? (json as any).stores : []);
-      setStock((json as any).stock && typeof (json as any).stock === "object" ? (json as any).stock : {});
+      setStores(Array.isArray(json.stores) ? json.stores : []);
+      setStock(json.stock && typeof json.stock === "object" ? json.stock : {});
     } catch (e: any) {
       if (e?.name === "AbortError") {
-        setErr("Stock API timed out (8s). Check Supabase env vars in Vercel or API route health.");
+        setErr("Stock API timed out (8s).");
       } else {
-        setErr(e?.message || "Failed to load stock");
+        setErr(e?.message || "Failed to load stock.");
       }
     } finally {
-      clearTimeout(t);
       setLoading(false);
     }
   };
@@ -84,7 +85,7 @@ export default function StockAdminClient() {
     load();
   }, []);
 
-  async function saveQty(storeId: string, flavorId: string, qty: number) {
+  const saveQty = async (storeId: string, flavorId: string, qty: number) => {
     const key = `${storeId}:${flavorId}`;
     setBusyKey(key);
     setErr(null);
@@ -97,11 +98,17 @@ export default function StockAdminClient() {
         body: JSON.stringify({ store_id: storeId, flavor_id: flavorId, qty }),
       });
 
-      const { json, text } = await safeJsonWithText(res);
+      const text = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = null;
+      }
 
-      if (!res.ok || !json || (json as any)?.ok === false) {
-        setErr((json as any)?.error || `Failed to save (HTTP ${res.status})`);
-        setDebug(text?.slice(0, 800) || null);
+      if (!res.ok || !json || json.ok !== true) {
+        setErr(json?.error || `Failed to save (HTTP ${res.status})`);
+        setDebug(text.slice(0, 1200));
         return;
       }
 
@@ -110,31 +117,24 @@ export default function StockAdminClient() {
         [storeId]: { ...(prev[storeId] || {}), [flavorId]: qty },
       }));
     } catch (e: any) {
-      setErr(e?.message || "Failed to save");
+      setErr(e?.message || "Failed to save.");
     } finally {
       setBusyKey(null);
     }
-  }
+  };
 
   return (
     <main style={{ minHeight: "100vh", background: COLORS.white }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 16px 80px" }}>
+        {/* Admin nav */}
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
           <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Admin — Stock</h1>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link href="/admin/orders" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
-              Orders
-            </Link>
-            <Link href="/admin/flavors" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
-              Flavors
-            </Link>
-            <Link href="/admin/assortments" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
-              Assortments
-            </Link>
-            <Link href="/admin/stock" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
-              Stock
-            </Link>
+            <Link href="/admin/orders" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Orders</Link>
+            <Link href="/admin/flavors" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Flavors</Link>
+            <Link href="/admin/assortments" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Assortments</Link>
+            <Link href="/admin/stock" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Stock</Link>
           </div>
         </div>
 
@@ -156,7 +156,7 @@ export default function StockAdminClient() {
               cursor: "pointer",
             }}
           >
-            Retry
+            Reload
           </button>
 
           <a
@@ -172,7 +172,6 @@ export default function StockAdminClient() {
               border: "1px solid rgba(0,0,0,0.12)",
               background: "#fff",
               fontWeight: 900,
-              cursor: "pointer",
               textDecoration: "none",
               color: COLORS.black,
             }}
@@ -180,6 +179,10 @@ export default function StockAdminClient() {
             Open API
           </a>
         </div>
+
+        {loading ? (
+          <div style={{ marginTop: 10, color: "#6B6B6B", fontWeight: 800 }}>Loading…</div>
+        ) : null}
 
         {err ? (
           <div style={{ marginTop: 12, color: "crimson", fontWeight: 950 }}>
@@ -204,17 +207,7 @@ export default function StockAdminClient() {
           </div>
         ) : null}
 
-        {loading ? (
-          <div style={{ marginTop: 10, color: "#6B6B6B", fontWeight: 800 }}>Loading…</div>
-        ) : null}
-
-        {!loading && storeCols.length === 0 && !err ? (
-          <div style={{ marginTop: 12, color: "#6B6B6B", fontWeight: 800 }}>
-            No stores found. Confirm you seeded <b>store_locations</b>.
-          </div>
-        ) : null}
-
-        {!loading && storeCols.length > 0 ? (
+        {!loading && !err && storeCols.length > 0 ? (
           <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead style={{ background: "rgba(0,0,0,0.03)" }}>
