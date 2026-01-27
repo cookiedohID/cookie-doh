@@ -13,8 +13,12 @@ function basicUnauthorized() {
 }
 
 function isAdminRoute(pathname: string) {
-  return pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
+  return (
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api/admin")
+  );
 }
+
 
 function isApiRoute(pathname: string) {
   return pathname.startsWith("/api");
@@ -71,8 +75,18 @@ export default function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // ✅ 2) Allow all /api (payments/webhooks etc). Admin API already protected above.
-  if (isApiRoute(pathname)) return NextResponse.next();
+  // 2) Allow PUBLIC APIs (stock, checkout helpers, etc.)
+if (
+  pathname.startsWith("/api/stock") ||
+  pathname.startsWith("/api/shipping") ||
+  pathname.startsWith("/api/checkout")
+) {
+  return NextResponse.next();
+}
+
+// 3) Allow other non-admin APIs
+if (isApiRoute(pathname)) return NextResponse.next();
+
 
   // ✅ 3) Everything else is public
   return NextResponse.next();
