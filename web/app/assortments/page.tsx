@@ -10,36 +10,13 @@ import { parsePickupPoints, useStoreStock } from "@/lib/storeStock";
 
 type BoxSize = 3 | 6;
 type PresetItem = { flavorId: string; qty: number };
+type Preset = { key: string; title: string; badge: string; boxSize: BoxSize; items: PresetItem[]; note?: string };
 
-type Preset = {
-  key: string;
-  title: string;
-  badge: string;
-  boxSize: BoxSize;
-  items: PresetItem[];
-  note?: string;
-};
+type SeasonalSettings = { enabled: boolean; seasonStart: string; seasonEnd: string };
 
-type SeasonalSettings = {
-  enabled: boolean;
-  seasonStart: string;
-  seasonEnd: string;
-};
+const DEFAULTS: SeasonalSettings = { enabled: false, seasonStart: "2026-01-15", seasonEnd: "2026-02-20" };
 
-const DEFAULTS: SeasonalSettings = {
-  enabled: false,
-  seasonStart: "2026-01-15",
-  seasonEnd: "2026-02-20",
-};
-
-const COLORS = {
-  blue: "#0014A7",
-  orange: "#FF5A00",
-  black: "#101010",
-  white: "#FFFFFF",
-  sand: "#FAF7F2",
-};
-
+const COLORS = { blue: "#0014A7", orange: "#FF5A00", black: "#101010", white: "#FFFFFF", sand: "#FAF7F2" };
 const COOKIE_PRICE = 32500;
 
 function safeGetName(id: string) {
@@ -95,8 +72,16 @@ export default function AssortmentsPage() {
   const router = useRouter();
   const today = useMemo(() => jakartaTodayYMD(), []);
 
+  const SHOW_STORE_SELECTOR =
+    String(process.env.NEXT_PUBLIC_SHOW_STORE_SELECTOR || "").toLowerCase() === "true";
+
   const points = useMemo(() => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON), []);
   const { storeId, setStore, storeName, stock, loading: stockLoading } = useStoreStock(points);
+
+  useEffect(() => {
+    if (!SHOW_STORE_SELECTOR && storeId !== "kemang") setStore("kemang");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [SHOW_STORE_SELECTOR, storeId]);
 
   const [settings, setSettings] = useState<SeasonalSettings>(DEFAULTS);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -154,27 +139,27 @@ export default function AssortmentsPage() {
     []
   );
 
-  const seasonalPreset = useMemo((): (Preset & { active: boolean }) => {
+  const seasonalPreset = useMemo(() => {
     const active = !!settings.enabled && inRange(today, settings.seasonStart, settings.seasonEnd);
     return {
       key: "seasonal-limited",
       active,
       title: "Seasonal · Limited Assortment",
       badge: "Limited",
-      boxSize: 6,
+      boxSize: 6 as const,
       items: [
         { flavorId: "the-one", qty: 2 },
         { flavorId: "the-other-one", qty: 2 },
         { flavorId: "orange-in-the-dark", qty: 1 },
         { flavorId: "the-comfort", qty: 1 },
-      ],
+      ] as PresetItem[],
       note: "Limited window — while batches last.",
     };
   }, [settings.enabled, settings.seasonStart, settings.seasonEnd, today]);
 
   const presets: Preset[] = useMemo(() => {
     const out = [...basePresets];
-    if (seasonalPreset.active) out.unshift(seasonalPreset);
+    if (seasonalPreset.active) out.unshift(seasonalPreset as any);
     return out;
   }, [basePresets, seasonalPreset]);
 
@@ -195,49 +180,55 @@ export default function AssortmentsPage() {
           <p style={{ marginTop: 6, color: "#6B6B6B" }}>
             Ready-made boxes — easy choices, crowd favorites.
           </p>
+
+          {!SHOW_STORE_SELECTOR && (
+            <div style={{ marginTop: 6, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
+              Stock is currently based on: <b>Kemang</b>
+            </div>
+          )}
         </header>
 
-        {/* Store selector */}
-        <section
-          style={{
-            marginBottom: 14,
-            borderRadius: 18,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: COLORS.sand,
-            padding: 12,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-            <div style={{ fontWeight: 950, color: COLORS.black }}>Store</div>
-            <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
-              {stockLoading ? "Checking stock…" : `Stock for: ${storeName}`}
-            </div>
-          </div>
-
-          <select
-            value={storeId}
-            onChange={(e) => setStore(e.target.value)}
+        {SHOW_STORE_SELECTOR && (
+          <section
             style={{
-              marginTop: 10,
-              width: "100%",
-              height: 46,
-              borderRadius: 14,
-              border: "1px solid rgba(0,0,0,0.12)",
-              padding: "0 12px",
-              outline: "none",
-              background: "#fff",
-              fontWeight: 900,
+              marginBottom: 14,
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              background: COLORS.sand,
+              padding: 12,
             }}
           >
-            {points.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </section>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+              <div style={{ fontWeight: 950, color: COLORS.black }}>Store</div>
+              <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
+                {stockLoading ? "Checking stock…" : `Stock for: ${storeName}`}
+              </div>
+            </div>
 
-        {/* Seasonal status strip */}
+            <select
+              value={storeId}
+              onChange={(e) => setStore(e.target.value)}
+              style={{
+                marginTop: 10,
+                width: "100%",
+                height: 46,
+                borderRadius: 14,
+                border: "1px solid rgba(0,0,0,0.12)",
+                padding: "0 12px",
+                outline: "none",
+                background: "#fff",
+                fontWeight: 900,
+              }}
+            >
+              {points.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </section>
+        )}
+
         {settingsLoaded && settings.enabled && (
           <section
             style={{
@@ -279,14 +270,12 @@ export default function AssortmentsPage() {
                     </div>
 
                     <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.4 }}>
-                      {p.items
-                        .map((i) => `${safeGetName(i.flavorId)}${i.qty > 1 ? ` ×${i.qty}` : ""}`)
-                        .join(" • ")}
+                      {p.items.map((i) => `${safeGetName(i.flavorId)}${i.qty > 1 ? ` ×${i.qty}` : ""}`).join(" • ")}
                     </div>
 
                     {!ok && (
                       <div style={{ marginTop: 8, color: "rgba(0,0,0,0.65)", fontWeight: 900, fontSize: 12 }}>
-                        Some items are sold out at this store.
+                        Some items are sold out ({SHOW_STORE_SELECTOR ? storeName : "Kemang"}).
                       </div>
                     )}
 
