@@ -28,7 +28,7 @@ type CartState = {
 };
 
 const COLORS = {
-  blue: "#0014a7",
+  blue: "#003A8C",
   orange: "#FF5A00",
   black: "#101010",
   white: "#FFFFFF",
