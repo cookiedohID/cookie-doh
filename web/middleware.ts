@@ -1,24 +1,9 @@
+// web/middleware.ts
 import { NextRequest, NextResponse } from "next/server";
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|icon.png|robots.txt|sitemap.xml).*)",
-  ],
+  matcher: ["/:path*"], // run middleware for all paths (we'll allowlist assets inside)
 };
-
-// ✅ Always allow Next.js static assets so pages hydrate (JS works)
-if (
-  pathname.startsWith("/_next/") ||
-  pathname === "/favicon.ico" ||
-  pathname === "/robots.txt" ||
-  pathname === "/sitemap.xml" ||
-  pathname.startsWith("/images/") ||
-  pathname.startsWith("/flavors/") ||
-  pathname === "/logo.png"
-) {
-  return NextResponse.next();
-}
-
 
 function basicUnauthorized() {
   return new NextResponse("Unauthorized", {
@@ -37,10 +22,14 @@ function isApiRoute(pathname: string) {
 
 function isPublicAsset(pathname: string) {
   return (
-    pathname.startsWith("/_next") ||
+    pathname.startsWith("/_next/") || // ✅ critical for hydration
+    pathname === "/favicon.ico" ||
     pathname === "/icon.png" ||
     pathname === "/robots.txt" ||
-    pathname === "/sitemap.xml"
+    pathname === "/sitemap.xml" ||
+    pathname === "/logo.png" ||
+    pathname.startsWith("/images/") ||
+    pathname.startsWith("/flavors/")
   );
 }
 
@@ -70,24 +59,21 @@ function checkAdminBasicAuth(req: NextRequest) {
   return u === user && p === pass;
 }
 
-
-
-export default function proxy(req: NextRequest) {
+export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // allow next assets
+  // ✅ 0) Always allow Next.js assets + public images
   if (isPublicAsset(pathname)) return NextResponse.next();
 
-  // 1) Admin protection (Basic Auth)
+  // ✅ 1) Admin protection (Basic Auth)
   if (isAdminRoute(pathname)) {
     if (!checkAdminBasicAuth(req)) return basicUnauthorized();
     return NextResponse.next();
   }
 
-  // 2) Allow all /api (so webhooks/payments still work)
-  // Admin API is already protected above.
+  // ✅ 2) Allow all /api (payments/webhooks etc). Admin API already protected above.
   if (isApiRoute(pathname)) return NextResponse.next();
 
-
+  // ✅ 3) Everything else is public
   return NextResponse.next();
 }
