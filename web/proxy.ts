@@ -56,9 +56,7 @@ function checkAdminBasicAuth(req: NextRequest) {
   return u === user && p === pass;
 }
 
-function softLaunchEnabled() {
-  return String(process.env.SOFT_LAUNCH_ENABLED ?? "").toLowerCase() === "true";
-}
+
 
 export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -76,21 +74,6 @@ export default function proxy(req: NextRequest) {
   // Admin API is already protected above.
   if (isApiRoute(pathname)) return NextResponse.next();
 
-  // 3) Soft Launch Gate (public pages)
-  if (softLaunchEnabled()) {
-    const cookie = req.cookies.get("cd_softlaunch")?.value;
-    const alreadyAuthed = cookie === "1";
-
-    // allow the gate page itself
-    if (pathname === "/soft-launch") return NextResponse.next();
-
-    if (!alreadyAuthed) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/soft-launch";
-      url.searchParams.set("next", pathname);
-      return NextResponse.redirect(url);
-    }
-  }
 
   return NextResponse.next();
 }

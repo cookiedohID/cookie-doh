@@ -42,6 +42,30 @@ function isUuid(id: unknown): id is string {
   );
 }
 
+function jakartaTodayYMD() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const y = parts.find((p) => p.type === "year")?.value || "1970";
+  const m = parts.find((p) => p.type === "month")?.value || "01";
+  const d = parts.find((p) => p.type === "day")?.value || "01";
+  return `${y}-${m}-${d}`;
+}
+
+function addDaysYMD(days: number) {
+  // good enough for admin quick filters
+  const dt = new Date();
+  dt.setDate(dt.getDate() + days);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 const pillButtonStyle = (bg: string, disabled: boolean): React.CSSProperties => ({
   padding: "6px 10px",
   borderRadius: 10,
@@ -108,6 +132,9 @@ export default function AdminOrdersPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
 
+  // ✅ NEW: schedule date filter (delivery/pickup date)
+  const [scheduleDateFilter, setScheduleDateFilter] = useState<string>("");
+
   const load = async () => {
     const res = await fetch("/api/admin/orders?limit=80", { cache: "no-store" });
     const { json, text } = await safeJson(res);
@@ -147,7 +174,10 @@ export default function AdminOrdersPage() {
     return json;
   };
 
-  const onQuick = async (e: React.MouseEvent<HTMLButtonElement>, action: "paid" | "sending" | "sent") => {
+  const onQuick = async (
+    e: React.MouseEvent<HTMLButtonElement>,
+    action: "paid" | "sending" | "sent"
+  ) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -223,16 +253,26 @@ export default function AdminOrdersPage() {
   };
 
   const filteredOrders = useMemo(() => {
-    if (filter === "all") return orders;
+    // Status filter first
+    const base =
+      filter === "all"
+        ? orders
+        : orders.filter((o) => {
+            if (filter === "pending") return o.payment_status === "PENDING";
+            if (filter === "paid") return o.payment_status === "PAID";
+            if (filter === "sending") return o.fulfilment_status === "sending";
+            if (filter === "sent") return o.fulfilment_status === "sent";
+            return true;
+          });
 
-    return orders.filter((o) => {
-      if (filter === "pending") return o.payment_status === "PENDING";
-      if (filter === "paid") return o.payment_status === "PAID";
-      if (filter === "sending") return o.fulfilment_status === "sending";
-      if (filter === "sent") return o.fulfilment_status === "sent";
-      return true;
+    // ✅ Schedule date filter (delivery/pickup date)
+    if (!scheduleDateFilter) return base;
+
+    return base.filter((o) => {
+      const s = getScheduleInfo(o);
+      return s.scheduleDate === scheduleDateFilter;
     });
-  }, [orders, filter]);
+  }, [orders, filter, scheduleDateFilter]);
 
   const rowColor = (o: OrderRow) => {
     if (o.fulfilment_status === "sent") return "#E8F7EF";
@@ -244,7 +284,7 @@ export default function AdminOrdersPage() {
 
   return (
     <main style={{ padding: 18, maxWidth: 1400, margin: "0 auto" }}>
-      {/* ✅ Admin top nav */}
+      {/* Admin top nav */}
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
         <h1 style={{ margin: 0, fontSize: 22 }}>Admin — Orders</h1>
 
@@ -258,9 +298,13 @@ export default function AdminOrdersPage() {
           <Link href="/admin/assortments" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
             Assortments
           </Link>
+          <Link href="/admin/stock" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
+            Stock
+          </Link>
         </div>
       </div>
 
+      {/* Status filter pills */}
       <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
         {(
           [
@@ -287,6 +331,76 @@ export default function AdminOrdersPage() {
             {label}
           </button>
         ))}
+      </div>
+
+      {/* ✅ NEW: Date filter row */}
+      <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ fontWeight: 900, color: "#101010" }}>Delivery / Pickup date</div>
+
+        <button
+          type="button"
+          onClick={() => setScheduleDateFilter(jakartaTodayYMD())}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 999,
+            border: "1px solid rgba(0,0,0,0.12)",
+            background: "#fff",
+            fontWeight: 900,
+            cursor: "pointer",
+          }}
+        >
+          Today
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setScheduleDateFilter(addDaysYMD(1))}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 999,
+            border: "1px solid rgba(0,0,0,0.12)",
+            background: "#fff",
+            fontWeight: 900,
+            cursor: "pointer",
+          }}
+        >
+          Tomorrow
+        </button>
+
+        <input
+          value={scheduleDateFilter}
+          onChange={(e) => setScheduleDateFilter(e.target.value)}
+          placeholder="YYYY-MM-DD"
+          style={{
+            height: 40,
+            borderRadius: 12,
+            border: "1px solid rgba(0,0,0,0.12)",
+            padding: "0 12px",
+            outline: "none",
+            fontWeight: 900,
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={() => setScheduleDateFilter("")}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 999,
+            border: "1px solid rgba(0,0,0,0.12)",
+            background: "#fff",
+            fontWeight: 900,
+            cursor: "pointer",
+          }}
+        >
+          Clear date
+        </button>
+
+        {scheduleDateFilter ? (
+          <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
+            Filtering by: {scheduleDateFilter}
+          </div>
+        ) : null}
       </div>
 
       {err && (

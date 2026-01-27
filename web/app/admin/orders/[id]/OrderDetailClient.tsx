@@ -364,7 +364,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
   if (err && !order) {
     return (
       <main style={{ padding: 18, maxWidth: 980, margin: "0 auto" }}>
-        <Link href="/admin/orders" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+        <Link href="/admin/orders" style={{ color: "#0014a7", fontWeight: 800, textDecoration: "none" }}>
           ← Back
         </Link>
         <div style={{ marginTop: 12, color: "crimson", fontWeight: 800 }}>{err}</div>
@@ -375,7 +375,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
   if (!order) {
     return (
       <main style={{ padding: 18, maxWidth: 980, margin: "0 auto" }}>
-        <Link href="/admin/orders" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+        <Link href="/admin/orders" style={{ color: "#0014a7", fontWeight: 800, textDecoration: "none" }}>
           ← Back
         </Link>
         <div style={{ marginTop: 12, color: "rgba(0,0,0,0.6)" }}>Loading…</div>
@@ -385,7 +385,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
   return (
     <main style={{ padding: 18, maxWidth: 980, margin: "0 auto" }}>
-      <Link href="/admin/orders" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+      <Link href="/admin/orders" style={{ color: "#0014a7", fontWeight: 800, textDecoration: "none" }}>
         ← Back to orders
       </Link>
 
@@ -459,7 +459,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
               height: 48,
               borderRadius: 999,
               border: "none",
-              background: saving ? "rgba(0,82,204,0.55)" : "#0052CC",
+              background: saving ? "rgba(0,82,204,0.55)" : "#0014a7",
               color: "#fff",
               fontWeight: 900,
               cursor: saving ? "not-allowed" : "pointer",
@@ -595,7 +595,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
   if (err) {
     return (
       <main style={{ padding: 18, maxWidth: 980, margin: "0 auto" }}>
-        <Link href="/admin/orders" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+        <Link href="/admin/orders" style={{ color: "#0014a7", fontWeight: 800, textDecoration: "none" }}>
           ← Back
         </Link>
         <div style={{ marginTop: 12, color: "crimson" }}>{err}</div>
@@ -606,7 +606,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
   if (!order) {
     return (
       <main style={{ padding: 18, maxWidth: 980, margin: "0 auto" }}>
-        <Link href="/admin/orders" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+        <Link href="/admin/orders" style={{ color: "#0014a7", fontWeight: 800, textDecoration: "none" }}>
           ← Back
         </Link>
         <div style={{ marginTop: 12, color: "rgba(0,0,0,0.6)" }}>Loading…</div>
@@ -616,7 +616,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
   return (
     <main style={{ padding: 18, maxWidth: 980, margin: "0 auto" }}>
-      <Link href="/admin/orders" style={{ color: "#0052CC", fontWeight: 800, textDecoration: "none" }}>
+      <Link href="/admin/orders" style={{ color: "#0014a7", fontWeight: 800, textDecoration: "none" }}>
         ← Back to orders
       </Link>
 
@@ -691,7 +691,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
               height: 48,
               borderRadius: 999,
               border: "none",
-              background: saving ? "rgba(0,82,204,0.55)" : "#0052CC",
+              background: saving ? "rgba(0,82,204,0.55)" : "#0014a7",
               color: "#fff",
               fontWeight: 900,
               cursor: saving ? "not-allowed" : "pointer",
@@ -715,7 +715,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
           {adminWaDigits ? (
             <a
               href={`https://wa.me/${adminWaDigits}`}
-              style={{ color: "#0052CC", fontWeight: 900, textDecoration: "none" }}
+              style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}
             >
               Open admin WhatsApp →
             </a>

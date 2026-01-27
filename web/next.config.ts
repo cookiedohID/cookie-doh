@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async headers() {
-    const isSoftLaunch = process.env.SOFT_LAUNCH_ENABLED === "true";
+    const isSoftLaunch = process.env.SOFT_LAUNCH_ENABLED === "false";
     const isDev = process.env.NODE_ENV !== "production";
 
     const scriptSrc = [

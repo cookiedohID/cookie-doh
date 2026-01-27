@@ -4,7 +4,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getCart } from "@/lib/cart";
 
 const COLORS = {
   blue: "#0014a7",
@@ -12,33 +13,67 @@ const COLORS = {
   white: "#FFFFFF",
 };
 
-type NavItem = {
-  href: string;
-  label: string;
-};
+type NavItem = { href: string; label: string };
+
+function cartCount() {
+  try {
+    const c = getCart();
+    return (c.boxes || []).reduce((sum, b) => {
+      const n = (b.items || []).reduce((s, it) => s + (it.quantity || 0), 0);
+      return sum + n;
+    }, 0);
+  } catch {
+    return 0;
+  }
+}
+
+function Badge({ n }: { n: number }) {
+  if (n <= 0) return null;
+  return (
+    <span
+      style={{
+        minWidth: 18,
+        height: 18,
+        padding: "0 6px",
+        borderRadius: 999,
+        background: "#FFFFFF",
+        color: COLORS.black,
+        fontWeight: 950,
+        fontSize: 12,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 1,
+        border: "1px solid rgba(0,0,0,0.10)",
+      }}
+      aria-label={`${n} items in cart`}
+    >
+      {n}
+    </span>
+  );
+}
 
 export default function SiteHeader() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [count, setCount] = useState(0);
 
-  const nav: NavItem[] = [
-    { href: "/", label: "All" },
-    { href: "/assortments", label: "Assortments" },
-    { href: "/cookies", label: "Cookies" },
-    { href: "/cart", label: "Cart" },
-  ];
+  const nav: NavItem[] = useMemo(
+    () => [
+      { href: "/", label: "All" },
+      { href: "/assortments", label: "Assortments" },
+      { href: "/cookies", label: "Cookies" },
+    ],
+    []
+  );
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
     return pathname === href || pathname.startsWith(href + "/");
   };
 
-  // close drawer on route change
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  useEffect(() => setOpen(false), [pathname]);
 
-  // lock scroll when drawer open
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -47,6 +82,15 @@ export default function SiteHeader() {
       document.body.style.overflow = prev;
     };
   }, [open]);
+
+  // refresh cart badge on navigation + focus
+  useEffect(() => {
+    const refresh = () => setCount(cartCount());
+    refresh();
+    const onFocus = () => refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [pathname]);
 
   return (
     <header
@@ -110,11 +154,7 @@ export default function SiteHeader() {
             flexWrap: "wrap",
           }}
         >
-          {[
-            { href: "/", label: "All" },
-            { href: "/assortments", label: "Assortments" },
-            { href: "/cookies", label: "Cookies" },
-          ].map((item) => {
+          {nav.map((item) => {
             const active = isActive(item.href);
             return (
               <Link
@@ -130,14 +170,12 @@ export default function SiteHeader() {
                   border: active ? "1px solid rgba(255,255,255,0.35)" : "1px solid transparent",
                   background: active ? "rgba(255,255,255,0.12)" : "transparent",
                 }}
-                aria-current={active ? "page" : undefined}
               >
                 {item.label}
               </Link>
             );
           })}
 
-          {/* Primary CTA */}
           <Link
             href="/build"
             style={{
@@ -151,7 +189,6 @@ export default function SiteHeader() {
               boxShadow: "0 10px 22px rgba(0,0,0,0.10)",
               whiteSpace: "nowrap",
             }}
-            aria-current={isActive("/build") ? "page" : undefined}
           >
             Build Your Box
           </Link>
@@ -167,18 +204,17 @@ export default function SiteHeader() {
               whiteSpace: "nowrap",
               border: isActive("/cart") ? "1px solid rgba(255,255,255,0.35)" : "1px solid transparent",
               background: isActive("/cart") ? "rgba(255,255,255,0.12)" : "transparent",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
             }}
-            aria-current={isActive("/cart") ? "page" : undefined}
           >
-            Cart
+            Cart <Badge n={count} />
           </Link>
         </nav>
 
-        {/* Mobile actions: hamburger + Build CTA */}
-        <div
-          className="cd-mobile-actions"
-          style={{ marginLeft: "auto", gap: 10, alignItems: "center" }}
-        >
+        {/* Mobile actions */}
+        <div className="cd-mobile-actions" style={{ marginLeft: "auto", gap: 10, alignItems: "center" }}>
           <button
             type="button"
             onClick={() => setOpen(true)}
@@ -192,9 +228,16 @@ export default function SiteHeader() {
               color: "#fff",
               fontWeight: 900,
               cursor: "pointer",
+              position: "relative",
             }}
           >
             ☰
+            {/* cart badge shown on mobile top bar too */}
+            {count > 0 && (
+              <span style={{ position: "absolute", top: -6, right: -6 }}>
+                <Badge n={count} />
+              </span>
+            )}
           </button>
 
           <Link
@@ -216,18 +259,13 @@ export default function SiteHeader() {
         </div>
       </div>
 
-      {/* Mobile drawer */}
+      {/* Drawer */}
       {open && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Menu"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 60,
-            background: "rgba(0,0,0,0.45)",
-          }}
+          style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.45)" }}
           onClick={() => setOpen(false)}
         >
           <div
@@ -281,12 +319,31 @@ export default function SiteHeader() {
                       color: COLORS.black,
                       fontWeight: 900,
                     }}
-                    aria-current={active ? "page" : undefined}
                   >
                     {item.label}
                   </Link>
                 );
               })}
+
+              <Link
+                href="/cart"
+                style={{
+                  textDecoration: "none",
+                  padding: "12px 12px",
+                  borderRadius: 14,
+                  border: isActive("/cart") ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
+                  background: isActive("/cart") ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                  color: COLORS.black,
+                  fontWeight: 900,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <span>Cart</span>
+                <Badge n={count} />
+              </Link>
             </div>
 
             <Link
