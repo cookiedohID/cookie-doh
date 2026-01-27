@@ -41,11 +41,11 @@ export const FLAVORS: Flavor[] = [
     intensity: { chocolate: 5, sweetness: 4 },
   },
   {
-    id: "the-comfort",
-    name: "The Comfort",
+    id: "midnight-crave",
+    name: "Midnight Crave",
     description:
-      "Hearty oats, plump raisins, and a warm cinnamon hug — chewy, golden and baked with old fashioned love.",
-    image: "/flavors/the-comfort.jpg",
+      "Soft, buttery oat cookie with caramelized raisins, kissed with cinnamon and brown sugar warmth - indulgence after dark.",
+    image: "/flavors/midnight-crave.jpg",
     badges: ["Fan Favorite"],
     tags: ["Cozy", "Chewy"],
     intensity: { chocolate: 0, sweetness: 3 },
@@ -76,7 +76,7 @@ export const FLAVORS: Flavor[] = [
     id: "ruby-glow",
     name: "Ruby Glow",
     description:
-      "Placeholder description — a bright, indulgent cookie with a ruby-tinted personality and a buttery finish.",
+      "Buttery cookie with creamy white chocolate and bursts of cranberry - a little glow in every bite.",
     image: "/flavors/ruby-glow.jpg",
     badges: ["New"],
     tags: ["Fruity", "Buttery"],
@@ -96,7 +96,7 @@ export const FLAVORS: Flavor[] = [
     id: "one-shade-of-grey",
     name: "One Shade of Grey",
     description:
-      "Placeholder description — a refined, aromatic cookie with a mellow sweetness and elegant finish.",
+      "Like a cozy London cafe in every bite : bold bergamot, sweet milk chocolate and butter softness. ~ Earl Grey",
     image: "/flavors/one-shade-of-grey.jpg",
     badges: ["New"],
     tags: ["Aromatic", "Elegant"],
@@ -106,18 +106,18 @@ export const FLAVORS: Flavor[] = [
     id: "my-sweet-lavender",
     name: "My Sweet Lavender",
     description:
-      "Placeholder description — floral-sweet cookie with gentle lavender notes and a soft, cozy bite.",
+      "Like a cookie version of fairy tales : floral lavender whispers, creamy chocolate and a crumb so tender it's practically a pixie made.",
     image: "/flavors/my-sweet-lavender.jpg",
     badges: ["New"],
     tags: ["Floral", "Soft"],
     intensity: { chocolate: 0, sweetness: 4 },
   },
   {
-    id: "strawberry",
-    name: "Strawberry",
+    id: "strawberry-kiss",
+    name: "Strawberry Kiss",
     description:
-      "Placeholder description — sweet strawberry-forward cookie with a bright, jammy aroma and tender crumb.",
-    image: "/flavors/strawberry.jpg",
+      "Blush-sweet strawberries folded into white chocolate, baked soft as a love spell.",
+    image: "/flavors/strawberry-kiss.jpg",
     badges: ["New"],
     tags: ["Fruity", "Bright"],
     intensity: { chocolate: 0, sweetness: 4 },

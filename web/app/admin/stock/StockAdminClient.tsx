@@ -33,10 +33,16 @@ export default function StockAdminClient({
 }) {
   const [stores, setStores] = useState<Store[]>(initialStores || []);
   const [stock, setStock] = useState<StockMap>(initialStock || {});
+
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [savedKey, setSavedKey] = useState<string | null>(null);
+
   const [loadingReload, setLoadingReload] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [debug, setDebug] = useState<string | null>(null);
+
+  // ✅ Visible proof that click handlers are working
+  const [lastAction, setLastAction] = useState<string>("—");
 
   const storeCols = useMemo(() => stores, [stores]);
 
@@ -44,6 +50,7 @@ export default function StockAdminClient({
     setLoadingReload(true);
     setErr(null);
     setDebug(null);
+    setLastAction("Reload clicked");
 
     try {
       const res = await fetch("/api/admin/stock", { cache: "no-store" });
@@ -51,20 +58,24 @@ export default function StockAdminClient({
 
       if (!res.ok) {
         setErr(`Failed to reload (HTTP ${res.status})`);
-        setDebug(text.slice(0, 1200));
+        setDebug(text.slice(0, 2000));
+        setLastAction(`Reload failed (HTTP ${res.status})`);
         return;
       }
 
       if (!json || json.ok !== true) {
         setErr(json?.error || "Failed to reload (invalid response)");
-        setDebug(text.slice(0, 1200));
+        setDebug(text.slice(0, 2000));
+        setLastAction("Reload failed (invalid response)");
         return;
       }
 
       setStores(Array.isArray(json.stores) ? json.stores : []);
       setStock(json.stock && typeof json.stock === "object" ? json.stock : {});
+      setLastAction("Reload success ✓");
     } catch (e: any) {
       setErr(e?.message || "Failed to reload.");
+      setLastAction("Reload failed (exception)");
     } finally {
       setLoadingReload(false);
     }
@@ -73,8 +84,12 @@ export default function StockAdminClient({
   const saveQty = async (storeId: string, flavorId: string, qty: number) => {
     const key = `${storeId}:${flavorId}`;
     setBusyKey(key);
+    setSavedKey(null);
     setErr(null);
     setDebug(null);
+
+    // ✅ immediate UI proof click happened
+    setLastAction(`Save clicked: ${storeId} / ${flavorId} → ${qty}`);
 
     try {
       const res = await fetch("/api/admin/stock", {
@@ -87,18 +102,30 @@ export default function StockAdminClient({
 
       if (!res.ok || !json || json.ok !== true) {
         setErr(json?.error || `Failed to save (HTTP ${res.status})`);
-        setDebug(text.slice(0, 1200));
+        setDebug(text.slice(0, 2000));
+        setLastAction(`Save failed (HTTP ${res.status})`);
         return;
       }
 
+      const savedQty = Number(json?.row?.qty ?? qty);
+
+      // update local
       setStock((prev) => ({
         ...prev,
-        [storeId]: { ...(prev[storeId] || {}), [flavorId]: qty },
+        [storeId]: { ...(prev[storeId] || {}), [flavorId]: savedQty },
       }));
+
+      setSavedKey(key);
+      setLastAction(`Saved ✓ ${storeId} / ${flavorId} = ${savedQty}`);
+
+      // ✅ hard refresh from server so UI = DB truth
+      await reload();
     } catch (e: any) {
       setErr(e?.message || "Failed to save.");
+      setLastAction("Save failed (exception)");
     } finally {
       setBusyKey(null);
+      setTimeout(() => setSavedKey(null), 1500);
     }
   };
 
@@ -119,6 +146,21 @@ export default function StockAdminClient({
         <p style={{ marginTop: 6, color: "#6B6B6B" }}>
           Set stock per store. <b>0 = sold out</b>.
         </p>
+
+        {/* ✅ Visible action log */}
+        <div
+          style={{
+            marginTop: 10,
+            borderRadius: 14,
+            border: "1px solid rgba(0,0,0,0.10)",
+            background: "rgba(0,0,0,0.03)",
+            padding: "10px 12px",
+            fontWeight: 900,
+            color: COLORS.black,
+          }}
+        >
+          Last action: <span style={{ fontWeight: 800, color: "rgba(0,0,0,0.70)" }}>{lastAction}</span>
+        </div>
 
         <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button
@@ -210,6 +252,7 @@ export default function StockAdminClient({
                       const v = stock?.[s.id]?.[f.id] ?? 0;
                       const key = `${s.id}:${f.id}`;
                       const busy = busyKey === key;
+                      const saved = savedKey === key;
 
                       return (
                         <td key={s.id} style={{ padding: 12 }}>
@@ -254,7 +297,7 @@ export default function StockAdminClient({
                                 boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
                               }}
                             >
-                              {busy ? "Saving…" : "Save"}
+                              {busy ? "Saving…" : saved ? "Saved ✓" : "Save"}
                             </button>
                           </div>
 
