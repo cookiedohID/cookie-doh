@@ -2,7 +2,7 @@
 
 // web/app/admin/stock/StockAdminClient.tsx
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { FLAVORS } from "@/lib/catalog";
 
 type Store = { id: string; name: string };
@@ -15,75 +15,60 @@ const COLORS = {
   sand: "#FAF7F2",
 };
 
-async function fetchJsonWithTimeout(url: string, ms = 8000) {
-  const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), ms);
-
+async function safeJsonWithText(res: Response) {
+  const text = await res.text();
   try {
-    const res = await fetch(url, { cache: "no-store", signal: ac.signal });
-    const text = await res.text();
-    let json: any = null;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      json = null;
-    }
-    return { res, json, text };
-  } finally {
-    clearTimeout(t);
+    return { json: JSON.parse(text), text };
+  } catch {
+    return { json: null, text };
   }
 }
 
-export default function StockAdminClient() {
-  const [stores, setStores] = useState<Store[]>([]);
-  const [stock, setStock] = useState<StockMap>({});
-  const [loading, setLoading] = useState(true);
+export default function StockAdminClient({
+  initialStores,
+  initialStock,
+}: {
+  initialStores: Store[];
+  initialStock: StockMap;
+}) {
+  const [stores, setStores] = useState<Store[]>(initialStores || []);
+  const [stock, setStock] = useState<StockMap>(initialStock || {});
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [loadingReload, setLoadingReload] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [debug, setDebug] = useState<string | null>(null);
 
   const storeCols = useMemo(() => stores, [stores]);
 
-  const load = async () => {
-    setLoading(true);
+  const reload = async () => {
+    setLoadingReload(true);
     setErr(null);
     setDebug(null);
 
     try {
-      const { res, json, text } = await fetchJsonWithTimeout("/api/admin/stock", 8000);
+      const res = await fetch("/api/admin/stock", { cache: "no-store" });
+      const { json, text } = await safeJsonWithText(res);
 
       if (!res.ok) {
-        setErr(`Failed to load stock (HTTP ${res.status})`);
+        setErr(`Failed to reload (HTTP ${res.status})`);
         setDebug(text.slice(0, 1200));
-        setStores([]);
-        setStock({});
         return;
       }
 
       if (!json || json.ok !== true) {
-        setErr(json?.error || "Failed to load stock (invalid response)");
+        setErr(json?.error || "Failed to reload (invalid response)");
         setDebug(text.slice(0, 1200));
-        setStores([]);
-        setStock({});
         return;
       }
 
       setStores(Array.isArray(json.stores) ? json.stores : []);
       setStock(json.stock && typeof json.stock === "object" ? json.stock : {});
     } catch (e: any) {
-      if (e?.name === "AbortError") {
-        setErr("Stock API timed out (8s).");
-      } else {
-        setErr(e?.message || "Failed to load stock.");
-      }
+      setErr(e?.message || "Failed to reload.");
     } finally {
-      setLoading(false);
+      setLoadingReload(false);
     }
   };
-
-  useEffect(() => {
-    load();
-  }, []);
 
   const saveQty = async (storeId: string, flavorId: string, qty: number) => {
     const key = `${storeId}:${flavorId}`;
@@ -98,13 +83,7 @@ export default function StockAdminClient() {
         body: JSON.stringify({ store_id: storeId, flavor_id: flavorId, qty }),
       });
 
-      const text = await res.text();
-      let json: any = null;
-      try {
-        json = JSON.parse(text);
-      } catch {
-        json = null;
-      }
+      const { json, text } = await safeJsonWithText(res);
 
       if (!res.ok || !json || json.ok !== true) {
         setErr(json?.error || `Failed to save (HTTP ${res.status})`);
@@ -126,7 +105,6 @@ export default function StockAdminClient() {
   return (
     <main style={{ minHeight: "100vh", background: COLORS.white }}>
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "22px 16px 80px" }}>
-        {/* Admin nav */}
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" }}>
           <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Admin — Stock</h1>
 
@@ -145,7 +123,8 @@ export default function StockAdminClient() {
         <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button
             type="button"
-            onClick={load}
+            onClick={reload}
+            disabled={loadingReload}
             style={{
               height: 40,
               padding: "0 14px",
@@ -153,10 +132,11 @@ export default function StockAdminClient() {
               border: "1px solid rgba(0,0,0,0.12)",
               background: "#fff",
               fontWeight: 900,
-              cursor: "pointer",
+              cursor: loadingReload ? "not-allowed" : "pointer",
+              opacity: loadingReload ? 0.6 : 1,
             }}
           >
-            Reload
+            {loadingReload ? "Reloading…" : "Reload"}
           </button>
 
           <a
@@ -179,10 +159,6 @@ export default function StockAdminClient() {
             Open API
           </a>
         </div>
-
-        {loading ? (
-          <div style={{ marginTop: 10, color: "#6B6B6B", fontWeight: 800 }}>Loading…</div>
-        ) : null}
 
         {err ? (
           <div style={{ marginTop: 12, color: "crimson", fontWeight: 950 }}>
@@ -207,7 +183,11 @@ export default function StockAdminClient() {
           </div>
         ) : null}
 
-        {!loading && !err && storeCols.length > 0 ? (
+        {storeCols.length === 0 ? (
+          <div style={{ marginTop: 12, color: "#6B6B6B", fontWeight: 800 }}>
+            No stores found. Confirm you seeded <b>store_locations</b>.
+          </div>
+        ) : (
           <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
               <thead style={{ background: "rgba(0,0,0,0.03)" }}>
@@ -289,7 +269,7 @@ export default function StockAdminClient() {
               </tbody>
             </table>
           </div>
-        ) : null}
+        )}
 
         <div style={{ marginTop: 14, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
           Tip: If a flavor is missing in a store, it’s treated as stock <b>0</b> until you set it.
