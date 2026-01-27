@@ -3,13 +3,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { FLAVORS } from "@/lib/catalog";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
 import { parsePickupPoints, useStoreStock } from "@/lib/storeStock";
 
 const COLORS = {
-  blue: "#0014a7",
+  blue: "#0014A7",
   black: "#101010",
   white: "#FFFFFF",
   sand: "#FAF7F2",
@@ -19,7 +19,12 @@ export default function CookiesPage() {
   const router = useRouter();
 
   const points = useMemo(() => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON), []);
-  const { storeId, setStore, storeName, stock, loading } = useStoreStock(points);
+  const { storeId, setStore, stock } = useStoreStock(points);
+
+  useEffect(() => {
+    if (storeId !== "kemang") setStore("kemang");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
 
   const cardFlavors = useMemo(() => {
     return FLAVORS.map((f: any) => {
@@ -49,49 +54,9 @@ export default function CookiesPage() {
             Cookies
           </h1>
           <p style={{ marginTop: 6, color: "#6B6B6B" }}>
-            Explore our cookies. Stock reflects your selected store.
+            Explore our cookies. Stock is currently based on: <b>Kemang</b>
           </p>
         </header>
-
-        {/* Store selector */}
-        <section
-          style={{
-            marginBottom: 14,
-            borderRadius: 18,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: COLORS.sand,
-            padding: 12,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-            <div style={{ fontWeight: 950, color: COLORS.black }}>Store</div>
-            <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
-              {loading ? "Checking stock…" : `Stock for: ${storeName}`}
-            </div>
-          </div>
-
-          <select
-            value={storeId}
-            onChange={(e) => setStore(e.target.value)}
-            style={{
-              marginTop: 10,
-              width: "100%",
-              height: 46,
-              borderRadius: 14,
-              border: "1px solid rgba(0,0,0,0.12)",
-              padding: "0 12px",
-              outline: "none",
-              background: "#fff",
-              fontWeight: 900,
-            }}
-          >
-            {points.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </section>
 
         <section
           style={{

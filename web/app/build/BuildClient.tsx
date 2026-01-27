@@ -11,7 +11,7 @@ import { parsePickupPoints, useStoreStock } from "@/lib/storeStock";
 type BoxSize = 3 | 6;
 
 const COLORS = {
-  blue: "#0014a7",
+  blue: "#0014A7",
   black: "#101010",
   white: "#FFFFFF",
   orange: "#FF5A00",
@@ -34,11 +34,14 @@ const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
 export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: BoxSize }) {
   const router = useRouter();
 
-  const points = useMemo(
-    () => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON),
-    []
-  );
-  const { storeId, setStore, storeName, stock, loading: stockLoading } = useStoreStock(points);
+  // keep multi-store infra, but we force Kemang for initial go-live
+  const points = useMemo(() => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON), []);
+  const { storeId, setStore, stock } = useStoreStock(points);
+
+  useEffect(() => {
+    if (storeId !== "kemang") setStore("kemang");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -67,7 +70,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
     });
   }, [stock]);
 
-  // When store changes, remove any selected flavors that are now sold out
+  // remove any selected flavors that become sold out (safety)
   useEffect(() => {
     setQty((prev) => {
       const next: Record<string, number> = { ...prev };
@@ -85,7 +88,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
       return changed ? next : prev;
     });
-  }, [storeId, stock]);
+  }, [stock]);
 
   const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
 
@@ -101,7 +104,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
     const available = Number(stock?.[id] ?? 0);
     const current = qty[id] ?? 0;
     if (available <= 0) return;
-    if (current + 1 > available) return; // respect store qty
+    if (current + 1 > available) return; // respect Kemang stock
     setQty((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
   };
 
@@ -143,16 +146,13 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       ? "Start adding cookies you love"
       : `Add ${remaining} more`;
 
-  const bannerBg = isFull ? "rgba(0,0,0,0.03)" : "rgba(0,82,204,0.06)";
-  const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,82,204,0.25)";
+  const bannerBg = isFull ? "rgba(0,0,0,0.03)" : "rgba(0,20,167,0.06)";
+  const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,20,167,0.25)";
 
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
       <style>{`
-        @keyframes cd_pulse {
-          0% { transform: scale(0.985); }
-          100% { transform: scale(1); }
-        }
+        @keyframes cd_pulse { 0% { transform: scale(0.985); } 100% { transform: scale(1); } }
       `}</style>
 
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "20px 16px 140px" }}>
@@ -161,51 +161,10 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
+          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
+            Stock is currently based on: <b>Kemang</b>
+          </div>
         </header>
-
-        {/* Store selector */}
-        <section
-          style={{
-            marginBottom: 14,
-            borderRadius: 18,
-            border: "1px solid rgba(0,0,0,0.10)",
-            background: "#FAF7F2",
-            padding: 12,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-            <div style={{ fontWeight: 950, color: COLORS.black }}>Store</div>
-            <div style={{ color: "#6B6B6B", fontWeight: 800, fontSize: 12 }}>
-              {stockLoading ? "Checking stock…" : `Stock for: ${storeName}`}
-            </div>
-          </div>
-
-          <select
-            value={storeId}
-            onChange={(e) => setStore(e.target.value)}
-            style={{
-              marginTop: 10,
-              width: "100%",
-              height: 46,
-              borderRadius: 14,
-              border: "1px solid rgba(0,0,0,0.12)",
-              padding: "0 12px",
-              outline: "none",
-              background: "#fff",
-              fontWeight: 900,
-            }}
-          >
-            {points.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-
-          <div style={{ marginTop: 8, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
-            Sold out items are disabled automatically.
-          </div>
-        </section>
 
         {/* Box size cards */}
         <section
@@ -232,7 +191,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
                   borderRadius: 16,
                   padding: 12,
                   border: active ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
-                  background: active ? "rgba(0,82,204,0.06)" : "#FAF7F2",
+                  background: active ? "rgba(0,20,167,0.06)" : "#FAF7F2",
                   cursor: "pointer",
                 }}
               >
@@ -362,7 +321,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               height: 52,
               border: "none",
               cursor: !isFull ? "not-allowed" : "pointer",
-              background: !isFull ? "rgba(0,82,204,0.45)" : COLORS.blue,
+              background: !isFull ? "rgba(0,20,167,0.45)" : COLORS.blue,
               color: COLORS.white,
               fontWeight: 900,
               fontSize: 16,
@@ -373,7 +332,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           </button>
 
           <div style={{ marginTop: 8, color: "#6B6B6B", fontWeight: 800, fontSize: 12, textAlign: "center" }}>
-            Stock is based on the selected store.
+            Stock is based on Kemang for initial go-live.
           </div>
         </div>
       </div>
