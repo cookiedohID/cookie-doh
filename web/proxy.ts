@@ -6,6 +6,20 @@ export const config = {
   ],
 };
 
+// ✅ Always allow Next.js static assets so pages hydrate (JS works)
+if (
+  pathname.startsWith("/_next/") ||
+  pathname === "/favicon.ico" ||
+  pathname === "/robots.txt" ||
+  pathname === "/sitemap.xml" ||
+  pathname.startsWith("/images/") ||
+  pathname.startsWith("/flavors/") ||
+  pathname === "/logo.png"
+) {
+  return NextResponse.next();
+}
+
+
 function basicUnauthorized() {
   return new NextResponse("Unauthorized", {
     status: 401,
