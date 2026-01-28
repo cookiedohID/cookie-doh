@@ -41,9 +41,12 @@ async function fetchKemangStock(timeoutMs = 8000): Promise<Record<string, number
   const req = (async () => {
     const res = await fetch(url, { cache: "no-store" });
     const j = await res.json().catch(() => ({} as any));
+
     if (!res.ok) throw new Error(`Stock API HTTP ${res.status}`);
     if (!j || j.ok !== true) throw new Error(j?.error || "Stock API ok:false");
-    return j.stock && typeof j.stock === "object" ? (j.stock as Record<string, number>) : {};
+
+    const stock = j.stock && typeof j.stock === "object" ? (j.stock as Record<string, number>) : {};
+    return stock;
   })();
 
   return Promise.race([req, timeout]);
@@ -58,13 +61,15 @@ export default function BuildClient({
 }) {
   const router = useRouter();
 
-  // ✅ Start with server stock so page is never stuck “checking”
+  // ✅ Start with server stock so page never stuck
   const [stock, setStock] = useState<Record<string, number>>(initialStock || {});
   const [stockLoading, setStockLoading] = useState(false);
   const [stockErr, setStockErr] = useState<string | null>(null);
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
+
+  const [lastAdd, setLastAdd] = useState<string>("—"); // ✅ debug
 
   const pulseKeyRef = useRef(0);
   const [pulseKey, setPulseKey] = useState(0);
@@ -102,7 +107,38 @@ export default function BuildClient({
     });
   }, [stock]);
 
-  // Clamp selections when stock changes
+  const firstFlavorId = cardFlavors[0]?.id || "the-one";
+
+  const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
+  const remaining = Math.max(0, boxSize - totalCount);
+  const canAddMore = totalCount < boxSize;
+  const isFull = remaining === 0;
+  const isEmpty = totalCount === 0;
+
+  const totalPrice = useMemo(() => (isFull ? BOX_PRICES[boxSize] : 0), [boxSize, isFull]);
+
+  const inc = (id: string) => {
+    const available = Number(stock?.[id] ?? 0);
+    const current = qty[id] ?? 0;
+
+    if (!canAddMore) return;
+    if (available <= 0) return;
+    if (current + 1 > available) return;
+
+    setQty((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
+  };
+
+  const dec = (id: string) => {
+    setQty((prev) => {
+      const next = { ...prev };
+      const v = next[id] ?? 0;
+      if (v <= 1) delete next[id];
+      else next[id] = v - 1;
+      return next;
+    });
+  };
+
+  // clamp selections after stock changes
   useEffect(() => {
     setQty((prev) => {
       const next: Record<string, number> = { ...prev };
@@ -125,33 +161,6 @@ export default function BuildClient({
       return changed ? next : prev;
     });
   }, [stock]);
-
-  const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
-  const remaining = Math.max(0, boxSize - totalCount);
-  const canAddMore = totalCount < boxSize;
-  const isFull = remaining === 0;
-  const isEmpty = totalCount === 0;
-
-  const totalPrice = useMemo(() => (isFull ? BOX_PRICES[boxSize] : 0), [boxSize, isFull]);
-
-  const inc = (id: string) => {
-    if (!canAddMore) return;
-    const available = Number(stock?.[id] ?? 0);
-    const current = qty[id] ?? 0;
-    if (available <= 0) return;
-    if (current + 1 > available) return;
-    setQty((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
-  };
-
-  const dec = (id: string) => {
-    setQty((prev) => {
-      const next = { ...prev };
-      const v = next[id] ?? 0;
-      if (v <= 1) delete next[id];
-      else next[id] = v - 1;
-      return next;
-    });
-  };
 
   const onAddToCart = () => {
     if (!isFull) return;
@@ -196,9 +205,10 @@ export default function BuildClient({
           </p>
 
           <div style={{ marginTop: 6, color: "rgba(0,0,0,0.45)", fontWeight: 900, fontSize: 12 }}>
-            BuildClient v4 • Stock base: Kemang
+            BuildClient v5 • Stock base: Kemang
           </div>
 
+          {/* ✅ Debug panel */}
           <div
             style={{
               marginTop: 10,
@@ -224,10 +234,10 @@ export default function BuildClient({
             </div>
 
             <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
-              keys: {stockKeys} • the-one: {theOneQty ?? "—"}
+              keys: {stockKeys} • the-one stock: {theOneQty ?? "—"} • selected the-one: {qty["the-one"] ?? 0} • lastAdd: {lastAdd}
             </div>
 
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={loadStock}
@@ -244,6 +254,47 @@ export default function BuildClient({
                 }}
               >
                 {stockLoading ? "Refreshing…" : "Refresh stock"}
+              </button>
+
+              {/* ✅ These bypass ProductCard completely */}
+              <button
+                type="button"
+                onClick={() => {
+                  setLastAdd("TEST: the-one");
+                  inc("the-one");
+                }}
+                style={{
+                  height: 36,
+                  padding: "0 12px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(0,0,0,0.12)",
+                  background: "#fff",
+                  color: COLORS.black,
+                  fontWeight: 950,
+                  cursor: "pointer",
+                }}
+              >
+                Test Add The One
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLastAdd(`TEST: ${firstFlavorId}`);
+                  inc(firstFlavorId);
+                }}
+                style={{
+                  height: 36,
+                  padding: "0 12px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(0,0,0,0.12)",
+                  background: "#fff",
+                  color: COLORS.black,
+                  fontWeight: 950,
+                  cursor: "pointer",
+                }}
+              >
+                Test Add First Flavor
               </button>
             </div>
           </div>
@@ -321,7 +372,10 @@ export default function BuildClient({
                 key={f.id}
                 flavor={f}
                 quantity={selected}
-                onAdd={() => inc(f.id)}
+                onAdd={() => {
+                  setLastAdd(`CARD: ${f.id}`);
+                  inc(f.id);
+                }}
                 onRemove={() => dec(f.id)}
                 disabledAdd={!canAddMore || f.soldOut || hitLimit}
                 addLabel={f.soldOut ? "Sold out" : hitLimit ? "Limit reached" : "Add to box"}
