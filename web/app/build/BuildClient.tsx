@@ -41,22 +41,26 @@ async function fetchKemangStock(timeoutMs = 8000): Promise<Record<string, number
   const req = (async () => {
     const res = await fetch(url, { cache: "no-store" });
     const j = await res.json().catch(() => ({} as any));
-
     if (!res.ok) throw new Error(`Stock API HTTP ${res.status}`);
     if (!j || j.ok !== true) throw new Error(j?.error || "Stock API ok:false");
-
-    const stock = j.stock && typeof j.stock === "object" ? (j.stock as Record<string, number>) : {};
-    return stock;
+    return j.stock && typeof j.stock === "object" ? (j.stock as Record<string, number>) : {};
   })();
 
   return Promise.race([req, timeout]);
 }
 
-export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: BoxSize }) {
+export default function BuildClient({
+  initialBoxSize = 6,
+  initialStock,
+}: {
+  initialBoxSize?: BoxSize;
+  initialStock: Record<string, number>;
+}) {
   const router = useRouter();
 
-  const [stock, setStock] = useState<Record<string, number>>({});
-  const [stockLoading, setStockLoading] = useState<boolean>(true);
+  // ✅ Start with server stock so page is never stuck “checking”
+  const [stock, setStock] = useState<Record<string, number>>(initialStock || {});
+  const [stockLoading, setStockLoading] = useState(false);
   const [stockErr, setStockErr] = useState<string | null>(null);
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
@@ -72,32 +76,17 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       const s = await fetchKemangStock(8000);
       setStock(s);
     } catch (e: any) {
-      setStock({});
-      setStockErr(e?.message || "Stock check failed");
+      setStockErr(e?.message || "Stock refresh failed");
     } finally {
       setStockLoading(false);
     }
   };
 
-  useEffect(() => {
-    // hard failsafe so "checking" can never hang forever
-    const failsafe = setTimeout(() => {
-      setStockLoading(false);
-      setStockErr((prev) => prev || "Stock check stuck. Tap Retry.");
-    }, 9000);
-
-    loadStock().finally(() => clearTimeout(failsafe));
-    return () => clearTimeout(failsafe);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const cardFlavors: CardFlavorUI[] = useMemo(() => {
     return CATALOG_FLAVORS.map((f: any) => {
       const fid = String(f.id);
-
-      // ✅ while loading, don't assume sold out
-      const available = stockLoading ? null : Number(stock?.[fid] ?? 0);
-      const soldOut = stockLoading ? false : (available ?? 0) <= 0;
+      const available = Number(stock?.[fid] ?? 0);
+      const soldOut = available <= 0;
 
       return {
         id: fid,
@@ -111,12 +100,10 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         soldOut,
       };
     });
-  }, [stock, stockLoading]);
+  }, [stock]);
 
-  // clamp selections after stock loads
+  // Clamp selections when stock changes
   useEffect(() => {
-    if (stockLoading) return;
-
     setQty((prev) => {
       const next: Record<string, number> = { ...prev };
       let changed = false;
@@ -126,7 +113,6 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         if (selected <= 0) continue;
 
         const available = Number(stock?.[fid] ?? 0);
-
         if (available <= 0) {
           delete next[fid];
           changed = true;
@@ -138,10 +124,9 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
       return changed ? next : prev;
     });
-  }, [stockLoading, stock]);
+  }, [stock]);
 
   const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
-
   const remaining = Math.max(0, boxSize - totalCount);
   const canAddMore = totalCount < boxSize;
   const isFull = remaining === 0;
@@ -151,14 +136,10 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
   const inc = (id: string) => {
     if (!canAddMore) return;
-    if (stockLoading) return;
-
     const available = Number(stock?.[id] ?? 0);
     const current = qty[id] ?? 0;
-
     if (available <= 0) return;
     if (current + 1 > available) return;
-
     setQty((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
   };
 
@@ -174,7 +155,6 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
   const onAddToCart = () => {
     if (!isFull) return;
-    if (stockLoading) return;
 
     const items = cardFlavors
       .filter((f) => (qty[f.id] ?? 0) > 0)
@@ -215,9 +195,8 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
 
-          {/* ✅ Version stamp so you can confirm deploy */}
           <div style={{ marginTop: 6, color: "rgba(0,0,0,0.45)", fontWeight: 900, fontSize: 12 }}>
-            BuildClient v3 • Stock base: Kemang
+            BuildClient v4 • Stock base: Kemang
           </div>
 
           <div
@@ -231,7 +210,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
               <div style={{ fontWeight: 950, color: COLORS.black }}>
-                {stockLoading ? "Status: checking…" : stockErr ? `Status: ${stockErr}` : "Status: ready ✓"}
+                {stockLoading ? "Status: refreshing…" : stockErr ? `Status: ${stockErr}` : "Status: ready ✓"}
               </div>
 
               <a
@@ -248,7 +227,6 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               keys: {stockKeys} • the-one: {theOneQty ?? "—"}
             </div>
 
-            {/* ✅ Retry is ALWAYS rendered */}
             <div style={{ marginTop: 8 }}>
               <button
                 type="button"
@@ -265,7 +243,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
                   cursor: stockLoading ? "not-allowed" : "pointer",
                 }}
               >
-                {stockLoading ? "Checking…" : "Retry"}
+                {stockLoading ? "Refreshing…" : "Refresh stock"}
               </button>
             </div>
           </div>
@@ -334,9 +312,9 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         {/* Flavor grid */}
         <section style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
           {cardFlavors.map((f) => {
-            const available = stockLoading ? 0 : Number(stock?.[f.id] ?? 0);
+            const available = Number(stock?.[f.id] ?? 0);
             const selected = qty[f.id] ?? 0;
-            const hitLimit = !stockLoading && available > 0 && selected >= available;
+            const hitLimit = available > 0 && selected >= available;
 
             return (
               <ProductCard
@@ -345,8 +323,8 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
                 quantity={selected}
                 onAdd={() => inc(f.id)}
                 onRemove={() => dec(f.id)}
-                disabledAdd={stockLoading || !canAddMore || f.soldOut || hitLimit}
-                addLabel={stockLoading ? "Checking…" : f.soldOut ? "Sold out" : hitLimit ? "Limit reached" : "Add to box"}
+                disabledAdd={!canAddMore || f.soldOut || hitLimit}
+                addLabel={f.soldOut ? "Sold out" : hitLimit ? "Limit reached" : "Add to box"}
               />
             );
           })}
@@ -379,22 +357,22 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
           <button
             onClick={onAddToCart}
-            disabled={!isFull || stockLoading}
+            disabled={!isFull}
             style={{
               marginTop: 10,
               width: "100%",
               borderRadius: 999,
               height: 52,
               border: "none",
-              cursor: !isFull || stockLoading ? "not-allowed" : "pointer",
-              background: !isFull || stockLoading ? "rgba(0,20,167,0.45)" : COLORS.blue,
+              cursor: !isFull ? "not-allowed" : "pointer",
+              background: !isFull ? "rgba(0,20,167,0.45)" : COLORS.blue,
               color: COLORS.white,
               fontWeight: 900,
               fontSize: 16,
               boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
             }}
           >
-            {stockLoading ? "Checking stock…" : "Add box to cart"}
+            Add box to cart
           </button>
         </div>
       </div>
