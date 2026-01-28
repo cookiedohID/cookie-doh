@@ -40,8 +40,17 @@ async function fetchStockKemang(timeoutMs = 8000): Promise<Record<string, number
       cache: "no-store",
       signal: ac.signal,
     });
-    const j = await res.json().catch(() => ({}));
-    const stock = j?.stock && typeof j.stock === "object" ? j.stock : {};
+
+    const j = await res.json().catch(() => ({} as any));
+
+    if (!res.ok) {
+      throw new Error(`Stock API HTTP ${res.status}`);
+    }
+    if (!j || j.ok !== true) {
+      throw new Error(j?.error || "Stock API returned ok:false");
+    }
+
+    const stock = j.stock && typeof j.stock === "object" ? (j.stock as Record<string, number>) : {};
     return stock;
   } finally {
     clearTimeout(t);
@@ -51,33 +60,27 @@ async function fetchStockKemang(timeoutMs = 8000): Promise<Record<string, number
 export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: BoxSize }) {
   const router = useRouter();
 
-  // ✅ Direct stock state (no hook) — fixes “checking…” stuck
   const [stock, setStock] = useState<Record<string, number>>({});
   const [stockLoading, setStockLoading] = useState(true);
   const [stockErr, setStockErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      setStockLoading(true);
-      setStockErr(null);
-      try {
-        const s = await fetchStockKemang();
-        if (!alive) return;
-        setStock(s);
-      } catch (e: any) {
-        if (!alive) return;
-        setStock({});
-        setStockErr(e?.name === "AbortError" ? "Stock check timed out" : "Stock check failed");
-      } finally {
-        if (!alive) return;
-        setStockLoading(false);
-      }
-    })();
+  const loadStock = async () => {
+    setStockLoading(true);
+    setStockErr(null);
+    try {
+      const s = await fetchStockKemang();
+      setStock(s);
+    } catch (e: any) {
+      setStock({});
+      setStockErr(e?.name === "AbortError" ? "Stock check timed out" : (e?.message || "Stock check failed"));
+    } finally {
+      setStockLoading(false);
+    }
+  };
 
-    return () => {
-      alive = false;
-    };
+  useEffect(() => {
+    loadStock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
@@ -89,8 +92,10 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
   const cardFlavors: CardFlavorUI[] = useMemo(() => {
     return CATALOG_FLAVORS.map((f: any) => {
       const fid = String(f.id);
-      const available = Number(stock?.[fid] ?? 0);
-      const soldOut = available <= 0;
+
+      // ✅ While loading: do NOT mark sold out
+      const available = stockLoading ? 9999 : Number(stock?.[fid] ?? 0);
+      const soldOut = stockLoading ? false : available <= 0;
 
       return {
         id: fid,
@@ -104,10 +109,11 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         soldOut,
       };
     });
-  }, [stock]);
+  }, [stock, stockLoading]);
 
-  // If stock changes, remove selected items that became sold out
+  // If stock changes, remove selected items that became sold out (safety)
   useEffect(() => {
+    if (stockLoading) return;
     setQty((prev) => {
       const next: Record<string, number> = { ...prev };
       let changed = false;
@@ -119,12 +125,15 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         if (available <= 0) {
           delete next[fid];
           changed = true;
+        } else if (selected > available) {
+          next[fid] = available;
+          changed = true;
         }
       }
 
       return changed ? next : prev;
     });
-  }, [stock]);
+  }, [stock, stockLoading]);
 
   const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
 
@@ -137,6 +146,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
   const inc = (id: string) => {
     if (!canAddMore) return;
+    if (stockLoading) return;
 
     const available = Number(stock?.[id] ?? 0);
     const current = qty[id] ?? 0;
@@ -159,6 +169,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
   const onAddToCart = () => {
     if (!isFull) return;
+    if (stockLoading) return;
 
     const items = cardFlavors
       .filter((f) => (qty[f.id] ?? 0) > 0)
@@ -183,6 +194,9 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
   const bannerBg = isFull ? "rgba(0,0,0,0.03)" : "rgba(0,20,167,0.06)";
   const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,20,167,0.25)";
 
+  const stockKeys = Object.keys(stock || {}).length;
+  const theOneQty = stock?.["the-one"];
+
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
       <style>{`
@@ -196,10 +210,33 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
 
-          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
-            Stock is currently based on: <b>Kemang</b>
-            {stockLoading ? " • checking…" : ""}
-            {stockErr ? ` • ${stockErr}` : ""}
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+            <div style={{ color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
+              Stock base: <b>Kemang</b>{" "}
+              {stockLoading ? "• checking…" : stockErr ? `• ${stockErr}` : "• ready ✓"}
+              {" • "}
+              keys: {stockKeys}
+              {" • "}
+              the-one: {typeof theOneQty === "number" ? theOneQty : "—"}
+            </div>
+
+            <button
+              type="button"
+              onClick={loadStock}
+              style={{
+                height: 34,
+                padding: "0 12px",
+                borderRadius: 999,
+                border: "1px solid rgba(0,0,0,0.12)",
+                background: "#fff",
+                fontWeight: 900,
+                cursor: "pointer",
+                opacity: stockLoading ? 0.6 : 1,
+              }}
+              disabled={stockLoading}
+            >
+              {stockLoading ? "..." : "Retry"}
+            </button>
           </div>
         </header>
 
@@ -261,25 +298,14 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               </div>
             )}
           </div>
-
-          <div style={{ marginTop: 10, height: 10, borderRadius: 999, background: "rgba(0,0,0,0.08)", overflow: "hidden" }}>
-            <div
-              style={{
-                height: "100%",
-                width: `${Math.min(100, (totalCount / boxSize) * 100)}%`,
-                background: COLORS.orange,
-                borderRadius: 999,
-              }}
-            />
-          </div>
         </section>
 
         {/* Flavor grid */}
         <section style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
           {cardFlavors.map((f) => {
-            const available = Number(stock?.[f.id] ?? 0);
+            const available = stockLoading ? 0 : Number(stock?.[f.id] ?? 0);
             const selected = qty[f.id] ?? 0;
-            const hitLimit = available > 0 && selected >= available;
+            const hitLimit = !stockLoading && available > 0 && selected >= available;
 
             return (
               <ProductCard
