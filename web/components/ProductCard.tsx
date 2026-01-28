@@ -1,4 +1,6 @@
 // web/components/ProductCard.tsx
+"use client";
+
 import Image from "next/image";
 import styles from "./ProductCard.module.css";
 
@@ -34,20 +36,6 @@ export default function ProductCard({
 
   const isSoldOut = !!flavor.soldOut;
   const addDisabled = !!disabledAdd || isSoldOut;
-
-  const handleAdd = (e: React.SyntheticEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (addDisabled) return;
-    onAdd();
-  };
-
-  const handleRemove = (e: React.SyntheticEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (quantity === 0) return;
-    onRemove();
-  };
 
   return (
     <article className={styles.card}>
@@ -117,24 +105,20 @@ export default function ProductCard({
         <div className={styles.ctaRow}>
           <button
             className={styles.minusBtn}
-            onClick={handleRemove}
-            onTouchEnd={handleRemove}
+            onClick={() => onRemove()}
             disabled={quantity === 0}
             aria-label={`Remove ${flavor.name}`}
             type="button"
-            style={{ cursor: quantity === 0 ? "not-allowed" : "pointer" }}
           >
             –
           </button>
 
           <button
             className={styles.addBtn}
-            onClick={handleAdd}
-            onTouchEnd={handleAdd}
+            onClick={() => onAdd()}
             disabled={addDisabled}
             aria-label={`Add ${flavor.name}`}
             type="button"
-            style={{ cursor: addDisabled ? "not-allowed" : "pointer" }}
           >
             <span className={styles.addLabel}>
               {addLabel ? addLabel : isSoldOut ? "Sold out" : "Add to box"}
