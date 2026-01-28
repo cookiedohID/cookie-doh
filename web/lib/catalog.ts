@@ -86,7 +86,7 @@ export const FLAVORS: Flavor[] = [
     id: "velvety-heart",
     name: "Velvety Heart",
     description:
-      "Placeholder description — soft, velvety, melt-in-your-mouth cookie with a comforting, romantic vibe.",
+      "Velvety red cocoa cookie swirled with tangy cream cheese - bold, creamy and utterly irresistable.",
     image: "/flavors/velvety-heart.jpg",
     badges: ["New"],
     tags: ["Soft", "Creamy"],
