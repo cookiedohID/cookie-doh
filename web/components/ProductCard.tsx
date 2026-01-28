@@ -36,6 +36,18 @@ export default function ProductCard({
 
   const isSoldOut = !!flavor.soldOut;
   const addDisabled = !!disabledAdd || isSoldOut;
+  const removeDisabled = quantity === 0;
+
+  // ✅ Bulletproof click/tap handler
+  const fireAdd = () => {
+    if (addDisabled) return;
+    onAdd();
+  };
+
+  const fireRemove = () => {
+    if (removeDisabled) return;
+    onRemove();
+  };
 
   return (
     <article className={styles.card}>
@@ -81,10 +93,7 @@ export default function ProductCard({
               <div className={styles.intensityLabel}>Chocolate</div>
               <div className={styles.dots}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`${styles.dot} ${i < chocolate ? styles.dotOn : ""}`}
-                  />
+                  <span key={i} className={`${styles.dot} ${i < chocolate ? styles.dotOn : ""}`} />
                 ))}
               </div>
             </div>
@@ -92,10 +101,7 @@ export default function ProductCard({
               <div className={styles.intensityLabel}>Sweetness</div>
               <div className={styles.dots}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className={`${styles.dot} ${i < sweetness ? styles.dotOn : ""}`}
-                  />
+                  <span key={i} className={`${styles.dot} ${i < sweetness ? styles.dotOn : ""}`} />
                 ))}
               </div>
             </div>
@@ -105,20 +111,22 @@ export default function ProductCard({
         <div className={styles.ctaRow}>
           <button
             className={styles.minusBtn}
-            onClick={() => onRemove()}
-            disabled={quantity === 0}
-            aria-label={`Remove ${flavor.name}`}
             type="button"
+            disabled={removeDisabled}
+            onClick={fireRemove}
+            onPointerUp={fireRemove}
+            aria-label={`Remove ${flavor.name}`}
           >
             –
           </button>
 
           <button
             className={styles.addBtn}
-            onClick={() => onAdd()}
-            disabled={addDisabled}
-            aria-label={`Add ${flavor.name}`}
             type="button"
+            disabled={addDisabled}
+            onClick={fireAdd}
+            onPointerUp={fireAdd}
+            aria-label={`Add ${flavor.name}`}
           >
             <span className={styles.addLabel}>
               {addLabel ? addLabel : isSoldOut ? "Sold out" : "Add to box"}
