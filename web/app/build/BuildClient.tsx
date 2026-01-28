@@ -17,7 +17,7 @@ const COLORS = {
 };
 
 const COOKIE_PRICE = 32500;
-const STORE_ID = "kemang";
+const STORE_ID = "kemang"; // go-live: stock base
 
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -45,8 +45,7 @@ async function fetchKemangStock(timeoutMs = 8000): Promise<Record<string, number
     if (!res.ok) throw new Error(`Stock API HTTP ${res.status}`);
     if (!j || j.ok !== true) throw new Error(j?.error || "Stock API ok:false");
 
-    const stock = j.stock && typeof j.stock === "object" ? (j.stock as Record<string, number>) : {};
-    return stock;
+    return j.stock && typeof j.stock === "object" ? (j.stock as Record<string, number>) : {};
   })();
 
   return Promise.race([req, timeout]);
@@ -61,7 +60,7 @@ export default function BuildClient({
 }) {
   const router = useRouter();
 
-  // ✅ Start with server stock so page never stuck
+  // start with server stock (reliable)
   const [stock, setStock] = useState<Record<string, number>>(initialStock || {});
   const [stockLoading, setStockLoading] = useState(false);
   const [stockErr, setStockErr] = useState<string | null>(null);
@@ -69,12 +68,10 @@ export default function BuildClient({
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
 
-  const [lastAdd, setLastAdd] = useState<string>("—"); // ✅ debug
-
   const pulseKeyRef = useRef(0);
   const [pulseKey, setPulseKey] = useState(0);
 
-  const loadStock = async () => {
+  const refreshStock = async () => {
     setStockLoading(true);
     setStockErr(null);
     try {
@@ -107,8 +104,6 @@ export default function BuildClient({
     });
   }, [stock]);
 
-  const firstFlavorId = cardFlavors[0]?.id || "the-one";
-
   const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
   const remaining = Math.max(0, boxSize - totalCount);
   const canAddMore = totalCount < boxSize;
@@ -118,10 +113,11 @@ export default function BuildClient({
   const totalPrice = useMemo(() => (isFull ? BOX_PRICES[boxSize] : 0), [boxSize, isFull]);
 
   const inc = (id: string) => {
+    if (!canAddMore) return;
+
     const available = Number(stock?.[id] ?? 0);
     const current = qty[id] ?? 0;
 
-    if (!canAddMore) return;
     if (available <= 0) return;
     if (current + 1 > available) return;
 
@@ -138,7 +134,7 @@ export default function BuildClient({
     });
   };
 
-  // clamp selections after stock changes
+  // clamp selections if stock changes
   useEffect(() => {
     setQty((prev) => {
       const next: Record<string, number> = { ...prev };
@@ -188,9 +184,6 @@ export default function BuildClient({
   const bannerBg = isFull ? "rgba(0,0,0,0.03)" : "rgba(0,20,167,0.06)";
   const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,20,167,0.25)";
 
-  const stockKeys = Object.keys(stock || {}).length;
-  const theOneQty = typeof stock["the-one"] === "number" ? stock["the-one"] : null;
-
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
       <style>{`
@@ -204,100 +197,35 @@ export default function BuildClient({
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
 
-          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.45)", fontWeight: 900, fontSize: 12 }}>
-            BuildClient v5 • Stock base: Kemang
+          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
+            Stock base: <b>Kemang</b>
           </div>
 
-          {/* ✅ Debug panel */}
-          <div
+          {stockErr ? (
+            <div style={{ marginTop: 8, color: "crimson", fontWeight: 900, fontSize: 12 }}>
+              {stockErr}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={refreshStock}
+            disabled={stockLoading}
             style={{
               marginTop: 10,
-              borderRadius: 14,
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "rgba(0,0,0,0.03)",
-              padding: "10px 12px",
+              height: 36,
+              padding: "0 12px",
+              borderRadius: 999,
+              border: "none",
+              background: stockLoading ? "rgba(0,20,167,0.45)" : COLORS.blue,
+              color: "#fff",
+              fontWeight: 950,
+              cursor: stockLoading ? "not-allowed" : "pointer",
+              width: "fit-content",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-              <div style={{ fontWeight: 950, color: COLORS.black }}>
-                {stockLoading ? "Status: refreshing…" : stockErr ? `Status: ${stockErr}` : "Status: ready ✓"}
-              </div>
-
-              <a
-                href={`/api/stock/availability?store_id=${STORE_ID}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: COLORS.blue, fontWeight: 950, textDecoration: "none" }}
-              >
-                Open stock API
-              </a>
-            </div>
-
-            <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
-              keys: {stockKeys} • the-one stock: {theOneQty ?? "—"} • selected the-one: {qty["the-one"] ?? 0} • lastAdd: {lastAdd}
-            </div>
-
-            <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={loadStock}
-                disabled={stockLoading}
-                style={{
-                  height: 36,
-                  padding: "0 12px",
-                  borderRadius: 999,
-                  border: "none",
-                  background: stockLoading ? "rgba(0,20,167,0.45)" : COLORS.blue,
-                  color: "#fff",
-                  fontWeight: 950,
-                  cursor: stockLoading ? "not-allowed" : "pointer",
-                }}
-              >
-                {stockLoading ? "Refreshing…" : "Refresh stock"}
-              </button>
-
-              {/* ✅ These bypass ProductCard completely */}
-              <button
-                type="button"
-                onClick={() => {
-                  setLastAdd("TEST: the-one");
-                  inc("the-one");
-                }}
-                style={{
-                  height: 36,
-                  padding: "0 12px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(0,0,0,0.12)",
-                  background: "#fff",
-                  color: COLORS.black,
-                  fontWeight: 950,
-                  cursor: "pointer",
-                }}
-              >
-                Test Add The One
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setLastAdd(`TEST: ${firstFlavorId}`);
-                  inc(firstFlavorId);
-                }}
-                style={{
-                  height: 36,
-                  padding: "0 12px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(0,0,0,0.12)",
-                  background: "#fff",
-                  color: COLORS.black,
-                  fontWeight: 950,
-                  cursor: "pointer",
-                }}
-              >
-                Test Add First Flavor
-              </button>
-            </div>
-          </div>
+            {stockLoading ? "Refreshing…" : "Refresh stock"}
+          </button>
         </header>
 
         {/* Box size cards */}
@@ -372,10 +300,7 @@ export default function BuildClient({
                 key={f.id}
                 flavor={f}
                 quantity={selected}
-                onAdd={() => {
-                  setLastAdd(`CARD: ${f.id}`);
-                  inc(f.id);
-                }}
+                onAdd={() => inc(f.id)}
                 onRemove={() => dec(f.id)}
                 disabledAdd={!canAddMore || f.soldOut || hitLimit}
                 addLabel={f.soldOut ? "Sold out" : hitLimit ? "Limit reached" : "Add to box"}
