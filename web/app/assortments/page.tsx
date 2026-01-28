@@ -132,7 +132,7 @@ export default function AssortmentsPage() {
           { flavorId: "the-one", qty: 2 },
           { flavorId: "the-other-one", qty: 2 },
           { flavorId: "matcha-magic", qty: 1 },
-          { flavorId: "the-comfort", qty: 1 },
+          { flavorId: "midnight-crave", qty: 1 },
         ],
       },
     ],
@@ -151,7 +151,7 @@ export default function AssortmentsPage() {
         { flavorId: "the-one", qty: 2 },
         { flavorId: "the-other-one", qty: 2 },
         { flavorId: "orange-in-the-dark", qty: 1 },
-        { flavorId: "the-comfort", qty: 1 },
+        { flavorId: "midnight-crave", qty: 1 },
       ] as PresetItem[],
       note: "Limited window — while batches last.",
     };

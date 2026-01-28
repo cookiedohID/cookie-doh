@@ -55,7 +55,7 @@ export default function HomePage() {
       { flavorId: "the-one", qty: 2 },
       { flavorId: "the-other-one", qty: 2 },
       { flavorId: "matcha-magic", qty: 1 },
-      { flavorId: "the-comfort", qty: 1 },
+      { flavorId: "midnight-crave", qty: 1 },
     ],
     []
   );
