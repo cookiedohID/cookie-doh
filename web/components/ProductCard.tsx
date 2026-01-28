@@ -20,19 +20,34 @@ export default function ProductCard({
   onAdd,
   onRemove,
   disabledAdd,
-  addLabel, // ✅ NEW (optional)
+  addLabel,
 }: {
   flavor: FlavorUI;
   quantity: number;
   onAdd: () => void;
   onRemove: () => void;
   disabledAdd?: boolean;
-  addLabel?: string; // ✅ NEW
+  addLabel?: string;
 }) {
   const chocolate = flavor.intensity?.chocolate ?? 0;
   const sweetness = flavor.intensity?.sweetness ?? 0;
 
   const isSoldOut = !!flavor.soldOut;
+  const addDisabled = !!disabledAdd || isSoldOut;
+
+  const handleAdd = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (addDisabled) return;
+    onAdd();
+  };
+
+  const handleRemove = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (quantity === 0) return;
+    onRemove();
+  };
 
   return (
     <article className={styles.card}>
@@ -78,7 +93,10 @@ export default function ProductCard({
               <div className={styles.intensityLabel}>Chocolate</div>
               <div className={styles.dots}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className={`${styles.dot} ${i < chocolate ? styles.dotOn : ""}`} />
+                  <span
+                    key={i}
+                    className={`${styles.dot} ${i < chocolate ? styles.dotOn : ""}`}
+                  />
                 ))}
               </div>
             </div>
@@ -86,7 +104,10 @@ export default function ProductCard({
               <div className={styles.intensityLabel}>Sweetness</div>
               <div className={styles.dots}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className={`${styles.dot} ${i < sweetness ? styles.dotOn : ""}`} />
+                  <span
+                    key={i}
+                    className={`${styles.dot} ${i < sweetness ? styles.dotOn : ""}`}
+                  />
                 ))}
               </div>
             </div>
@@ -96,20 +117,24 @@ export default function ProductCard({
         <div className={styles.ctaRow}>
           <button
             className={styles.minusBtn}
-            onClick={onRemove}
+            onClick={handleRemove}
+            onTouchEnd={handleRemove}
             disabled={quantity === 0}
             aria-label={`Remove ${flavor.name}`}
             type="button"
+            style={{ cursor: quantity === 0 ? "not-allowed" : "pointer" }}
           >
             –
           </button>
 
           <button
             className={styles.addBtn}
-            onClick={onAdd}
-            disabled={!!disabledAdd || isSoldOut}
+            onClick={handleAdd}
+            onTouchEnd={handleAdd}
+            disabled={addDisabled}
             aria-label={`Add ${flavor.name}`}
             type="button"
+            style={{ cursor: addDisabled ? "not-allowed" : "pointer" }}
           >
             <span className={styles.addLabel}>
               {addLabel ? addLabel : isSoldOut ? "Sold out" : "Add to box"}
