@@ -20,7 +20,7 @@ function isApiRoute(pathname: string) {
   return pathname.startsWith("/api");
 }
 
-// ✅ allow ALL Next assets + your images (required for hydration)
+// ✅ Must allow ALL Next assets so pages hydrate
 function isPublicAsset(pathname: string) {
   return (
     pathname.startsWith("/_next/") || // includes _next/static, _next/image, _next/data
@@ -63,7 +63,7 @@ function checkAdminBasicAuth(req: NextRequest) {
 export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // ✅ 0) Always allow Next.js assets so pages hydrate
+  // ✅ 0) Always allow Next.js assets so client JS loads
   if (isPublicAsset(pathname)) return NextResponse.next();
 
   // ✅ 1) Protect /admin and /api/admin only
@@ -72,9 +72,9 @@ export default function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // ✅ 2) Allow ALL /api (checkout, shipping, stock, etc.)
+  // ✅ 2) Allow ALL /api (checkout, stock, shipping, etc.)
   if (isApiRoute(pathname)) return NextResponse.next();
 
-  // ✅ 3) Everything else public
+  // ✅ 3) Everything else is public
   return NextResponse.next();
 }
