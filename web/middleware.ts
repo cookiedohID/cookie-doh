@@ -1,3 +1,4 @@
+// web/middleware.ts
 import { NextRequest, NextResponse } from "next/server";
 
 export const config = {
@@ -19,9 +20,10 @@ function isApiRoute(pathname: string) {
   return pathname.startsWith("/api");
 }
 
+// ✅ allow ALL Next assets + your images (required for hydration)
 function isPublicAsset(pathname: string) {
   return (
-    pathname.startsWith("/_next/") || // ✅ includes _next/static, _next/image, _next/data
+    pathname.startsWith("/_next/") || // includes _next/static, _next/image, _next/data
     pathname === "/favicon.ico" ||
     pathname === "/icon.png" ||
     pathname === "/robots.txt" ||
@@ -61,14 +63,18 @@ function checkAdminBasicAuth(req: NextRequest) {
 export default function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // ✅ 0) Always allow Next.js assets so pages hydrate
   if (isPublicAsset(pathname)) return NextResponse.next();
 
+  // ✅ 1) Protect /admin and /api/admin only
   if (isAdminRoute(pathname)) {
     if (!checkAdminBasicAuth(req)) return basicUnauthorized();
     return NextResponse.next();
   }
 
+  // ✅ 2) Allow ALL /api (checkout, shipping, stock, etc.)
   if (isApiRoute(pathname)) return NextResponse.next();
 
+  // ✅ 3) Everything else public
   return NextResponse.next();
 }
