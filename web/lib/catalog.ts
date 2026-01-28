@@ -58,7 +58,7 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/matcha-magic.jpg",
     badges: ["Fan Favorite"],
     tags: ["Earthy", "Creamy"],
-    intensity: { chocolate: 2, sweetness: 3 },
+    intensity: { chocolate: 2, sweetness: 2 },
   },
   {
     id: "orange-in-the-dark",

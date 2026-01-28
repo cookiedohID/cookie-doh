@@ -6,11 +6,6 @@
   overflow: hidden;
   background: #fff;
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.05);
-  transition: transform 120ms ease, box-shadow 120ms ease;
-}
-
-.card:focus-within {
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
 }
 
 .imageWrap {
@@ -24,15 +19,14 @@
   object-fit: cover;
 }
 
-/* Badge */
 .badge {
   position: absolute;
   left: 10px;
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 850;
-  background: rgba(255, 255, 255, 0.86);
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(6px);
   border: 1px solid rgba(0, 0, 0, 0.10);
   color: #111;
@@ -43,10 +37,30 @@
   text-overflow: ellipsis;
 }
 
+/* Sold out label on image */
+.soldOutBadge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  background: rgba(0,0,0,0.72);
+  color: #fff;
+  border: 1px solid rgba(0,0,0,0.18);
+}
+
 .body {
   padding: 12px 12px 14px;
   display: grid;
   gap: 10px;
+}
+
+/* Title row (qty removed from here) */
+.titleRow {
+  display: block;
 }
 
 .title {
@@ -54,7 +68,7 @@
   font-size: 18px;
   line-height: 1.2;
   font-weight: 850;
-  color: #101010;
+  color: #111;
 }
 
 /* Ingredients */
@@ -62,8 +76,8 @@
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-  color: rgba(0, 0, 0, 0.62);
-  opacity: 0.98;
+  color: #2B6A3B;
+  opacity: 0.95;
 
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -82,10 +96,10 @@
   font-size: 12px;
   padding: 6px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(0, 82, 204, 0.18);
+  border: 1px solid rgba(0, 48, 120, 0.18);
   color: #003078;
-  background: rgba(0, 82, 204, 0.05);
-  font-weight: 800;
+  background: rgba(0, 48, 120, 0.05);
+  font-weight: 750;
 }
 
 /* Intensity */
@@ -123,12 +137,11 @@
   background: rgba(0, 0, 0, 0.12);
 }
 
-/* Accent orange */
 .dotOn {
-  background: rgba(255, 90, 0, 0.92);
+  background: rgba(0, 0, 0, 0.75);
 }
 
-/* CTA */
+/* CTA row */
 .ctaRow {
   display: grid;
   grid-template-columns: 44px 1fr;
@@ -146,48 +159,26 @@
   font-weight: 900;
   color: rgba(0, 0, 0, 0.55);
   line-height: 1;
-  cursor: pointer;
-  transition: transform 90ms ease, background 120ms ease, border-color 120ms ease;
-}
-
-.minusBtn:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.03);
-  border-color: rgba(0, 0, 0, 0.16);
-}
-
-.minusBtn:active:not(:disabled) {
-  transform: translateY(1px);
 }
 
 .minusBtn:disabled {
   opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .addBtn {
   height: 40px;
   border-radius: 999px;
   border: none;
-  background: #0014a7;
+  background: #0014A7; /* ✅ new brand blue */
   color: #fff;
   font-weight: 950;
   font-size: 14.5px;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
   display: inline-flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: transform 90ms ease, box-shadow 120ms ease, opacity 120ms ease,
-    background 120ms ease;
-}
-
-.addBtn:hover:not(:disabled) {
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.10);
-}
-
-.addBtn:active:not(:disabled) {
-  transform: translateY(1px);
+  gap: 10px;
+  padding: 0 12px;
 }
 
 .addBtn:disabled {
@@ -195,17 +186,38 @@
   cursor: not-allowed;
 }
 
+.addLabel {
+  display: inline-flex;
+  align-items: center;
+}
+
+.addRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ✅ qty pill moved here + beige/white for contrast */
+.qtyPillNew {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #FAF7F2;            /* beige */
+  color: #101010;
+  font-weight: 950;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0,0,0,0.10);
+}
+
 .plus {
   font-weight: 950;
 }
 
-/* Focus rings */
-.minusBtn:focus-visible,
-.addBtn:focus-visible {
-  outline: 3px solid rgba(0, 82, 204, 0.22);
-  outline-offset: 2px;
-}
-
+/* Small phones */
 @media (max-width: 380px) {
   .title { font-size: 17px; }
   .ingredients { font-size: 12.5px; }
@@ -213,6 +225,7 @@
   .intensityWrap { padding: 6px; }
 }
 
+/* Desktop scaling */
 @media (min-width: 900px) {
   .title { font-size: 20px; }
   .ingredients { font-size: 14px; }

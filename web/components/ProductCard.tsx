@@ -11,17 +11,8 @@ export type FlavorUI = {
   intensity?: { chocolate?: 0 | 1 | 2 | 3 | 4 | 5; sweetness?: 1 | 2 | 3 | 4 | 5 };
   price?: number;
   badges?: string[];
-  soldOut?: boolean;
+  soldOut?: boolean; // optional
 };
-
-const BADGE_PRIORITY = ["Bestseller", "Limited", "New", "Classic", "Fan Favorite"] as const;
-
-function sortBadges(badges: string[] | undefined) {
-  if (!badges) return [];
-  const rank = new Map<string, number>();
-  BADGE_PRIORITY.forEach((b, i) => rank.set(b, i));
-  return [...badges].sort((a, b) => (rank.get(a) ?? 99) - (rank.get(b) ?? 99));
-}
 
 export default function ProductCard({
   flavor,
@@ -29,26 +20,20 @@ export default function ProductCard({
   onAdd,
   onRemove,
   disabledAdd,
-  addLabel,
 }: {
   flavor: FlavorUI;
   quantity: number;
   onAdd: () => void;
   onRemove: () => void;
   disabledAdd?: boolean;
-  addLabel?: string;
 }) {
   const chocolate = flavor.intensity?.chocolate ?? 0;
   const sweetness = flavor.intensity?.sweetness ?? 0;
 
   const isSoldOut = !!flavor.soldOut;
-  const addDisabled = !!disabledAdd || isSoldOut;
-
-  const topBadges = sortBadges(flavor.badges).slice(0, 2);
-  const ctaText = addLabel ?? "Add to box";
 
   return (
-    <article className={styles.card} style={{ opacity: isSoldOut ? 0.85 : 1 }}>
+    <article className={styles.card}>
       <div className={styles.imageWrap}>
         <Image
           src={flavor.image}
@@ -56,52 +41,36 @@ export default function ProductCard({
           fill
           className={styles.image}
           sizes="(max-width: 768px) 50vw, 25vw"
+          priority={false}
         />
 
-        {/* SOLD OUT overlay */}
+        {/* Badges */}
+        {flavor.badges?.slice(0, 2).map((b, i) => (
+          <div key={b} className={styles.badge} style={{ top: 10 + i * 36 }}>
+            {b}
+          </div>
+        ))}
+
+        {/* Sold out overlay label */}
         {isSoldOut && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(0,0,0,0.55)",
-              display: "grid",
-              placeItems: "center",
-              zIndex: 2,
-            }}
-          >
-            <div
-              style={{
-                padding: "10px 18px",
-                borderRadius: 999,
-                background: "rgba(0,0,0,0.75)",
-                color: "#fff",
-                fontWeight: 950,
-                letterSpacing: "0.12em",
-                fontSize: 14,
-              }}
-            >
-              SOLD OUT
-            </div>
+          <div className={styles.soldOutBadge}>
+            Sold out
           </div>
         )}
-
-        {/* Badges */}
-        {!isSoldOut &&
-          topBadges.map((b, i) => (
-            <div key={b} className={styles.badge} style={{ top: 10 + i * 36 }}>
-              {b}
-            </div>
-          ))}
       </div>
 
       <div className={styles.body}>
-        <h3 className={styles.title}>{flavor.name}</h3>
+        {/* Title */}
+        <div className={styles.titleRow}>
+          <h3 className={styles.title}>{flavor.name}</h3>
+        </div>
 
+        {/* Ingredients */}
         <p className={styles.ingredients} title={flavor.ingredients}>
           {flavor.ingredients}
         </p>
 
+        {/* Texture */}
         <div className={styles.textureRow}>
           {flavor.textureTags.slice(0, 2).map((t) => (
             <span key={t} className={styles.texturePill}>
@@ -110,13 +79,17 @@ export default function ProductCard({
           ))}
         </div>
 
+        {/* Intensity */}
         {(chocolate > 0 || sweetness > 0) && (
           <div className={styles.intensityWrap}>
             <div className={styles.intensityBlock}>
               <div className={styles.intensityLabel}>Chocolate</div>
               <div className={styles.dots}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className={`${styles.dot} ${i < chocolate ? styles.dotOn : ""}`} />
+                  <span
+                    key={i}
+                    className={`${styles.dot} ${i < chocolate ? styles.dotOn : ""}`}
+                  />
                 ))}
               </div>
             </div>
@@ -124,19 +97,24 @@ export default function ProductCard({
               <div className={styles.intensityLabel}>Sweetness</div>
               <div className={styles.dots}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className={`${styles.dot} ${i < sweetness ? styles.dotOn : ""}`} />
+                  <span
+                    key={i}
+                    className={`${styles.dot} ${i < sweetness ? styles.dotOn : ""}`}
+                  />
                 ))}
               </div>
             </div>
           </div>
         )}
 
+        {/* CTA row */}
         <div className={styles.ctaRow}>
           <button
             className={styles.minusBtn}
             onClick={onRemove}
             disabled={quantity === 0}
             aria-label={`Remove ${flavor.name}`}
+            type="button"
           >
             –
           </button>
@@ -144,42 +122,23 @@ export default function ProductCard({
           <button
             className={styles.addBtn}
             onClick={onAdd}
-            disabled={addDisabled}
-            aria-label={isSoldOut ? "Sold out" : `Add ${flavor.name}`}
-            title={isSoldOut ? "Sold out" : undefined}
+            disabled={!!disabledAdd || isSoldOut}
+            aria-label={`Add ${flavor.name}`}
+            type="button"
           >
-            {ctaText} <span className={styles.plus}>+</span>
+            <span className={styles.addLabel}>
+              {isSoldOut ? "Sold out" : "Add to box"}
+            </span>
 
-            {/* Quantity pill moved next to CTA (beige/white) */}
-            {quantity > 0 && (
-              <span
-                style={{
-                  marginLeft: 6,
-                  minWidth: 22,
-                  height: 22,
-                  padding: "0 6px",
-                  borderRadius: 999,
-                  background: "#FFF7EC",
-                  color: "#101010",
-                  border: "1px solid rgba(0,0,0,0.18)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 12,
-                  fontWeight: 900,
-                }}
-              >
+            <span className={styles.addRight}>
+              {/* qty pill moved here */}
+              <span className={styles.qtyPillNew} aria-label="Selected count">
                 {quantity}
               </span>
-            )}
+              {!isSoldOut && <span className={styles.plus}>+</span>}
+            </span>
           </button>
         </div>
-
-        {isSoldOut && (
-          <div style={{ marginTop: 8, color: "rgba(0,0,0,0.62)", fontWeight: 800, fontSize: 12 }}>
-            Unavailable right now.
-          </div>
-        )}
       </div>
     </article>
   );
