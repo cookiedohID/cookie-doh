@@ -1,6 +1,6 @@
+// web/app/build/BuildClient.tsx
 "use client";
 
-// web/app/build/BuildClient.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addBoxToCart } from "@/lib/cart";
@@ -11,13 +11,13 @@ type BoxSize = 3 | 6;
 
 const COLORS = {
   blue: "#0014A7",
+  orange: "#FF5A00",
   black: "#101010",
   white: "#FFFFFF",
-  orange: "#FF5A00",
 };
 
 const COOKIE_PRICE = 32500;
-const STORE_ID = "kemang"; // ✅ forced for go-live
+const STORE_ID = "kemang";
 
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -31,7 +31,7 @@ const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
   { size: 6, title: "6 cookies", desc: "Just right for sharing" },
 ];
 
-async function fetchStockKemangRace(timeoutMs = 8000): Promise<Record<string, number>> {
+async function fetchKemangStock(timeoutMs = 8000): Promise<Record<string, number>> {
   const url = `/api/stock/availability?store_id=${encodeURIComponent(STORE_ID)}`;
 
   const timeout = new Promise<never>((_, reject) =>
@@ -56,40 +56,8 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
   const router = useRouter();
 
   const [stock, setStock] = useState<Record<string, number>>({});
-  const [stockLoading, setStockLoading] = useState(true);
+  const [stockLoading, setStockLoading] = useState<boolean>(true);
   const [stockErr, setStockErr] = useState<string | null>(null);
-  const [stockDebug, setStockDebug] = useState<string>("—");
-
-  const loadStock = async () => {
-    setStockLoading(true);
-    setStockErr(null);
-    setStockDebug("Fetching…");
-
-    try {
-      const s = await fetchStockKemangRace(8000);
-      setStock(s);
-      setStockDebug(`Loaded keys=${Object.keys(s).length} the-one=${typeof s["the-one"] === "number" ? s["the-one"] : "—"}`);
-    } catch (e: any) {
-      setStock({});
-      setStockErr(e?.message || "Stock check failed");
-      setStockDebug(`Failed: ${e?.message || "unknown"}`);
-    } finally {
-      setStockLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    // ✅ hard failsafe: never allow infinite "checking…"
-    const failsafe = setTimeout(() => {
-      setStockLoading(false);
-      setStockErr((prev) => prev || "Stock check stuck (failsafe triggered). Tap Retry.");
-      setStockDebug((prev) => (prev === "Fetching…" ? "Failsafe triggered" : prev));
-    }, 9000);
-
-    loadStock().finally(() => clearTimeout(failsafe));
-    return () => clearTimeout(failsafe);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -97,11 +65,37 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
   const pulseKeyRef = useRef(0);
   const [pulseKey, setPulseKey] = useState(0);
 
+  const loadStock = async () => {
+    setStockLoading(true);
+    setStockErr(null);
+    try {
+      const s = await fetchKemangStock(8000);
+      setStock(s);
+    } catch (e: any) {
+      setStock({});
+      setStockErr(e?.message || "Stock check failed");
+    } finally {
+      setStockLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // hard failsafe so "checking" can never hang forever
+    const failsafe = setTimeout(() => {
+      setStockLoading(false);
+      setStockErr((prev) => prev || "Stock check stuck. Tap Retry.");
+    }, 9000);
+
+    loadStock().finally(() => clearTimeout(failsafe));
+    return () => clearTimeout(failsafe);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const cardFlavors: CardFlavorUI[] = useMemo(() => {
     return CATALOG_FLAVORS.map((f: any) => {
       const fid = String(f.id);
 
-      // ✅ if stock not loaded yet, don't assume sold out
+      // ✅ while loading, don't assume sold out
       const available = stockLoading ? null : Number(stock?.[fid] ?? 0);
       const soldOut = stockLoading ? false : (available ?? 0) <= 0;
 
@@ -119,7 +113,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
     });
   }, [stock, stockLoading]);
 
-  // If stock loads, clamp selections to available
+  // clamp selections after stock loads
   useEffect(() => {
     if (stockLoading) return;
 
@@ -132,6 +126,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         if (selected <= 0) continue;
 
         const available = Number(stock?.[fid] ?? 0);
+
         if (available <= 0) {
           delete next[fid];
           changed = true;
@@ -205,7 +200,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
   const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,20,167,0.25)";
 
   const stockKeys = Object.keys(stock || {}).length;
-  const theOneQty = stock?.["the-one"];
+  const theOneQty = typeof stock["the-one"] === "number" ? stock["the-one"] : null;
 
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
@@ -220,6 +215,11 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
 
+          {/* ✅ Version stamp so you can confirm deploy */}
+          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.45)", fontWeight: 900, fontSize: 12 }}>
+            BuildClient v3 • Stock base: Kemang
+          </div>
+
           <div
             style={{
               marginTop: 10,
@@ -229,27 +229,27 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               padding: "10px 12px",
             }}
           >
-            <div style={{ fontWeight: 950, color: COLORS.black, display: "flex", justifyContent: "space-between", gap: 10 }}>
-              <span>Stock base: Kemang</span>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+              <div style={{ fontWeight: 950, color: COLORS.black }}>
+                {stockLoading ? "Status: checking…" : stockErr ? `Status: ${stockErr}` : "Status: ready ✓"}
+              </div>
+
               <a
                 href={`/api/stock/availability?store_id=${STORE_ID}`}
                 target="_blank"
                 rel="noreferrer"
-                style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}
+                style={{ color: COLORS.blue, fontWeight: 950, textDecoration: "none" }}
               >
                 Open stock API
               </a>
             </div>
 
             <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
-              {stockLoading ? "Status: checking…" : stockErr ? `Status: ${stockErr}` : "Status: ready ✓"}
-              {"  •  "}
-              keys: {stockKeys}
-              {"  •  "}
-              the-one: {typeof theOneQty === "number" ? theOneQty : "—"}
+              keys: {stockKeys} • the-one: {theOneQty ?? "—"}
             </div>
 
-            <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            {/* ✅ Retry is ALWAYS rendered */}
+            <div style={{ marginTop: 8 }}>
               <button
                 type="button"
                 onClick={loadStock}
@@ -267,10 +267,6 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               >
                 {stockLoading ? "Checking…" : "Retry"}
               </button>
-
-              <span style={{ color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
-                Debug: {stockDebug}
-              </span>
             </div>
           </div>
         </header>
