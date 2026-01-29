@@ -12,7 +12,6 @@ type PresetItem = { flavorId: string; qty: number };
 
 const COLORS = {
   blue: "#0014A7",
-  orange: "#FF5A00",
   black: "#101010",
   white: "#FFFFFF",
   sand: "#FAF7F2",
@@ -76,8 +75,7 @@ export default function AssortmentsPage() {
   );
 
   function addPreset(boxSize: BoxSize, items: PresetItem[]) {
-    const box = presetToCartBox(boxSize, items);
-    addBoxToCart(box);
+    addBoxToCart(presetToCartBox(boxSize, items));
     router.push("/cart");
   }
 
@@ -106,10 +104,7 @@ export default function AssortmentsPage() {
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 950, fontSize: 16, color: COLORS.black }}>
-                    {p.title}
-                  </div>
-
+                  <div style={{ fontWeight: 950, fontSize: 16, color: COLORS.black }}>{p.title}</div>
                   <div style={{ marginTop: 6, fontSize: 13, color: "rgba(0,0,0,0.70)", lineHeight: 1.4 }}>
                     {p.items
                       .map((x) => `${safeGetName(x.flavorId)}${x.qty > 1 ? ` ×${x.qty}` : ""}`)

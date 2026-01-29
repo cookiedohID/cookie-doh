@@ -11,7 +11,6 @@ const COLORS = {
   blue: "#0014A7",
   black: "#101010",
   white: "#FFFFFF",
-  sand: "#FAF7F2",
 };
 
 export default function CookiesPage() {
@@ -27,7 +26,7 @@ export default function CookiesPage() {
         textureTags: Array.isArray(f.tags) ? f.tags : [],
         intensity: f.intensity,
         badges: Array.isArray(f.badges) ? f.badges : [],
-        soldOut: false, // ✅ stock system removed
+        soldOut: false,
       };
       return out;
     });
@@ -45,13 +44,7 @@ export default function CookiesPage() {
           </p>
         </header>
 
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: 14,
-          }}
-        >
+        <section style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
           {cardFlavors.map((f) => (
             <ProductCard
               key={f.id}
