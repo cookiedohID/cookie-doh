@@ -254,22 +254,8 @@ export default function CheckoutPage() {
 
   const quoteAbortRef = useRef<AbortController | null>(null);
 
-
-  // ✅ Checkout guard: empty -> /build, soldout -> /cart
-  useEffect(() => {
-    const c = getCart() as any;
-    const next: CartState = c && Array.isArray(c.boxes) ? c : { boxes: [] };
-    setCart(next);
-
-    const empty = !next.boxes || next.boxes.length === 0;
-    if (empty) {
-      router.replace("/build");
-      return;
-    }
-
-
     setBooting(false);
-  }, [router, soldOutSet]);
+  }, [router]);
 
   const subtotal = useMemo(() => cart.boxes.reduce((s, b) => s + (b.total || 0), 0), [cart]);
   const isEmpty = cart.boxes.length === 0;
@@ -423,16 +409,6 @@ export default function CheckoutPage() {
     const v = validate();
     if (v) return setErr(v);
     if (isEmpty) return setErr("Your cart is empty. Please build a box first.");
-
-    // Final safety check (catalog soldOut)
-    for (const b of cart.boxes) {
-      for (const it of b.items || []) {
-        if (soldOutSet.has(String(it.id))) {
-          router.replace("/cart");
-          return;
-        }
-      }
-    }
 
     const normalizedPhone = phoneCheck.normalized || normalizeIDPhone(phone);
     const fullAddress = addressDetail.trim() ? `${addressBase}\n${addressDetail.trim()}` : addressBase;
