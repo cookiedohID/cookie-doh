@@ -3,10 +3,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { FLAVORS } from "@/lib/catalog";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
-import { parsePickupPoints, useStoreStock } from "@/lib/storeStock";
 
 const COLORS = {
   blue: "#0014A7",
@@ -18,36 +17,21 @@ const COLORS = {
 export default function CookiesPage() {
   const router = useRouter();
 
-  const SHOW_STORE_SELECTOR =
-    String(process.env.NEXT_PUBLIC_SHOW_STORE_SELECTOR || "").toLowerCase() === "true";
-
-  const points = useMemo(() => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON), []);
-  const { storeId, setStore, storeName, stock, loading } = useStoreStock(points);
-
-  useEffect(() => {
-    if (!SHOW_STORE_SELECTOR && storeId !== "kemang") setStore("kemang");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [SHOW_STORE_SELECTOR, storeId]);
-
   const cardFlavors = useMemo(() => {
     return FLAVORS.map((f: any) => {
-      const fid = String(f.id);
-      const available = Number(stock?.[fid] ?? 0);
-      const soldOut = available <= 0;
-
       const out: CardFlavorUI = {
-        id: fid,
+        id: String(f.id),
         name: String(f.name ?? ""),
         image: String(f.image ?? ""),
         ingredients: String(f.description ?? ""),
         textureTags: Array.isArray(f.tags) ? f.tags : [],
         intensity: f.intensity,
         badges: Array.isArray(f.badges) ? f.badges : [],
-        soldOut,
+        soldOut: false, // ✅ stock system removed
       };
       return out;
     });
-  }, [stock]);
+  }, []);
 
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
@@ -57,45 +41,9 @@ export default function CookiesPage() {
             Cookies
           </h1>
           <p style={{ marginTop: 6, color: "#6B6B6B" }}>
-            Stock is currently based on: <b>{SHOW_STORE_SELECTOR ? storeName : "Kemang"}</b>
-            {SHOW_STORE_SELECTOR ? (loading ? " (checking…)" : "") : ""}
+            Explore our cookies. Tap any flavour to build your box.
           </p>
         </header>
-
-        {SHOW_STORE_SELECTOR && (
-          <section
-            style={{
-              marginBottom: 14,
-              borderRadius: 18,
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: COLORS.sand,
-              padding: 12,
-            }}
-          >
-            <div style={{ fontWeight: 950, color: COLORS.black }}>Store</div>
-            <select
-              value={storeId}
-              onChange={(e) => setStore(e.target.value)}
-              style={{
-                marginTop: 10,
-                width: "100%",
-                height: 46,
-                borderRadius: 14,
-                border: "1px solid rgba(0,0,0,0.12)",
-                padding: "0 12px",
-                outline: "none",
-                background: "#fff",
-                fontWeight: 900,
-              }}
-            >
-              {points.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </section>
-        )}
 
         <section
           style={{
@@ -111,8 +59,8 @@ export default function CookiesPage() {
               quantity={0}
               onAdd={() => router.push("/build")}
               onRemove={() => {}}
-              disabledAdd={!!f.soldOut}
-              addLabel={f.soldOut ? "Sold out" : "Build a box"}
+              disabledAdd={false}
+              addLabel="Build a box"
             />
           ))}
         </section>
