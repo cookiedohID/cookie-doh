@@ -36,18 +36,6 @@ export default function ProductCard({
 
   const isSoldOut = !!flavor.soldOut;
   const addDisabled = !!disabledAdd || isSoldOut;
-  const removeDisabled = quantity === 0;
-
-  // ✅ Bulletproof click/tap handler
-  const fireAdd = () => {
-    if (addDisabled) return;
-    onAdd();
-  };
-
-  const fireRemove = () => {
-    if (removeDisabled) return;
-    onRemove();
-  };
 
   return (
     <article className={styles.card}>
@@ -112,9 +100,8 @@ export default function ProductCard({
           <button
             className={styles.minusBtn}
             type="button"
-            disabled={removeDisabled}
-            onClick={fireRemove}
-            onPointerUp={fireRemove}
+            onClick={onRemove}
+            disabled={quantity === 0}
             aria-label={`Remove ${flavor.name}`}
           >
             –
@@ -123,9 +110,8 @@ export default function ProductCard({
           <button
             className={styles.addBtn}
             type="button"
+            onClick={onAdd}
             disabled={addDisabled}
-            onClick={fireAdd}
-            onPointerUp={fireAdd}
             aria-label={`Add ${flavor.name}`}
           >
             <span className={styles.addLabel}>
