@@ -67,19 +67,42 @@ export default function BuildClient({
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
 
-  const [lastAdd, setLastAdd] = useState<string>("—");
+  // ✅ Hydration + click detectors
+  const [heartbeat, setHeartbeat] = useState(0);
+  const [lastDocClick, setLastDocClick] = useState<string>("—");
+  const [lastBtnClick, setLastBtnClick] = useState<string>("—");
 
-  const pulseKeyRef = useRef(0);
-  const [pulseKey, setPulseKey] = useState(0);
+  useEffect(() => {
+    // heartbeat proves hydration
+    const t = setInterval(() => setHeartbeat((x) => x + 1), 1000);
+
+    // global click capture proves clicks are reaching the document
+    const onClick = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement | null;
+      const tag = target?.tagName || "UNKNOWN";
+      const id = target?.id ? `#${target.id}` : "";
+      const cls = target?.className ? `.${String(target.className).split(" ").filter(Boolean)[0] || ""}` : "";
+      setLastDocClick(`${tag}${id}${cls} @ ${Math.round(ev.clientX)},${Math.round(ev.clientY)}`);
+    };
+
+    document.addEventListener("click", onClick, true); // capture
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, []);
 
   const refreshStock = async () => {
     setStockLoading(true);
     setStockErr(null);
+    setLastBtnClick("Refresh stock clicked");
     try {
       const s = await fetchKemangStock(8000);
       setStock(s);
+      setLastBtnClick("Refresh stock ✓");
     } catch (e: any) {
       setStockErr(e?.message || "Stock refresh failed");
+      setLastBtnClick(`Refresh failed: ${e?.message || "unknown"}`);
     } finally {
       setStockLoading(false);
     }
@@ -134,31 +157,8 @@ export default function BuildClient({
     });
   };
 
-  // clamp selections if stock changes
-  useEffect(() => {
-    setQty((prev) => {
-      const next: Record<string, number> = { ...prev };
-      let changed = false;
-
-      for (const fid of Object.keys(next)) {
-        const selected = next[fid] ?? 0;
-        if (selected <= 0) continue;
-
-        const available = Number(stock?.[fid] ?? 0);
-        if (available <= 0) {
-          delete next[fid];
-          changed = true;
-        } else if (selected > available) {
-          next[fid] = available;
-          changed = true;
-        }
-      }
-
-      return changed ? next : prev;
-    });
-  }, [stock]);
-
   const onAddToCart = () => {
+    setLastBtnClick("Add box to cart clicked");
     if (!isFull) return;
 
     const items = cardFlavors
@@ -185,7 +185,9 @@ export default function BuildClient({
   const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,20,167,0.25)";
 
   const stockKeys = Object.keys(stock || {}).length;
-  const theOneQty = typeof stock["the-one"] === "number" ? stock["the-one"] : null;
+
+  // BIG pointer-events guard to detect/avoid overlay issues
+  const guardStyle: React.CSSProperties = { position: "relative", zIndex: 9999, pointerEvents: "auto" };
 
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
@@ -201,7 +203,7 @@ export default function BuildClient({
           </p>
 
           <div style={{ marginTop: 6, color: "rgba(0,0,0,0.45)", fontWeight: 900, fontSize: 12 }}>
-            BuildClient v5 • Stock base: Kemang
+            BuildClient v6 • Hydration heartbeat: {heartbeat}
           </div>
 
           <div
@@ -215,7 +217,7 @@ export default function BuildClient({
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
               <div style={{ fontWeight: 950, color: COLORS.black }}>
-                Status: {stockErr ? stockErr : "ready ✓"}
+                Status: {stockLoading ? "refreshing…" : stockErr ? stockErr : "ready ✓"}
               </div>
 
               <a
@@ -229,44 +231,31 @@ export default function BuildClient({
             </div>
 
             <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
-              keys: {stockKeys} • the-one stock: {theOneQty ?? "—"} • selected the-one: {qty["the-one"] ?? 0} • lastAdd: {lastAdd}
+              keys: {stockKeys} • selected the-one: {qty["the-one"] ?? 0}
             </div>
 
-            <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ marginTop: 8, color: "rgba(0,0,0,0.65)", fontWeight: 800, fontSize: 12 }}>
+              lastDocClick: {lastDocClick}
+              <br />
+              lastBtnClick: {lastBtnClick}
+            </div>
+
+            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
                 type="button"
                 onClick={refreshStock}
-                disabled={stockLoading}
-                style={{
-                  height: 36,
-                  padding: "0 12px",
-                  borderRadius: 999,
-                  border: "none",
-                  background: stockLoading ? "rgba(0,20,167,0.45)" : COLORS.blue,
-                  color: "#fff",
-                  fontWeight: 950,
-                  cursor: stockLoading ? "not-allowed" : "pointer",
-                }}
+                style={{ ...guardStyle, height: 36, padding: "0 12px", borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 950 }}
               >
-                {stockLoading ? "Refreshing…" : "Refresh stock"}
+                Refresh stock
               </button>
 
               <button
                 type="button"
                 onClick={() => {
-                  setLastAdd("TEST: the-one");
+                  setLastBtnClick("TEST: the-one");
                   inc("the-one");
                 }}
-                style={{
-                  height: 36,
-                  padding: "0 12px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(0,0,0,0.12)",
-                  background: "#fff",
-                  color: COLORS.black,
-                  fontWeight: 950,
-                  cursor: "pointer",
-                }}
+                style={{ ...guardStyle, height: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(0,0,0,0.12)", background: "#fff", fontWeight: 950 }}
               >
                 Test Add The One
               </button>
@@ -283,12 +272,14 @@ export default function BuildClient({
                 key={opt.size}
                 type="button"
                 onClick={() => {
+                  setLastBtnClick(`Box size clicked: ${opt.size}`);
                   setBoxSize(opt.size);
                   setQty({});
                   pulseKeyRef.current += 1;
                   setPulseKey(pulseKeyRef.current);
                 }}
                 style={{
+                  ...guardStyle,
                   textAlign: "left",
                   borderRadius: 16,
                   padding: 12,
@@ -348,7 +339,7 @@ export default function BuildClient({
                 flavor={f}
                 quantity={selected}
                 onAdd={() => {
-                  setLastAdd(`CARD: ${f.id}`);
+                  setLastBtnClick(`CARD add: ${f.id}`);
                   inc(f.id);
                 }}
                 onRemove={() => dec(f.id)}
@@ -371,6 +362,8 @@ export default function BuildClient({
           borderTop: "1px solid rgba(0,0,0,0.08)",
           boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
           padding: "12px 14px",
+          zIndex: 9999,
+          pointerEvents: "auto",
         }}
       >
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
@@ -389,6 +382,7 @@ export default function BuildClient({
             onClick={onAddToCart}
             disabled={!isFull}
             style={{
+              ...guardStyle,
               marginTop: 10,
               width: "100%",
               borderRadius: 999,
