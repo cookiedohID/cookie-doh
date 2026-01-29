@@ -1,7 +1,7 @@
 // web/app/build/BuildClient.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addBoxToCart } from "@/lib/cart";
 import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
@@ -17,7 +17,6 @@ const COLORS = {
 };
 
 const COOKIE_PRICE = 32500;
-const STORE_ID = "kemang";
 
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -31,102 +30,28 @@ const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
   { size: 6, title: "6 cookies", desc: "Just right for sharing" },
 ];
 
-async function fetchKemangStock(timeoutMs = 8000): Promise<Record<string, number>> {
-  const url = `/api/stock/availability?store_id=${encodeURIComponent(STORE_ID)}`;
-
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`Stock fetch timeout after ${timeoutMs}ms`)), timeoutMs)
-  );
-
-  const req = (async () => {
-    const res = await fetch(url, { cache: "no-store" });
-    const j = await res.json().catch(() => ({} as any));
-
-    if (!res.ok) throw new Error(`Stock API HTTP ${res.status}`);
-    if (!j || j.ok !== true) throw new Error(j?.error || "Stock API ok:false");
-
-    return j.stock && typeof j.stock === "object" ? (j.stock as Record<string, number>) : {};
-  })();
-
-  return Promise.race([req, timeout]);
-}
-
-export default function BuildClient({
-  initialBoxSize = 6,
-  initialStock,
-}: {
-  initialBoxSize?: BoxSize;
-  initialStock: Record<string, number>;
-}) {
+export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: BoxSize }) {
   const router = useRouter();
-
-  const [stock, setStock] = useState<Record<string, number>>(initialStock || {});
-  const [stockLoading, setStockLoading] = useState(false);
-  const [stockErr, setStockErr] = useState<string | null>(null);
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
 
-  // ✅ Hydration + click detectors
-  const [heartbeat, setHeartbeat] = useState(0);
-  const [lastDocClick, setLastDocClick] = useState<string>("—");
-  const [lastBtnClick, setLastBtnClick] = useState<string>("—");
-
-  useEffect(() => {
-    // heartbeat proves hydration
-    const t = setInterval(() => setHeartbeat((x) => x + 1), 1000);
-
-    // global click capture proves clicks are reaching the document
-    const onClick = (ev: MouseEvent) => {
-      const target = ev.target as HTMLElement | null;
-      const tag = target?.tagName || "UNKNOWN";
-      const id = target?.id ? `#${target.id}` : "";
-      const cls = target?.className ? `.${String(target.className).split(" ").filter(Boolean)[0] || ""}` : "";
-      setLastDocClick(`${tag}${id}${cls} @ ${Math.round(ev.clientX)},${Math.round(ev.clientY)}`);
-    };
-
-    document.addEventListener("click", onClick, true); // capture
-    return () => {
-      clearInterval(t);
-      document.removeEventListener("click", onClick, true);
-    };
-  }, []);
-
-  const refreshStock = async () => {
-    setStockLoading(true);
-    setStockErr(null);
-    setLastBtnClick("Refresh stock clicked");
-    try {
-      const s = await fetchKemangStock(8000);
-      setStock(s);
-      setLastBtnClick("Refresh stock ✓");
-    } catch (e: any) {
-      setStockErr(e?.message || "Stock refresh failed");
-      setLastBtnClick(`Refresh failed: ${e?.message || "unknown"}`);
-    } finally {
-      setStockLoading(false);
-    }
-  };
+  const pulseKeyRef = useRef(0);
+  const [pulseKey, setPulseKey] = useState(0);
 
   const cardFlavors: CardFlavorUI[] = useMemo(() => {
-    return CATALOG_FLAVORS.map((f: any) => {
-      const fid = String(f.id);
-      const available = Number(stock?.[fid] ?? 0);
-      const soldOut = available <= 0;
-
-      return {
-        id: fid,
-        name: String(f.name ?? ""),
-        image: String(f.image ?? ""),
-        ingredients: String(f.description ?? ""),
-        textureTags: Array.isArray(f.tags) ? f.tags : [],
-        intensity: f.intensity,
-        badges: Array.isArray(f.badges) ? f.badges : [],
-        price: COOKIE_PRICE,
-        soldOut,
-      };
-    });
-  }, [stock]);
+    return CATALOG_FLAVORS.map((f: any) => ({
+      id: String(f.id),
+      name: String(f.name ?? ""),
+      image: String(f.image ?? ""),
+      ingredients: String(f.description ?? ""),
+      textureTags: Array.isArray(f.tags) ? f.tags : [],
+      intensity: f.intensity,
+      badges: Array.isArray(f.badges) ? f.badges : [],
+      price: COOKIE_PRICE,
+      soldOut: false, // ✅ stock system removed
+    }));
+  }, []);
 
   const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
   const remaining = Math.max(0, boxSize - totalCount);
@@ -137,13 +62,7 @@ export default function BuildClient({
   const totalPrice = useMemo(() => (isFull ? BOX_PRICES[boxSize] : 0), [boxSize, isFull]);
 
   const inc = (id: string) => {
-    const available = Number(stock?.[id] ?? 0);
-    const current = qty[id] ?? 0;
-
     if (!canAddMore) return;
-    if (available <= 0) return;
-    if (current + 1 > available) return;
-
     setQty((prev) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
   };
 
@@ -158,7 +77,6 @@ export default function BuildClient({
   };
 
   const onAddToCart = () => {
-    setLastBtnClick("Add box to cart clicked");
     if (!isFull) return;
 
     const items = cardFlavors
@@ -175,19 +93,9 @@ export default function BuildClient({
     router.push("/cart");
   };
 
-  const bannerText = isFull
-    ? "Box complete"
-    : isEmpty
-      ? "Start adding cookies you love"
-      : `Add ${remaining} more`;
-
+  const bannerText = isFull ? "Box complete" : isEmpty ? "Start adding cookies you love" : `Add ${remaining} more`;
   const bannerBg = isFull ? "rgba(0,0,0,0.03)" : "rgba(0,20,167,0.06)";
   const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,20,167,0.25)";
-
-  const stockKeys = Object.keys(stock || {}).length;
-
-  // BIG pointer-events guard to detect/avoid overlay issues
-  const guardStyle: React.CSSProperties = { position: "relative", zIndex: 9999, pointerEvents: "auto" };
 
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
@@ -201,66 +109,6 @@ export default function BuildClient({
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
-
-          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.45)", fontWeight: 900, fontSize: 12 }}>
-            BuildClient v6 • Hydration heartbeat: {heartbeat}
-          </div>
-
-          <div
-            style={{
-              marginTop: 10,
-              borderRadius: 14,
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "rgba(0,0,0,0.03)",
-              padding: "10px 12px",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-              <div style={{ fontWeight: 950, color: COLORS.black }}>
-                Status: {stockLoading ? "refreshing…" : stockErr ? stockErr : "ready ✓"}
-              </div>
-
-              <a
-                href={`/api/stock/availability?store_id=${STORE_ID}`}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: COLORS.blue, fontWeight: 950, textDecoration: "none" }}
-              >
-                Open stock API
-              </a>
-            </div>
-
-            <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
-              keys: {stockKeys} • selected the-one: {qty["the-one"] ?? 0}
-            </div>
-
-            <div style={{ marginTop: 8, color: "rgba(0,0,0,0.65)", fontWeight: 800, fontSize: 12 }}>
-              lastDocClick: {lastDocClick}
-              <br />
-              lastBtnClick: {lastBtnClick}
-            </div>
-
-            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                onClick={refreshStock}
-                style={{ ...guardStyle, height: 36, padding: "0 12px", borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 950 }}
-              >
-                Refresh stock
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setLastBtnClick("TEST: the-one");
-                  inc("the-one");
-                }}
-                style={{ ...guardStyle, height: 36, padding: "0 12px", borderRadius: 999, border: "1px solid rgba(0,0,0,0.12)", background: "#fff", fontWeight: 950 }}
-              >
-                Test Add The One
-              </button>
-            </div>
-          </div>
         </header>
 
         {/* Box size cards */}
@@ -272,14 +120,12 @@ export default function BuildClient({
                 key={opt.size}
                 type="button"
                 onClick={() => {
-                  setLastBtnClick(`Box size clicked: ${opt.size}`);
                   setBoxSize(opt.size);
                   setQty({});
                   pulseKeyRef.current += 1;
                   setPulseKey(pulseKeyRef.current);
                 }}
                 style={{
-                  ...guardStyle,
                   textAlign: "left",
                   borderRadius: 16,
                   padding: 12,
@@ -328,26 +174,17 @@ export default function BuildClient({
 
         {/* Flavor grid */}
         <section style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
-          {cardFlavors.map((f) => {
-            const available = Number(stock?.[f.id] ?? 0);
-            const selected = qty[f.id] ?? 0;
-            const hitLimit = available > 0 && selected >= available;
-
-            return (
-              <ProductCard
-                key={f.id}
-                flavor={f}
-                quantity={selected}
-                onAdd={() => {
-                  setLastBtnClick(`CARD add: ${f.id}`);
-                  inc(f.id);
-                }}
-                onRemove={() => dec(f.id)}
-                disabledAdd={!canAddMore || f.soldOut || hitLimit}
-                addLabel={f.soldOut ? "Sold out" : hitLimit ? "Limit reached" : "Add to box"}
-              />
-            );
-          })}
+          {cardFlavors.map((f) => (
+            <ProductCard
+              key={f.id}
+              flavor={f}
+              quantity={qty[f.id] ?? 0}
+              onAdd={() => inc(f.id)}
+              onRemove={() => dec(f.id)}
+              disabledAdd={!canAddMore}
+              addLabel="Add to box"
+            />
+          ))}
         </section>
       </div>
 
@@ -362,8 +199,6 @@ export default function BuildClient({
           borderTop: "1px solid rgba(0,0,0,0.08)",
           boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
           padding: "12px 14px",
-          zIndex: 9999,
-          pointerEvents: "auto",
         }}
       >
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
@@ -382,7 +217,6 @@ export default function BuildClient({
             onClick={onAddToCart}
             disabled={!isFull}
             style={{
-              ...guardStyle,
               marginTop: 10,
               width: "100%",
               borderRadius: 999,
