@@ -17,7 +17,7 @@ const COLORS = {
 };
 
 const COOKIE_PRICE = 32500;
-const STORE_ID = "kemang"; // go-live: stock base
+const STORE_ID = "kemang";
 
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -60,13 +60,14 @@ export default function BuildClient({
 }) {
   const router = useRouter();
 
-  // start with server stock (reliable)
   const [stock, setStock] = useState<Record<string, number>>(initialStock || {});
   const [stockLoading, setStockLoading] = useState(false);
   const [stockErr, setStockErr] = useState<string | null>(null);
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
+
+  const [lastAdd, setLastAdd] = useState<string>("—");
 
   const pulseKeyRef = useRef(0);
   const [pulseKey, setPulseKey] = useState(0);
@@ -113,11 +114,10 @@ export default function BuildClient({
   const totalPrice = useMemo(() => (isFull ? BOX_PRICES[boxSize] : 0), [boxSize, isFull]);
 
   const inc = (id: string) => {
-    if (!canAddMore) return;
-
     const available = Number(stock?.[id] ?? 0);
     const current = qty[id] ?? 0;
 
+    if (!canAddMore) return;
     if (available <= 0) return;
     if (current + 1 > available) return;
 
@@ -184,6 +184,9 @@ export default function BuildClient({
   const bannerBg = isFull ? "rgba(0,0,0,0.03)" : "rgba(0,20,167,0.06)";
   const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,20,167,0.25)";
 
+  const stockKeys = Object.keys(stock || {}).length;
+  const theOneQty = typeof stock["the-one"] === "number" ? stock["the-one"] : null;
+
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
       <style>{`
@@ -197,35 +200,78 @@ export default function BuildClient({
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
 
-          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.55)", fontWeight: 800, fontSize: 12 }}>
-            Stock base: <b>Kemang</b>
+          <div style={{ marginTop: 6, color: "rgba(0,0,0,0.45)", fontWeight: 900, fontSize: 12 }}>
+            BuildClient v5 • Stock base: Kemang
           </div>
 
-          {stockErr ? (
-            <div style={{ marginTop: 8, color: "crimson", fontWeight: 900, fontSize: 12 }}>
-              {stockErr}
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={refreshStock}
-            disabled={stockLoading}
+          <div
             style={{
               marginTop: 10,
-              height: 36,
-              padding: "0 12px",
-              borderRadius: 999,
-              border: "none",
-              background: stockLoading ? "rgba(0,20,167,0.45)" : COLORS.blue,
-              color: "#fff",
-              fontWeight: 950,
-              cursor: stockLoading ? "not-allowed" : "pointer",
-              width: "fit-content",
+              borderRadius: 14,
+              border: "1px solid rgba(0,0,0,0.10)",
+              background: "rgba(0,0,0,0.03)",
+              padding: "10px 12px",
             }}
           >
-            {stockLoading ? "Refreshing…" : "Refresh stock"}
-          </button>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+              <div style={{ fontWeight: 950, color: COLORS.black }}>
+                Status: {stockErr ? stockErr : "ready ✓"}
+              </div>
+
+              <a
+                href={`/api/stock/availability?store_id=${STORE_ID}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: COLORS.blue, fontWeight: 950, textDecoration: "none" }}
+              >
+                Open stock API
+              </a>
+            </div>
+
+            <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
+              keys: {stockKeys} • the-one stock: {theOneQty ?? "—"} • selected the-one: {qty["the-one"] ?? 0} • lastAdd: {lastAdd}
+            </div>
+
+            <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={refreshStock}
+                disabled={stockLoading}
+                style={{
+                  height: 36,
+                  padding: "0 12px",
+                  borderRadius: 999,
+                  border: "none",
+                  background: stockLoading ? "rgba(0,20,167,0.45)" : COLORS.blue,
+                  color: "#fff",
+                  fontWeight: 950,
+                  cursor: stockLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {stockLoading ? "Refreshing…" : "Refresh stock"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setLastAdd("TEST: the-one");
+                  inc("the-one");
+                }}
+                style={{
+                  height: 36,
+                  padding: "0 12px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(0,0,0,0.12)",
+                  background: "#fff",
+                  color: COLORS.black,
+                  fontWeight: 950,
+                  cursor: "pointer",
+                }}
+              >
+                Test Add The One
+              </button>
+            </div>
+          </div>
         </header>
 
         {/* Box size cards */}
@@ -235,6 +281,7 @@ export default function BuildClient({
             return (
               <button
                 key={opt.size}
+                type="button"
                 onClick={() => {
                   setBoxSize(opt.size);
                   setQty({});
@@ -300,7 +347,10 @@ export default function BuildClient({
                 key={f.id}
                 flavor={f}
                 quantity={selected}
-                onAdd={() => inc(f.id)}
+                onAdd={() => {
+                  setLastAdd(`CARD: ${f.id}`);
+                  inc(f.id);
+                }}
                 onRemove={() => dec(f.id)}
                 disabledAdd={!canAddMore || f.soldOut || hitLimit}
                 addLabel={f.soldOut ? "Sold out" : hitLimit ? "Limit reached" : "Add to box"}
@@ -335,6 +385,7 @@ export default function BuildClient({
           </div>
 
           <button
+            type="button"
             onClick={onAddToCart}
             disabled={!isFull}
             style={{
