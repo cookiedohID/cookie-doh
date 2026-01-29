@@ -6,7 +6,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
-import { FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
 import { clearCart, getCart, CART_KEY } from "@/lib/cart";
 
 type CartItem = {
@@ -255,11 +254,6 @@ export default function CheckoutPage() {
 
   const quoteAbortRef = useRef<AbortController | null>(null);
 
-  const soldOutSet = useMemo(() => {
-    const s = new Set<string>();
-    for (const f of CATALOG_FLAVORS as any[]) if (f?.soldOut) s.add(String(f.id));
-    return s;
-  }, []);
 
   // ✅ Checkout guard: empty -> /build, soldout -> /cart
   useEffect(() => {
@@ -273,21 +267,6 @@ export default function CheckoutPage() {
       return;
     }
 
-    let hasSoldOut = false;
-    for (const b of next.boxes) {
-      for (const it of b.items || []) {
-        if (soldOutSet.has(String(it.id))) {
-          hasSoldOut = true;
-          break;
-        }
-      }
-      if (hasSoldOut) break;
-    }
-
-    if (hasSoldOut) {
-      router.replace("/cart");
-      return;
-    }
 
     setBooting(false);
   }, [router, soldOutSet]);
@@ -434,64 +413,6 @@ export default function CheckoutPage() {
     return null;
   };
 
-  // ✅ NEW: Stock check based on chosen store
-  const buildStoreIdForStock = () => {
-    if (fulfillment === "pickup") return String(pickupPointId || "").trim();
-    // delivery: use quote origin store if present, else default kemang
-    return String(quoteMeta?.origin?.id || "kemang").trim();
-  };
-
-  const buildCartItemsForStock = () => {
-    const map = new Map<string, number>();
-    for (const b of cart.boxes || []) {
-      for (const it of b.items || []) {
-        const fid = String(it.id);
-        const q = Number(it.quantity || 0);
-        if (!fid || !Number.isFinite(q) || q <= 0) continue;
-        map.set(fid, (map.get(fid) || 0) + q);
-      }
-    }
-    return Array.from(map.entries()).map(([flavor_id, qty]) => ({ flavor_id, qty }));
-  };
-
-  const stockCheckOrMessage = async (): Promise<string | null> => {
-    const store_id = buildStoreIdForStock();
-    const items = buildCartItemsForStock();
-
-    if (!store_id || items.length === 0) return null;
-
-    try {
-      const res = await fetch("/api/stock/check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ store_id, items }),
-      });
-
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok || j?.ok === false) {
-        return j?.error || "Stock check failed. Please try again.";
-      }
-
-      const insufficient = Array.isArray(j?.insufficient) ? j.insufficient : [];
-      if (!insufficient.length) return null;
-
-      const lines = insufficient.map((x: any) => {
-        const fid = String(x?.flavor_id || "");
-        const requested = Number(x?.requested ?? 0);
-        const available = Number(x?.available ?? 0);
-        return `• ${fid} (need ${requested}, available ${available})`;
-      });
-
-      const storeName =
-        fulfillment === "pickup"
-          ? (pickupPoints.find((p) => p.id === pickupPointId)?.name || store_id)
-          : (quoteMeta?.origin?.name || store_id);
-
-      return `Some items are out of stock for:\n${storeName}\n\n${lines.join("\n")}\n\nPlease adjust your box or choose a different pickup point.`;
-    } catch {
-      return "Stock check failed. Please try again.";
-    }
-  };
 
   const placeOrder = async () => {
     setErr(null);
@@ -512,10 +433,6 @@ export default function CheckoutPage() {
         }
       }
     }
-
-    // ✅ NEW: stock check per store
-    const stockMsg = await stockCheckOrMessage();
-    if (stockMsg) return setErr(stockMsg);
 
     const normalizedPhone = phoneCheck.normalized || normalizeIDPhone(phone);
     const fullAddress = addressDetail.trim() ? `${addressBase}\n${addressDetail.trim()}` : addressBase;
