@@ -254,13 +254,27 @@ export default function CheckoutPage() {
 
   const quoteAbortRef = useRef<AbortController | null>(null);
 
-    setBooting(false);
-  } [router]);
+  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
+  useEffect(() => {
+  const c = getCart() as any;
+  const next: CartState = c && Array.isArray(c.boxes) ? c : { boxes: [] };
+  setCart(next);
+
+  const empty = !next.boxes || next.boxes.length === 0;
+  if (empty) {
+    router.replace("/build");
+    return;
+  }
+
+  setBooting(false);
+}, [router]);
+
 
   const subtotal = useMemo(() => cart.boxes.reduce((s, b) => s + (b.total || 0), 0), [cart]);
   const isEmpty = cart.boxes.length === 0;
 
-  const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+  
 
   const sameStyle: CSSProperties = {
     height: 46,
