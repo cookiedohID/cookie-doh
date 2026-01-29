@@ -20,10 +20,9 @@ function isApiRoute(pathname: string) {
   return pathname.startsWith("/api");
 }
 
-// ✅ absolutely required for hydration
 function isPublicAsset(pathname: string) {
   return (
-    pathname.startsWith("/_next/") || // includes _next/static, _next/image, _next/data
+    pathname.startsWith("/_next/") || // critical for hydration
     pathname === "/favicon.ico" ||
     pathname === "/icon.png" ||
     pathname === "/robots.txt" ||
@@ -63,16 +62,16 @@ function checkAdminBasicAuth(req: NextRequest) {
 export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 0) Always allow Next assets so client JS loads
+  // 0) Always allow Next assets so React hydrates + buttons work
   if (isPublicAsset(pathname)) return NextResponse.next();
 
-  // 1) Protect admin + admin API
+  // 1) Protect admin routes only
   if (isAdminRoute(pathname)) {
     if (!checkAdminBasicAuth(req)) return basicUnauthorized();
     return NextResponse.next();
   }
 
-  // 2) Allow all APIs (checkout, stock, shipping, etc.)
+  // 2) Allow all API routes
   if (isApiRoute(pathname)) return NextResponse.next();
 
   // 3) Everything else public
