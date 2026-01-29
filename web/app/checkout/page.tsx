@@ -255,7 +255,7 @@ export default function CheckoutPage() {
   const quoteAbortRef = useRef<AbortController | null>(null);
 
     setBooting(false);
-  }, [router]);
+  } [router]);
 
   const subtotal = useMemo(() => cart.boxes.reduce((s, b) => s + (b.total || 0), 0), [cart]);
   const isEmpty = cart.boxes.length === 0;
