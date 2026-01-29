@@ -1,7 +1,7 @@
 // web/app/build/BuildClient.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addBoxToCart } from "@/lib/cart";
 import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
@@ -33,29 +33,6 @@ const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
 export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: BoxSize }) {
   const router = useRouter();
 
-  // ✅ Hydration + click detectors
-  const [heartbeat, setHeartbeat] = useState(0);
-  const [lastDocClick, setLastDocClick] = useState<string>("—");
-  const [lastBtnClick, setLastBtnClick] = useState<string>("—");
-
-  useEffect(() => {
-    const t = setInterval(() => setHeartbeat((x) => x + 1), 1000);
-
-    const onClick = (ev: MouseEvent) => {
-      const el = ev.target as HTMLElement | null;
-      const tag = el?.tagName || "UNKNOWN";
-      const id = el?.id ? `#${el.id}` : "";
-      const cls = el?.className ? `.${String(el.className).split(" ").filter(Boolean)[0] || ""}` : "";
-      setLastDocClick(`${tag}${id}${cls} @ ${Math.round(ev.clientX)},${Math.round(ev.clientY)}`);
-    };
-
-    document.addEventListener("click", onClick, true);
-    return () => {
-      clearInterval(t);
-      document.removeEventListener("click", onClick, true);
-    };
-  }, []);
-
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
 
@@ -72,17 +49,24 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       intensity: f.intensity,
       badges: Array.isArray(f.badges) ? f.badges : [],
       price: COOKIE_PRICE,
-      soldOut: false,
+      soldOut: false, // no stock logic
     }));
   }, []);
 
-  const totalCount = useMemo(() => Object.values(qty).reduce((a, b) => a + b, 0), [qty]);
+  const totalCount = useMemo(
+    () => Object.values(qty).reduce((a, b) => a + b, 0),
+    [qty]
+  );
+
   const remaining = Math.max(0, boxSize - totalCount);
   const canAddMore = totalCount < boxSize;
   const isFull = remaining === 0;
   const isEmpty = totalCount === 0;
 
-  const totalPrice = useMemo(() => (isFull ? BOX_PRICES[boxSize] : 0), [boxSize, isFull]);
+  const totalPrice = useMemo(
+    () => (isFull ? BOX_PRICES[boxSize] : 0),
+    [boxSize, isFull]
+  );
 
   const inc = (id: string) => {
     if (!canAddMore) return;
@@ -100,78 +84,66 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
   };
 
   const onAddToCart = () => {
-    setLastBtnClick("Add box to cart clicked");
     if (!isFull) return;
 
     const items = cardFlavors
       .filter((f) => (qty[f.id] ?? 0) > 0)
       .map((f) => ({
-        id: String(f.id),
-        name: String(f.name),
-        price: Number(f.price ?? COOKIE_PRICE),
-        quantity: Number(qty[f.id] ?? 0),
-        image: String(f.image ?? ""),
+        id: f.id,
+        name: f.name,
+        price: f.price ?? COOKIE_PRICE,
+        quantity: qty[f.id],
+        image: f.image,
       }));
 
-    addBoxToCart({ boxSize, items, total: BOX_PRICES[boxSize] });
+    addBoxToCart({
+      boxSize,
+      items,
+      total: BOX_PRICES[boxSize],
+    });
+
     router.push("/cart");
   };
 
-  const bannerText = isFull ? "Box complete" : isEmpty ? "Start adding cookies you love" : `Add ${remaining} more`;
+  const bannerText = isFull
+    ? "Box complete"
+    : isEmpty
+    ? "Start adding cookies you love"
+    : `Add ${remaining} more`;
+
   const bannerBg = isFull ? "rgba(0,0,0,0.03)" : "rgba(0,20,167,0.06)";
-  const bannerBorder = isFull ? "1px solid rgba(0,0,0,0.10)" : "1px solid rgba(0,20,167,0.25)";
+  const bannerBorder = isFull
+    ? "1px solid rgba(0,0,0,0.10)"
+    : "1px solid rgba(0,20,167,0.25)";
 
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
+      <style>{`
+        @keyframes cd_pulse {
+          0% { transform: scale(0.985); }
+          100% { transform: scale(1); }
+        }
+      `}</style>
+
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "20px 16px 140px" }}>
         <header style={{ marginBottom: 14 }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Build your cookie box</h1>
+          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>
+            Build your cookie box
+          </h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
-
-          {/* ✅ Diagnostics */}
-          <div
-            style={{
-              marginTop: 10,
-              borderRadius: 14,
-              border: "1px solid rgba(0,0,0,0.10)",
-              background: "rgba(0,0,0,0.03)",
-              padding: "10px 12px",
-            }}
-          >
-            <div style={{ fontWeight: 950, color: COLORS.black }}>
-              Hydration heartbeat: {heartbeat}
-            </div>
-            <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
-              lastDocClick: {lastDocClick}
-              <br />
-              lastBtnClick: {lastBtnClick}
-            </div>
-
-            <button
-              id="test-click"
-              type="button"
-              onClick={() => setLastBtnClick("TEST CLICK button worked ✅")}
-              style={{
-                marginTop: 10,
-                height: 40,
-                padding: "0 14px",
-                borderRadius: 999,
-                border: "none",
-                background: COLORS.blue,
-                color: "#fff",
-                fontWeight: 950,
-                cursor: "pointer",
-              }}
-            >
-              TEST CLICK (should work)
-            </button>
-          </div>
         </header>
 
-        {/* Box size cards */}
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 14 }}>
+        {/* Box size selector */}
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 10,
+            marginBottom: 14,
+          }}
+        >
           {BOX_OPTIONS.map((opt) => {
             const active = opt.size === boxSize;
             return (
@@ -179,7 +151,6 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
                 key={opt.size}
                 type="button"
                 onClick={() => {
-                  setLastBtnClick(`Box size clicked: ${opt.size}`);
                   setBoxSize(opt.size);
                   setQty({});
                   pulseKeyRef.current += 1;
@@ -189,13 +160,17 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
                   textAlign: "left",
                   borderRadius: 16,
                   padding: 12,
-                  border: active ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
+                  border: active
+                    ? `2px solid ${COLORS.blue}`
+                    : "1px solid rgba(0,0,0,0.10)",
                   background: active ? "rgba(0,20,167,0.06)" : "#FAF7F2",
                   cursor: "pointer",
                 }}
               >
-                <div style={{ fontWeight: 800, color: COLORS.black }}>{opt.title}</div>
-                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>{opt.desc}</div>
+                <div style={{ fontWeight: 800 }}>{opt.title}</div>
+                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                  {opt.desc}
+                </div>
               </button>
             );
           })}
@@ -211,40 +186,39 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               border: bannerBorder,
               background: bannerBg,
               fontWeight: 950,
-              color: COLORS.black,
+              animation: "cd_pulse 0.6s ease-out",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              gap: 12,
             }}
           >
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-              <div style={{ fontWeight: 950 }}>Box of {boxSize}</div>
-              <div style={{ color: "#3C3C3C", fontWeight: 900 }}>{bannerText}</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div>Box of {boxSize}</div>
+              <div style={{ color: "#3C3C3C" }}>{bannerText}</div>
             </div>
 
             {!isFull && (
-              <div style={{ fontWeight: 950, color: COLORS.orange, whiteSpace: "nowrap" }}>
-                {remaining} left
-              </div>
+              <div style={{ color: COLORS.orange }}>{remaining} left</div>
             )}
           </div>
         </section>
 
         {/* Flavor grid */}
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 14,
+          }}
+        >
           {cardFlavors.map((f) => (
             <ProductCard
               key={f.id}
               flavor={f}
               quantity={qty[f.id] ?? 0}
-              onAdd={() => {
-                setLastBtnClick(`CARD add: ${f.id}`);
-                inc(f.id);
-              }}
+              onAdd={() => inc(f.id)}
               onRemove={() => dec(f.id)}
               disabledAdd={!canAddMore}
-              addLabel="Add to box"
             />
           ))}
         </section>
@@ -261,16 +235,14 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           borderTop: "1px solid rgba(0,0,0,0.08)",
           boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
           padding: "12px 14px",
-          zIndex: 9999,
         }}
       >
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-            <div style={{ fontWeight: 900, color: COLORS.black }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div style={{ fontWeight: 900 }}>
               {isFull ? "Box complete" : `Add ${remaining} more`}
             </div>
-
-            <div style={{ color: "#6B6B6B", fontWeight: 900 }}>
+            <div style={{ color: "#6B6B6B" }}>
               Total: {formatIDR(isFull ? totalPrice : 0)}
             </div>
           </div>
@@ -285,12 +257,11 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               borderRadius: 999,
               height: 52,
               border: "none",
-              cursor: !isFull ? "not-allowed" : "pointer",
               background: !isFull ? "rgba(0,20,167,0.45)" : COLORS.blue,
-              color: COLORS.white,
+              color: "#fff",
               fontWeight: 900,
               fontSize: 16,
-              boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
+              cursor: !isFull ? "not-allowed" : "pointer",
             }}
           >
             Add box to cart
