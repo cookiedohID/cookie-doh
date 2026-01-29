@@ -1,7 +1,7 @@
 // web/app/build/BuildClient.tsx
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addBoxToCart } from "@/lib/cart";
 import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
@@ -33,6 +33,29 @@ const BOX_OPTIONS: { size: BoxSize; title: string; desc: string }[] = [
 export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: BoxSize }) {
   const router = useRouter();
 
+  // ✅ Hydration + click detectors
+  const [heartbeat, setHeartbeat] = useState(0);
+  const [lastDocClick, setLastDocClick] = useState<string>("—");
+  const [lastBtnClick, setLastBtnClick] = useState<string>("—");
+
+  useEffect(() => {
+    const t = setInterval(() => setHeartbeat((x) => x + 1), 1000);
+
+    const onClick = (ev: MouseEvent) => {
+      const el = ev.target as HTMLElement | null;
+      const tag = el?.tagName || "UNKNOWN";
+      const id = el?.id ? `#${el.id}` : "";
+      const cls = el?.className ? `.${String(el.className).split(" ").filter(Boolean)[0] || ""}` : "";
+      setLastDocClick(`${tag}${id}${cls} @ ${Math.round(ev.clientX)},${Math.round(ev.clientY)}`);
+    };
+
+    document.addEventListener("click", onClick, true);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, []);
+
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
 
@@ -49,7 +72,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       intensity: f.intensity,
       badges: Array.isArray(f.badges) ? f.badges : [],
       price: COOKIE_PRICE,
-      soldOut: false, // ✅ stock system removed
+      soldOut: false,
     }));
   }, []);
 
@@ -77,6 +100,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
   };
 
   const onAddToCart = () => {
+    setLastBtnClick("Add box to cart clicked");
     if (!isFull) return;
 
     const items = cardFlavors
@@ -99,16 +123,51 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
   return (
     <main style={{ background: COLORS.white, minHeight: "100vh" }}>
-      <style>{`
-        @keyframes cd_pulse { 0% { transform: scale(0.985); } 100% { transform: scale(1); } }
-      `}</style>
-
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "20px 16px 140px" }}>
         <header style={{ marginBottom: 14 }}>
           <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Build your cookie box</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B" }}>
             Mix and match your favourites. Freshly baked, packed with care.
           </p>
+
+          {/* ✅ Diagnostics */}
+          <div
+            style={{
+              marginTop: 10,
+              borderRadius: 14,
+              border: "1px solid rgba(0,0,0,0.10)",
+              background: "rgba(0,0,0,0.03)",
+              padding: "10px 12px",
+            }}
+          >
+            <div style={{ fontWeight: 950, color: COLORS.black }}>
+              Hydration heartbeat: {heartbeat}
+            </div>
+            <div style={{ marginTop: 6, color: "rgba(0,0,0,0.70)", fontWeight: 800, fontSize: 12 }}>
+              lastDocClick: {lastDocClick}
+              <br />
+              lastBtnClick: {lastBtnClick}
+            </div>
+
+            <button
+              id="test-click"
+              type="button"
+              onClick={() => setLastBtnClick("TEST CLICK button worked ✅")}
+              style={{
+                marginTop: 10,
+                height: 40,
+                padding: "0 14px",
+                borderRadius: 999,
+                border: "none",
+                background: COLORS.blue,
+                color: "#fff",
+                fontWeight: 950,
+                cursor: "pointer",
+              }}
+            >
+              TEST CLICK (should work)
+            </button>
+          </div>
         </header>
 
         {/* Box size cards */}
@@ -120,6 +179,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
                 key={opt.size}
                 type="button"
                 onClick={() => {
+                  setLastBtnClick(`Box size clicked: ${opt.size}`);
                   setBoxSize(opt.size);
                   setQty({});
                   pulseKeyRef.current += 1;
@@ -152,7 +212,6 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               background: bannerBg,
               fontWeight: 950,
               color: COLORS.black,
-              animation: "cd_pulse 0.6s ease-out",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -179,7 +238,10 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               key={f.id}
               flavor={f}
               quantity={qty[f.id] ?? 0}
-              onAdd={() => inc(f.id)}
+              onAdd={() => {
+                setLastBtnClick(`CARD add: ${f.id}`);
+                inc(f.id);
+              }}
               onRemove={() => dec(f.id)}
               disabledAdd={!canAddMore}
               addLabel="Add to box"
@@ -199,6 +261,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           borderTop: "1px solid rgba(0,0,0,0.08)",
           boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
           padding: "12px 14px",
+          zIndex: 9999,
         }}
       >
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
