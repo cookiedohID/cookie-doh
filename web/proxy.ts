@@ -1,9 +1,7 @@
 // web/proxy.ts
 import { NextRequest, NextResponse } from "next/server";
 
-export const config = {
-  matcher: ["/:path*"],
-};
+export const config = { matcher: ["/:path*"] };
 
 function basicUnauthorized() {
   return new NextResponse("Unauthorized", {
@@ -20,9 +18,10 @@ function isApiRoute(pathname: string) {
   return pathname.startsWith("/api");
 }
 
+// ✅ DO NOT block any Next.js assets — hydration depends on these
 function isPublicAsset(pathname: string) {
   return (
-    pathname.startsWith("/_next/") || // critical for hydration
+    pathname.startsWith("/_next/") || // includes _next/static, _next/image, _next/data
     pathname === "/favicon.ico" ||
     pathname === "/icon.png" ||
     pathname === "/robots.txt" ||
@@ -62,18 +61,17 @@ function checkAdminBasicAuth(req: NextRequest) {
 export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 0) Always allow Next assets so React hydrates + buttons work
+  // 0) Always allow Next assets (otherwise JS dies)
   if (isPublicAsset(pathname)) return NextResponse.next();
 
-  // 1) Protect admin routes only
+  // 1) Protect admin only
   if (isAdminRoute(pathname)) {
     if (!checkAdminBasicAuth(req)) return basicUnauthorized();
     return NextResponse.next();
   }
 
-  // 2) Allow all API routes
+  // 2) Allow all APIs
   if (isApiRoute(pathname)) return NextResponse.next();
 
-  // 3) Everything else public
   return NextResponse.next();
 }
