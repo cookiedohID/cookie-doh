@@ -53,6 +53,43 @@ function statusLabel(txStatus: string | null) {
   return { kind: "success" as const, title: "Order received" };
 }
 
+function normalizePaymentStatus(txStatus: string | null) {
+  const s = (txStatus || "").toLowerCase();
+  if (s === "settlement" || s === "capture") return "PAID";
+  if (s === "pending") return "PENDING";
+  if (s === "deny" || s === "cancel" || s === "expire" || s === "failure") return "FAILED";
+  return s ? s.toUpperCase() : "PAID";
+}
+
+function parseItemsText(raw: string | null) {
+  const t = (raw || "").trim();
+  if (!t) return null;
+
+  // If passed as multi-line, keep it
+  // If passed as JSON (array), we format it nicely
+  if (t.startsWith("[") && t.endsWith("]")) {
+    try {
+      const arr = JSON.parse(t);
+      if (Array.isArray(arr)) {
+        const lines = arr
+          .map((x: any) => {
+            const name = String(x?.name || x?.title || "").trim();
+            const qty = Number(x?.quantity ?? x?.qty ?? 0);
+            if (!name) return null;
+            if (!Number.isFinite(qty) || qty <= 0) return `• ${name}`;
+            return `• ${name} ×${qty}`;
+          })
+          .filter(Boolean);
+        return lines.length ? lines.join("\n") : null;
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  return t;
+}
+
 export default function SuccessClient() {
   const sp = useSearchParams();
   const router = useRouter();
@@ -79,6 +116,18 @@ export default function SuccessClient() {
   const pickupPoint = sp.get("pickup_point");
   const address = sp.get("address");
 
+  // NEW: optional extra fields if you pass them later
+  const shipmentStatus = sp.get("shipment_status") || sp.get("shipmentStatus");
+  const paymentStatusFromUrl = sp.get("payment_status") || sp.get("paymentStatus");
+
+  // NEW: optional items text payload (if you pass it later)
+  // You can pass either:
+  // - items_text
+  // - items
+  // - boxes_text
+  const itemsTextRaw = sp.get("items_text") || sp.get("items") || sp.get("boxes_text");
+  const itemsText = useMemo(() => parseItemsText(itemsTextRaw), [itemsTextRaw]);
+
   const status = useMemo(() => statusLabel(txStatus), [txStatus]);
 
   const businessWa =
@@ -86,31 +135,75 @@ export default function SuccessClient() {
     process.env.NEXT_PUBLIC_WA_NUMBER ||
     "6281932181818";
 
+  // ✅ UPDATED: WhatsApp message matches Admin "Order Summary" format
   const waMessage = useMemo(() => {
-    const parts = [
-      "Hi Cookie Doh 👋",
-      "I just completed checkout.",
-      "",
-      orderNo ? `Order No: ${orderNo}` : null,
-      orderId ? `Order ID: ${orderId}` : null,
-      midtransOrderId ? `Midtrans Order ID: ${midtransOrderId}` : null,
-      "",
-      customerName ? `Name: ${customerName}` : null,
-      customerPhone ? `WhatsApp: ${customerPhone}` : null,
-      "",
-      fulfillment ? `Fulfillment: ${fulfillment}` : null,
-      scheduleDate || scheduleTime ? `Schedule: ${[scheduleDate, scheduleTime].filter(Boolean).join(" • ")}` : null,
-      fulfillment === "pickup" && pickupPoint ? `Pickup point: ${pickupPoint}` : null,
-      fulfillment === "delivery" && address ? `Address: ${address}` : null,
-      "",
-      txStatus ? `Payment status: ${txStatus}` : null,
-      paymentType ? `Payment: ${paymentType}` : null,
-      amountText ? `Total: ${amountText}` : null,
-      "",
-      "Can you help confirm my order? Thank you 🤍",
-    ].filter(Boolean);
+    const paid = paymentStatusFromUrl
+      ? String(paymentStatusFromUrl).toUpperCase()
+      : normalizePaymentStatus(txStatus);
 
-    return parts.join("\n");
+    const fulfilmentLine = (() => {
+      const base = fulfillment ? String(fulfillment) : "";
+      const sched = [scheduleDate, scheduleTime].filter(Boolean).join(" ");
+      if (!base && !sched) return "-";
+      if (base && sched) return `${base} • ${sched}`;
+      return base || sched || "-";
+    })();
+
+    const shipLine = shipmentStatus ? String(shipmentStatus) : "-";
+
+    const addrLine = address ? String(address) : "-";
+
+    const lines: string[] = [];
+    lines.push("Cookie Doh — Order Summary");
+    lines.push("");
+
+    // Order + payment status
+    lines.push(`Order: ${orderNo || midtransOrderId || orderId || "—"}`);
+    lines.push(`Payment: ${paid || "—"}`);
+    lines.push(`Fulfilment: ${fulfilmentLine}`);
+    lines.push(`Shipment: ${shipLine}`);
+    lines.push("");
+
+    // Customer
+    if (customerName) lines.push(`Customer: ${customerName}`);
+    if (customerPhone) lines.push(`Phone: ${customerPhone}`);
+    if (customerName || customerPhone) lines.push("");
+
+    // Pickup / Address
+    if (fulfillment === "pickup" && pickupPoint) {
+      lines.push(`Pickup point: ${pickupPoint}`);
+      lines.push("");
+    }
+
+    lines.push("Address:");
+    lines.push(addrLine);
+    lines.push("");
+
+    // Total
+    lines.push(`Total: ${amountText || "—"}`);
+    lines.push("");
+
+    // Items (only if provided in URL)
+    if (itemsText) {
+      lines.push("Items:");
+      // if itemsText already includes bullets, keep as-is
+      lines.push(itemsText.startsWith("•") ? itemsText : itemsText);
+      lines.push("");
+    }
+
+    // Payment metadata (optional)
+    if (paymentType) lines.push(`Payment type: ${paymentType}`);
+    if (txStatus) lines.push(`Transaction status: ${txStatus}`);
+
+    // Final line
+    lines.push("");
+    lines.push("Can you help confirm my order? Thank you 🤍");
+
+    // Remove any accidental empty duplicates
+    return lines
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
   }, [
     orderId,
     orderNo,
@@ -125,6 +218,9 @@ export default function SuccessClient() {
     scheduleTime,
     pickupPoint,
     address,
+    shipmentStatus,
+    paymentStatusFromUrl,
+    itemsText,
   ]);
 
   const toneBlock = (() => {

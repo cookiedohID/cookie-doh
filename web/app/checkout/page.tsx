@@ -537,6 +537,10 @@ export default function CheckoutPage() {
         const orderNo = String(data.order_no || "");
         const midtransOrderId = String(data.midtrans_order_id || "");
 
+        const itemsText = String((result as any)?.__items_text || "");
+        if (itemsText) qs.set("items_text", itemsText);
+
+
         const goWithParams = (path: "/checkout/success" | "/checkout/pending", result: any) => {
           const qs = new URLSearchParams();
 
@@ -578,11 +582,43 @@ export default function CheckoutPage() {
           router.push(`${path}?${qs.toString()}`);
         };
 
+        const buildItemsTextFromCart = () => {
+        try {
+          const lines: string[] = [];
+          for (const b of (cart?.boxes || [])) {
+            for (const it of (b.items || [])) {
+              const name = String(it?.name || "").trim();
+              const qty = Number(it?.quantity || 0);
+              if (!name || !Number.isFinite(qty) || qty <= 0) continue;
+              lines.push(`• ${name} ×${qty}`);
+            }
+          }
+          return lines.length ? lines.join("\n") : "";
+        } catch {
+          return "";
+        }
+      };
+
+
         window.snap?.pay(token, {
-          onSuccess: (result: any) => {
-            clearCartStorage();
-            goWithParams("/checkout/success", result);
-          },
+          
+        onSuccess: (result: any) => {
+        // ✅ Build items BEFORE clearing cart
+        const itemsText = buildItemsTextFromCart();
+
+        // ✅ Pass extra fields into success URL
+        if (itemsText) {
+          // goWithParams already creates URLSearchParams inside
+          // so we pass via result extras to be appended below (step 3)
+          (result as any).__items_text = itemsText;
+        }
+
+        clearCartStorage();
+        goWithParams("/checkout/success", result);
+      },
+
+
+
           onPending: (result: any) => {
             goWithParams("/checkout/pending", result);
           },
