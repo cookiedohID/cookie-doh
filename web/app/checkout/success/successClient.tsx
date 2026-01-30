@@ -66,7 +66,7 @@ export default function SuccessClient() {
   const businessWa =
     process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
     process.env.NEXT_PUBLIC_WA_NUMBER ||
-    "6281234567890"; // fallback placeholder (replace in env)
+    "6281932181818"; // fallback placeholder (replace in env)
 
   const waMessage = useMemo(() => {
     const parts = [
