@@ -602,19 +602,14 @@ export default function CheckoutPage() {
 
         window.snap?.pay(token, {
           
-        onSuccess: (result: any) => {
-        // ✅ Build items BEFORE clearing cart
+       onSuccess: (result: any) => {
         const itemsText = buildItemsTextFromCart();
+        if (itemsText) (result as any).__items_text = itemsText;
 
-        // ✅ Pass extra fields into success URL
-        if (itemsText) {
-          // goWithParams already creates URLSearchParams inside
-          // so we pass via result extras to be appended below (step 3)
-          (result as any).__items_text = itemsText;
+        clearCartStorage();
+        goWithParams("/checkout/success", result);
+      },
 
-          clearCartStorage();
-          goWithParams("/checkout/success", result);
-        },
 
 
 
