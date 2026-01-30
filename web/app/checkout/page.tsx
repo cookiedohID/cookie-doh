@@ -8,6 +8,22 @@ import { useRouter } from "next/navigation";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
 import { clearCart, getCart, CART_KEY } from "@/lib/cart";
 
+declare global {
+  interface Window {
+    snap?: {
+      pay: (
+        token: string,
+        opts?: {
+          onSuccess?: (result: any) => void;
+          onPending?: (result: any) => void;
+          onError?: (result: any) => void;
+          onClose?: () => void;
+        }
+      ) => void;
+    };
+  }
+}
+
 type CartItem = {
   id: string;
   name: string;
@@ -27,7 +43,7 @@ type CartState = {
 };
 
 const COLORS = {
-  blue: "#0014a7",
+  blue: "#0014A7",
   orange: "#FF5A00",
   black: "#101010",
   white: "#FFFFFF",
@@ -41,7 +57,7 @@ const formatIDR = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-// Clear cart storage AFTER successful "Place order"
+// Clear cart storage AFTER successful payment success
 function clearCartStorage() {
   try {
     clearCart();
@@ -71,7 +87,8 @@ function normalizeIDPhone(input: string) {
 function validatePhone(input: string) {
   const normalized = normalizeIDPhone(input);
 
-  if (!normalized) return { ok: false, normalized: "", message: "Please add your WhatsApp number." };
+  if (!normalized)
+    return { ok: false, normalized: "", message: "Please add your WhatsApp number." };
 
   if (normalized.startsWith("+62")) {
     const onlyDigits = normalized.replace(/[^\d]/g, "");
@@ -86,7 +103,8 @@ function validatePhone(input: string) {
   }
 
   const digitCount = normalized.replace(/[^\d]/g, "").length;
-  if (digitCount < 8) return { ok: false, normalized, message: "WhatsApp number looks invalid." };
+  if (digitCount < 8)
+    return { ok: false, normalized, message: "WhatsApp number looks invalid." };
 
   return { ok: true, normalized, message: "" };
 }
@@ -242,7 +260,10 @@ export default function CheckoutPage() {
   const [scheduleTime, setScheduleTime] = useState<string>("");
 
   // Pickup points
-  const pickupPoints = useMemo(() => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON), []);
+  const pickupPoints = useMemo(
+    () => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON),
+    []
+  );
   const [pickupPointId, setPickupPointId] = useState<string>(() => pickupPoints[0]?.id || "");
 
   // Shipping quote
@@ -257,24 +278,24 @@ export default function CheckoutPage() {
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
 
   useEffect(() => {
-  const c = getCart() as any;
-  const next: CartState = c && Array.isArray(c.boxes) ? c : { boxes: [] };
-  setCart(next);
+    const c = getCart() as any;
+    const next: CartState = c && Array.isArray(c.boxes) ? c : { boxes: [] };
+    setCart(next);
 
-  const empty = !next.boxes || next.boxes.length === 0;
-  if (empty) {
-    router.replace("/build");
-    return;
-  }
+    const empty = !next.boxes || next.boxes.length === 0;
+    if (empty) {
+      router.replace("/build");
+      return;
+    }
 
-  setBooting(false);
-}, [router]);
+    setBooting(false);
+  }, [router]);
 
-
-  const subtotal = useMemo(() => cart.boxes.reduce((s, b) => s + (b.total || 0), 0), [cart]);
+  const subtotal = useMemo(
+    () => cart.boxes.reduce((s, b) => s + (b.total || 0), 0),
+    [cart]
+  );
   const isEmpty = cart.boxes.length === 0;
-
-  
 
   const sameStyle: CSSProperties = {
     height: 46,
@@ -298,12 +319,17 @@ export default function CheckoutPage() {
   const isScheduleTodayJakarta = !!scheduleDate && scheduleDate === todayJakarta;
 
   // ✅ Same-day disabled ONLY if scheduleDate is today AND after 12:00
-  const samedayDisabled = fulfillment === "delivery" && isScheduleTodayJakarta && nowMinJakarta >= 12 * 60;
+  const samedayDisabled =
+    fulfillment === "delivery" && isScheduleTodayJakarta && nowMinJakarta >= 12 * 60;
 
   // ✅ Instant slots filtered for today only
   const instantSlotOptions = useMemo(() => {
-    if (!isScheduleTodayJakarta) return INSTANT_SLOTS.map((s) => ({ value: s.value, label: s.label }));
-    return INSTANT_SLOTS.filter((s) => nowMinJakarta < s.endMin).map((s) => ({ value: s.value, label: s.label }));
+    if (!isScheduleTodayJakarta)
+      return INSTANT_SLOTS.map((s) => ({ value: s.value, label: s.label }));
+    return INSTANT_SLOTS.filter((s) => nowMinJakarta < s.endMin).map((s) => ({
+      value: s.value,
+      label: s.label,
+    }));
   }, [isScheduleTodayJakarta, nowMinJakarta]);
 
   const noSlotsLeftToday =
@@ -320,8 +346,8 @@ export default function CheckoutPage() {
     scheduleTouched && (!scheduleDate || !scheduleTime)
       ? "Please choose date and time."
       : noSlotsLeftToday
-        ? "No delivery slots left for today. Please choose another date."
-        : "";
+      ? "No delivery slots left for today. Please choose another date."
+      : "";
 
   // Quote function
   const canQuote =
@@ -403,16 +429,18 @@ export default function CheckoutPage() {
       if (!addressResolved || addressLat === null || addressLng === null) {
         return "Please choose a valid address from the Google suggestions.";
       }
-      if (shippingCost == null) return "Delivery fee unavailable. Please recalculate delivery fee.";
-      if (noSlotsLeftToday) return "No delivery slots left for today. Please choose another date.";
+      if (shippingCost == null)
+        return "Delivery fee unavailable. Please recalculate delivery fee.";
+      if (noSlotsLeftToday)
+        return "No delivery slots left for today. Please choose another date.";
     }
 
-    if (!scheduleDate || !scheduleTime) return "Please choose delivery/pickup date and time.";
+    if (!scheduleDate || !scheduleTime)
+      return "Please choose delivery/pickup date and time.";
     if (fulfillment === "pickup" && !pickupPointId) return "Please choose a pickup point.";
 
     return null;
   };
-
 
   const placeOrder = async () => {
     setErr(null);
@@ -424,8 +452,20 @@ export default function CheckoutPage() {
     if (v) return setErr(v);
     if (isEmpty) return setErr("Your cart is empty. Please build a box first.");
 
+    // Midtrans Snap popup must exist
+    if (
+      (process.env.NEXT_PUBLIC_CHECKOUT_MODE || "midtrans").toLowerCase() === "midtrans" &&
+      (!window.snap || typeof window.snap.pay !== "function")
+    ) {
+      return setErr(
+        "Payment system is still loading. Please refresh the page and try again."
+      );
+    }
+
     const normalizedPhone = phoneCheck.normalized || normalizeIDPhone(phone);
-    const fullAddress = addressDetail.trim() ? `${addressBase}\n${addressDetail.trim()}` : addressBase;
+    const fullAddress = addressDetail.trim()
+      ? `${addressBase}\n${addressDetail.trim()}`
+      : addressBase;
 
     setLoading(true);
     try {
@@ -479,13 +519,45 @@ export default function CheckoutPage() {
 
       if (!res.ok) {
         const body = await readErrorBody(res);
-        throw new Error(body ? `Checkout failed (HTTP ${res.status}). ${body}` : `Checkout failed (HTTP ${res.status}).`);
+        throw new Error(
+          body
+            ? `Checkout failed (HTTP ${res.status}). ${body}`
+            : `Checkout failed (HTTP ${res.status}).`
+        );
       }
 
       const data = await res.json().catch(() => ({} as any));
-      const redirectUrl = data?.redirect_url || data?.redirectUrl;
 
-      if (!redirectUrl) throw new Error(`Missing redirect_url from server: ${JSON.stringify(data)}`);
+      // ✅ Midtrans POPUP flow
+      if (data?.mode === "midtrans" && data?.snap_token) {
+        const token = String(data.snap_token);
+
+        window.snap?.pay(token, {
+          onSuccess: () => {
+            clearCartStorage();
+            router.push("/checkout/success");
+          },
+          onPending: () => {
+            router.push("/checkout/pending");
+          },
+          onError: () => {
+            setErr("Payment failed. Please try again.");
+          },
+          onClose: () => {
+            setErr("Payment popup was closed.");
+          },
+        });
+
+        return; // important: stop here
+      }
+
+      // ✅ Manual / redirect fallback
+      const redirectUrl = data?.redirect_url || data?.redirectUrl;
+      if (!redirectUrl) {
+        throw new Error(
+          `Checkout succeeded but missing payment response. Server response: ${JSON.stringify(data)}`
+        );
+      }
 
       clearCartStorage();
       window.location.href = redirectUrl;
@@ -528,7 +600,15 @@ export default function CheckoutPage() {
 
         <div style={{ display: "grid", gap: 14 }}>
           {/* CONTACT */}
-          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
             <div style={{ fontWeight: 950, color: COLORS.black }}>Contact details</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               We’ll use this to update you about your order.
@@ -537,11 +617,18 @@ export default function CheckoutPage() {
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Name</span>
-                <input value={name} onChange={(e) => setName(e.target.value)} style={sameStyle} placeholder="Your name" />
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  style={sameStyle}
+                  placeholder="Your name"
+                />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>WhatsApp number</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>
+                  WhatsApp number
+                </span>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
@@ -564,7 +651,15 @@ export default function CheckoutPage() {
           </section>
 
           {/* Fulfillment */}
-          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
             <div style={{ fontWeight: 950, color: COLORS.black }}>Fulfillment</div>
             <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
               Choose delivery or pickup, then select date & time.
@@ -578,13 +673,18 @@ export default function CheckoutPage() {
                   textAlign: "left",
                   borderRadius: 16,
                   padding: 12,
-                  border: fulfillment === "delivery" ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
-                  background: fulfillment === "delivery" ? "rgba(0,82,204,0.06)" : COLORS.sand,
+                  border:
+                    fulfillment === "delivery"
+                      ? `2px solid ${COLORS.blue}`
+                      : "1px solid rgba(0,0,0,0.10)",
+                  background: fulfillment === "delivery" ? "rgba(0,20,167,0.06)" : COLORS.sand,
                   cursor: "pointer",
                 }}
               >
                 <div style={{ fontWeight: 900, color: COLORS.black }}>Delivery</div>
-                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>We deliver to your address</div>
+                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                  We deliver to your address
+                </div>
               </button>
 
               <button
@@ -594,13 +694,18 @@ export default function CheckoutPage() {
                   textAlign: "left",
                   borderRadius: 16,
                   padding: 12,
-                  border: fulfillment === "pickup" ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
-                  background: fulfillment === "pickup" ? "rgba(0,82,204,0.06)" : COLORS.sand,
+                  border:
+                    fulfillment === "pickup"
+                      ? `2px solid ${COLORS.blue}`
+                      : "1px solid rgba(0,0,0,0.10)",
+                  background: fulfillment === "pickup" ? "rgba(0,20,167,0.06)" : COLORS.sand,
                   cursor: "pointer",
                 }}
               >
                 <div style={{ fontWeight: 900, color: COLORS.black }}>Pickup</div>
-                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Collect at our pickup point</div>
+                <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                  Collect at our pickup point
+                </div>
               </button>
             </div>
 
@@ -615,8 +720,11 @@ export default function CheckoutPage() {
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border: deliverySpeed === "instant" ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
-                      background: deliverySpeed === "instant" ? "rgba(0,82,204,0.06)" : COLORS.sand,
+                      border:
+                        deliverySpeed === "instant"
+                          ? `2px solid ${COLORS.blue}`
+                          : "1px solid rgba(0,0,0,0.10)",
+                      background: deliverySpeed === "instant" ? "rgba(0,20,167,0.06)" : COLORS.sand,
                       cursor: "pointer",
                     }}
                   >
@@ -632,8 +740,11 @@ export default function CheckoutPage() {
                       textAlign: "left",
                       borderRadius: 16,
                       padding: 12,
-                      border: deliverySpeed === "sameday" ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
-                      background: deliverySpeed === "sameday" ? "rgba(0,82,204,0.06)" : COLORS.sand,
+                      border:
+                        deliverySpeed === "sameday"
+                          ? `2px solid ${COLORS.blue}`
+                          : "1px solid rgba(0,0,0,0.10)",
+                      background: deliverySpeed === "sameday" ? "rgba(0,20,167,0.06)" : COLORS.sand,
                       cursor: samedayDisabled ? "not-allowed" : "pointer",
                       opacity: samedayDisabled ? 0.55 : 1,
                     }}
@@ -734,7 +845,7 @@ export default function CheckoutPage() {
                             borderRadius: 16,
                             padding: 12,
                             border: active ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
-                            background: active ? "rgba(0,82,204,0.06)" : COLORS.sand,
+                            background: active ? "rgba(0,20,167,0.06)" : COLORS.sand,
                             cursor: "pointer",
                           }}
                         >
@@ -751,7 +862,15 @@ export default function CheckoutPage() {
 
           {/* Delivery details */}
           {fulfillment === "delivery" ? (
-            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+            <section
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,0.10)",
+                padding: 14,
+                background: "#fff",
+                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+              }}
+            >
               <div style={{ fontWeight: 950, color: COLORS.black }}>Delivery details</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
                 Please double-check your address to avoid delivery delays.
@@ -785,11 +904,22 @@ export default function CheckoutPage() {
                     }}
                   />
 
-                  {addressError ? <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>{addressError}</div> : null}
+                  {addressError ? (
+                    <div style={{ fontSize: 12, color: "crimson", fontWeight: 700 }}>{addressError}</div>
+                  ) : null}
 
-                  <input value={addressDetail} onChange={(e) => setAddressDetail(e.target.value)} placeholder="Unit / floor / landmark (optional)" style={sameStyle} />
+                  <input
+                    value={addressDetail}
+                    onChange={(e) => setAddressDetail(e.target.value)}
+                    placeholder="Unit / floor / landmark (optional)"
+                    style={sameStyle}
+                  />
 
-                  {!mapsKey && <div style={{ fontSize: 12, color: "#6B6B6B" }}>(Autocomplete is off because Google Maps API key is not set.)</div>}
+                  {!mapsKey ? (
+                    <div style={{ fontSize: 12, color: "#6B6B6B" }}>
+                      (Autocomplete is off because Google Maps API key is not set.)
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Live quote controls */}
@@ -873,8 +1003,18 @@ export default function CheckoutPage() {
                 </div>
 
                 <div style={{ display: "grid", gap: 8 }}>
-                  <input value={buildingName} onChange={(e) => setBuildingName(e.target.value)} placeholder="Building name (auto, editable)" style={sameStyle} />
-                  <input value={postalCode} onChange={(e) => setPostalCode(e.target.value)} placeholder="Postal code (auto, editable)" style={sameStyle} />
+                  <input
+                    value={buildingName}
+                    onChange={(e) => setBuildingName(e.target.value)}
+                    placeholder="Building name (auto, editable)"
+                    style={sameStyle}
+                  />
+                  <input
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    placeholder="Postal code (auto, editable)"
+                    style={sameStyle}
+                  />
                 </div>
 
                 <label style={{ display: "grid", gap: 6 }}>
@@ -882,14 +1022,29 @@ export default function CheckoutPage() {
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
+                    style={{
+                      minHeight: 90,
+                      borderRadius: 14,
+                      border: "1px solid rgba(0,0,0,0.12)",
+                      padding: "10px 12px",
+                      outline: "none",
+                      resize: "vertical",
+                    }}
                     placeholder="Gift note, delivery timing, special instructions…"
                   />
                 </label>
               </div>
             </section>
           ) : (
-            <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+            <section
+              style={{
+                borderRadius: 18,
+                border: "1px solid rgba(0,0,0,0.10)",
+                padding: 14,
+                background: "#fff",
+                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+              }}
+            >
               <div style={{ fontWeight: 950, color: COLORS.black }}>Pickup notes (optional)</div>
               <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
                 Tell us anything we should know for pickup.
@@ -900,7 +1055,14 @@ export default function CheckoutPage() {
                 <textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
+                  style={{
+                    minHeight: 90,
+                    borderRadius: 14,
+                    border: "1px solid rgba(0,0,0,0.12)",
+                    padding: "10px 12px",
+                    outline: "none",
+                    resize: "vertical",
+                  }}
                   placeholder="Pickup instructions…"
                 />
               </label>
@@ -908,7 +1070,15 @@ export default function CheckoutPage() {
           )}
 
           {/* Order summary */}
-          <section style={{ borderRadius: 18, border: "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+          <section
+            style={{
+              borderRadius: 18,
+              border: "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
             <div style={{ fontWeight: 950, color: COLORS.black }}>Your order 🤍</div>
 
             <div style={{ marginTop: 12, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
@@ -974,13 +1144,25 @@ export default function CheckoutPage() {
       </div>
 
       {/* Sticky Place Order */}
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.08)", boxShadow: "0 -10px 30px rgba(0,0,0,0.05)", padding: "12px 14px" }}>
+      <div
+        style={{
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "#fff",
+          borderTop: "1px solid rgba(0,0,0,0.08)",
+          boxShadow: "0 -10px 30px rgba(0,0,0,0.05)",
+          padding: "12px 14px",
+        }}
+      >
         <div style={{ maxWidth: 980, margin: "0 auto" }}>
           <button
             onClick={placeOrder}
             disabled={
               loading ||
-              (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday))
+              (fulfillment === "delivery" &&
+                (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday))
             }
             style={{
               width: "100%",
@@ -988,13 +1170,16 @@ export default function CheckoutPage() {
               height: 52,
               border: "none",
               cursor: loading ? "not-allowed" : "pointer",
-              background: loading ? "rgba(0,82,204,0.55)" : COLORS.blue,
+              background: loading ? "rgba(0,20,167,0.55)" : COLORS.blue,
               color: "#fff",
               fontWeight: 950,
               fontSize: 16,
               boxShadow: "0 10px 22px rgba(0,0,0,0.08)",
               opacity:
-                (fulfillment === "delivery" && (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday)) ? 0.6 : 1,
+                (fulfillment === "delivery" &&
+                  (shippingCost == null || !!shippingError || shippingLoading || noSlotsLeftToday))
+                  ? 0.6
+                  : 1,
             }}
           >
             {loading ? "Preparing payment…" : "Place order"}

@@ -1,6 +1,8 @@
 // web/app/api/checkout/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createSnapToken } from "@/lib/midtrans";
+
 
 export const runtime = "nodejs";
 
@@ -270,13 +272,15 @@ export async function POST(req: Request) {
       if (pickup?.pointName) u.searchParams.set("pickup_point", String(pickup.pointName));
 
       return NextResponse.json({
-        ok: true,
-        mode: "manual",
+        ok: false,
+        mode: "midtrans",
+        error: "Midtrans flow not wired in /api/checkout yet, but order has been created.",
         order_id: orderRow.id,
         order_no: orderRow.order_no,
         redirect_url: u.toString(),
-      });
-    }
+        },
+        { status: 500 }
+      );
 
     // ✅ Midtrans Snap mode
     const snap = await createSnapTransaction({
@@ -305,6 +309,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       mode: "midtrans",
+      snap_token: snapToken,
       order_id: orderRow.id,
       order_no: orderRow.order_no,
       midtrans_order_id: midtransOrderId,
