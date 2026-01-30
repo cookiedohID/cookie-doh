@@ -1,28 +1,15 @@
 // web/app/api/checkout/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createSnapToken } from "@/lib/midtrans";
-
+import { createSnapToken, midtransEnv } from "@/lib/midtrans";
 
 export const runtime = "nodejs";
 
 function getSiteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 }
-
 function mode() {
   return (process.env.NEXT_PUBLIC_CHECKOUT_MODE || "midtrans").toLowerCase();
-}
-
-function isProd() {
-  const v = (process.env.MIDTRANS_IS_PRODUCTION || "").toString().toLowerCase();
-  return v === "true" || v === "1" || v === "yes";
-}
-
-function midtransServerKey() {
-  const k = process.env.MIDTRANS_SERVER_KEY || "";
-  if (!k) throw new Error("Missing MIDTRANS_SERVER_KEY");
-  return k;
 }
 
 function supaAdmin() {
@@ -85,83 +72,6 @@ function makeMidtransOrderId(checkoutMode: string) {
   const rand = Math.random().toString(16).slice(2, 8).toUpperCase();
   const prefix = checkoutMode === "manual" ? "CD-MANUAL" : "CD";
   return `${prefix}-${y}${m}${day}-${rand}`;
-}
-
-function basicAuthHeader(serverKey: string) {
-  // Midtrans: HTTP Basic Auth, username = server key, password empty
-  const token = Buffer.from(`${serverKey}:`).toString("base64");
-  return `Basic ${token}`;
-}
-
-async function createSnapTransaction(args: {
-  orderId: string;
-  grossAmount: number;
-  customer: { name?: string; phone?: string; email?: string };
-  itemsText?: string;
-  siteUrl: string;
-}) {
-  const serverKey = midtransServerKey();
-  const prod = isProd();
-
-  // Snap API base:
-  const snapBase = prod ? "https://app.midtrans.com" : "https://app.sandbox.midtrans.com";
-  const url = `${snapBase}/snap/v1/transactions`;
-
-  // Best-effort customer split
-  const fullName = (args.customer.name || "").trim();
-  const firstName = fullName ? fullName.split(" ")[0] : "Customer";
-
-  const payload: any = {
-    transaction_details: {
-      order_id: args.orderId,
-      gross_amount: args.grossAmount,
-    },
-    customer_details: {
-      first_name: firstName,
-      last_name: fullName && fullName.split(" ").length > 1 ? fullName.split(" ").slice(1).join(" ") : "",
-      email: args.customer.email || undefined,
-      phone: args.customer.phone || undefined,
-    },
-    // Optional, but helpful
-    item_details: [
-      {
-        id: "cookie-doh-order",
-        name: "Cookie Doh Order",
-        price: args.grossAmount,
-        quantity: 1,
-      },
-    ],
-    custom_field1: args.itemsText || undefined,
-    callbacks: {
-      finish: `${args.siteUrl}/checkout/success`,
-    },
-  };
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: basicAuthHeader(serverKey),
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const j = await res.json().catch(() => ({} as any));
-
-  if (!res.ok) {
-    const msg = j?.error_messages?.join?.(" | ") || j?.message || j?.status_message || `Midtrans error HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-
-  const token = String(j?.token || "").trim();
-  const redirect_url = String(j?.redirect_url || "").trim();
-
-  if (!token || !redirect_url) {
-    throw new Error(`Midtrans response missing token/redirect_url: ${JSON.stringify(j)}`);
-  }
-
-  return { token, redirect_url, raw: j };
 }
 
 export async function POST(req: Request) {
@@ -254,7 +164,7 @@ export async function POST(req: Request) {
     if (e1) throw e1;
     if (!orderRow?.id) throw new Error("Order insert failed (missing id)");
 
-    // ✅ Manual mode unchanged
+    // ✅ Manual mode = return redirect_url to /checkout/pending
     if (checkoutMode === "manual") {
       const u = new URL(`${siteUrl}/checkout/pending`);
       u.searchParams.set("order_id", orderRow.id);
@@ -272,35 +182,32 @@ export async function POST(req: Request) {
       if (pickup?.pointName) u.searchParams.set("pickup_point", String(pickup.pointName));
 
       return NextResponse.json({
-        ok: false,
-        mode: "midtrans",
-        error: "Midtrans flow not wired in /api/checkout yet, but order has been created.",
+        ok: true,
+        mode: "manual",
         order_id: orderRow.id,
         order_no: orderRow.order_no,
         redirect_url: u.toString(),
-        },
-        { status: 500 }
-      );
+      });
+    }
 
-    // ✅ Midtrans Snap mode
-    const snap = await createSnapTransaction({
-      orderId: midtransOrderId,
-      grossAmount: totalIdr,
+    // ✅ Midtrans SNAP POPUP mode = return snap_token
+    const token = await createSnapToken({
+      order_id: midtransOrderId,
+      gross_amount: totalIdr,
       customer: { name: customerName, phone: customerPhone, email },
-      itemsText: boxesText || undefined,
       siteUrl,
+      itemsText: boxesText || undefined,
     });
 
-    // Save token/url for admin visibility (optional but helpful)
+    // store token in meta for admin visibility (optional)
     await supabase
       .from("orders")
       .update({
         meta: {
           ...(orderInsert.meta || {}),
           midtrans: {
-            token: snap.token,
-            redirect_url: snap.redirect_url,
-            is_production: isProd(),
+            env: midtransEnv(),
+            token,
           },
         },
       })
@@ -309,14 +216,15 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       mode: "midtrans",
-      snap_token: snapToken,
+      snap_token: token,
       order_id: orderRow.id,
       order_no: orderRow.order_no,
       midtrans_order_id: midtransOrderId,
-      redirect_url: snap.redirect_url,
-      token: snap.token,
     });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Invalid request body" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: e?.message || "Invalid request body" },
+      { status: 400 }
+    );
   }
 }
