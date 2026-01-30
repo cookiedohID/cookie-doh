@@ -43,9 +43,11 @@ function statusLabel(txStatus: string | null) {
   const s = (txStatus || "").toLowerCase();
 
   // Midtrans common statuses: settlement, capture, pending, deny, cancel, expire, failure
-  if (s === "settlement" || s === "capture") return { kind: "success" as const, title: "Payment received" };
+  if (s === "settlement" || s === "capture")
+    return { kind: "success" as const, title: "Payment received" };
   if (s === "pending") return { kind: "pending" as const, title: "Payment pending" };
-  if (s === "deny" || s === "cancel" || s === "expire" || s === "failure") return { kind: "failed" as const, title: "Payment not completed" };
+  if (s === "deny" || s === "cancel" || s === "expire" || s === "failure")
+    return { kind: "failed" as const, title: "Payment not completed" };
 
   // Unknown / missing
   return { kind: "success" as const, title: "Order received" };
@@ -55,42 +57,85 @@ export default function SuccessClient() {
   const sp = useSearchParams();
   const router = useRouter();
 
+  // IDs
   const orderId = sp.get("order_id") || sp.get("orderId") || sp.get("id");
+  const orderNo = sp.get("order_no") || sp.get("orderNo");
+  const midtransOrderId = sp.get("midtrans_order_id") || sp.get("midtransOrderId");
+
+  // Midtrans result (best-effort)
   const txStatus = sp.get("transaction_status") || sp.get("transactionStatus");
   const paymentType = sp.get("payment_type") || sp.get("paymentType");
   const grossAmount = sp.get("gross_amount") || sp.get("grossAmount");
   const amountText = useMemo(() => formatIDRLoose(grossAmount), [grossAmount]);
+
+  // Customer/context (optional)
+  const customerName = sp.get("customer_name") || sp.get("name");
+  const customerPhone = sp.get("customer_phone") || sp.get("phone");
+
+  // Schedule/context
+  const fulfillment = sp.get("fulfillment"); // "delivery" | "pickup"
+  const scheduleDate = sp.get("schedule_date") || sp.get("date");
+  const scheduleTime = sp.get("schedule_time") || sp.get("time");
+  const pickupPoint = sp.get("pickup_point");
+  const address = sp.get("address");
 
   const status = useMemo(() => statusLabel(txStatus), [txStatus]);
 
   const businessWa =
     process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
     process.env.NEXT_PUBLIC_WA_NUMBER ||
-    "6281932181818"; // fallback placeholder (replace in env)
+    "6281932181818";
 
   const waMessage = useMemo(() => {
     const parts = [
       "Hi Cookie Doh 👋",
       "I just completed checkout.",
+      "",
+      orderNo ? `Order No: ${orderNo}` : null,
       orderId ? `Order ID: ${orderId}` : null,
-      txStatus ? `Status: ${txStatus}` : null,
+      midtransOrderId ? `Midtrans Order ID: ${midtransOrderId}` : null,
+      "",
+      customerName ? `Name: ${customerName}` : null,
+      customerPhone ? `WhatsApp: ${customerPhone}` : null,
+      "",
+      fulfillment ? `Fulfillment: ${fulfillment}` : null,
+      scheduleDate || scheduleTime ? `Schedule: ${[scheduleDate, scheduleTime].filter(Boolean).join(" • ")}` : null,
+      fulfillment === "pickup" && pickupPoint ? `Pickup point: ${pickupPoint}` : null,
+      fulfillment === "delivery" && address ? `Address: ${address}` : null,
+      "",
+      txStatus ? `Payment status: ${txStatus}` : null,
       paymentType ? `Payment: ${paymentType}` : null,
       amountText ? `Total: ${amountText}` : null,
       "",
-      "Can you help confirm my order? धन्यवाद / thank you 🤍",
+      "Can you help confirm my order? Thank you 🤍",
     ].filter(Boolean);
+
     return parts.join("\n");
-  }, [orderId, txStatus, paymentType, amountText]);
+  }, [
+    orderId,
+    orderNo,
+    midtransOrderId,
+    txStatus,
+    paymentType,
+    amountText,
+    customerName,
+    customerPhone,
+    fulfillment,
+    scheduleDate,
+    scheduleTime,
+    pickupPoint,
+    address,
+  ]);
 
   const toneBlock = (() => {
     if (status.kind === "success") {
       return {
-        bg: "rgba(0,82,204,0.06)",
-        border: "1px solid rgba(0,82,204,0.18)",
+        bg: "rgba(0,20,167,0.06)",
+        border: "1px solid rgba(0,20,167,0.18)",
         badgeBg: COLORS.blue,
-        badgeText: "CONFIRMED",
+        badgeText: "RECEIVED",
         title: "Thank you 🤍",
-        subtitle: "Your order is in. We’ll send updates via WhatsApp.",
+        subtitle: "Your payment is received. We’ll confirm your order via WhatsApp.",
       };
     }
     if (status.kind === "pending") {
@@ -172,10 +217,17 @@ export default function SuccessClient() {
 
           {/* Order meta */}
           <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
+            {orderNo ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Order No</div>
+                <div style={{ fontWeight: 950, color: COLORS.black }}>{orderNo}</div>
+              </div>
+            ) : null}
+
             {orderId ? (
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Order ID</div>
-                <div style={{ fontWeight: 950, color: COLORS.black }}>{orderId}</div>
+                <div style={{ fontWeight: 900, color: COLORS.black }}>{orderId}</div>
               </div>
             ) : null}
 
@@ -183,6 +235,31 @@ export default function SuccessClient() {
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Total</div>
                 <div style={{ fontWeight: 950, color: COLORS.black }}>{amountText}</div>
+              </div>
+            ) : null}
+
+            {fulfillment ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Fulfillment</div>
+                <div style={{ fontWeight: 900, color: COLORS.black, textTransform: "capitalize" }}>
+                  {fulfillment}
+                </div>
+              </div>
+            ) : null}
+
+            {(scheduleDate || scheduleTime) ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Schedule</div>
+                <div style={{ fontWeight: 900, color: COLORS.black }}>
+                  {[scheduleDate, scheduleTime].filter(Boolean).join(" • ")}
+                </div>
+              </div>
+            ) : null}
+
+            {fulfillment === "pickup" && pickupPoint ? (
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Pickup point</div>
+                <div style={{ fontWeight: 900, color: COLORS.black }}>{pickupPoint}</div>
               </div>
             ) : null}
 
@@ -217,7 +294,18 @@ export default function SuccessClient() {
           <div style={{ fontWeight: 950, color: COLORS.black }}>What happens next</div>
           <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
             <div style={{ display: "flex", gap: 10 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 999, background: "#fff", border: "1px solid rgba(0,0,0,0.10)", display: "grid", placeItems: "center", fontWeight: 900 }}>
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 999,
+                  background: "#fff",
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  display: "grid",
+                  placeItems: "center",
+                  fontWeight: 900,
+                }}
+              >
                 1
               </div>
               <div style={{ color: "rgba(0,0,0,0.70)", lineHeight: 1.55 }}>
@@ -226,7 +314,18 @@ export default function SuccessClient() {
             </div>
 
             <div style={{ display: "flex", gap: 10 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 999, background: "#fff", border: "1px solid rgba(0,0,0,0.10)", display: "grid", placeItems: "center", fontWeight: 900 }}>
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 999,
+                  background: "#fff",
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  display: "grid",
+                  placeItems: "center",
+                  fontWeight: 900,
+                }}
+              >
                 2
               </div>
               <div style={{ color: "rgba(0,0,0,0.70)", lineHeight: 1.55 }}>
@@ -235,7 +334,18 @@ export default function SuccessClient() {
             </div>
 
             <div style={{ display: "flex", gap: 10 }}>
-              <div style={{ width: 26, height: 26, borderRadius: 999, background: "#fff", border: "1px solid rgba(0,0,0,0.10)", display: "grid", placeItems: "center", fontWeight: 900 }}>
+              <div
+                style={{
+                  width: 26,
+                  height: 26,
+                  borderRadius: 999,
+                  background: "#fff",
+                  border: "1px solid rgba(0,0,0,0.10)",
+                  display: "grid",
+                  placeItems: "center",
+                  fontWeight: 900,
+                }}
+              >
                 3
               </div>
               <div style={{ color: "rgba(0,0,0,0.70)", lineHeight: 1.55 }}>
