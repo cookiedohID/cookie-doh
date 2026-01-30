@@ -537,12 +537,12 @@ export default function CheckoutPage() {
         const orderNo = String(data.order_no || "");
         const midtransOrderId = String(data.midtrans_order_id || "");
 
-        const itemsText = String((result as any)?.__items_text || "");
-        if (itemsText) qs.set("items_text", itemsText);
-
-
         const goWithParams = (path: "/checkout/success" | "/checkout/pending", result: any) => {
           const qs = new URLSearchParams();
+
+          const itemsText = String((result as any)?.__items_text || "");
+          if (itemsText) qs.set("items_text", itemsText);
+
 
           // our DB identifiers
           if (dbOrderId) qs.set("order_id", dbOrderId);
@@ -611,11 +611,10 @@ export default function CheckoutPage() {
           // goWithParams already creates URLSearchParams inside
           // so we pass via result extras to be appended below (step 3)
           (result as any).__items_text = itemsText;
-        }
 
-        clearCartStorage();
-        goWithParams("/checkout/success", result);
-      },
+          clearCartStorage();
+          goWithParams("/checkout/success", result);
+        },
 
 
 
