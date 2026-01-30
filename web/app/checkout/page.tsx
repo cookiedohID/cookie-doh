@@ -532,24 +532,71 @@ export default function CheckoutPage() {
       if (data?.mode === "midtrans" && data?.snap_token) {
         const token = String(data.snap_token);
 
+        // These are returned by your /api/checkout
+        const dbOrderId = String(data.order_id || "");
+        const orderNo = String(data.order_no || "");
+        const midtransOrderId = String(data.midtrans_order_id || "");
+
+        const goWithParams = (path: "/checkout/success" | "/checkout/pending", result: any) => {
+          const qs = new URLSearchParams();
+
+          // our DB identifiers
+          if (dbOrderId) qs.set("order_id", dbOrderId);
+          if (orderNo) qs.set("order_no", orderNo);
+          if (midtransOrderId) qs.set("midtrans_order_id", midtransOrderId);
+
+          // midtrans result fields (best effort)
+          const txStatus = String(result?.transaction_status || result?.status_message || "");
+          const payType = String(result?.payment_type || "");
+          const gross = String(result?.gross_amount || grandTotal || "");
+
+          if (txStatus) qs.set("transaction_status", txStatus);
+          if (payType) qs.set("payment_type", payType);
+          if (gross) qs.set("gross_amount", gross);
+
+          // helpful customer/context (optional but nice)
+          if (name.trim()) qs.set("customer_name", name.trim());
+          if (phoneCheck.normalized) qs.set("customer_phone", phoneCheck.normalized);
+
+          // schedule context
+          if (scheduleDate) qs.set("schedule_date", scheduleDate);
+          if (scheduleTime) qs.set("schedule_time", scheduleTime);
+          qs.set("fulfillment", fulfillment);
+
+          // pickup name if pickup
+          if (fulfillment === "pickup") {
+            const pName = pickupPoints.find((p) => p.id === pickupPointId)?.name || "";
+            if (pName) qs.set("pickup_point", pName);
+          }
+
+          // address summary if delivery (keep short)
+          if (fulfillment === "delivery") {
+            const addr = addressBase || "";
+            if (addr) qs.set("address", addr);
+          }
+
+          router.push(`${path}?${qs.toString()}`);
+        };
+
         window.snap?.pay(token, {
-          onSuccess: () => {
+          onSuccess: (result: any) => {
             clearCartStorage();
-            router.push("/checkout/success");
+            goWithParams("/checkout/success", result);
           },
-          onPending: () => {
-            router.push("/checkout/pending");
+          onPending: (result: any) => {
+            goWithParams("/checkout/pending", result);
           },
-          onError: () => {
-            setErr("Payment failed. Please try again.");
+          onError: (result: any) => {
+            setErr(result?.status_message || "Payment failed. Please try again.");
           },
           onClose: () => {
             setErr("Payment popup was closed.");
           },
         });
 
-        return; // important: stop here
+        return; // ⛔ stop here
       }
+
 
       // ✅ Manual / redirect fallback
       const redirectUrl = data?.redirect_url || data?.redirectUrl;
