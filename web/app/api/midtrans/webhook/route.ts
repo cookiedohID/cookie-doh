@@ -83,8 +83,9 @@ export async function POST(req: NextRequest) {
   const payload = await req.json();
 
   if (!verifyMidtransSignature(payload)) {
-    return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
+  return NextResponse.json({ ok: true, ignored: "invalid-signature" });
   }
+
 
   const midtransOrderId = String(payload?.order_id ?? "");
   const transactionStatus = String(payload?.transaction_status ?? "");
@@ -116,13 +117,24 @@ export async function POST(req: NextRequest) {
       payment_status,
       midtrans_transaction_status: transactionStatus,
       midtrans_status: transactionStatus,
-      amount: payload?.gross_amount ? Number(payload.gross_amount) : order.amount,
-      currency: payload?.currency ? String(payload.currency) : order.currency,
+      total_idr: payload?.gross_amount
+      ? Number(payload.gross_amount)
+      : order.total_idr,
       paid_at,
     })
     .eq("midtrans_order_id", midtransOrderId);
 
   if (updErr) return NextResponse.json({ ok: false, error: updErr.message }, { status: 500 });
+
+  if (order.payment_status === "PAID") {
+  return NextResponse.json({
+    ok: true,
+    midtrans_order_id: midtransOrderId,
+    payment_status: "PAID",
+    skipped: "already-paid",
+  });
+}
+
 
   // create biteship order only when PAID and not already created
   if (payment_status === "PAID") {
@@ -134,6 +146,12 @@ export async function POST(req: NextRequest) {
         shipment: "already-created",
       });
     }
+
+    const preparation_store_id =
+    order.fulfillment_status === "pickup"
+    ? order.pickup_point_id
+    : order.meta?.quote?.origin?.id || "kemang";
+
 
     const destination_contact_name = String(order.customer_name ?? "").trim();
     const destination_contact_phone = String(order.customer_phone ?? "").trim();
