@@ -40,6 +40,12 @@ function waLink(number: string, text: string) {
   return `https://wa.me/${phone}?text=${msg}`;
 }
 
+function mapsLink(address: string) {
+  const q = encodeURIComponent(address || "");
+  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
+
+
 function statusLabel(txStatus: string | null) {
   const s = (txStatus || "").toLowerCase();
 
@@ -220,9 +226,26 @@ export default function SuccessClient() {
     if (customerName) lines.push(`Customer: ${customerName}`);
     if (customerPhone) lines.push(`Phone: ${customerPhone}`);
     if (customerName || customerPhone) lines.push("");
-    lines.push("Address:");
-    lines.push(addrLine);
-    lines.push("");
+
+
+   if (o?.fulfilment_status === "pickup") {
+      if (o?.pickup_point_name) lines.push(`Pickup point: ${o.pickup_point_name}`);
+      const pAddr = (o?.pickup_point_address || "-").toString();
+      lines.push("Pickup address:");
+      lines.push(pAddr);
+      if (pAddr && pAddr !== "-") lines.push(`Google Maps: ${mapsLink(pAddr)}`);
+      lines.push("");
+    } else {
+      const dAddr = (o?.shipping_address || "-").toString();
+      lines.push("Delivery address:");
+      lines.push(dAddr);
+      if (dAddr && dAddr !== "-") lines.push(`Google Maps: ${mapsLink(dAddr)}`);
+      lines.push("");
+    }
+
+
+
+
     lines.push(`Total: ${totalText}`);
     lines.push("");
     if (itemLines.length) {
@@ -233,10 +256,28 @@ export default function SuccessClient() {
     if (paymentType) lines.push(`Payment type: ${paymentType}`);
     if (txStatus) lines.push(`Transaction status: ${txStatus}`);
     lines.push("");
-    lines.push("Can you help confirm my order? Thank you 🤍");
+    lines.push("Can you help confirm my order? Thank you");
 
     return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
   }, [order, orderId]);
+
+    // Auto-open WhatsApp once when payment is confirmed PAID
+      useEffect(() => {
+        if (!order) return;
+        if (String(order.payment_status || "").toUpperCase() !== "PAID") return;
+
+        const key = `wa_opened_${order.id}`;
+        if (typeof window !== "undefined" && sessionStorage.getItem(key) === "1") return;
+        sessionStorage.setItem(key, "1");
+
+        const t = setTimeout(() => {
+          const url = waLink(businessWa, waMessage);
+          window.location.href = url;
+        }, 600);
+
+        return () => clearTimeout(t);
+      }, [order, businessWa, waMessage]);
+
 
 
   const toneBlock = (() => {

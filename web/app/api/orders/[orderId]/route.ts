@@ -57,6 +57,7 @@ export async function GET(
     }
 
     const meta = order?.meta && typeof order.meta === "object" ? order.meta : {};
+    const pick = meta?.pickup && typeof meta.pickup === "object" ? meta.pickup : {};
     const mid = meta?.midtrans && typeof meta.midtrans === "object" ? meta.midtrans : {};
     const fulf = meta?.fulfillment && typeof meta.fulfillment === "object" ? meta.fulfillment : {};
 
@@ -76,6 +77,11 @@ export async function GET(
       fulfilment_status: order.fulfilment_status ?? null,
       schedule_date: fulf?.scheduleDate ?? null,
       schedule_time: fulf?.scheduleTime ?? null,
+
+
+      //pick up details
+      pickup_point_name: pick?.pointName ?? null,
+      pickup_point_address: pick?.pointAddress ?? null,
 
       // customer & address
       customer_name: order.customer_name,
