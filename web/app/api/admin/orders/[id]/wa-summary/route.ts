@@ -140,8 +140,11 @@ export async function GET(
     }
 
     // Debug hint (won’t show to customer, only admin WhatsApp)
-    lines.push("");
-    lines.push(`(debug: items source = ${source})`);
+    if (process.env.NODE_ENV !== "production") {
+      lines.push("");
+      lines.push(`(debug: items source = ${source})`);
+    }
+
 
     return NextResponse.json({
       ok: true,

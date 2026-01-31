@@ -175,7 +175,7 @@ export default function AdminOrdersPage() {
   };
 
   const onQuick = async (orderId: string, action: "paid" | "sending" | "sent") => {
-    if (!isUuid(orderId)) {
+      if (!isUuid(orderId)) {
       setErr("Invalid order id");
       setErrDetail({ orderId });
       return;
