@@ -1,3 +1,4 @@
+// web/app/api/admin/orders/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -27,8 +28,65 @@ type PatchBody = {
 
   shipment_status?: string;
   tracking_url?: string;
+  waybill?: string; // (optional, since your client sends it)
 };
 
+/**
+ * ✅ GET order detail
+ * Supports:
+ * - /api/admin/orders/<uuid>
+ * - /api/admin/orders/<order_no like CD-20260130-0058>
+ */
+export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params;
+    const sb = supabaseAdmin();
+
+    // If UUID -> query by id, else treat as order_no
+    const q = sb.from("orders").select("*").limit(1);
+
+    const { data: order, error } = isUuid(id)
+      ? await q.eq("id", id).single()
+      : await q.eq("order_no", id).single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message, detail: error }, { status: 500 });
+    }
+    if (!order) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    }
+
+    // Items can live in items_json (array) or other columns.
+    // We keep it simple: return items_json if it looks like array.
+    let items: any[] = [];
+    const itemsJson = (order as any).items_json;
+    if (Array.isArray(itemsJson)) items = itemsJson;
+    else {
+      // if stored as string JSON
+      if (typeof itemsJson === "string") {
+        try {
+          const parsed = JSON.parse(itemsJson);
+          if (Array.isArray(parsed)) items = parsed;
+          else if (parsed && Array.isArray(parsed.items)) items = parsed.items;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    return NextResponse.json({ ok: true, order, items });
+  } catch (e: any) {
+    return NextResponse.json(
+      { error: e?.message || "Failed to load order", detail: e ?? null },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * ✅ PATCH order (UUID only)
+ * This keeps updates safe + predictable.
+ */
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
@@ -40,16 +98,14 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
     if (body.payment_status) update.payment_status = body.payment_status;
 
-    const ff =
-      body.fulfilment_status ??
-      body.fulfillment_status ??
-      body.fullfillment_status;
+    const ff = body.fulfilment_status ?? body.fulfillment_status ?? body.fullfillment_status;
 
     // ✅ Canonical: try UK column first because your UI uses it
     if (ff) update.fulfilment_status = ff;
 
     if (typeof body.shipment_status === "string") update.shipment_status = body.shipment_status;
     if (typeof body.tracking_url === "string") update.tracking_url = body.tracking_url;
+    if (typeof body.waybill === "string") update.waybill = body.waybill;
 
     if (Object.keys(update).length === 0) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
@@ -72,7 +128,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       if (msg.includes("fulfilment_status")) {
         const retry = { ...update };
         delete retry.fulfilment_status;
-        retry.fulfilment_status = ff;
+
+        // ✅ IMPORTANT: fallback should update fulfillment_status (US),
+        // not fulfilment_status again.
+        retry.fulfillment_status = ff;
 
         const r2 = await sb.from("orders").update(retry).eq("id", id).select("*").single();
         data = r2.data as any;
