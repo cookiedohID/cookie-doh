@@ -8,6 +8,58 @@ import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
 
+export default function HomePage() {
+  return (
+    <main>
+      {/* HERO SECTION */}
+      <section
+        className="relative flex min-h-[90vh] items-center"
+        style={{
+          backgroundImage: "url('/hero/hero.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-black/40" />
+
+        {/* Content */}
+        <div className="relative z-10 mx-auto max-w-7xl px-6">
+          <h1 className="text-5xl font-semibold text-white md:text-6xl">
+            Cookie Doh
+          </h1>
+
+          <p className="mt-4 max-w-md text-lg text-white/90">
+            Where cookie magic happens.
+          </p>
+
+          <div className="mt-8 flex gap-4">
+            <a
+              href="/order"
+              className="rounded-md bg-[#003A8F] px-6 py-3 text-white transition hover:opacity-90"
+            >
+              Order Cookies
+            </a>
+
+            <a
+              href="/flavors"
+              className="rounded-md border border-white/70 px-6 py-3 text-white transition hover:bg-white/10"
+            >
+              Explore Flavors
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* REST OF PAGE */}
+      <section className="bg-white py-20">
+        {/* content */}
+      </section>
+    </main>
+  );
+}
+
+
 const COLORS = {
   blue: "#0014a7", // Pantone 293C vibe
   black: "#101010",
