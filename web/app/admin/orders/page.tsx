@@ -14,8 +14,11 @@ type OrderRow = {
 
   payment_status?: "PENDING" | "PAID" | string;
 
-  fulfillment_status?: "pending" | "sending" | "sent" | string;
-  fulfillment_status?: "delivery" | "pickup" | string;
+  // Order progress
+  fulfilment_status?: "pending" | "sending" | "sent" | string;
+
+  // Delivery vs pickup (NOT status)
+  fulfillment_type?: "delivery" | "pickup" | string;
 
   shipment_status?: string;
   tracking_url?: string;
@@ -27,6 +30,7 @@ type OrderRow = {
 
   meta?: any;
 };
+
 
 const ADMIN_WA = "6281932181818";
 
@@ -465,11 +469,12 @@ export default function AdminOrdersPage() {
                   : "—";
 
               const fulfillmentLabel =
-                schedule.type === "pickup"
-                  ? "Pickup"
-                  : schedule.type === "delivery"
-                  ? "Delivery"
-                  : (o.fulfillment_status ? String(o.fulfillment_status) : "—");
+              schedule.type === "pickup"
+                ? "Pickup"
+                : schedule.type === "delivery"
+                ? "Delivery"
+                : "—";
+
 
               return (
                 <tr
