@@ -167,7 +167,8 @@ export default function SuccessClient() {
  
 
   // ✅ UPDATED: WhatsApp message matches Admin "Order Summary" format
-    const waMessage = useMemo(() => const waMessage = useMemo(() => {
+    const waMessage = useMemo(() => {
+
     const o = order;
 
     const orderLabel = o?.order_no || o?.id || orderId || "—";
