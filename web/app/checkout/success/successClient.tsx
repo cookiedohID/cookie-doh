@@ -93,6 +93,9 @@ function parseItemsText(raw: string | null) {
 
 export default function SuccessClient() {
   
+  const sp = useSearchParams();
+  const router = useRouter();
+
    // IDs
   const orderId = sp.get("order_id") || sp.get("orderId") || sp.get("id");
   const orderNo = sp.get("order_no") || sp.get("orderNo");
@@ -134,9 +137,7 @@ export default function SuccessClient() {
     process.env.NEXT_PUBLIC_WA_NUMBER ||
     "6281932181818";
   
-  const sp = useSearchParams();
-  const router = useRouter();
-
+  
   const [order, setOrder] = useState<any>(null);
   const [loadingOrder, setLoadingOrder] = useState<boolean>(true);
 
