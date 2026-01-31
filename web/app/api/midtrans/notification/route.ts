@@ -165,13 +165,29 @@ export async function POST(req: Request) {
     }
 
     // Update order status
+        const paymentType = (statusResponse as any)?.payment_type ?? null;
+
+    // keep existing meta, but add midtrans info safely
+    const prevMeta = (order as any)?.meta && typeof (order as any).meta === "object" ? (order as any).meta : {};
+    const nextMeta = {
+      ...prevMeta,
+      midtrans: {
+        ...(prevMeta as any)?.midtrans,
+        payment_type: paymentType,
+        transaction_status: txStatus,
+      },
+    };
+
     await supabase
       .from("orders")
       .update({
+        payment_status: paid ? "PAID" : txStatus === "pending" ? "UNPAID" : "FAILED",
         midtrans_status: txStatus,
         paid_at: paid ? new Date().toISOString() : null,
+        meta: nextMeta,
       })
       .eq("id", order.id);
+
 
     // Only create shipment if paid AND not created
     if (paid) {

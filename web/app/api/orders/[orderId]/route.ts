@@ -56,13 +56,33 @@ export async function GET(
       items = [];
     }
 
+    const meta = order?.meta && typeof order.meta === "object" ? order.meta : {};
+    const mid = meta?.midtrans && typeof meta.midtrans === "object" ? meta.midtrans : {};
+    const fulf = meta?.fulfillment && typeof meta.fulfillment === "object" ? meta.fulfillment : {};
+
     const shaped = {
       id: order.id,
       order_no: order.order_no,
+
+      // payment & shipment
       payment_status: order.payment_status,
+      shipment_status: order.shipment_status ?? null,
+
+      // midtrans details (for WA summary)
+      payment_type: mid?.payment_type ?? null,
+      transaction_status: order.midtrans_status ?? mid?.transaction_status ?? null,
+
+      // fulfillment & schedule (for WA summary)
+      fulfilment_status: order.fulfilment_status ?? null,
+      schedule_date: fulf?.scheduleDate ?? null,
+      schedule_time: fulf?.scheduleTime ?? null,
+
+      // customer & address
       customer_name: order.customer_name,
       customer_phone: order.customer_phone,
       shipping_address: order.shipping_address,
+
+      // totals & items
       total_idr: order.total_idr,
       items: items.map((it: any) => ({
         name: String(it.name ?? it.title ?? "Cookie"),
@@ -70,6 +90,7 @@ export async function GET(
         price_idr: Number(it.price ?? it.value ?? it.unit_price ?? 0) || 0,
       })),
     };
+
 
     return NextResponse.json({ ok: true, order: shaped });
   } catch (e: any) {
