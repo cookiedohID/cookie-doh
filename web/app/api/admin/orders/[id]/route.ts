@@ -1,3 +1,5 @@
+//web/app/api/admin/orders/[id]/route.ts
+ 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -23,7 +25,7 @@ type PatchBody = {
   // accept all variants
   fulfilment_status?: string;
   fulfillment_status?: string;
-  fullfillment_status?: string;
+  fulfillment_status?: string;
 
   shipment_status?: string;
   tracking_url?: string;
@@ -46,7 +48,7 @@ export async function PATCH(
     const ff =
       body.fulfilment_status ??
       body.fulfillment_status ??
-      body.fullfillment_status;
+      body.fulfillment_status;
 
     // We try to update fulfilment_status first (what your UI uses).
     // If your DB column name differs, we fallback based on Supabase error text.
@@ -84,11 +86,11 @@ export async function PATCH(
         error = r2.error as any;
       }
 
-      // DB uses fullfillment_status
+      // DB uses fulfillment_status
       if (error && (msg.includes('column "fulfillment_status"') || msg.includes("fulfillment_status"))) {
         const retry = { ...update };
         delete retry.fulfilment_status;
-        retry.fullfillment_status = ff;
+        retry.fulfillment_status = ff;
 
         const r3 = await sb.from("orders").update(retry).eq("id", id).select("*").single();
         data = r3.data as any;

@@ -16,7 +16,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
   // ✅ Your DB statuses
   const [paymentStatus, setPaymentStatus] = useState<string>("PENDING");
-  const [fullfillmentStatus, setFullfillmentStatus] = useState<string>("pending");
+  const [fulfillmentStatus, setFulfillmentStatus] = useState<string>("pending");
   const [shipmentStatus, setShipmentStatus] = useState<string>("not_created");
 
   const [trackingUrl, setTrackingUrl] = useState<string>("");
@@ -31,7 +31,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
     setItems(j.items || []);
 
     setPaymentStatus(j.order?.payment_status || "PENDING");
-    setFullfillmentStatus(j.order?.fulfillment_status || "pending");
+    setFulfillmentStatus(j.order?.fulfillment_status || "pending");
     setShipmentStatus(j.order?.shipment_status || "not_created");
 
     setTrackingUrl(j.order?.tracking_url || "");
@@ -66,7 +66,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           payment_status: paymentStatus,
-          fulfillment_status: fullfillmentStatus, // ✅ correct key
+          fulfillment_status: fulfillmentStatus, // ✅ correct key
           shipment_status: shipmentStatus,
           tracking_url: trackingUrl,
           waybill: waybill,
@@ -192,7 +192,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 800 }}>Fulfillment status</span>
-            <select value={fullfillmentStatus} onChange={(e) => setFullfillmentStatus(e.target.value)} style={{ height: 42, borderRadius: 12, padding: "0 10px" }}>
+            <select value={fulfillmentStatus} onChange={(e) => setFulfillmentStatus(e.target.value)} style={{ height: 42, borderRadius: 12, padding: "0 10px" }}>
               <option value="pending">pending</option>
               <option value="baking">baking</option>
               <option value="sent">sent</option>

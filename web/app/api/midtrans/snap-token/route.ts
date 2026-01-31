@@ -1,3 +1,6 @@
+//web/app/api/midtrans/snap-token/route.ts
+
+
 import { NextResponse } from "next/server";
 import midtransClient from "midtrans-client";
 import { supabaseServer } from "@/lib/supabaseServer";
@@ -82,11 +85,14 @@ export async function POST(req: Request) {
     const insertPayload: any = {
       midtrans_order_id,
       amount: gross_amount,
+      total_idr: gross_amount,          // ✅ so admin shows total
+      payment_status: "PENDING",        // ✅ so admin filters work
       currency: "IDR",
       items_json: safeItems,
       customer_json: body?.customer ?? { name: customerName, phone: customerPhoneRaw },
       shipping_json: body?.shipping ?? null,
       midtrans_status: "created",
+
 
       // NOT NULL columns
       customer_name: customerName,

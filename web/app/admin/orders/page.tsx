@@ -174,29 +174,21 @@ export default function AdminOrdersPage() {
     return json;
   };
 
-  const onQuick = async (
-    e: React.MouseEvent<HTMLButtonElement>,
-    action: "paid" | "sending" | "sent"
-  ) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const id = e.currentTarget.dataset.orderId;
-
-    if (!isUuid(id)) {
+  const onQuick = async (orderId: string, action: "paid" | "sending" | "sent") => {
+    if (!isUuid(orderId)) {
       setErr("Invalid order id");
-      setErrDetail({ id });
+      setErrDetail({ orderId });
       return;
     }
 
-    setBusyId(id);
+    setBusyId(orderId);
     try {
       setErr(null);
       setErrDetail(null);
 
-      if (action === "paid") await patch(id, { payment_status: "PAID" });
-      if (action === "sending") await patch(id, { fulfilment_status: "sending" });
-      if (action === "sent") await patch(id, { fulfilment_status: "sent" });
+      if (action === "paid") await patch(orderId, { payment_status: "PAID" });
+      if (action === "sending") await patch(orderId, { fulfilment_status: "sending" });
+      if (action === "sent") await patch(orderId, { fulfilment_status: "sent" });
 
       await load();
     } catch (e: any) {
@@ -206,6 +198,7 @@ export default function AdminOrdersPage() {
       setBusyId(null);
     }
   };
+
 
   const bookLalamove = async (id: string) => {
     const res = await fetch(`/api/admin/orders/${id}/lalamove`, {
@@ -425,8 +418,18 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      <div style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <div
+        style={{
+          marginTop: 14,
+          border: "1px solid rgba(0,0,0,0.10)",
+          borderRadius: 16,
+          overflowX: "auto",     // ✅ allow scroll
+          overflowY: "hidden",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}> {/* ✅ minWidth */}
+
           <thead style={{ background: "rgba(0,0,0,0.03)" }}>
             <tr>
               <th style={{ padding: 12, textAlign: "left" }}>Order</th>
@@ -514,9 +517,12 @@ export default function AdminOrdersPage() {
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
                         <button
                           type="button"
-                          data-order-id={uuid}
                           disabled={paidDisabled}
-                          onClick={(e) => onQuick(e, "paid")}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onQuick(uuid, "paid");
+                          }}
                           style={pillButtonStyle("#EAF2FF", paidDisabled)}
                         >
                           {isPaid ? "Paid ✓" : busy ? "..." : "Paid"}
@@ -524,20 +530,26 @@ export default function AdminOrdersPage() {
 
                         <button
                           type="button"
-                          data-order-id={uuid}
                           disabled={sendingDisabled}
-                          onClick={(e) => onQuick(e, "sending")}
-                          style={pillButtonStyle("#F2ECFF", sendingDisabled)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onQuick(uuid, "sending");
+                          }}
+                          style={pillButtonStyle("#EAF2FF", sendingDisabled)}
                         >
-                          {isSending || isSent ? "Sending ✓" : busy ? "..." : "Sending"}
+                          {isSending ? "Sending ✓" : busy ? "..." : "Sending"}
                         </button>
 
                         <button
                           type="button"
-                          data-order-id={uuid}
                           disabled={sentDisabled}
-                          onClick={(e) => onQuick(e, "sent")}
-                          style={pillButtonStyle("#E8F7EF", sentDisabled)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onQuick(uuid, "sent");
+                          }}
+                          style={pillButtonStyle("#EAF2FF", sentDisabled)}
                         >
                           {isSent ? "Sent ✓" : busy ? "..." : "Sent"}
                         </button>
