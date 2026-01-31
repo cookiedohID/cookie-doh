@@ -16,12 +16,16 @@ const COLORS = {
 
 function clearCartStorageSafe() {
   try {
+    localStorage.removeItem("cookie_doh_cart_v1");
+    localStorage.removeItem("cookie-doh-cart");
+
+    // optional backwards compatibility (safe to keep)
     localStorage.removeItem("cookie_doh_cart");
-    localStorage.removeItem("cart");
     localStorage.removeItem("cookiedoh_cart");
-    // add any other keys you used previously
+    localStorage.removeItem("cart");
   } catch {}
 }
+
 
 
 function formatIDRLoose(amount: string | null) {
@@ -259,9 +263,6 @@ export default function SuccessClient() {
       lines.push("");
     }
 
-
-
-
     lines.push(`Total: ${totalText}`);
     lines.push("");
     if (itemLines.length) {
@@ -276,25 +277,6 @@ export default function SuccessClient() {
 
     return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
   }, [order, orderId]);
-
-    // Auto-open WhatsApp once when payment is confirmed PAID
-      useEffect(() => {
-        if (!order) return;
-        if (String(order.payment_status || "").toUpperCase() !== "PAID") return;
-
-        const key = `wa_opened_${order.id}`;
-        if (typeof window !== "undefined" && sessionStorage.getItem(key) === "1") return;
-        sessionStorage.setItem(key, "1");
-
-        const t = setTimeout(() => {
-          const url = waLink(businessWa, waMessage);
-          window.location.href = url;
-        }, 600);
-
-        return () => clearTimeout(t);
-      }, [order, businessWa, waMessage]);
-
-
 
   const toneBlock = (() => {
     if (status.kind === "success") {
