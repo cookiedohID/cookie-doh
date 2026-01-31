@@ -2,8 +2,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+
 
 const COLORS = {
   blue: "#0014a7",
@@ -91,10 +92,8 @@ function parseItemsText(raw: string | null) {
 }
 
 export default function SuccessClient() {
-  const sp = useSearchParams();
-  const router = useRouter();
-
-  // IDs
+  
+   // IDs
   const orderId = sp.get("order_id") || sp.get("orderId") || sp.get("id");
   const orderNo = sp.get("order_no") || sp.get("orderNo");
   const midtransOrderId = sp.get("midtrans_order_id") || sp.get("midtransOrderId");
@@ -134,94 +133,109 @@ export default function SuccessClient() {
     process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ||
     process.env.NEXT_PUBLIC_WA_NUMBER ||
     "6281932181818";
+  
+  const sp = useSearchParams();
+  const router = useRouter();
+
+  const [order, setOrder] = useState<any>(null);
+  const [loadingOrder, setLoadingOrder] = useState<boolean>(true);
+
+  useEffect(() => {
+    let alive = true;
+    async function run() {
+      if (!orderId) {
+        setLoadingOrder(false);
+        return;
+      }
+      setLoadingOrder(true);
+      try {
+        const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}`, { cache: "no-store" });
+        const json = await res.json().catch(() => ({}));
+        if (!alive) return;
+        if (res.ok && json?.order) setOrder(json.order);
+      } finally {
+        if (alive) setLoadingOrder(false);
+      }
+    }
+    run();
+    return () => {
+      alive = false;
+    };
+  }, [orderId]);
+
+
+ 
 
   // ✅ UPDATED: WhatsApp message matches Admin "Order Summary" format
-  const waMessage = useMemo(() => {
-    const paid = paymentStatusFromUrl
-      ? String(paymentStatusFromUrl).toUpperCase()
-      : normalizePaymentStatus(txStatus);
+    const waMessage = useMemo(() => const waMessage = useMemo(() => {
+    const o = order;
 
-    const fulfillmentLine = (() => {
-      const base = fulfillment ? String(fulfillment) : "";
-      const sched = [scheduleDate, scheduleTime].filter(Boolean).join(" ");
-      if (!base && !sched) return "-";
-      if (base && sched) return `${base} • ${sched}`;
-      return base || sched || "-";
-    })();
+    const orderLabel = o?.order_no || o?.id || orderId || "—";
+    const paid = (o?.payment_status || "UNPAID").toString().toUpperCase();
 
-    const shipLine = shipmentStatus ? String(shipmentStatus) : "-";
+    const fulfil = (o?.fulfilment_status || "-").toString();
+    const sched = [o?.schedule_date, o?.schedule_time].filter(Boolean).join(" ");
+    const fulfilLine = sched ? `${fulfil} • ${sched}` : fulfil || "-";
 
-    const addrLine = address ? String(address) : "-";
+    const shipLine = (o?.shipment_status || "-").toString();
+
+    const customerName = (o?.customer_name || "").toString();
+    const customerPhone = (o?.customer_phone || "").toString();
+
+    const addrLine = (o?.shipping_address || "-").toString();
+
+    const totalNum = Number(o?.total_idr ?? 0);
+    const totalText =
+      Number.isFinite(totalNum) && totalNum > 0
+        ? new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+            maximumFractionDigits: 0,
+          }).format(totalNum)
+        : "—";
+
+    const items = Array.isArray(o?.items) ? o.items : [];
+    const itemLines = items
+      .map((it: any) => {
+        const name = String(it?.name || "").trim();
+        const qty = Number(it?.quantity || 0);
+        if (!name) return null;
+        return qty > 0 ? `• ${name} ×${qty}` : `• ${name}`;
+      })
+      .filter(Boolean);
+
+    const paymentType = (o?.payment_type || "").toString();
+    const txStatus = (o?.transaction_status || "").toString();
 
     const lines: string[] = [];
     lines.push("Cookie Doh — Order Summary");
     lines.push("");
-
-    // Order + payment status
-    lines.push(`Order: ${orderNo || midtransOrderId || orderId || "—"}`);
-    lines.push(`Payment: ${paid || "—"}`);
-    lines.push(`Fulfillment: ${fulfillmentLine}`);
+    lines.push(`Order: ${orderLabel}`);
+    lines.push(`Payment: ${paid}`);
+    lines.push(`Fulfilment: ${fulfilLine}`);
     lines.push(`Shipment: ${shipLine}`);
     lines.push("");
-
-    // Customer
     if (customerName) lines.push(`Customer: ${customerName}`);
     if (customerPhone) lines.push(`Phone: ${customerPhone}`);
     if (customerName || customerPhone) lines.push("");
-
-    // Pickup / Address
-    if (fulfillment === "pickup" && pickupPoint) {
-      lines.push(`Pickup point: ${pickupPoint}`);
-      lines.push("");
-    }
-
     lines.push("Address:");
     lines.push(addrLine);
     lines.push("");
-
-    // Total
-    lines.push(`Total: ${amountText || "—"}`);
+    lines.push(`Total: ${totalText}`);
     lines.push("");
-
-    // Items (only if provided in URL)
-    if (itemsText) {
+    if (itemLines.length) {
       lines.push("Items:");
-      // if itemsText already includes bullets, keep as-is
-      lines.push(itemsText.startsWith("•") ? itemsText : itemsText);
+      lines.push(itemLines.join("\n"));
       lines.push("");
     }
-
-    // Payment metadata (optional)
     if (paymentType) lines.push(`Payment type: ${paymentType}`);
     if (txStatus) lines.push(`Transaction status: ${txStatus}`);
-
-    // Final line
     lines.push("");
     lines.push("Can you help confirm my order? Thank you 🤍");
 
-    // Remove any accidental empty duplicates
-    return lines
-      .join("\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  }, [
-    orderId,
-    orderNo,
-    midtransOrderId,
-    txStatus,
-    paymentType,
-    amountText,
-    customerName,
-    customerPhone,
-    fulfillment,
-    scheduleDate,
-    scheduleTime,
-    pickupPoint,
-    address,
-    shipmentStatus,
-    paymentStatusFromUrl,
-    itemsText,
-  ]);
+    return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }, [order, orderId]);
+
 
   const toneBlock = (() => {
     if (status.kind === "success") {
