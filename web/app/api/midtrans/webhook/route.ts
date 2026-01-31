@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
     }
 
     const preparation_store_id =
-    order.fulfillment_status === "pickup"
+    order.fulfilment_status === "pickup"
     ? order.pickup_point_id
     : order.meta?.quote?.origin?.id || "kemang";
 

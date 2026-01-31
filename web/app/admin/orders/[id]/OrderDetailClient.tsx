@@ -31,7 +31,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
     setItems(j.items || []);
 
     setPaymentStatus(j.order?.payment_status || "PENDING");
-    setFulfillmentStatus(j.order?.fulfillment_status || "pending");
+    setFulfillmentStatus(j.order?.fulfilment_status || "pending");
     setShipmentStatus(j.order?.shipment_status || "not_created");
 
     setTrackingUrl(j.order?.tracking_url || "");
@@ -66,7 +66,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           payment_status: paymentStatus,
-          fulfillment_status: fulfillmentStatus, // ✅ correct key
+          fulfilment_status: fulfillmentStatus, // ✅ correct key
           shipment_status: shipmentStatus,
           tracking_url: trackingUrl,
           waybill: waybill,
@@ -575,7 +575,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           payment_status: paymentStatus,
-          fulfillment_status: fulfillmentStatus,
+          fulfilment_status: fulfillmentStatus,
           tracking_url: trackingUrl,
         }),
       });

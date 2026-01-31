@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     const pickup = payload?.pickup || null;
     const quote = payload?.meta?.quote || null;
 
-    const fulfillmentType = (fulfillment?.type || payload?.fulfillment_status || "").toString().trim() || null;
+    const fulfillmentType = (fulfillment?.type || payload?.fulfilment_status || "").toString().trim() || null;
 
     const orderInsert: any = {
       customer_name: customerName || null,
@@ -139,7 +139,7 @@ export async function POST(req: Request) {
       payment_status: "PENDING",
       shipment_status: "not_created",
 
-      fulfillment_status: fulfillmentType,
+      fulfilment_status: fulfillmentType,
 
       checkout_mode: checkoutMode,
       items_json: items,

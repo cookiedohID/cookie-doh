@@ -72,7 +72,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       if (msg.includes("fulfilment_status")) {
         const retry = { ...update };
         delete retry.fulfilment_status;
-        retry.fulfillment_status = ff;
+        retry.fulfilment_status = ff;
 
         const r2 = await sb.from("orders").update(retry).eq("id", id).select("*").single();
         data = r2.data as any;

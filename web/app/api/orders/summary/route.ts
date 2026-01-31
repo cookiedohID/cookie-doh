@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
 
     const { data: order, error } = await sb
       .from("orders")
-      .select("id, order_no, payment_status, shipment_status, fulfillment_status, customer_name, customer_phone, shipping_address, address, total_idr, items_json, meta")
+      .select("id, order_no, payment_status, shipment_status, fulfilment_status, customer_name, customer_phone, shipping_address, address, total_idr, items_json, meta")
       .eq("id", order_id)
       .maybeSingle();
 
