@@ -24,9 +24,6 @@ type PatchBody = {
 
   // accept all variants
   fulfilment_status?: string;
-  fulfillment_status?: string;
-  fulfillment_status?: string;
-
   shipment_status?: string;
   tracking_url?: string;
 };
