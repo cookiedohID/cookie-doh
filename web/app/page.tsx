@@ -8,7 +8,39 @@ import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
 
-export default function HomePage() {
+
+
+
+const COLORS = {
+  blue: "#0014a7", // Pantone 293C vibe
+  black: "#101010",
+  white: "#FFFFFF",
+  bg: "#FAF7F2",
+  orange: "#FF5A00", // Accent (021C-ish)
+};
+
+const COOKIE_PRICE = 32500; // builder uses fixed per-cookie price; box total comes from BOX_PRICES
+
+function safeGetName(flavorId: string) {
+  const f = FLAVORS.find((x: any) => x.id === flavorId);
+  return f?.name ?? flavorId;
+}
+
+function toCardFlavor(f: any): CardFlavorUI {
+  return {
+    id: String(f.id),
+    name: String(f.name ?? ""),
+    image: String(f.image ?? ""),
+    ingredients: String(f.description ?? ""),
+    textureTags: Array.isArray(f.tags) ? f.tags : [],
+    intensity: f.intensity,
+    badges: Array.isArray(f.badges) ? f.badges : [],
+    price: COOKIE_PRICE,
+    soldOut: Boolean(f.soldOut),
+  };
+}
+
+function HomePage() {
   return (
     <main>
       {/* HERO SECTION */}
@@ -58,37 +90,6 @@ export default function HomePage() {
     </main>
   );
 }
-
-
-const COLORS = {
-  blue: "#0014a7", // Pantone 293C vibe
-  black: "#101010",
-  white: "#FFFFFF",
-  bg: "#FAF7F2",
-  orange: "#FF5A00", // Accent (021C-ish)
-};
-
-const COOKIE_PRICE = 32500; // builder uses fixed per-cookie price; box total comes from BOX_PRICES
-
-function safeGetName(flavorId: string) {
-  const f = FLAVORS.find((x: any) => x.id === flavorId);
-  return f?.name ?? flavorId;
-}
-
-function toCardFlavor(f: any): CardFlavorUI {
-  return {
-    id: String(f.id),
-    name: String(f.name ?? ""),
-    image: String(f.image ?? ""),
-    ingredients: String(f.description ?? ""),
-    textureTags: Array.isArray(f.tags) ? f.tags : [],
-    intensity: f.intensity,
-    badges: Array.isArray(f.badges) ? f.badges : [],
-    price: COOKIE_PRICE,
-    soldOut: Boolean(f.soldOut),
-  };
-}
-
 export default function HomePage() {
   const router = useRouter();
 
