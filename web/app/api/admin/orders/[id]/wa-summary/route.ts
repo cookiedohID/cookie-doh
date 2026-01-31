@@ -119,7 +119,7 @@ export async function GET(
     lines.push("");
     lines.push(`Order: ${orderNo}`);
     lines.push(`Payment: ${order.payment_status ?? "-"}`);
-    lines.push(`Fulfilment: ${order.fulfilment_status ?? "-"}`);
+    lines.push(`Fulfillment: ${order.fulfillment_status ?? "-"}`);
     lines.push(`Shipment: ${order.shipment_status ?? "-"}`);
     if (order.tracking_url) lines.push(`Tracking: ${order.tracking_url}`);
     lines.push("");

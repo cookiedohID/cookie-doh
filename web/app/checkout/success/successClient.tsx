@@ -141,7 +141,7 @@ export default function SuccessClient() {
       ? String(paymentStatusFromUrl).toUpperCase()
       : normalizePaymentStatus(txStatus);
 
-    const fulfilmentLine = (() => {
+    const fulfillmentLine = (() => {
       const base = fulfillment ? String(fulfillment) : "";
       const sched = [scheduleDate, scheduleTime].filter(Boolean).join(" ");
       if (!base && !sched) return "-";
@@ -160,7 +160,7 @@ export default function SuccessClient() {
     // Order + payment status
     lines.push(`Order: ${orderNo || midtransOrderId || orderId || "—"}`);
     lines.push(`Payment: ${paid || "—"}`);
-    lines.push(`Fulfilment: ${fulfilmentLine}`);
+    lines.push(`Fulfillment: ${fulfillmentLine}`);
     lines.push(`Shipment: ${shipLine}`);
     lines.push("");
 

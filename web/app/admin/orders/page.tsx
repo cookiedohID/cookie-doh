@@ -14,7 +14,7 @@ type OrderRow = {
 
   payment_status?: "PENDING" | "PAID" | string;
 
-  fulfilment_status?: "pending" | "sending" | "sent" | string;
+  fulfillment_status?: "pending" | "sending" | "sent" | string;
   fulfillment_status?: "delivery" | "pickup" | string;
 
   shipment_status?: string;
@@ -187,8 +187,8 @@ export default function AdminOrdersPage() {
       setErrDetail(null);
 
       if (action === "paid") await patch(orderId, { payment_status: "PAID" });
-      if (action === "sending") await patch(orderId, { fulfilment_status: "sending" });
-      if (action === "sent") await patch(orderId, { fulfilment_status: "sent" });
+      if (action === "sending") await patch(orderId, { fulfillment_status: "sending" });
+      if (action === "sent") await patch(orderId, { fulfillment_status: "sent" });
 
       await load();
     } catch (e: any) {
@@ -253,8 +253,8 @@ export default function AdminOrdersPage() {
         : orders.filter((o) => {
             if (filter === "pending") return o.payment_status === "PENDING";
             if (filter === "paid") return o.payment_status === "PAID";
-            if (filter === "sending") return o.fulfilment_status === "sending";
-            if (filter === "sent") return o.fulfilment_status === "sent";
+            if (filter === "sending") return o.fulfillment_status === "sending";
+            if (filter === "sent") return o.fulfillment_status === "sent";
             return true;
           });
 
@@ -268,8 +268,8 @@ export default function AdminOrdersPage() {
   }, [orders, filter, scheduleDateFilter]);
 
   const rowColor = (o: OrderRow) => {
-    if (o.fulfilment_status === "sent") return "#E8F7EF";
-    if (o.fulfilment_status === "sending") return "#F2ECFF";
+    if (o.fulfillment_status === "sent") return "#E8F7EF";
+    if (o.fulfillment_status === "sending") return "#F2ECFF";
     if (o.payment_status === "PAID") return "#EAF2FF";
     if (o.payment_status === "PENDING") return "#FFF4E5";
     return "#fff";
@@ -448,8 +448,8 @@ export default function AdminOrdersPage() {
               const busy = hasId ? busyId === uuid : false;
 
               const isPaid = o.payment_status === "PAID";
-              const isSending = o.fulfilment_status === "sending";
-              const isSent = o.fulfilment_status === "sent";
+              const isSending = o.fulfillment_status === "sending";
+              const isSent = o.fulfillment_status === "sent";
 
               const deliveryBooked = o.shipment_status === "BOOKED" || !!o.tracking_url;
 

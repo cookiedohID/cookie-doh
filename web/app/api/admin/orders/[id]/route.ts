@@ -23,7 +23,7 @@ type PatchBody = {
   payment_status?: "PENDING" | "PAID" | string;
 
   // accept all variants
-  fulfilment_status?: string;
+  fulfillment_status?: string;
   shipment_status?: string;
   tracking_url?: string;
 };
@@ -48,9 +48,9 @@ export async function PATCH(
     body.fullfillment_status;
 
 
-    // We try to update fulfilment_status first (what your UI uses).
+    // We try to update fulfillment_status first (what your UI uses).
     // If your DB column name differs, we fallback based on Supabase error text.
-    if (ff) update.fulfilment_status = ff;
+    if (ff) update.fulfillment_status = ff;
 
     if (typeof body.shipment_status === "string") update.shipment_status = body.shipment_status;
     if (typeof body.tracking_url === "string") update.tracking_url = body.tracking_url;
@@ -74,9 +74,9 @@ export async function PATCH(
       const msg = error.message || "";
 
       // DB uses fulfillment_status
-      if (msg.includes('column "fulfilment_status"') || msg.includes("fulfilment_status")) {
+      if (msg.includes('column "fulfillment_status"') || msg.includes("fulfillment_status")) {
         const retry = { ...update };
-        delete retry.fulfilment_status;
+        delete retry.fulfillment_status;
         retry.fulfillment_status = ff;
 
         const r2 = await sb.from("orders").update(retry).eq("id", id).select("*").single();
@@ -87,7 +87,7 @@ export async function PATCH(
       // DB uses fulfillment_status
       if (error && (msg.includes('column "fulfillment_status"') || msg.includes("fulfillment_status"))) {
         const retry = { ...update };
-        delete retry.fulfilment_status;
+        delete retry.fulfillment_status;
         retry.fulfillment_status = ff;
 
         const r3 = await sb.from("orders").update(retry).eq("id", id).select("*").single();

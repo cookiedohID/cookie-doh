@@ -67,7 +67,7 @@ function buildSummary(order: any) {
   const scheduleDate = String(fulfillment?.scheduleDate || "").trim();
   const scheduleTime = String(fulfillment?.scheduleTime || "").trim();
 
-  const fulfilmentText =
+  const fulfillmentText =
     fulfilType
       ? `${fulfilType}${scheduleDate || scheduleTime ? ` • ${[scheduleDate, scheduleTime].filter(Boolean).join(" ")}` : ""}`
       : "-";
@@ -82,7 +82,7 @@ function buildSummary(order: any) {
       id: String(order?.id || ""),
       order_no,
       payment_status,
-      fulfilment: fulfilmentText,
+      fulfillment: fulfillmentText,
       shipment_status,
       customer_name,
       customer_phone,
