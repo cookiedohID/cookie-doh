@@ -537,51 +537,6 @@ export default function CheckoutPage() {
         const orderNo = String(data.order_no || "");
         const midtransOrderId = String(data.midtrans_order_id || "");
 
-        const goWithParams = (path: "/checkout/success" | "/checkout/pending", result: any) => {
-          const qs = new URLSearchParams();
-
-          const itemsText = String((result as any)?.__items_text || "");
-          if (itemsText) qs.set("items_text", itemsText);
-
-
-          // our DB identifiers
-          if (dbOrderId) qs.set("order_id", dbOrderId);
-          if (orderNo) qs.set("order_no", orderNo);
-          if (midtransOrderId) qs.set("midtrans_order_id", midtransOrderId);
-
-          // midtrans result fields (best effort)
-          const txStatus = String(result?.transaction_status || result?.status_message || "");
-          const payType = String(result?.payment_type || "");
-          const gross = String(result?.gross_amount || grandTotal || "");
-
-          if (txStatus) qs.set("transaction_status", txStatus);
-          if (payType) qs.set("payment_type", payType);
-          if (gross) qs.set("gross_amount", gross);
-
-          // helpful customer/context (optional but nice)
-          if (name.trim()) qs.set("customer_name", name.trim());
-          if (phoneCheck.normalized) qs.set("customer_phone", phoneCheck.normalized);
-
-          // schedule context
-          if (scheduleDate) qs.set("schedule_date", scheduleDate);
-          if (scheduleTime) qs.set("schedule_time", scheduleTime);
-          qs.set("fulfillment", fulfillment);
-
-          // pickup name if pickup
-          if (fulfillment === "pickup") {
-            const pName = pickupPoints.find((p) => p.id === pickupPointId)?.name || "";
-            if (pName) qs.set("pickup_point", pName);
-          }
-
-          // address summary if delivery (keep short)
-          if (fulfillment === "delivery") {
-            const addr = addressBase || "";
-            if (addr) qs.set("address", addr);
-          }
-
-          router.push(`${path}?${qs.toString()}`);
-        };
-
         const buildItemsTextFromCart = () => {
         try {
           const lines: string[] = [];
@@ -606,16 +561,17 @@ export default function CheckoutPage() {
         const itemsText = buildItemsTextFromCart();
         if (itemsText) (result as any).__items_text = itemsText;
 
-        clearCartStorage();
-        goWithParams("/checkout/success", result);
+        router.push(`/checkout/success?order_id=${dbOrderId}`);
+
       },
 
 
 
 
-          onPending: (result: any) => {
-            goWithParams("/checkout/pending", result);
+          onPending: () => {
+            setErr("Payment is pending. Please complete the payment, then refresh this page.");
           },
+
           onError: (result: any) => {
             setErr(result?.status_message || "Payment failed. Please try again.");
           },
@@ -636,8 +592,8 @@ export default function CheckoutPage() {
         );
       }
 
-      clearCartStorage();
-      window.location.href = redirectUrl;
+      throw new Error("Manual redirect is disabled. Please try again.");
+
     } catch (e: any) {
       setErr(e?.message || "Something went wrong — let’s try again.");
     } finally {
