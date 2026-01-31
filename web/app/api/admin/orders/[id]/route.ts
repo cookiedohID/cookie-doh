@@ -1,5 +1,3 @@
-//web/app/api/admin/orders/[id]/route.ts
- 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -22,16 +20,16 @@ const supabaseAdmin = () => {
 type PatchBody = {
   payment_status?: "PENDING" | "PAID" | string;
 
-  // accept all variants
+  // accept all variants (UK, US, common typo)
+  fulfilment_status?: string;
   fulfillment_status?: string;
+  fullfillment_status?: string;
+
   shipment_status?: string;
   tracking_url?: string;
 };
 
-export async function PATCH(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
     if (!isUuid(id)) return NextResponse.json({ error: "Invalid order id" }, { status: 400 });
@@ -43,14 +41,12 @@ export async function PATCH(
     if (body.payment_status) update.payment_status = body.payment_status;
 
     const ff =
-    body.fulfilment_status ??
-    body.fulfillment_status ??
-    body.fullfillment_status;
+      body.fulfilment_status ??
+      body.fulfillment_status ??
+      body.fullfillment_status;
 
-
-    // We try to update fulfillment_status first (what your UI uses).
-    // If your DB column name differs, we fallback based on Supabase error text.
-    if (ff) update.fulfillment_status = ff;
+    // ✅ Canonical: try UK column first because your UI uses it
+    if (ff) update.fulfilment_status = ff;
 
     if (typeof body.shipment_status === "string") update.shipment_status = body.shipment_status;
     if (typeof body.tracking_url === "string") update.tracking_url = body.tracking_url;
@@ -61,7 +57,7 @@ export async function PATCH(
 
     const sb = supabaseAdmin();
 
-    // Attempt 1
+    // Attempt 1: update using fulfilment_status
     let { data, error } = await sb
       .from("orders")
       .update(update)
@@ -69,30 +65,18 @@ export async function PATCH(
       .select("*")
       .single();
 
-    // Fallback if column name is different
+    // Fallback: DB might use fulfillment_status (US spelling)
     if (error && ff) {
       const msg = error.message || "";
 
-      // DB uses fulfillment_status
-      if (msg.includes('column "fulfillment_status"') || msg.includes("fulfillment_status")) {
+      if (msg.includes("fulfilment_status")) {
         const retry = { ...update };
-        delete retry.fulfillment_status;
+        delete retry.fulfilment_status;
         retry.fulfillment_status = ff;
 
         const r2 = await sb.from("orders").update(retry).eq("id", id).select("*").single();
         data = r2.data as any;
         error = r2.error as any;
-      }
-
-      // DB uses fulfillment_status
-      if (error && (msg.includes('column "fulfillment_status"') || msg.includes("fulfillment_status"))) {
-        const retry = { ...update };
-        delete retry.fulfillment_status;
-        retry.fulfillment_status = ff;
-
-        const r3 = await sb.from("orders").update(retry).eq("id", id).select("*").single();
-        data = r3.data as any;
-        error = r3.error as any;
       }
     }
 
