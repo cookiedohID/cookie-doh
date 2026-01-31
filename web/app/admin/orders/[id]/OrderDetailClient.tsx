@@ -1,4 +1,3 @@
-// web/app/admin/orders/[id]/OrderDetailClient.tsx
 "use client";
 
 import Link from "next/link";
@@ -8,8 +7,11 @@ function toIDR(n: number) {
   return `Rp ${Number(n || 0).toLocaleString("id-ID")}`;
 }
 
-function isUuid(v: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+function isUuid(v: unknown): v is string {
+  return (
+    typeof v === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)
+  );
 }
 
 export default function OrderDetailClient({ id }: { id: string }) {
@@ -19,7 +21,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
   const [saving, setSaving] = useState(false);
   const [shippingBusy, setShippingBusy] = useState(false);
 
-  // ✅ DB statuses
+  // DB statuses
   const [paymentStatus, setPaymentStatus] = useState<string>("PENDING");
   const [fulfillmentStatus, setFulfillmentStatus] = useState<string>("pending");
   const [shipmentStatus, setShipmentStatus] = useState<string>("not_created");
@@ -27,28 +29,17 @@ export default function OrderDetailClient({ id }: { id: string }) {
   const [trackingUrl, setTrackingUrl] = useState<string>("");
   const [waybill, setWaybill] = useState<string>("");
 
-  // ✅ if route param is order_no (CD-...), resolve to UUID once
-  const [resolvedId, setResolvedId] = useState<string | null>(null);
+  // Always patch using UUID once loaded
+  const patchId = useMemo(() => {
+    const oid = order?.id;
+    return isUuid(oid) ? oid : null;
+  }, [order]);
 
-  async function resolveToUuid(identifier: string) {
-    if (isUuid(identifier)) return identifier;
+  async function load() {
+    const identifier = String(id ?? "").trim();
+    if (!identifier) throw new Error("Missing order id in URL");
 
-    const resList = await fetch(`/api/admin/orders?limit=200`, { cache: "no-store" });
-    const listJson = await resList.json();
-    if (!resList.ok) throw new Error(listJson?.error || "Failed to load orders list");
-
-    const found = (listJson.orders || []).find((o: any) => String(o.order_no || "") === String(identifier));
-    const uuid = found?.id;
-
-    if (!uuid || !isUuid(uuid)) {
-      throw new Error(`Order not found for: ${identifier}`);
-    }
-
-    return uuid as string;
-  }
-
-  async function load(uuid: string) {
-    const res = await fetch(`/api/admin/orders/${uuid}`, { cache: "no-store" });
+    const res = await fetch(`/api/admin/orders/${encodeURIComponent(identifier)}`, { cache: "no-store" });
     const j = await res.json();
     if (!res.ok) throw new Error(j?.error || "Failed to load order");
 
@@ -67,11 +58,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
     (async () => {
       try {
         setErr(null);
-
-        const uuid = await resolveToUuid(id);
-        setResolvedId(uuid);
-
-        await load(uuid);
+        await load();
       } catch (e: any) {
         setErr(e?.message || "Failed to load order");
       }
@@ -87,16 +74,16 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
   const saveStatus = async () => {
     try {
-      if (!resolvedId) throw new Error("Order ID not ready yet");
+      if (!patchId) throw new Error("Order UUID not ready yet");
       setSaving(true);
       setErr(null);
 
-      const res = await fetch(`/api/admin/orders/${resolvedId}`, {
+      const res = await fetch(`/api/admin/orders/${patchId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           payment_status: paymentStatus,
-          fulfilment_status: fulfillmentStatus, // ✅ correct key
+          fulfilment_status: fulfillmentStatus,
           shipment_status: shipmentStatus,
           tracking_url: trackingUrl,
           waybill: waybill,
@@ -105,7 +92,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || "Failed to update order");
-      await load(resolvedId);
+      await load();
     } catch (e: any) {
       setErr(e?.message || "Save failed");
     } finally {
@@ -115,15 +102,15 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
   const createLalamove = async () => {
     try {
-      if (!resolvedId) throw new Error("Order ID not ready yet");
+      if (!patchId) throw new Error("Order UUID not ready yet");
       setShippingBusy(true);
       setErr(null);
 
-      const res = await fetch(`/api/admin/orders/${resolvedId}/lalamove`, { method: "POST" });
+      const res = await fetch(`/api/admin/orders/${patchId}/lalamove`, { method: "POST" });
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j?.error || "Lalamove create failed");
 
-      await load(resolvedId);
+      await load();
       alert("Lalamove shipment created ✅");
     } catch (e: any) {
       setErr(e?.message || "Lalamove create failed");
@@ -161,13 +148,13 @@ export default function OrderDetailClient({ id }: { id: string }) {
       </Link>
 
       <h1 style={{ margin: "10px 0 0", fontSize: 20 }}>
-        Order {order.order_no || order.id}
+        Order {order.order_no || order.midtrans_order_id || order.id}
       </h1>
+
       <div style={{ marginTop: 6, color: "rgba(0,0,0,0.7)" }}>
         {order.created_at ? new Date(order.created_at).toLocaleString() : ""}
       </div>
 
-      {/* ORDER INFO */}
       <section style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, padding: 14 }}>
         <div style={{ fontWeight: 900 }}>Customer</div>
         <div style={{ marginTop: 6 }}>
@@ -206,7 +193,6 @@ export default function OrderDetailClient({ id }: { id: string }) {
         </div>
       </section>
 
-      {/* STATUS + SHIPPING */}
       <section style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, padding: 14 }}>
         <div style={{ fontWeight: 900 }}>Status</div>
 

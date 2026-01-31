@@ -28,52 +28,40 @@ type PatchBody = {
 
   shipment_status?: string;
   tracking_url?: string;
-  waybill?: string; // (optional, since your client sends it)
+  waybill?: string;
 };
 
-/**
- * ✅ GET order detail
- * Supports:
- * - /api/admin/orders/<uuid>
- * - /api/admin/orders/<order_no like CD-20260130-0058>
- */
 export async function GET(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    const sb = supabaseAdmin();
+    const identifier = String(id ?? "").trim();
 
-    // If UUID -> query by id, else treat as order_no
+    if (!identifier) {
+      return NextResponse.json({ error: "Missing order identifier" }, { status: 400 });
+    }
+
+    const sb = supabaseAdmin();
     const q = sb.from("orders").select("*").limit(1);
 
-    const { data: order, error } = isUuid(id)
-      ? await q.eq("id", id).single()
-      : await q.eq("order_no", id).single();
+    // UUID -> query by primary key id
+    if (isUuid(identifier)) {
+      const { data: order, error } = await q.eq("id", identifier).single();
+      if (error) return NextResponse.json({ error: error.message, detail: error }, { status: 500 });
+      if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
-    if (error) {
-      return NextResponse.json({ error: error.message, detail: error }, { status: 500 });
-    }
-    if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    }
-
-    // Items can live in items_json (array) or other columns.
-    // We keep it simple: return items_json if it looks like array.
-    let items: any[] = [];
-    const itemsJson = (order as any).items_json;
-    if (Array.isArray(itemsJson)) items = itemsJson;
-    else {
-      // if stored as string JSON
-      if (typeof itemsJson === "string") {
-        try {
-          const parsed = JSON.parse(itemsJson);
-          if (Array.isArray(parsed)) items = parsed;
-          else if (parsed && Array.isArray(parsed.items)) items = parsed.items;
-        } catch {
-          // ignore
-        }
-      }
+      const items = normalizeItems(order);
+      return NextResponse.json({ ok: true, order, items });
     }
 
+    // Non-UUID -> try order_no OR midtrans_order_id
+    const { data: order, error } = await q
+      .or(`order_no.eq."${identifier}",midtrans_order_id.eq."${identifier}"`)
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message, detail: error }, { status: 500 });
+    if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+    const items = normalizeItems(order);
     return NextResponse.json({ ok: true, order, items });
   } catch (e: any) {
     return NextResponse.json(
@@ -83,24 +71,17 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
   }
 }
 
-/**
- * ✅ PATCH order (UUID only)
- * This keeps updates safe + predictable.
- */
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
     if (!isUuid(id)) return NextResponse.json({ error: "Invalid order id" }, { status: 400 });
 
     const body = (await req.json()) as PatchBody;
-
     const update: Record<string, any> = {};
 
     if (body.payment_status) update.payment_status = body.payment_status;
 
     const ff = body.fulfilment_status ?? body.fulfillment_status ?? body.fullfillment_status;
-
-    // ✅ Canonical: try UK column first because your UI uses it
     if (ff) update.fulfilment_status = ff;
 
     if (typeof body.shipment_status === "string") update.shipment_status = body.shipment_status;
@@ -113,24 +94,14 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 
     const sb = supabaseAdmin();
 
-    // Attempt 1: update using fulfilment_status
-    let { data, error } = await sb
-      .from("orders")
-      .update(update)
-      .eq("id", id)
-      .select("*")
-      .single();
+    let { data, error } = await sb.from("orders").update(update).eq("id", id).select("*").single();
 
     // Fallback: DB might use fulfillment_status (US spelling)
     if (error && ff) {
       const msg = error.message || "";
-
       if (msg.includes("fulfilment_status")) {
         const retry = { ...update };
         delete retry.fulfilment_status;
-
-        // ✅ IMPORTANT: fallback should update fulfillment_status (US),
-        // not fulfilment_status again.
         retry.fulfillment_status = ff;
 
         const r2 = await sb.from("orders").update(retry).eq("id", id).select("*").single();
@@ -150,4 +121,18 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       { status: 500 }
     );
   }
+}
+
+function normalizeItems(order: any): any[] {
+  const itemsJson = order?.items_json;
+  if (Array.isArray(itemsJson)) return itemsJson;
+
+  if (typeof itemsJson === "string") {
+    try {
+      const parsed = JSON.parse(itemsJson);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && Array.isArray(parsed.items)) return parsed.items;
+    } catch {}
+  }
+  return [];
 }
