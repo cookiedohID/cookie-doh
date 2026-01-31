@@ -8,9 +8,6 @@ import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
 
-
-
-
 const COLORS = {
   blue: "#0014a7", // Pantone 293C vibe
   black: "#101010",
@@ -36,60 +33,10 @@ function toCardFlavor(f: any): CardFlavorUI {
     intensity: f.intensity,
     badges: Array.isArray(f.badges) ? f.badges : [],
     price: COOKIE_PRICE,
-    soldOut: Boolean(f.soldOut),
+    soldOut: Boolean((f as any).soldOut),
   };
 }
 
-function HomePage() {
-  return (
-    <main>
-      {/* HERO SECTION */}
-      <section
-        className="relative flex min-h-[90vh] items-center"
-        style={{
-          backgroundImage: "url('/hero/hero.jpg')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-black/40" />
-
-        {/* Content */}
-        <div className="relative z-10 mx-auto max-w-7xl px-6">
-          <h1 className="text-5xl font-semibold text-white md:text-6xl">
-            Cookie Doh
-          </h1>
-
-          <p className="mt-4 max-w-md text-lg text-white/90">
-            Where cookie magic happens.
-          </p>
-
-          <div className="mt-8 flex gap-4">
-            <a
-              href="/order"
-              className="rounded-md bg-[#003A8F] px-6 py-3 text-white transition hover:opacity-90"
-            >
-              Order Cookies
-            </a>
-
-            <a
-              href="/flavors"
-              className="rounded-md border border-white/70 px-6 py-3 text-white transition hover:bg-white/10"
-            >
-              Explore Flavors
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* REST OF PAGE */}
-      <section className="bg-white py-20">
-        {/* content */}
-      </section>
-    </main>
-  );
-}
 export default function HomePage() {
   const router = useRouter();
 
@@ -114,7 +61,6 @@ export default function HomePage() {
   );
 
   function addPresetToCart(boxSize: 3 | 6, items: { flavorId: string; qty: number }[]) {
-    // Convert preset items into the unified cart schema
     const cartItems = items
       .map((x) => {
         const f = FLAVORS.find((ff: any) => ff.id === x.flavorId);
@@ -143,114 +89,39 @@ export default function HomePage() {
 
   return (
     <main style={{ background: COLORS.bg }}>
-      {/* HERO */}
+      {/* HERO SECTION (Background image) */}
       <section
+        className="relative flex min-h-[90vh] items-center"
         style={{
-          minHeight: "85vh",
-          padding: "64px 16px 56px",
-          display: "grid",
-          placeItems: "center",
+          backgroundImage: "url('/hero/hero.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
         }}
       >
-        <div style={{ width: "100%", maxWidth: 720, textAlign: "center" }}>
-          {/* Warm welcome strip */}
-          <div
-            style={{
-              height: 40,
-              display: "grid",
-              placeItems: "center",
-              borderRadius: 999,
-              background: "rgba(0, 82, 204, 0.10)",
-              color: "#0014a7",
-              fontSize: 12,
-              letterSpacing: "0.08em",
-              margin: "0 auto 28px",
-              maxWidth: 560,
-              padding: "0 14px",
-            }}
-          >
-            Freshly baked daily • Small batches • Jakarta delivery
-          </div>
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-black/40" />
 
-          <div
-            style={{
-              fontSize: 12,
-              letterSpacing: "0.12em",
-              color: COLORS.black,
-              opacity: 0.7,
-              marginBottom: 12,
-            }}
-          >
-            COOKIE DOH KITCHEN
-          </div>
+        {/* Content */}
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-6">
+          <h1 className="text-5xl font-semibold text-white md:text-6xl">Cookie Doh</h1>
 
-          <h1
-            style={{
-              fontSize: 38,
-              lineHeight: 1.15,
-              fontWeight: 600,
-              margin: "0 0 18px",
-              color: COLORS.black,
-            }}
-          >
-            Where the
-            <br />
-            cookie magic happens
-          </h1>
+          <p className="mt-4 max-w-md text-lg text-white/90">Where cookie magic happens.</p>
 
-          <p
-            style={{
-              margin: "0 auto 28px",
-              maxWidth: 440,
-              fontSize: 16,
-              lineHeight: 1.6,
-              color: "#3C3C3C",
-            }}
-          >
-            Life feels better with warm cookies.
-            <br />
-            Thoughtfully baked in small batches, with soft centers and golden edges.
-            <br />
-            Pick your favourites — we’ll take care of the rest.
-          </p>
-
-          {/* Primary CTA */}
-          <div style={{ display: "grid", gap: 10, justifyItems: "center" }}>
-            <div style={{ fontSize: 14, color: "#3C3C3C" }}>Build your perfect box</div>
-
+          <div className="mt-8 flex flex-wrap gap-4">
             <Link
               href="/build"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 999,
-                padding: "14px 24px",
-                background: COLORS.blue,
-                color: COLORS.white,
-                fontWeight: 700,
-                textDecoration: "none",
-                boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
-                minHeight: 48,
-              }}
+              className="rounded-md bg-[#0014a7] px-6 py-3 text-white transition hover:opacity-90"
             >
-              Build your box
+              Build Your Box
             </Link>
 
-            <div style={{ fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
-              Freshly baked · Packed with care · Gift-ready
-            </div>
+            <Link
+              href="/flavors"
+              className="rounded-md border border-white/70 px-6 py-3 text-white transition hover:bg-white/10"
+            >
+              Explore Flavors
+            </Link>
           </div>
-
-          {/* Cozy divider */}
-          <div
-            style={{
-              margin: "34px auto 0",
-              width: 96,
-              height: 1,
-              background: "rgba(0,0,0,0.08)",
-            }}
-          />
         </div>
       </section>
 
@@ -275,7 +146,6 @@ export default function HomePage() {
             Want the easiest choice? Pick a ready-made box — one tap, done.
           </p>
 
-          {/* Quick Picks */}
           <div
             style={{
               marginTop: 18,
