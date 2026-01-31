@@ -43,9 +43,10 @@ export async function PATCH(
     if (body.payment_status) update.payment_status = body.payment_status;
 
     const ff =
-      body.fulfilment_status ??
-      body.fulfillment_status ??
-      body.fulfillment_status;
+    body.fulfilment_status ??
+    body.fulfillment_status ??
+    body.fullfillment_status;
+
 
     // We try to update fulfilment_status first (what your UI uses).
     // If your DB column name differs, we fallback based on Supabase error text.
