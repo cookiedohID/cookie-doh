@@ -37,7 +37,11 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
   async function load() {
     const identifier = String(id ?? "").trim();
-    if (!identifier) throw new Error("Missing order id in URL");
+    if (!identifier) {
+      setErr("Missing order id in URL");
+      return;
+    }
+
 
     const res = await fetch(`/api/admin/orders/${encodeURIComponent(identifier)}`, { cache: "no-store" });
     const j = await res.json();

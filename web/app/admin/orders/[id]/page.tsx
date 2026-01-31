@@ -1,7 +1,15 @@
-//web/app/admin/orders/[id]/page.tsx
-
 import OrderDetailClient from "./OrderDetailClient";
 
-export default function AdminOrderDetailPage({ params }: { params: { id: string } }) {
-  return <OrderDetailClient id={params.id} />;
+type ParamsObj = { id?: string };
+type MaybePromise<T> = T | Promise<T>;
+
+export default async function AdminOrderDetailPage({
+  params,
+}: {
+  params: MaybePromise<ParamsObj>;
+}) {
+  const resolved = typeof (params as any)?.then === "function" ? await (params as any) : (params as any);
+  const id = String(resolved?.id ?? "").trim();
+
+  return <OrderDetailClient id={id} />;
 }
