@@ -14,6 +14,16 @@ const COLORS = {
   sand: "#FAF7F2",
 };
 
+function clearCartStorageSafe() {
+  try {
+    localStorage.removeItem("cookie_doh_cart");
+    localStorage.removeItem("cart");
+    localStorage.removeItem("cookiedoh_cart");
+    // add any other keys you used previously
+  } catch {}
+}
+
+
 function formatIDRLoose(amount: string | null) {
   if (!amount) return null;
   const n = Number(amount);
@@ -171,7 +181,13 @@ export default function SuccessClient() {
   }, [orderId]);
 
 
- 
+  useEffect(() => {
+    if (!order) return;
+    if (String(order.payment_status || "").toUpperCase() !== "PAID") return;
+
+    clearCartStorageSafe();
+  }, [order]);
+
 
   // ✅ UPDATED: WhatsApp message matches Admin "Order Summary" format
     const waMessage = useMemo(() => {
