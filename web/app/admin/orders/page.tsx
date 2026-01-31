@@ -120,7 +120,7 @@ function getScheduleInfo(o: OrderRow) {
   const fulfillment = meta?.fulfillment || null;
   const pickup = meta?.pickup || null;
 
-  const type = (fulfillment?.type || o.fulfillment_status || "").toString().trim() || "";
+  const type = (fulfillment?.type || "").toString().trim() || "";
   const scheduleDate = (fulfillment?.scheduleDate || "").toString().trim();
   const scheduleTime = (fulfillment?.scheduleTime || "").toString().trim();
   const pickupPoint = (pickup?.pointName || "").toString().trim();
