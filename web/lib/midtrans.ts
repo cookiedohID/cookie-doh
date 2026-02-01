@@ -63,7 +63,8 @@ export async function createSnapToken(input: {
         quantity: 1,
       },
     ],
-    custom_field1: input.itemsText || undefined,
+    // custom_field1 must be <= 255 chars. We don't need it.
+
     callbacks: input.siteUrl ? { finish: `${input.siteUrl}/checkout/success` } : undefined,
   };
 
