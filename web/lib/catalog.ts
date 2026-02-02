@@ -83,11 +83,11 @@ export const FLAVORS: Flavor[] = [
     intensity: { chocolate: 1, sweetness: 4 },
   },
   {
-    id: "velvety-heart",
-    name: "Velvety Heart",
+    id: "velvety-red",
+    name: "Velvety Red",
     description:
       "Velvety red cocoa cookie swirled with tangy cream cheese - bold, creamy and utterly irresistable.",
-    image: "/flavors/velvety-heart.jpg",
+    image: "/flavors/velvety-red.jpg",
     badges: ["New"],
     tags: ["Soft", "Creamy"],
     intensity: { chocolate: 2, sweetness: 4 },
@@ -103,11 +103,11 @@ export const FLAVORS: Flavor[] = [
     intensity: { chocolate: 0, sweetness: 3 },
   },
   {
-    id: "my-sweet-lavender",
-    name: "My Sweet Lavender",
+    id: "lavender-hush",
+    name: "Lavender Hush",
     description:
       "Like a cookie version of fairy tales : floral lavender whispers, creamy chocolate and a crumb so tender it's practically a pixie made.",
-    image: "/flavors/my-sweet-lavender.jpg",
+    image: "/flavors/lavender-hush.jpg",
     badges: ["New"],
     tags: ["Floral", "Soft"],
     intensity: { chocolate: 0, sweetness: 4 },
