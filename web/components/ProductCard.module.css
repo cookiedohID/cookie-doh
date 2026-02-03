@@ -61,6 +61,15 @@
   gap: 10px;
 }
 
+.tagline {
+  margin-top: 6px;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: #3b3b3b;
+  opacity: 0.92;
+}
+
+
 .titleRow { display: block; }
 
 .title {
