@@ -1,4 +1,8 @@
 // web/lib/catalog.ts
+console.log(
+  "CATALOG CHECK:",
+  FLAVORS.map((f) => ({ id: f.id, description: f.description }))
+);
 
 export type FlavorBadge =
   | "Bestseller"
