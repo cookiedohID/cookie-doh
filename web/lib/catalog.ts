@@ -49,7 +49,8 @@ export const FLAVORS: Flavor[] = [
     description:
       "Decadent dark chocolate cookie studded with creamy white chocolate chips -- a bold, blissful contrast in every bite.",
     ingredients: [
-      "European butter",
+      "European B
+      utter",
       "Indonesian palm sugar",
       "White Belgian chocolate",
       "Bourbon vanilla",
@@ -144,11 +145,11 @@ export const FLAVORS: Flavor[] = [
     description:
       "Fragrant rose petals and warm vanilla, cradling a custard center that melts into memory.",
     ingredients: [
-      "European butter",
-      "Dried rose petals",
+      "European Butter",
+      "Dried Rose Petals",
       "Creamy vanilla crème pâtissière",
-      "White Belgian chocolate",
-      "Bourbon vanilla",
+      "White Belgian Chocolate",
+      "Bourbon Vanilla",
     ],
     image: "/flavors/rose-lullaby.jpg",
     badges: ["Romantic"],
