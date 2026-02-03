@@ -44,7 +44,9 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       id: String(f.id),
       name: String(f.name ?? ""),
       image: String(f.image ?? ""),
-      ingredients: String(f.description ?? ""),
+      ingredients: Array.isArray(f.ingredients)
+        ? f.ingredients.map((x: any) => String(x))
+        : [],
       textureTags: Array.isArray(f.tags) ? f.tags : [],
       intensity: f.intensity,
       badges: Array.isArray(f.badges) ? f.badges : [],

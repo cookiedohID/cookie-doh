@@ -9,7 +9,7 @@ export type FlavorUI = {
   id: string;
   name: string;
   image: string;
-  ingredients: string;
+  ingredients?: string[];
   textureTags: string[];
   // intensity intentionally kept optional for future use,
   // but NOT rendered in UI
@@ -67,10 +67,13 @@ export default function ProductCard({
         </div>
 
         {/* Ingredients line */}
-        <p className={styles.ingredients} title={flavor.ingredients}>
+      {flavor.ingredients?.length ? (
+        <p className={styles.ingredients}>
           <span className={styles.ingredientsLabel}>Key ingredients:</span>{" "}
-          {flavor.ingredients}
+          {flavor.ingredients.join(" · ")}
         </p>
+      ) : null}
+
 
         {/* Texture tags */}
         <div className={styles.textureRow}>
