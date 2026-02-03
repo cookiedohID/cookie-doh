@@ -1,4 +1,7 @@
 // web/app/build/page.tsx
+
+export const dynamic = "force-dynamic";
+
 import BuildClient from "./BuildClient";
 
 type BoxSize = 3 | 6;
