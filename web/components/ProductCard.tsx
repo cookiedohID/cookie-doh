@@ -67,10 +67,10 @@ export default function ProductCard({
           <h3 className={styles.title}>{flavor.name}</h3>
         </div>
 
-{/* Tagline */}
-<p className={styles.tagline}>
-  {flavor.description ? flavor.description : "TAGLINE_MISSING"}
-</p>
+{flavor.description ? (
+  <p className={styles.tagline}>{flavor.description}</p>
+) : null}
+
 
 
         {flavor.description ? (
