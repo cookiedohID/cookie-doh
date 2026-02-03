@@ -1,4 +1,5 @@
 // web/components/ProductCard.tsx
+
 "use client";
 
 import Image from "next/image";
@@ -10,7 +11,12 @@ export type FlavorUI = {
   image: string;
   ingredients: string;
   textureTags: string[];
-  intensity?: { chocolate?: 0 | 1 | 2 | 3 | 4 | 5; sweetness?: 1 | 2 | 3 | 4 | 5 };
+  // intensity intentionally kept optional for future use,
+  // but NOT rendered in UI
+  intensity?: {
+    chocolate?: 0 | 1 | 2 | 3 | 4 | 5;
+    sweetness?: 1 | 2 | 3 | 4 | 5;
+  };
   price?: number;
   badges?: string[];
   soldOut?: boolean;
@@ -31,9 +37,6 @@ export default function ProductCard({
   disabledAdd?: boolean;
   addLabel?: string;
 }) {
-  const chocolate = flavor.intensity?.chocolate ?? 0;
-  const sweetness = flavor.intensity?.sweetness ?? 0;
-
   const isSoldOut = !!flavor.soldOut;
   const addDisabled = !!disabledAdd || isSoldOut;
 
@@ -63,10 +66,13 @@ export default function ProductCard({
           <h3 className={styles.title}>{flavor.name}</h3>
         </div>
 
+        {/* Ingredients line */}
         <p className={styles.ingredients} title={flavor.ingredients}>
+          <span className={styles.ingredientsLabel}>Key ingredients:</span>{" "}
           {flavor.ingredients}
         </p>
 
+        {/* Texture tags */}
         <div className={styles.textureRow}>
           {flavor.textureTags.slice(0, 2).map((t) => (
             <span key={t} className={styles.texturePill}>
@@ -75,27 +81,7 @@ export default function ProductCard({
           ))}
         </div>
 
-        {(chocolate > 0 || sweetness > 0) && (
-          <div className={styles.intensityWrap}>
-            <div className={styles.intensityBlock}>
-              <div className={styles.intensityLabel}>Chocolate</div>
-              <div className={styles.dots}>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className={`${styles.dot} ${i < chocolate ? styles.dotOn : ""}`} />
-                ))}
-              </div>
-            </div>
-            <div className={styles.intensityBlock}>
-              <div className={styles.intensityLabel}>Sweetness</div>
-              <div className={styles.dots}>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className={`${styles.dot} ${i < sweetness ? styles.dotOn : ""}`} />
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
+        {/* CTA */}
         <div className={styles.ctaRow}>
           <button
             className={styles.minusBtn}

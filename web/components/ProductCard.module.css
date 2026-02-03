@@ -1,5 +1,7 @@
 /* web/components/ProductCard.module.css */
 
+/* web/components/ProductCard.module.css */
+
 .card {
   border: 1px solid rgba(0, 0, 0, 0.10);
   border-radius: 18px;
@@ -35,8 +37,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-
-  /* ✅ never block taps */
   pointer-events: none;
 }
 
@@ -52,8 +52,6 @@
   background: rgba(0,0,0,0.72);
   color: #fff;
   border: 1px solid rgba(0,0,0,0.18);
-
-  /* ✅ never block taps */
   pointer-events: none;
 }
 
@@ -73,6 +71,7 @@
   color: #111;
 }
 
+/* Ingredients */
 .ingredients {
   margin: 0;
   font-size: 13px;
@@ -85,6 +84,12 @@
   overflow: hidden;
 }
 
+.ingredientsLabel {
+  font-weight: 600;
+  color: #4f4f4f;
+}
+
+/* Texture tags */
 .textureRow {
   display: flex;
   flex-wrap: wrap;
@@ -101,6 +106,7 @@
   font-weight: 750;
 }
 
+/* Intensity (currently unused, kept for future) */
 .intensityWrap {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -131,6 +137,7 @@
 
 .dotOn { background: rgba(0, 0, 0, 0.75); }
 
+/* CTA */
 .ctaRow {
   display: grid;
   grid-template-columns: 44px 1fr;
@@ -139,7 +146,7 @@
   margin-top: 2px;
 }
 
-/* ✅ tap reliability */
+/* Tap reliability */
 .minusBtn,
 .addBtn {
   touch-action: manipulation;
@@ -198,11 +205,11 @@
 
 .plus { font-weight: 950; }
 
+/* Responsive */
 @media (max-width: 380px) {
   .title { font-size: 17px; }
   .ingredients { font-size: 12.5px; }
   .texturePill { font-size: 11.5px; padding: 5px 9px; }
-  .intensityWrap { padding: 6px; }
 }
 
 @media (min-width: 900px) {
