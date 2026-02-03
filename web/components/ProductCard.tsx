@@ -72,16 +72,6 @@ export default function ProductCard({
   {flavor.description?.trim() ? flavor.description : "TAGLINE_EMPTY"}
 </p>
 
-
-        {flavor.description ? (
-          <p className={styles.description}>{flavor.description}</p>
-        ) : null}
-
-<pre style={{ fontSize: 10, color: "red" }}>
-  {JSON.stringify(flavor.description)}
-</pre>
-
-
         {/* Ingredients line */}
       {flavor.ingredients?.length ? (
         <p className={styles.ingredients}>
