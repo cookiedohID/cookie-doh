@@ -84,6 +84,13 @@
   overflow: hidden;
 }
 
+.description {
+  margin-top: 6px;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  opacity: 0.9;
+}
+
 .ingredientsLabel {
   font-weight: 600;
   color: #4f4f4f;

@@ -44,6 +44,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       id: String(f.id),
       name: String(f.name ?? ""),
       image: String(f.image ?? ""),
+      description: String(f.description ?? ""), // ✅ add this
       ingredients: Array.isArray(f.ingredients)
         ? f.ingredients.map((x: any) => String(x))
         : [],
