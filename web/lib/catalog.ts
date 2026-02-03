@@ -1,8 +1,5 @@
 // web/lib/catalog.ts
-console.log(
-  "CATALOG CHECK:",
-  FLAVORS.map((f) => ({ id: f.id, description: f.description }))
-);
+
 
 export type FlavorBadge =
   | "Bestseller"
@@ -57,7 +54,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/the-one.jpg",
     badges: ["Bestseller", "Signature"],
     tags: ["Classic", "Buttery", "Comfort"],
-    intensity: { chocolate: 4, sweetness: 4 },
   },
 
   // 2) The Other One
@@ -75,7 +71,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/the-other-one.jpg",
     badges: ["Fan Favorite"],
     tags: ["Earthy", "Creamy", "Chocolatey"],
-    intensity: { chocolate: 5, sweetness: 4 },
   },
 
   // 3) Orange In The Dark
@@ -94,7 +89,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/orange-in-the-dark.jpg",
     badges: ["Bold Choice"],
     tags: ["Citrus", "Dark", "Aromatic"],
-    intensity: { chocolate: 5, sweetness: 4 },
   },
 
   // 4) Matcha Magic
@@ -106,13 +100,12 @@ export const FLAVORS: Flavor[] = [
     ingredients: [
       "European butter",
       "Japanese Matcha (Ceremonial Grade)",
-      "White Belgian chocolate",
+      "White Belgian Chocolate",
       "Bourbon Vanilla",
     ],
     image: "/flavors/matcha-magic.jpg",
     badges: ["House Favorite"],
     tags: ["Earthy", "Aromatic", "Creamy"],
-    intensity: { chocolate: 2, sweetness: 4 },
   },
 
   // 5) Lavender Hush
@@ -130,7 +123,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/lavender-hush.jpg",
     badges: ["Calm Pick"],
     tags: ["Floral", "Soft", "Elegant"],
-    intensity: { chocolate: 2, sweetness: 4 },
   },
 
   // 6) Rose Lullaby
@@ -149,7 +141,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/rose-lullaby.jpg",
     badges: ["Romantic"],
     tags: ["Floral", "Creamy", "Nostalgic"],
-    intensity: { chocolate: 1, sweetness: 4 },
   },
 
   // 7) Strawberry Kiss
@@ -167,7 +158,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/strawberry-kiss.jpg",
     badges: ["Crowd Pleaser"],
     tags: ["Fruity", "Sweet", "Romantic"],
-    intensity: { chocolate: 2, sweetness: 4 },
   },
 
   // 8) Crimson Crush
@@ -185,7 +175,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/crimson-crush.jpg",
     badges: ["Indulgent"],
     tags: ["Fruity", "Dark", "Rich"],
-    intensity: { chocolate: 4, sweetness: 4 },
   },
 
   // 9) Velvety Red
@@ -196,7 +185,7 @@ export const FLAVORS: Flavor[] = [
       "Velvety red cocoa cookie swirled with tangy cream cheese - bold, creamy and utterly irresistible.",
     ingredients: [
       "European Butter",
-      "Cream cheese",
+      "Cream Cheese",
       "White Belgian Chocolate",
       "Bourbon Vanilla",
       "Sea Salt Flakes",
@@ -204,7 +193,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/velvety-red.jpg",
     badges: ["Comfort Pick"],
     tags: ["Creamy", "Rich", "Indulgent"],
-    intensity: { chocolate: 3, sweetness: 4 },
   },
 
   // 10) Midnight Crave
@@ -224,7 +212,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/midnight-crave.jpg",
     badges: ["Late Night Comfort"],
     tags: ["Comfort", "Spiced", "Nostalgic"],
-    intensity: { chocolate: 0, sweetness: 3 },
   },
 
   // 11) One Shade of Grey
@@ -242,7 +229,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/one-shade-of-grey.jpg",
     badges: ["Refined"],
     tags: ["Tea", "Elegant", "Balanced"],
-    intensity: { chocolate: 2, sweetness: 3 },
   },
 
   // 12) Ruby Glow
@@ -261,7 +247,6 @@ export const FLAVORS: Flavor[] = [
     image: "/flavors/ruby-glow.jpg",
     badges: ["Bright Finish"],
     tags: ["Fruity", "Fresh", "Uplifting"],
-    intensity: { chocolate: 2, sweetness: 4 },
   },
 ];
 
