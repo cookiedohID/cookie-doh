@@ -114,6 +114,8 @@ export const FLAVORS: Flavor[] = [
     name: "Lavender Hush",
     description:
       "Like a cookie version of fairy tale : floral lavender whispers, creamy chocolate, and a crumb so tender it’s practically pixie made.",
+    tagline:
+      "Like a cookie version of fairy tale : floral lavender whispers, creamy chocolate, and a crumb so tender it’s practically pixie made.",
     ingredients: [
       "European Butter",
       "Dried Lavender Flower",
