@@ -28,7 +28,7 @@ function toCardFlavor(f: any): CardFlavorUI {
     id: String(f.id),
     name: String(f.name ?? ""),
     image: String(f.image ?? ""),
-    description: f.description ?? "",
+    description: String(f.description ?? ""),
     ingredients: Array.isArray(f.ingredients)
         ? f.ingredients.map((x: any) => String(x))
         : [],
