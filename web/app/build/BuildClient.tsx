@@ -96,6 +96,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       .map((f) => ({
         id: f.id,
         name: f.name,
+        ingredients: f.ingredients,
         price: f.price ?? COOKIE_PRICE,
         quantity: qty[f.id],
         image: f.image,

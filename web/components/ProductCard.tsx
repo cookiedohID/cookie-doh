@@ -69,7 +69,7 @@ export default function ProductCard({
 
 {/* Tagline */}
 <p className={styles.tagline}>
-  {flavor.description?.trim() ? flavor.description : "TAGLINE_EMPTY"}
+  {flavor.description?.trim() ? flavor.description : ""}
 </p>
 
         {/* Ingredients line */}
