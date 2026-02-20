@@ -28,6 +28,7 @@ export type Flavor = {
   id: string;
   name: string;
   description?: string;
+  tagline?: string;
   image?: string; // e.g. "/flavors/choco-chip.jpg"
   badges?: FlavorBadge[]; // e.g. ["Bestseller", "Signature"]
   tags?: string[]; // e.g. ["Chewy", "Chunky", "Nutty"]
