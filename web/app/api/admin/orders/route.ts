@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Missing Supabase env vars");
   return createClient(url, key, { auth: { persistSession: false } });
@@ -27,6 +27,14 @@ export async function GET(req: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+console.error("ADMIN ORDERS ERROR", {
+  supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+  hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+  errorName: e?.name,
+  errorMessage: e?.message,
+  errorStack: e?.stack,
+});
 
     return NextResponse.json({ orders: data ?? [] });
   } catch (e: any) {
