@@ -28,16 +28,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-console.error("ADMIN ORDERS ERROR", {
-  supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
-  hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
-  errorName: e?.name,
-  errorMessage: e?.message,
-  errorStack: e?.stack,
-});
-
     return NextResponse.json({ orders: data ?? [] });
   } catch (e: any) {
+    console.error("ADMIN ORDERS ERROR", {
+      supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      errorName: e?.name,
+      errorMessage: e?.message,
+      errorStack: e?.stack,
+    });
+
     return NextResponse.json(
       { error: e?.message || "Server error" },
       { status: 500 }
