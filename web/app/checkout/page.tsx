@@ -271,7 +271,7 @@ export default function CheckoutPage() {
 
   // Fulfillment
   const [fulfillment, setFulfillment] = useState<FulfillmentType>("delivery");
-  const [deliverySpeed, setDeliverySpeed] = useState<DeliverySpeed>("instant");
+  const [deliverySpeed, setDeliverySpeed] = useState<DeliverySpeed>("sameday");
 
   // Schedule
   const dateOptions = useMemo(() => nextDays(30), []);
@@ -489,7 +489,7 @@ export default function CheckoutPage() {
           type: fulfillment,
           scheduleDate,
           scheduleTime,
-          deliverySpeed: fulfillment === "delivery" ? deliverySpeed : null,
+          deliverySpeed: fulfillment === "delivery" ? "sameday" : null,
         },
 
         delivery:
@@ -756,25 +756,7 @@ export default function CheckoutPage() {
             {fulfillment === "delivery" ? (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Delivery type</div>
-                <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => setDeliverySpeed("instant")}
-                    style={{
-                      textAlign: "left",
-                      borderRadius: 16,
-                      padding: 12,
-                      border:
-                        deliverySpeed === "instant"
-                          ? `2px solid ${COLORS.blue}`
-                          : "1px solid rgba(0,0,0,0.10)",
-                      background: deliverySpeed === "instant" ? "rgba(0,20,167,0.06)" : COLORS.sand,
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ fontWeight: 900, color: COLORS.black }}>Instant</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>Two time slots</div>
-                  </button>
+                <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
 
                   <button
                     type="button"
