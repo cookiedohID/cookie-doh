@@ -166,11 +166,6 @@ function yyyyMmDdLocal(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-const BLOCKED_DATES = new Set([
-  // Add closed / holiday dates here
-  "2026-03-17",
-  "2026-03-18",
-]);
 
 const BLOCKED_DATES = new Set([
   // Holidays / closed production days

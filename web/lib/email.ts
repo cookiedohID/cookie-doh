@@ -63,7 +63,7 @@ export async function sendNewOrderEmail(params: {
   `;
 
   await resend.emails.send({
-    ffrom: "onboarding@resend.dev",
+    from: "onboarding@resend.dev",
     to,
     subject,
     html,
