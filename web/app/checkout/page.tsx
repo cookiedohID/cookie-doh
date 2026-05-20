@@ -166,21 +166,40 @@ function yyyyMmDdLocal(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+const BLOCKED_DATES = new Set([
+  // Add closed / holiday dates here
+  "2026-03-17",
+  "2026-03-18",
+]);
+
 function nextDays(n: number) {
   const out: { value: string; label: string }[] = [];
   const today = new Date();
-  for (let i = 0; i < n; i++) {
+
+  // D+1 only (tomorrow onwards)
+  let offset = 1;
+
+  while (out.length < n) {
     const d = new Date(today);
-    d.setDate(today.getDate() + i);
+    d.setDate(today.getDate() + offset);
+
     const val = yyyyMmDdLocal(d);
-    const label = d.toLocaleDateString("en-GB", {
-      timeZone: "Asia/Jakarta",
-      weekday: "short",
-      day: "2-digit",
-      month: "short",
-    });
-    out.push({ value: val, label });
+
+    // Hide blocked dates
+    if (!BLOCKED_DATES.has(val)) {
+      const label = d.toLocaleDateString("en-GB", {
+        timeZone: "Asia/Jakarta",
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+      });
+
+      out.push({ value: val, label });
+    }
+
+    offset++;
   }
+
   return out;
 }
 
@@ -319,8 +338,7 @@ export default function CheckoutPage() {
   const isScheduleTodayJakarta = !!scheduleDate && scheduleDate === todayJakarta;
 
   // ✅ Same-day disabled ONLY if scheduleDate is today AND after 12:00
-  const samedayDisabled =
-    fulfillment === "delivery" && isScheduleTodayJakarta && nowMinJakarta >= 12 * 60;
+  const samedayDisabled = false;
 
   // ✅ Instant slots filtered for today only
   const instantSlotOptions = useMemo(() => {
@@ -332,15 +350,8 @@ export default function CheckoutPage() {
     }));
   }, [isScheduleTodayJakarta, nowMinJakarta]);
 
-  const noSlotsLeftToday =
-    fulfillment === "delivery" &&
-    deliverySpeed === "instant" &&
-    isScheduleTodayJakarta &&
-    instantSlotOptions.length === 0;
+  const noSlotsLeftToday = false;
 
-  useEffect(() => {
-    if (deliverySpeed === "sameday" && samedayDisabled) setDeliverySpeed("instant");
-  }, [deliverySpeed, samedayDisabled]);
 
   const scheduleError =
     scheduleTouched && (!scheduleDate || !scheduleTime)
@@ -784,13 +795,13 @@ export default function CheckoutPage() {
                   >
                     <div style={{ fontWeight: 900, color: COLORS.black }}>Same-day</div>
                     <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                      08:00 – 22:00 {samedayDisabled ? "• Cutoff today 12:00" : ""}
+                      08:00 – 22:00 
                     </div>
                   </button>
                 </div>
 
                 <div style={{ marginTop: 8, fontSize: 12, color: "#6B6B6B", fontWeight: 700 }}>
-                  Same-day is only disabled for today after 12:00 (Jakarta time).
+                  Earliest delivery is tomorrow. Closed dates are automatically hidden.
                 </div>
               </div>
             ) : null}
