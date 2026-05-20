@@ -1,3 +1,4 @@
+import { sendNewOrderEmail } from "@/lib/email";
 import { NextResponse } from "next/server";
 import midtransClient from "midtrans-client";
 import { supabaseServer } from "@/lib/supabaseServer";
@@ -233,6 +234,17 @@ export async function POST(req: Request) {
         .from("orders")
         .update({ shipment_status: "created" })
         .eq("id", order.id);
+
+      await sendNewOrderEmail({
+        orderNo: order.order_no,
+        customerName: order.customer_name,
+        customerPhone: order.customer_phone,
+        fulfilment: order.fulfilment_status,
+        scheduleDate: order?.meta?.fulfillment?.scheduleDate ?? null,
+        scheduleTime: order?.meta?.fulfillment?.scheduleTime ?? null,
+        totalIdr: order.total_idr,
+        adminUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/orders/${order.id}`,
+});  
     }
 
     return NextResponse.json({ ok: true, txStatus, fraud, paid });
