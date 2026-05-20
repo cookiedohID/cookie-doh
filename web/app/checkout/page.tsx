@@ -172,6 +172,11 @@ const BLOCKED_DATES = new Set([
   "2026-03-18",
 ]);
 
+const BLOCKED_DATES = new Set([
+  // Holidays / closed production days
+  "2026-05-21",
+]);
+
 function nextDays(n: number) {
   const out: { value: string; label: string }[] = [];
   const today = new Date();
