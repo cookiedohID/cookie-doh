@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
 import { clearCart, getCart, CART_KEY } from "@/lib/cart";
+import { COLORS } from "@/lib/theme";
 
 declare global {
   interface Window {
@@ -40,14 +41,6 @@ type CartBox = {
 
 type CartState = {
   boxes: CartBox[];
-};
-
-const COLORS = {
-  blue: "#0014A7",
-  orange: "#FF5A00",
-  black: "#101010",
-  white: "#FFFFFF",
-  sand: "#FAF7F2",
 };
 
 const formatIDR = (n: number) =>
@@ -295,6 +288,15 @@ export default function CheckoutPage() {
   const quoteAbortRef = useRef<AbortController | null>(null);
 
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
+
+  // Reserve space for the sticky bottom "Place order" bar so the floating
+  // WhatsApp button clears it (see WhatsAppButton + globals.css --cd-bottombar-h).
+  useEffect(() => {
+    document.documentElement.style.setProperty("--cd-bottombar-h", "92px");
+    return () => {
+      document.documentElement.style.removeProperty("--cd-bottombar-h");
+    };
+  }, []);
 
   useEffect(() => {
     const c = getCart() as any;

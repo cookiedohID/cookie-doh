@@ -2,9 +2,25 @@
 
 
 :root {
-  --brand-blue: #0014a8; /* 0047bb Pantone 293C-ish for web */
-  --black: #0b0b0b;
-  --white: #ffffff;
+  /* Brand design tokens — keep in sync with lib/theme.ts */
+  --cd-blue: #0014a7; /* Pantone 293C-ish */
+  --cd-orange: #ff5a00;
+  --cd-black: #101010;
+  --cd-white: #ffffff;
+  --cd-bg: #faf7f2;
+  --cd-muted: #6b6b6b;
+
+  --cd-radius-card: 18px;
+  --cd-radius-pill: 999px;
+
+  --cd-shadow-card: 0 10px 26px rgba(0, 0, 0, 0.05);
+  --cd-shadow-card-hover: 0 18px 40px rgba(0, 0, 0, 0.12);
+  --cd-shadow-button: 0 10px 22px rgba(0, 0, 0, 0.1);
+
+  /* Back-compat aliases */
+  --brand-blue: var(--cd-blue);
+  --black: var(--cd-black);
+  --white: var(--cd-white);
 }
 
 body {

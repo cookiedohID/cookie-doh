@@ -4,15 +4,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-
-
-const COLORS = {
-  blue: "#0014a7",
-  orange: "#FF5A00",
-  black: "#101010",
-  white: "#FFFFFF",
-  sand: "#FAF7F2",
-};
+import { COLORS } from "@/lib/theme";
 
 function clearCartStorageSafe() {
   try {

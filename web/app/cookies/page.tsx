@@ -6,12 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { FLAVORS } from "@/lib/catalog";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
-
-const COLORS = {
-  blue: "#0014A7",
-  black: "#101010",
-  white: "#FFFFFF",
-};
+import { COLORS } from "@/lib/theme";
 
 export default function CookiesPage() {
   const router = useRouter();
@@ -22,6 +17,7 @@ export default function CookiesPage() {
         id: String(f.id),
         name: String(f.name ?? ""),
         image: String(f.image ?? ""),
+        image2: String(f.image2 ?? ""),
         ingredients: Array.isArray(f.ingredients)
           ? f.ingredients.map((x: any) => String(x))
           : [],
@@ -46,7 +42,7 @@ export default function CookiesPage() {
           </p>
         </header>
 
-        <section style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14 }}>
+        <section className="grid grid-cols-2 gap-4">
           {cardFlavors.map((f) => (
             <ProductCard
               key={f.id}
@@ -56,6 +52,7 @@ export default function CookiesPage() {
               onRemove={() => {}}
               disabledAdd={false}
               addLabel="Build a box"
+              showQty={false}
             />
           ))}
         </section>

@@ -1,0 +1,38 @@
+/* web/components/SmoothieCard.module.css */
+
+.card {
+  height: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--cd-radius-card, 18px);
+  overflow: hidden;
+  background: var(--cd-white, #fff);
+  box-shadow: var(--cd-shadow-card, 0 10px 26px rgba(0, 0, 0, 0.05));
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--cd-shadow-card-hover, 0 18px 40px rgba(0, 0, 0, 0.12));
+    border-color: rgba(0, 20, 167, 0.25);
+  }
+
+  .card:hover .image {
+    transform: scale(1.12);
+  }
+}
+
+.imageWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: #f3f3f3;
+  overflow: hidden;
+}
+
+.image {
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}

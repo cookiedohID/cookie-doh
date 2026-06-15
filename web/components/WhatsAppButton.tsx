@@ -15,9 +15,12 @@ export default function WhatsAppButton() {
       style={{
         position: "fixed",
         right: 18,
-        bottom: 18,
+        // Lift above any page-level bottom action bar (e.g. the build page
+        // "Add box to cart" CTA), which sets --cd-bottombar-h while mounted.
+        bottom: "calc(18px + var(--cd-bottombar-h, 0px))",
         width: 56,
         height: 56,
+        transition: "bottom 0.2s ease",
         borderRadius: 9999,
         background: "#25D366",
         display: "flex",

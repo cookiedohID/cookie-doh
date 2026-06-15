@@ -12,14 +12,7 @@ import {
   removeSoldOutItemsFromCart,
   type CartState,
 } from "@/lib/cart";
-
-const COLORS = {
-  blue: "#0014a7",
-  orange: "#FF5A00",
-  black: "#101010",
-  white: "#FFFFFF",
-  sand: "#FAF7F2",
-};
+import { COLORS } from "@/lib/theme";
 
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -34,6 +27,15 @@ export default function CartPage() {
 
   useEffect(() => {
     setCart(getCart());
+  }, []);
+
+  // Reserve space for the sticky bottom CTA so the floating WhatsApp button
+  // clears it (see WhatsAppButton + globals.css --cd-bottombar-h).
+  useEffect(() => {
+    document.documentElement.style.setProperty("--cd-bottombar-h", "92px");
+    return () => {
+      document.documentElement.style.removeProperty("--cd-bottombar-h");
+    };
   }, []);
 
   const soldOutSet = useMemo(() => {

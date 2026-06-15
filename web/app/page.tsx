@@ -7,14 +7,9 @@ import { useMemo } from "react";
 import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
-
-const COLORS = {
-  blue: "#0014a7", // Pantone 293C vibe
-  black: "#101010",
-  white: "#FFFFFF",
-  bg: "#FAF7F2",
-  orange: "#FF5A00", // Accent (021C-ish)
-};
+import SmoothieCard from "@/components/SmoothieCard";
+import { SMOOTHIES } from "@/lib/smoothies";
+import { COLORS } from "@/lib/theme";
 
 const COOKIE_PRICE = 32500; // builder uses fixed per-cookie price; box total comes from BOX_PRICES
 
@@ -28,6 +23,7 @@ function toCardFlavor(f: any): CardFlavorUI {
     id: String(f.id),
     name: String(f.name ?? ""),
     image: String(f.image ?? ""),
+    image2: String(f.image2 ?? ""),
     description: String(f.description ?? ""),
     ingredients: Array.isArray(f.ingredients)
         ? f.ingredients.map((x: any) => String(x))
@@ -94,9 +90,9 @@ export default function HomePage() {
     <main style={{ background: COLORS.bg }}>
       {/* HERO SECTION (Background image) */}
       <section
-        className="relative flex min-h-[90vh] items-center"
+        className="relative flex min-h-[80vh] items-center"
         style={{
-          backgroundImage: "url('/hero/hero.jpg')",
+          backgroundImage: "url('/flavors/CxCookiedoh/hero%20image.png')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
@@ -106,25 +102,71 @@ export default function HomePage() {
 
         {/* Content */}
         <div className="relative z-10 mx-auto w-full max-w-7xl px-6">
-          <h1 className="text-5xl font-semibold text-white md:text-6xl">Cookie Doh</h1>
+          <h1 className="text-5xl font-bold leading-[1.05] text-white md:text-7xl">
+            Cookie Doh
+          </h1>
+          <span className="font-dearjoe mt-3 block text-3xl text-white md:text-4xl">
+            where the cookie magic happens
+          </span>
 
-          <p className="mt-4 max-w-md text-lg text-white/90">Where cookie magic happens.</p>
+          <p className="mt-5 max-w-md text-lg text-white/90">
+            Build your own box of freshly baked gourmet cookies — packed with
+            care, ready to gift.
+          </p>
 
           <div className="mt-8 flex flex-wrap gap-4">
             <Link
               href="/build"
-              className="rounded-md bg-[#0014a7] px-6 py-3 text-white transition hover:opacity-90"
+              className="rounded-full bg-white px-7 py-3.5 font-bold text-[#0014a7] shadow-lg transition hover:scale-[1.03]"
             >
               Build Your Box
             </Link>
 
             <Link
               href="/flavors"
-              className="rounded-md border border-white/70 px-6 py-3 text-white transition hover:bg-white/10"
+              className="rounded-full border border-white/70 px-7 py-3.5 font-semibold text-white transition hover:bg-white/10"
             >
-              Explore Flavors
+              Explore Flavours
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* TRUST STRIP */}
+      <section style={{ background: COLORS.blue, color: COLORS.white }}>
+        <div
+          style={{
+            maxWidth: 980,
+            margin: "0 auto",
+            padding: "16px 16px",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: 12,
+            textAlign: "center",
+          }}
+        >
+          {[
+            { icon: "🍪", label: "Baked fresh to order" },
+            { icon: "🎁", label: "Gift-ready packaging" },
+            { icon: "🛵", label: "Next-day Jakarta delivery" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                fontWeight: 600,
+                fontSize: 14,
+              }}
+            >
+              <span style={{ fontSize: 18 }} aria-hidden>
+                {item.icon}
+              </span>
+              {item.label}
+            </div>
+          ))}
         </div>
       </section>
 
@@ -341,7 +383,49 @@ export default function HomePage() {
                 onRemove={() => {}}
                 disabledAdd={false}
                 addLabel="Build a box"
+                showQty={false}
               />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* SMOOTHIES (Cookie Doh Blend) — 2 columns */}
+      <section style={{ background: COLORS.white, padding: "44px 16px 70px" }}>
+        <div style={{ maxWidth: 980, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 14 }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 24, fontWeight: 650, color: COLORS.black }}>
+                Cookie Doh Blend
+              </h2>
+              <p style={{ margin: "8px 0 0", color: "#6B6B6B", maxWidth: 560 }}>
+                Freshly blended fruit, yoghurt &amp; sorbet — every blend Rp 39.000.
+              </p>
+            </div>
+
+            <Link
+              href="/smoothies"
+              style={{
+                textDecoration: "none",
+                fontWeight: 800,
+                color: COLORS.blue,
+                whiteSpace: "nowrap",
+              }}
+            >
+              See full menu →
+            </Link>
+          </div>
+
+          <div
+            style={{
+              marginTop: 16,
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: 14,
+            }}
+          >
+            {SMOOTHIES.map((s) => (
+              <SmoothieCard key={s.id} item={s} />
             ))}
           </div>
         </div>

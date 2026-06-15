@@ -6,13 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { FLAVORS } from "@/lib/catalog";
 import { useFlavorAvailability } from "@/lib/useFlavorAvailability";
-
-const COLORS = {
-  blue: "#0014a7",
-  black: "#101010",
-  white: "#FFFFFF",
-  sand: "#FAF7F2",
-};
+import { COLORS } from "@/lib/theme";
 
 export default function FlavorsAdminClient() {
   const { map, loading, refresh } = useFlavorAvailability();

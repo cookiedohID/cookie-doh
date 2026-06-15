@@ -6,12 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getCart } from "@/lib/cart";
-
-const COLORS = {
-  blue: "#0014a7",
-  black: "#101010",
-  white: "#FFFFFF",
-};
+import { COLORS } from "@/lib/theme";
 
 type NavItem = { href: string; label: string };
 
@@ -63,6 +58,7 @@ export default function SiteHeader() {
       { href: "/", label: "All" },
       { href: "/assortments", label: "Assortments" },
       { href: "/cookies", label: "Cookies" },
+      { href: "/smoothies", label: "Smoothies" },
     ],
     []
   );
@@ -123,6 +119,13 @@ export default function SiteHeader() {
       >
         <Link
           href="/"
+          onClick={(e) => {
+            // Already on home: don't re-navigate, just scroll back to the top.
+            if (pathname === "/") {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }
+          }}
           style={{
             textDecoration: "none",
             color: "inherit",

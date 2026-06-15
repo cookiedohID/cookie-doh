@@ -9,6 +9,7 @@ export type FlavorUI = {
   id: string;
   name: string;
   image: string;
+  image2?: string;          // optional second photo shown on hover
   description?: string;     // ✅ add this
   ingredients?: string[];
   textureTags: string[];
@@ -30,6 +31,7 @@ export default function ProductCard({
   onRemove,
   disabledAdd,
   addLabel,
+  showQty = true,
 }: {
   flavor: FlavorUI;
   quantity: number;
@@ -37,13 +39,18 @@ export default function ProductCard({
   onRemove: () => void;
   disabledAdd?: boolean;
   addLabel?: string;
+  /** When false, render a single full-width action button with no qty controls
+   *  (used on the homepage where the card just links to /build). */
+  showQty?: boolean;
 }) {
   const isSoldOut = !!flavor.soldOut;
   const addDisabled = !!disabledAdd || isSoldOut;
 
   return (
     <article className={styles.card}>
-      <div className={styles.imageWrap}>
+      <div
+        className={`${styles.imageWrap} ${flavor.image2 ? styles.hasSecond : ""}`}
+      >
         <Image
           src={flavor.image}
           alt={flavor.name}
@@ -52,6 +59,18 @@ export default function ProductCard({
           sizes="(max-width: 768px) 50vw, 25vw"
           priority={false}
         />
+
+        {flavor.image2 && (
+          <Image
+            src={flavor.image2}
+            alt=""
+            aria-hidden
+            fill
+            className={styles.imageSecond}
+            sizes="(max-width: 768px) 50vw, 25vw"
+            priority={false}
+          />
+        )}
 
         {flavor.badges?.slice(0, 2).map((b, i) => (
           <div key={b} className={styles.badge} style={{ top: 10 + i * 36 }}>
@@ -67,10 +86,10 @@ export default function ProductCard({
           <h3 className={styles.title}>{flavor.name}</h3>
         </div>
 
-{/* Tagline */}
-<p className={styles.tagline}>
-  {flavor.description?.trim() ? flavor.description : ""}
-</p>
+{/* Tagline (only when there's a description — avoids a blank gap) */}
+{flavor.description?.trim() ? (
+  <p className={styles.tagline}>{flavor.description}</p>
+) : null}
 
         {/* Ingredients line */}
       {flavor.ingredients?.length ? (
@@ -91,36 +110,52 @@ export default function ProductCard({
         </div>
 
         {/* CTA */}
-        <div className={styles.ctaRow}>
-          <button
-            className={styles.minusBtn}
-            type="button"
-            onClick={onRemove}
-            disabled={quantity === 0}
-            aria-label={`Remove ${flavor.name}`}
-          >
-            –
-          </button>
+        {showQty ? (
+          <div className={styles.ctaRow}>
+            <button
+              className={styles.minusBtn}
+              type="button"
+              onClick={onRemove}
+              disabled={quantity === 0}
+              aria-label={`Remove ${flavor.name}`}
+            >
+              –
+            </button>
 
-          <button
-            className={styles.addBtn}
-            type="button"
-            onClick={onAdd}
-            disabled={addDisabled}
-            aria-label={`Add ${flavor.name}`}
-          >
-            <span className={styles.addLabel}>
-              {addLabel ? addLabel : isSoldOut ? "Sold out" : "Add to box"}
-            </span>
-
-            <span className={styles.addRight}>
-              <span className={styles.qtyPillNew} aria-label="Selected count">
-                {quantity}
+            <button
+              className={styles.addBtn}
+              type="button"
+              onClick={onAdd}
+              disabled={addDisabled}
+              aria-label={`Add ${flavor.name}`}
+            >
+              <span className={styles.addLabel}>
+                {addLabel ? addLabel : isSoldOut ? "Sold out" : "Add to box"}
               </span>
-              {!isSoldOut && <span className={styles.plus}>+</span>}
-            </span>
-          </button>
-        </div>
+
+              <span className={styles.addRight}>
+                <span className={styles.qtyPillNew} aria-label="Selected count">
+                  {quantity}
+                </span>
+                {!isSoldOut && <span className={styles.plus}>+</span>}
+              </span>
+            </button>
+          </div>
+        ) : (
+          <div className={styles.ctaRow}>
+            <button
+              className={`${styles.addBtn} ${styles.addBtnFull}`}
+              type="button"
+              onClick={onAdd}
+              disabled={addDisabled}
+              aria-label={`${addLabel ?? "Build a box"} — ${flavor.name}`}
+            >
+              <span className={styles.addLabelCentered}>
+                {isSoldOut ? "Sold out" : addLabel ?? "Build a box"}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );

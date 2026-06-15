@@ -3,12 +3,37 @@
 .card {
   height: 100%;
   border: 1px solid rgba(0, 0, 0, 0.10);
-  border-radius: 18px;
+  border-radius: var(--cd-radius-card, 18px);
   overflow: hidden;
-  background: #fff;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.05);
+  background: var(--cd-white, #fff);
+  box-shadow: var(--cd-shadow-card, 0 10px 26px rgba(0, 0, 0, 0.05));
   display: flex;
   flex-direction: column;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--cd-shadow-card-hover, 0 18px 40px rgba(0, 0, 0, 0.12));
+    border-color: rgba(0, 20, 167, 0.25);
+  }
+
+  /* No second image: zoom into a crop of the current image */
+  .card:hover .image {
+    transform: scale(1.12);
+  }
+
+  /* Second image present: cross-fade to it and zoom in */
+  .imageWrap.hasSecond:hover .image {
+    opacity: 0;
+    transform: scale(1.12);
+  }
+
+  .imageWrap.hasSecond:hover .imageSecond {
+    opacity: 1;
+    transform: scale(1.12);
+  }
 }
 
 .imageWrap {
@@ -17,10 +42,19 @@
   aspect-ratio: 1 / 1;
   background: #f3f3f3;
   flex: 0 0 auto;
+  overflow: hidden;
 }
 
 .image {
   object-fit: cover;
+  transition: transform 0.5s ease, opacity 0.4s ease;
+}
+
+.imageSecond {
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.04);
+  transition: transform 0.5s ease, opacity 0.4s ease;
 }
 
 .badge {
@@ -201,9 +235,9 @@
 .addBtn {
   height: 38px;
   min-width: 0;
-  border-radius: 999px;
+  border-radius: var(--cd-radius-pill, 999px);
   border: none;
-  background: #0014A7;
+  background: var(--cd-blue, #0014a7);
   color: #fff;
   font-weight: 950;
   font-size: 12.5px;
@@ -214,11 +248,31 @@
   gap: 6px;
   padding: 0 8px;
   overflow: hidden;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.12s ease;
+}
+
+@media (hover: hover) {
+  .addBtn:not(:disabled):hover {
+    background: #00128f;
+    transform: translateY(-1px);
+  }
+}
+
+.addBtn:not(:disabled):active {
+  transform: translateY(0);
 }
 
 .addBtn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* Full-width link-mode button (homepage cards) */
+.addBtnFull {
+  grid-column: 1 / -1;
+  justify-content: center;
+  padding: 0 14px;
 }
 
 .addLabel {
@@ -227,6 +281,11 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.addLabelCentered {
+  white-space: nowrap;
+  font-size: 13.5px;
 }
 
 .addRight {

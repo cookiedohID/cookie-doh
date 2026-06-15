@@ -6,16 +6,10 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
+import { COLORS } from "@/lib/theme";
 
 type BoxSize = 3 | 6;
 type PresetItem = { flavorId: string; qty: number };
-
-const COLORS = {
-  blue: "#0014A7",
-  black: "#101010",
-  white: "#FFFFFF",
-  sand: "#FAF7F2",
-};
 
 const COOKIE_PRICE = 32500;
 

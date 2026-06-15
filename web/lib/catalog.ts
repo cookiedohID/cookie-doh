@@ -29,6 +29,7 @@ export type Flavor = {
   name: string;
   description?: string;
   image?: string; // e.g. "/flavors/choco-chip.jpg"
+  image2?: string; // optional second photo, shown on hover (falls back to a zoom of `image`)
   badges?: FlavorBadge[]; // e.g. ["Bestseller", "Signature"]
   tags?: string[]; // e.g. ["Chewy", "Chunky", "Nutty"]
   ingredients?: string[]; // ✅ array to match your data
@@ -51,7 +52,8 @@ export const FLAVORS: Flavor[] = [
       "Bourbon Vanilla",
       "Sea Salt Flakes",
     ],
-    image: "/flavors/the-one.jpg",
+    image: "/flavors/CxCookiedoh/the one.png",
+    image2: "/flavors/CxCookiedoh/the one_B.png",
     badges: ["Bestseller", "Signature"],
     tags: ["Classic", "Buttery", "Comfort"],
   },
@@ -68,7 +70,8 @@ export const FLAVORS: Flavor[] = [
       "Bourbon Vanilla",
       "Sea Salt Flakes",
     ],
-    image: "/flavors/the-other-one.jpg",
+    image: "/flavors/CxCookiedoh/the other one.png",
+    image2: "/flavors/CxCookiedoh/the other one_B.png",
     badges: ["Fan Favorite"],
     tags: ["Earthy", "Creamy", "Chocolatey"],
   },
@@ -86,7 +89,8 @@ export const FLAVORS: Flavor[] = [
       "Bourbon Vanilla",
       "Sea Salt Flakes",
     ],
-    image: "/flavors/orange-in-the-dark.jpg",
+    image: "/flavors/CxCookiedoh/orange in the dark.png",
+    image2: "/flavors/CxCookiedoh/orange in the dark_B.png",
     badges: ["Bold Choice"],
     tags: ["Citrus", "Dark", "Aromatic"],
   },
@@ -103,7 +107,8 @@ export const FLAVORS: Flavor[] = [
       "White Belgian Chocolate",
       "Bourbon Vanilla",
     ],
-    image: "/flavors/matcha-magic.jpg",
+    image: "/flavors/CxCookiedoh/matcha magic.png",
+    image2: "/flavors/CxCookiedoh/matcha magic_B.png",
     badges: ["House Favorite"],
     tags: ["Earthy", "Aromatic", "Creamy"],
   },
@@ -120,7 +125,8 @@ export const FLAVORS: Flavor[] = [
       "White Belgian Chocolate",
       "Bourbon Vanilla",
     ],
-    image: "/flavors/lavender-hush.jpg",
+    image: "/flavors/CxCookiedoh/lavender hush.png",
+    image2: "/flavors/CxCookiedoh/lavender hush_B.png",
     badges: ["Calm Pick"],
     tags: ["Floral", "Soft", "Elegant"],
   },
@@ -138,7 +144,8 @@ export const FLAVORS: Flavor[] = [
       "White Belgian Chocolate",
       "Bourbon Vanilla",
     ],
-    image: "/flavors/rose-lullaby.jpg",
+    image: "/flavors/CxCookiedoh/rose lullaby.png",
+    image2: "/flavors/CxCookiedoh/rose lullaby_B.png",
     badges: ["Romantic"],
     tags: ["Floral", "Creamy", "Nostalgic"],
   },
@@ -155,27 +162,29 @@ export const FLAVORS: Flavor[] = [
       "White Belgian Chocolate",
       "Bourbon Vanilla",
     ],
-    image: "/flavors/strawberry-kiss.jpg",
+    image: "/flavors/CxCookiedoh/strawberry kiss.png",
+    image2: "/flavors/CxCookiedoh/strawberry kiss_B.png",
     badges: ["Crowd Pleaser"],
     tags: ["Fruity", "Sweet", "Romantic"],
   },
 
-  // 8) Crimson Crush
-  {
-    id: "crimson-crush",
-    name: "Crimson Crush",
-    description:
-      "Sweet strawberries sink into deep milk chocolate, rich and lingering, like a kiss remembered long after.",
-    ingredients: [
-      "European Butter",
-      "Freeze-Dried Strawberry",
-      "Milk + Dark Belgian Chocolate",
-      "Bourbon Vanilla",
-    ],
-    image: "/flavors/crimson-crush.jpg",
-    badges: ["Indulgent"],
-    tags: ["Fruity", "Dark", "Rich"],
-  },
+  // 8) Crimson Crush — HIDDEN until it has its own photo.
+  //    Re-enable by uncommenting and adding image: "/flavors/crimson-crush.jpg".
+  // {
+  //   id: "crimson-crush",
+  //   name: "Crimson Crush",
+  //   description:
+  //     "Sweet strawberries sink into deep milk chocolate, rich and lingering, like a kiss remembered long after.",
+  //   ingredients: [
+  //     "European Butter",
+  //     "Freeze-Dried Strawberry",
+  //     "Milk + Dark Belgian Chocolate",
+  //     "Bourbon Vanilla",
+  //   ],
+  //   image: "/flavors/crimson-crush.jpg",
+  //   badges: ["Indulgent"],
+  //   tags: ["Fruity", "Dark", "Rich"],
+  // },
 
   // 9) Velvety Red
   {
@@ -190,7 +199,8 @@ export const FLAVORS: Flavor[] = [
       "Bourbon Vanilla",
       "Sea Salt Flakes",
     ],
-    image: "/flavors/velvety-red.jpg",
+    image: "/flavors/CxCookiedoh/red velvet.png",
+    image2: "/flavors/CxCookiedoh/red velvet_B.png",
     badges: ["Comfort Pick"],
     tags: ["Creamy", "Rich", "Indulgent"],
   },
@@ -209,7 +219,8 @@ export const FLAVORS: Flavor[] = [
       "Bourbon Vanilla",
       "Sea Salt Flakes",
     ],
-    image: "/flavors/midnight-crave.jpg",
+    image: "/flavors/CxCookiedoh/midnight crave.png",
+    image2: "/flavors/CxCookiedoh/midnight crave_B.png",
     badges: ["Late Night Comfort"],
     tags: ["Comfort", "Spiced", "Nostalgic"],
   },
@@ -226,7 +237,8 @@ export const FLAVORS: Flavor[] = [
       "Milk Belgian Chocolate",
       "Bourbon Vanilla",
     ],
-    image: "/flavors/one-shade-of-grey.jpg",
+    image: "/flavors/CxCookiedoh/earl grey.png",
+    image2: "/flavors/CxCookiedoh/earl grey_B.png",
     badges: ["Refined"],
     tags: ["Tea", "Elegant", "Balanced"],
   },
@@ -244,7 +256,8 @@ export const FLAVORS: Flavor[] = [
       "Bourbon Vanilla",
       "Sea Salt Flakes",
     ],
-    image: "/flavors/ruby-glow.jpg",
+    image: "/flavors/CxCookiedoh/ruby glow.png",
+    image2: "/flavors/CxCookiedoh/ruby glow_B.png",
     badges: ["Bright Finish"],
     tags: ["Fruity", "Fresh", "Uplifting"],
   },

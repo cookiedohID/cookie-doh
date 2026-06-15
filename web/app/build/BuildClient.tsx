@@ -3,20 +3,14 @@
 
 // FORCE_DEPLOY_TAGLINE_FIX
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addBoxToCart } from "@/lib/cart";
 import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
+import { COLORS } from "@/lib/theme";
 
 type BoxSize = 3 | 6;
-
-const COLORS = {
-  blue: "#0014A7",
-  orange: "#FF5A00",
-  black: "#101010",
-  white: "#FFFFFF",
-};
 
 const COOKIE_PRICE = 32500;
 
@@ -38,6 +32,15 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
 
+  // Reserve space for the sticky bottom CTA so the floating WhatsApp button
+  // (and page content) clear it on mobile.
+  useEffect(() => {
+    document.documentElement.style.setProperty("--cd-bottombar-h", "104px");
+    return () => {
+      document.documentElement.style.removeProperty("--cd-bottombar-h");
+    };
+  }, []);
+
   const pulseKeyRef = useRef(0);
   const [pulseKey, setPulseKey] = useState(0);
 
@@ -46,6 +49,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
       id: String(f.id),
       name: String(f.name ?? ""),
       image: String(f.image ?? ""),
+      image2: String(f.image2 ?? ""),
       description: f.description ?? "", // ✅ add this
       ingredients: Array.isArray(f.ingredients)
         ? f.ingredients.map((x: any) => String(x))

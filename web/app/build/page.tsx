@@ -13,11 +13,13 @@ function parseSize(raw: unknown): BoxSize | null {
   return null;
 }
 
-export default function BuildPage({
+export default async function BuildPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>;
+  // Next 16: searchParams is a Promise and must be awaited before use.
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const initialBoxSize = parseSize(searchParams?.size) ?? 6;
+  const params = (await searchParams) ?? {};
+  const initialBoxSize = parseSize(params.size) ?? 6;
   return <BuildClient initialBoxSize={initialBoxSize} />;
 }
