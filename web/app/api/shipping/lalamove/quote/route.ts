@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { lalamoveRequest } from "@/lib/lalamove";
+import { LOCATIONS } from "@/lib/locations";
 
 export const runtime = "nodejs";
 
@@ -44,50 +45,19 @@ function etaHint(speed: "instant" | "sameday") {
   return "Instant slots: 10:00–15:00 or 15:00–18:00";
 }
 
-function buildPointsFromEnv(): Point[] {
-  const candidates: Point[] = [
-    {
-      id: "kemang",
-      name: process.env.LALAMOVE_PICKUP_NAME || "Cookie Doh",
-      phone: process.env.LALAMOVE_PICKUP_PHONE || undefined,
-      address: process.env.LALAMOVE_PICKUP_ADDRESS || "",
-      lat: Number(process.env.LALAMOVE_PICKUP_LAT),
-      lng: Number(process.env.LALAMOVE_PICKUP_LNG),
-    },
-    {
-      id: "tbs-rcv",
-      name: process.env.LALAMOVE_RCV_PICKUP_NAME || "Total Buah Segar - RCV",
-      phone: process.env.LALAMOVE_RCV_PICKUP_PHONE || undefined,
-      address: process.env.LALAMOVE_RCV_PICKUP_ADDRESS || "",
-      lat: Number(process.env.LALAMOVE_RCV_PICKUP_LAT),
-      lng: Number(process.env.LALAMOVE_RCV_PICKUP_LNG),
-    },
-    {
-      id: "tbs-xmas",
-      name: process.env.LALAMOVE_XMAS_PICKUP_NAME || "Total Buah Segar - KH Noer Ali (Bekasi)",
-      phone: process.env.LALAMOVE_XMAS_PICKUP_PHONE || undefined,
-      address: process.env.LALAMOVE_XMAS_PICKUP_ADDRESS || "",
-      lat: Number(process.env.LALAMOVE_XMAS_PICKUP_LAT),
-      lng: Number(process.env.LALAMOVE_XMAS_PICKUP_LNG),
-    },
-    {
-      id: "tbs-ktr",
-      name: process.env.LALAMOVE_KTR_PICKUP_NAME || "Total Buah Segar - Karang Tengah Raya (Lebak Bulus)",
-      phone: process.env.LALAMOVE_KTR_PICKUP_PHONE || undefined,
-      address: process.env.LALAMOVE_KTR_PICKUP_ADDRESS || "",
-      lat: Number(process.env.LALAMOVE_KTR_PICKUP_LAT),
-      lng: Number(process.env.LALAMOVE_KTR_PICKUP_LNG),
-    },
-  ];
-
-  // keep only valid points
-  return candidates.filter(
+function buildPoints(): Point[] {
+  // Single source of truth: the 4 stores in lib/locations.ts (Kemang + 3 TBS).
+  // The nearest one to the customer becomes the courier pickup.
+  return LOCATIONS.map((l) => ({
+    id: l.id,
+    name: l.name,
+    address: l.address,
+    lat: l.lat,
+    lng: l.lng,
+    phone: process.env.LALAMOVE_PICKUP_PHONE || undefined,
+  })).filter(
     (p) =>
-      p.id &&
-      p.name &&
-      p.address &&
-      Number.isFinite(p.lat) &&
-      Number.isFinite(p.lng)
+      p.id && p.name && p.address && Number.isFinite(p.lat) && Number.isFinite(p.lng)
   );
 }
 
@@ -108,15 +78,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const points = buildPointsFromEnv();
+    const points = buildPoints();
     if (!points.length) {
       return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "No pickup points configured (missing LALAMOVE_*_PICKUP_* envs).",
-          requestId,
-        },
+        { ok: false, error: "No pickup locations configured", requestId },
         { status: 500 }
       );
     }

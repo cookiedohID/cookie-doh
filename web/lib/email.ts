@@ -62,10 +62,18 @@ export async function sendNewOrderEmail(params: {
     </div>
   `;
 
-  await resend.emails.send({
-    from: "onboarding@resend.dev",
-    to,
-    subject,
-    html,
-  });
+  // Set EMAIL_FROM to a verified-domain sender (e.g. "Cookie Doh <orders@cookiedoh.id>")
+  // for reliable inbox delivery. Falls back to Resend's shared sender.
+  const from = process.env.EMAIL_FROM || "Cookie Doh <onboarding@resend.dev>";
+
+  try {
+    // Resend returns { data, error } and does NOT throw on API errors (bad
+    // sender domain, rate limit, etc.) — so we must inspect `error` explicitly,
+    // otherwise a failed send looks like a success and the admin is never told.
+    const { error } = await resend.emails.send({ from, to, subject, html });
+    if (error) throw new Error((error as any)?.message || "Resend API error");
+  } catch (e: any) {
+    console.error("[email] send failed:", e?.message || e);
+    throw e;
+  }
 }

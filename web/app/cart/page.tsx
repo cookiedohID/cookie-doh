@@ -195,7 +195,9 @@ export default function CartPage() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
                       <div style={{ fontWeight: 950, color: COLORS.black }}>
-                        Box of {box.boxSize} • {boxCount} cookies
+                        {box.kind === "bundle"
+                          ? `${box.label || "Bundle"} • ${boxCount} items`
+                          : `Box of ${box.boxSize} • ${boxCount} cookies`}
                       </div>
 
                       <button

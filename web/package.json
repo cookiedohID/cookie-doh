@@ -11,8 +11,10 @@
   "dependencies": {
     "@lalamove/lalamove-js": "^1.1.0",
     "@supabase/supabase-js": "^2.90.0",
+    "@types/qrcode": "^1.5.6",
     "midtrans-client": "^1.4.3",
     "next": "16.1.1",
+    "qrcode": "^1.5.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "resend": "^6.12.3"

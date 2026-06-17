@@ -59,6 +59,7 @@ export default function SiteHeader() {
       { href: "/assortments", label: "Assortments" },
       { href: "/cookies", label: "Cookies" },
       { href: "/smoothies", label: "Smoothies" },
+      { href: "/bundles", label: "Bundles" },
     ],
     []
   );

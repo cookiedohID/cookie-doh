@@ -36,6 +36,8 @@ export async function createSnapToken(input: {
   customer: { name?: string; phone?: string; email?: string };
   siteUrl?: string;
   itemsText?: string;
+  enabledPayments?: string[]; // e.g. ["qris"] for the cafe kiosk
+  finishUrl?: string;
 }) {
   const serverKey = midtransServerKey();
   const url = `${snapBaseUrl()}/snap/v1/transactions`;
@@ -65,8 +67,17 @@ export async function createSnapToken(input: {
     ],
     // custom_field1 must be <= 255 chars. We don't need it.
 
-    callbacks: input.siteUrl ? { finish: `${input.siteUrl}/checkout/success` } : undefined,
+    callbacks:
+      input.finishUrl
+        ? { finish: input.finishUrl }
+        : input.siteUrl
+        ? { finish: `${input.siteUrl}/checkout/success` }
+        : undefined,
   };
+
+  if (input.enabledPayments && input.enabledPayments.length) {
+    payload.enabled_payments = input.enabledPayments;
+  }
 
   const res = await fetch(url, {
     method: "POST",

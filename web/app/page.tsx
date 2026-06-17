@@ -2,6 +2,7 @@
 
 // web/app/page.tsx
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
@@ -88,15 +89,18 @@ export default function HomePage() {
 
   return (
     <main style={{ background: COLORS.bg }}>
-      {/* HERO SECTION (Background image) */}
-      <section
-        className="relative flex min-h-[80vh] items-center"
-        style={{
-          backgroundImage: "url('/flavors/CxCookiedoh/hero%20image.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
+      {/* HERO SECTION */}
+      <section className="relative flex min-h-[80vh] items-center overflow-hidden">
+        {/* Optimized, priority-loaded hero image (replaces the raw CSS background) */}
+        <Image
+          src="/flavors/CxCookiedoh/hero image.png"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          style={{ objectFit: "cover" }}
+        />
+
         {/* Overlay */}
         <div className="absolute inset-0 bg-black/40" />
 

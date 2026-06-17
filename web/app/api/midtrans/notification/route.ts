@@ -1,4 +1,5 @@
-import { sendNewOrderEmail } from "@/lib/email";
+import { notifyNewOrder } from "@/lib/notify";
+import { decrementStockForOrder } from "@/lib/stock";
 import { NextResponse } from "next/server";
 import midtransClient from "midtrans-client";
 import { supabaseServer } from "@/lib/supabaseServer";
@@ -39,6 +40,26 @@ function getOriginFromEnv() {
   };
 }
 
+// Ship from the nearest store the customer was quoted from (stored on the order),
+// keeping the Cookie Doh contact. Falls back to the env (Kemang) origin if missing.
+function originForOrder(order: any) {
+  const base = getOriginFromEnv();
+  const q = order?.meta?.quote?.origin;
+  const lat = Number(q?.lat);
+  const lng = Number(q?.lng);
+  if (q && Number.isFinite(lat) && Number.isFinite(lng) && q.address) {
+    return {
+      ...base,
+      origin_address: String(q.address),
+      origin_lat: lat,
+      origin_lng: lng,
+      // only the Kemang origin has a Biteship area_id; others ship by lat/lng
+      origin_area_id: q.id === "kemang" ? base.origin_area_id : undefined,
+    };
+  }
+  return base;
+}
+
 async function createBiteshipOrder(order: any) {
   const apiKey = process.env.BITESHIP_API_KEY;
   if (!apiKey) throw new Error("Missing BITESHIP_API_KEY");
@@ -48,7 +69,7 @@ async function createBiteshipOrder(order: any) {
   const customer = order.customer_json || {};
   const items = order.items_json || [];
 
-  const origin = getOriginFromEnv();
+  const origin = originForOrder(order);
 
   const destination_contact_name =
     customer.first_name
@@ -190,6 +211,32 @@ export async function POST(req: Request) {
       .eq("id", order.id);
 
 
+    // Cafe (in-store) orders: no delivery — just decrement stock + notify, once.
+    if (paid && order?.meta?.channel === "cafe") {
+      const { data: cafeLock } = await supabase
+        .from("orders")
+        .update({ shipment_status: "done" })
+        .eq("id", order.id)
+        .eq("shipment_status", "not_required")
+        .select("id")
+        .maybeSingle();
+      if (!cafeLock) {
+        return NextResponse.json({ ok: true, txStatus, fraud, cafe: "already_handled" });
+      }
+      await decrementStockForOrder(supabase, order);
+      await notifyNewOrder({
+        orderNo: order.order_no,
+        status: "paid",
+        customerName: order.customer_name,
+        customerPhone: order.customer_phone,
+        fulfilment: "Cafe",
+        totalIdr: order.total_idr,
+        items: order.items_json,
+        adminUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/orders/${order.id}`,
+      });
+      return NextResponse.json({ ok: true, txStatus, fraud, paid, cafe: true });
+    }
+
     // Only create shipment if paid AND not created
     if (paid) {
       // LOCK: mark creating (prevents duplicates on webhook retries)
@@ -208,43 +255,62 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true, txStatus, fraud, shipment: "already_handled" });
       }
 
-      // Double-check shipments table too (extra safety)
-      const { data: existing } = await supabase
-        .from("shipments")
-        .select("id, biteship_order_id")
-        .eq("order_id", order.id)
-        .maybeSingle();
+      // Decrement nearest-store stock on payment (once — we hold the lock).
+      // Never throws; runs before shipment so stock is right even if shipment hiccups.
+      await decrementStockForOrder(supabase, order);
 
-      if (!existing?.biteship_order_id) {
-        const biteship = await createBiteshipOrder(order);
+      // Create the Biteship shipment — but never let a shipment failure abort the
+      // PAID confirmation or strand the order at 'creating'. On failure we park it
+      // at 'needs_attention' (which the admin retry tooling looks for) and still
+      // send the PAID notification below. Mirrors /api/midtrans/webhook.
+      try {
+        // Double-check shipments table too (extra safety)
+        const { data: existing } = await supabase
+          .from("shipments")
+          .select("id, biteship_order_id")
+          .eq("order_id", order.id)
+          .maybeSingle();
 
-        await supabase.from("shipments").insert({
-          order_id: order.id,
-          provider: "biteship",
-          biteship_order_id: biteship?.id ?? null,
-          waybill_id: biteship?.waybill_id ?? null,
-          courier_company: order.courier_company ?? null,
-          courier_service: order.courier_service ?? null,
-          status: biteship?.status ?? "created",
-          raw_json: biteship,
-        });
+        if (!existing?.biteship_order_id) {
+          const biteship = await createBiteshipOrder(order);
+
+          await supabase.from("shipments").insert({
+            order_id: order.id,
+            provider: "biteship",
+            biteship_order_id: biteship?.id ?? null,
+            waybill_id: biteship?.waybill_id ?? null,
+            courier_company: order.courier_company ?? null,
+            courier_service: order.courier_service ?? null,
+            status: biteship?.status ?? "created",
+            raw_json: biteship,
+          });
+        }
+
+        await supabase
+          .from("orders")
+          .update({ shipment_status: "created" })
+          .eq("id", order.id);
+      } catch (shipErr: any) {
+        console.error("midtrans notification: shipment creation failed:", shipErr);
+        await supabase
+          .from("orders")
+          .update({ shipment_status: "needs_attention" })
+          .eq("id", order.id);
       }
 
-      await supabase
-        .from("orders")
-        .update({ shipment_status: "created" })
-        .eq("id", order.id);
-
-      await sendNewOrderEmail({
+      await notifyNewOrder({
         orderNo: order.order_no,
+        status: "paid",
         customerName: order.customer_name,
         customerPhone: order.customer_phone,
         fulfilment: order.fulfilment_status,
         scheduleDate: order?.meta?.fulfillment?.scheduleDate ?? null,
         scheduleTime: order?.meta?.fulfillment?.scheduleTime ?? null,
         totalIdr: order.total_idr,
+        items: order.items_json,
+        boxesText: order?.meta?.boxes_text ?? null,
         adminUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/orders/${order.id}`,
-});  
+      });
     }
 
     return NextResponse.json({ ok: true, txStatus, fraud, paid });

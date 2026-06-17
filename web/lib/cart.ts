@@ -10,9 +10,11 @@ export type CartItem = {
 };
 
 export type CartBox = {
-  boxSize: number; // 1 | 3 | 6
+  boxSize: number; // 1 | 3 | 6 (for bundles: total item count)
   items: CartItem[];
   total: number; // box total (authoritative)
+  kind?: "box" | "bundle"; // default "box"
+  label?: string; // e.g. bundle name; shown instead of "Box of N"
 };
 
 export type CartState = {
@@ -74,6 +76,8 @@ function normalizeBox(box: any): CartBox | null {
     boxSize,
     items: normItems,
     total: Number.isFinite(total) && total > 0 ? total : computed,
+    ...(box.kind === "bundle" ? { kind: "bundle" as const } : {}),
+    ...(box.label ? { label: String(box.label) } : {}),
   };
 }
 
@@ -181,6 +185,24 @@ export function addBoxToCart(box: CartBox) {
   const norm = normalizeBox(box);
   if (!norm) return;
 
+  cart.boxes.unshift(norm);
+  writeCart(cart);
+}
+
+export function addBundleToCart(params: {
+  label: string;
+  items: CartItem[];
+  total: number;
+}) {
+  const cart = readCart();
+  const norm = normalizeBox({
+    boxSize: params.items.reduce((n, it) => n + (it.quantity || 0), 0),
+    items: params.items,
+    total: params.total,
+    kind: "bundle",
+    label: params.label,
+  });
+  if (!norm) return;
   cart.boxes.unshift(norm);
   writeCart(cart);
 }

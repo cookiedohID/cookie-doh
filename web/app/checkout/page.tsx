@@ -83,21 +83,28 @@ function validatePhone(input: string) {
   if (!normalized)
     return { ok: false, normalized: "", message: "Please add your WhatsApp number." };
 
-  if (normalized.startsWith("+62")) {
-    const onlyDigits = normalized.replace(/[^\d]/g, "");
-    if (onlyDigits.length < 11 || onlyDigits.length > 14) {
-      return {
-        ok: false,
-        normalized,
-        message: "WhatsApp number looks too short/long. Example: 0812xxxxxxx",
-      };
-    }
-    return { ok: true, normalized, message: "" };
+  // Must be an Indonesian mobile number: starts with 08 or +628
+  // (both normalize to +628…).
+  if (!normalized.startsWith("+628")) {
+    return {
+      ok: false,
+      normalized,
+      message: "Number must start with 08 or +628.",
+    };
   }
 
-  const digitCount = normalized.replace(/[^\d]/g, "").length;
-  if (digitCount < 8)
-    return { ok: false, normalized, message: "WhatsApp number looks invalid." };
+  // Local form 08XXXXXXXX — require at least 10 digits.
+  const localDigits = ("0" + normalized.slice(3)).replace(/\D/g, "");
+  if (localDigits.length < 10) {
+    return {
+      ok: false,
+      normalized,
+      message: "Number is too short — at least 10 digits (e.g. 0812xxxxxxx).",
+    };
+  }
+  if (localDigits.length > 14) {
+    return { ok: false, normalized, message: "Number looks too long." };
+  }
 
   return { ok: true, normalized, message: "" };
 }
@@ -677,12 +684,16 @@ export default function CheckoutPage() {
                 </span>
                 <input
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => {
+                    // Allow digits and a single leading "+" (for +628…).
+                    let v = e.target.value.replace(/[^\d+]/g, "");
+                    v = v.replace(/(?!^)\+/g, "");
+                    setPhone(v);
+                  }}
                   onBlur={() => setPhoneTouched(true)}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
+                  inputMode="tel"
                   style={sameStyle}
-                  placeholder="e.g. 0812xxxxxxx"
+                  placeholder="08xx or +628xx"
                 />
 
                 {phoneError ? (

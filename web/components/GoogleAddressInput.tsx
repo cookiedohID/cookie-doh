@@ -130,11 +130,98 @@ export default function GoogleAddressInput({
   className,
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const gRef = useRef<any>(null); // google namespace, for blur-geocode fallback
+  const resolvedRef = useRef(false); // synchronous mirror of isResolved (avoids races)
 
   const [internalValue, setInternalValue] = useState(value ?? "");
   const [ready, setReady] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [isResolved, setIsResolved] = useState(false);
+
+  const markResolved = (v: boolean) => {
+    resolvedRef.current = v;
+    setIsResolved(v);
+  };
+
+  // Fallback: resolve free-text (browser-autofilled or typed-without-picking) to
+  // coordinates using the Places API (Autocomplete predictions + Place details),
+  // so customers never have to re-type. Uses Places (already enabled) — not the
+  // Geocoding API.
+  async function geocodeText(text: string) {
+    const g = gRef.current;
+    const t = (text || "").trim();
+    if (!g?.maps?.places || !t) return;
+    try {
+      const OK = g.maps.places.PlacesServiceStatus.OK;
+
+      // 1) Top prediction for the text, biased toward Greater Jakarta so a
+      //    same-named street in another province isn't picked by mistake.
+      const svc = new g.maps.places.AutocompleteService();
+      const preds: any[] = await new Promise((resolve, reject) => {
+        svc.getPlacePredictions(
+          {
+            input: t,
+            componentRestrictions: country ? { country } : undefined,
+            location: new g.maps.LatLng(-6.25, 106.83),
+            radius: 60000,
+          },
+          (p: any, status: any) => {
+            if (status === OK && p && p.length) resolve(p);
+            else reject(new Error(String(status)));
+          }
+        );
+      });
+      const placeId = preds[0]?.place_id;
+      if (!placeId) return;
+
+      // 2) Details for coords + components.
+      const placesSvc = new g.maps.places.PlacesService(document.createElement("div"));
+      const place: any = await new Promise((resolve, reject) => {
+        placesSvc.getDetails(
+          {
+            placeId,
+            fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
+          },
+          (pl: any, status: any) => {
+            if (status === OK && pl) resolve(pl);
+            else reject(new Error(String(status)));
+          }
+        );
+      });
+
+      const lat = place?.geometry?.location?.lat?.() ?? null;
+      const lng = place?.geometry?.location?.lng?.() ?? null;
+
+      // Service-area sanity check: same-day delivery covers Greater Jakarta + Bekasi.
+      // If the auto-matched place is implausibly far (e.g. a same-named street in
+      // another province), don't accept it — let the customer pick from the dropdown.
+      if (typeof lat === "number" && typeof lng === "number") {
+        const dLat = (lat - -6.25) * 111;
+        const dLng = (lng - 106.83) * 111 * Math.cos((-6.25 * Math.PI) / 180);
+        const km = Math.sqrt(dLat * dLat + dLng * dLng);
+        if (km > 80) return; // out of service area — stay unresolved
+      }
+
+      const { postal, city, building } = extractAddressParts(place);
+
+      // Keep the customer's own text (preserves unit/building details), attach coords.
+      markResolved(true);
+      onResolved({
+        placeId,
+        formattedAddress: t,
+        formatted_address: t,
+        name: place?.name || null,
+        building: (building && building.trim()) || firstSegment(t) || null,
+        lat,
+        lng,
+        postal,
+        city,
+        isResolved: true,
+      });
+    } catch {
+      // leave unresolved; the dropdown is still available
+    }
+  }
 
   const canInit = useMemo(() => Boolean(apiKey && apiKey.length > 10), [apiKey]);
 
@@ -159,6 +246,7 @@ export default function GoogleAddressInput({
         const w = window as any;
         const g = w.google;
         if (!g?.maps?.places?.Autocomplete) throw new Error("Google Places not available");
+        gRef.current = g;
 
         const options: any = {
           fields: ["place_id", "formatted_address", "geometry", "address_components", "name"],
@@ -220,7 +308,7 @@ export default function GoogleAddressInput({
           setInternalValue(fullAddress);
           onChange?.(fullAddress);
 
-          setIsResolved(true);
+          markResolved(true);
 
           onResolved({
             placeId,
@@ -256,13 +344,39 @@ export default function GoogleAddressInput({
         value={internalValue}
         onChange={(e) => {
           const v = e.target.value;
+          const wasResolved = resolvedRef.current;
           setInternalValue(v);
-          setIsResolved(false);
+          markResolved(false);
           onChange?.(v);
+          // If a location was previously resolved, drop its coords immediately so
+          // an edited/invalid address never keeps the old lat/lng/postal.
+          if (wasResolved) {
+            onResolved({
+              formattedAddress: v,
+              formatted_address: v,
+              name: null,
+              building: null,
+              lat: null,
+              lng: null,
+              postal: null,
+              city: null,
+              isResolved: false,
+            });
+          }
+        }}
+        onBlur={() => {
+          // If the field has text but nothing was picked from the dropdown
+          // (e.g. browser autofill), geocode it. Delay slightly so a dropdown
+          // selection (place_changed) wins the race when the user clicks one.
+          const text = (inputRef.current?.value || internalValue || "").trim();
+          if (!text || resolvedRef.current) return;
+          setTimeout(() => {
+            if (!resolvedRef.current) geocodeText(text);
+          }, 300);
         }}
         placeholder={placeholder}
         className={className || "w-full rounded-2xl border bg-white px-4 py-3 text-sm outline-none focus:ring-2"}
-        autoComplete="off"
+        autoComplete="shipping street-address"
         name="cd_address"
         inputMode="text"
       />
@@ -271,7 +385,7 @@ export default function GoogleAddressInput({
         {err ? (
           <span className="text-red-600">{err}</span>
         ) : ready ? (
-          <span>{isResolved ? "Selected ✓" : "Pick from suggestions (building or address)."}</span>
+          <span>{isResolved ? "Location found ✓" : "Pick a suggestion or use autofill — we'll locate it automatically."}</span>
         ) : canInit ? (
           <span>Loading address autocomplete…</span>
         ) : (

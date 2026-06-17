@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createSnapToken, midtransEnv } from "@/lib/midtrans";
+import { notifyNewOrder } from "@/lib/notify";
+import { upsertCustomerForOrder } from "@/lib/customers";
 
 export const runtime = "nodejs";
 
@@ -42,17 +44,25 @@ function buildBoxesText(cart: any) {
   return out.join("\n").trim();
 }
 
-function normalizeItems(cart: any) {
+type OrderLine = { id: string; name: string; price: number; quantity: number; bundle?: boolean };
+
+// Carry id + per-unit price (and a bundle flag) onto every order line. Without
+// these, paid orders can't decrement per-location stock and can't earn loyalty
+// stamps (both key off item id + price), and Biteship gets a NaN item value.
+function normalizeItems(cart: any): OrderLine[] {
   const boxes = cart?.boxes;
   if (!Array.isArray(boxes)) return [];
-  const out: { name: string; quantity: number }[] = [];
+  const out: OrderLine[] = [];
 
   for (const b of boxes) {
+    const isBundle = b?.kind === "bundle";
     const items = Array.isArray(b?.items) ? b.items : [];
     for (const it of items) {
+      const id = String(it?.id ?? it?.flavorId ?? "").trim();
       const name = (it?.name || it?.item_name || "Item").toString();
-      const qty = Number(it?.quantity || 0);
-      if (qty > 0) out.push({ name, quantity: qty });
+      const qty = Math.max(0, Math.floor(Number(it?.quantity || 0)));
+      const price = Math.max(0, Math.round(Number(it?.price ?? 0)));
+      if (qty > 0) out.push({ id, name, price, quantity: qty, ...(isBundle ? { bundle: true } : {}) });
     }
   }
   return out;
@@ -163,6 +173,29 @@ export async function POST(req: Request) {
 
     if (e1) throw e1;
     if (!orderRow?.id) throw new Error("Order insert failed (missing id)");
+
+    // 👤 Record/refresh the customer (by canonical phone). Never blocks checkout.
+    await upsertCustomerForOrder(supabase, {
+      name: customerName,
+      phone: customerPhone,
+      email,
+    });
+
+    // 🔔 Notify admin the moment an order is placed (email + WhatsApp).
+    // Awaited so it runs before the serverless function freezes, but never throws.
+    await notifyNewOrder({
+      orderNo: String(orderRow.order_no ?? orderRow.id),
+      status: "placed",
+      customerName: orderRow.customer_name || customerName,
+      customerPhone: orderRow.customer_phone || customerPhone,
+      fulfilment: fulfillmentType,
+      scheduleDate: fulfillment?.scheduleDate ?? null,
+      scheduleTime: fulfillment?.scheduleTime ?? null,
+      totalIdr: orderRow.total_idr ?? totalIdr,
+      items,
+      boxesText,
+      adminUrl: `${siteUrl}/admin/orders/${orderRow.id}`,
+    });
 
     // ✅ Manual mode = return redirect_url to /checkout/pending
     if (checkoutMode === "manual") {
