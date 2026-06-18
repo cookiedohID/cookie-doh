@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
+import { ASSORTMENTS, type Assortment } from "@/lib/assortments";
 import { COLORS } from "@/lib/theme";
 
 const COOKIE_PRICE = 32500;
@@ -31,7 +32,7 @@ export default function CafePOS() {
   const [redeemKind, setRedeemKind] = useState<Kind | null>(null);
   const [detail, setDetail] = useState<MenuItem | null>(null);
   // Boxes: pick any N cookies at the box price.
-  const [boxes, setBoxes] = useState<{ key: string; size: number; items: { id: string; name: string; qty: number }[] }[]>([]);
+  const [boxes, setBoxes] = useState<{ key: string; size: number; items: { id: string; name: string; qty: number }[]; label?: string }[]>([]);
   const [boxBuild, setBoxBuild] = useState<{ size: number; picks: Record<string, { name: string; qty: number }> } | null>(null);
   const [review, setReview] = useState(false); // order summary screen before paying
 
@@ -156,6 +157,10 @@ export default function CafePOS() {
     setBoxBuild(null);
   }
   function removeBox(key: string) { setBoxes((bs) => bs.filter((b) => b.key !== key)); }
+  function addAssortment(a: Assortment) {
+    const items = a.items.map((it) => ({ id: it.flavorId, name: cookies.find((c) => c.id === it.flavorId)?.name || it.flavorId, qty: it.qty }));
+    setBoxes((bs) => [...bs, { key: `assort-${a.key}-${bs.length}`, size: a.boxSize, items, label: a.title }]);
+  }
 
   function jump(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -258,7 +263,7 @@ export default function CafePOS() {
             {boxes.map((b) => (
               <div key={b.key} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, color: COLORS.black }}>
-                  <span>📦 Box of {b.size}</span><span>{formatIDR(boxPrice(b.size))}</span>
+                  <span>📦 {b.label || `Box of ${b.size}`}</span><span>{formatIDR(boxPrice(b.size))}</span>
                 </div>
                 <div style={{ fontSize: 12.5, color: COLORS.muted, marginTop: 4 }}>{b.items.map((it) => `${it.qty}× ${it.name}`).join(", ")}</div>
               </div>
@@ -292,7 +297,7 @@ export default function CafePOS() {
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "14px 16px 10px" }}>
           <Image src="/logo.png" alt="Cookie Doh" width={132} height={44} style={{ width: 132, height: "auto", borderRadius: 8, display: "block" }} />
           <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto" }}>
-            {[{ id: "boxes", label: "📦 Boxes" }, ...sections].map((s) => (
+            {[{ id: "assortments", label: "✨ Assortments" }, { id: "boxes", label: "📦 Boxes" }, ...sections].map((s) => (
               <button key={s.id} onClick={() => jump(s.id)} style={{
                 flex: "0 0 auto", border: "1px solid rgba(0,0,0,0.14)", background: "#fff", borderRadius: 999,
                 padding: "8px 18px", fontWeight: 800, fontSize: 14, cursor: "pointer", color: COLORS.black,
@@ -303,6 +308,26 @@ export default function CafePOS() {
       </div>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 16px 0" }}>
+        {/* Assortments — curated, ready in one tap */}
+        <section id="assortments" style={{ scrollMarginTop: 96, paddingTop: 18 }}>
+          <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 2px" }}>✨ Assortments</h2>
+          <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 12px" }}>Curated boxes — ready in one tap.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            {ASSORTMENTS.map((a) => (
+              <button key={a.key} onClick={() => addAssortment(a)} style={{
+                textAlign: "left", border: `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff",
+                cursor: "pointer", padding: 16, display: "flex", flexDirection: "column", gap: 5,
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.blue, textTransform: "uppercase", letterSpacing: 0.4 }}>{a.badge}</span>
+                <span style={{ fontWeight: 800, fontSize: 16, color: COLORS.black }}>{a.title}</span>
+                <span style={{ fontWeight: 900, fontSize: 15.5, color: COLORS.blue }}>{formatIDR(boxPrice(a.boxSize))} · {a.boxSize} cookies</span>
+                <span style={{ fontSize: 12.5, color: COLORS.muted, lineHeight: 1.35 }}>{a.items.map((it) => `${it.qty}× ${cookies.find((c) => c.id === it.flavorId)?.name || it.flavorId}`).join(", ")}</span>
+                <span style={{ marginTop: 4, fontSize: 12.5, fontWeight: 800, color: COLORS.blue }}>＋ Add box</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {/* Boxes — pick any N cookies at the box price */}
         <section id="boxes" style={{ scrollMarginTop: 96, paddingTop: 18 }}>
           <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 12px" }}>📦 Boxes</h2>
@@ -452,7 +477,7 @@ export default function CafePOS() {
             <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
               {boxes.map((b) => (
                 <div key={b.key} style={{ flex: "0 0 auto", border: `1px solid ${COLORS.blue}`, background: "rgba(0,20,167,0.06)", borderRadius: 999, padding: "4px 6px 4px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>📦 Box of {b.size} · {formatIDR(boxPrice(b.size))}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>📦 {b.label || `Box of ${b.size}`} · {formatIDR(boxPrice(b.size))}</span>
                   <button onClick={() => removeBox(b.key)} aria-label="Remove box" style={miniBtn}>×</button>
                 </div>
               ))}
