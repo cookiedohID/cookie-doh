@@ -32,7 +32,7 @@ export default function CafePOS() {
   const [redeemKind, setRedeemKind] = useState<Kind | null>(null);
   const [detail, setDetail] = useState<MenuItem | null>(null);
   // Boxes: pick any N cookies at the box price.
-  const [boxes, setBoxes] = useState<{ key: string; size: number; items: { id: string; name: string; qty: number }[]; label?: string }[]>([]);
+  const [boxes, setBoxes] = useState<{ key: string; size: number; items: { id: string; name: string; qty: number }[]; label?: string; assortKey?: string }[]>([]);
   const [boxBuild, setBoxBuild] = useState<{ size: number; picks: Record<string, { name: string; qty: number }> } | null>(null);
   const [review, setReview] = useState(false); // order summary screen before paying
 
@@ -157,9 +157,25 @@ export default function CafePOS() {
     setBoxBuild(null);
   }
   function removeBox(key: string) { setBoxes((bs) => bs.filter((b) => b.key !== key)); }
+  // Build-your-own boxes (no assortKey), counted per size.
+  const boxCount = (size: number) => boxes.filter((b) => b.size === size && !b.assortKey).length;
+  function removeOneBox(size: number) {
+    setBoxes((bs) => {
+      for (let i = bs.length - 1; i >= 0; i--) if (bs[i].size === size && !bs[i].assortKey) return bs.filter((_, idx) => idx !== i);
+      return bs;
+    });
+  }
+  // Assortments (pre-filled), counted per assortment.
+  const assortmentQty = (key: string) => boxes.filter((b) => b.assortKey === key).length;
   function addAssortment(a: Assortment) {
     const items = a.items.map((it) => ({ id: it.flavorId, name: cookies.find((c) => c.id === it.flavorId)?.name || it.flavorId, qty: it.qty }));
-    setBoxes((bs) => [...bs, { key: `assort-${a.key}-${bs.length}`, size: a.boxSize, items, label: a.title }]);
+    setBoxes((bs) => [...bs, { key: `assort-${a.key}-${Math.random().toString(36).slice(2, 9)}`, size: a.boxSize, items, label: a.title, assortKey: a.key }]);
+  }
+  function removeOneAssortment(key: string) {
+    setBoxes((bs) => {
+      for (let i = bs.length - 1; i >= 0; i--) if (bs[i].assortKey === key) return bs.filter((_, idx) => idx !== i);
+      return bs;
+    });
   }
 
   function jump(id: string) {
@@ -314,18 +330,31 @@ export default function CafePOS() {
           <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 2px" }}>✨ Assortments</h2>
           <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 12px" }}>Curated boxes — ready in one tap.</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            {ASSORTMENTS.map((a) => (
-              <button key={a.key} onClick={() => addAssortment(a)} style={{
-                textAlign: "left", border: `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff",
-                cursor: "pointer", padding: 16, display: "flex", flexDirection: "column", gap: 5,
+            {ASSORTMENTS.map((a) => {
+              const q = assortmentQty(a.key);
+              return (
+              <div key={a.key} style={{
+                textAlign: "left", border: q > 0 ? `2px solid ${COLORS.blue}` : `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff",
+                padding: 16, display: "flex", flexDirection: "column", gap: 5,
               }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.blue, textTransform: "uppercase", letterSpacing: 0.4 }}>{a.badge}</span>
                 <span style={{ fontWeight: 800, fontSize: 16, color: COLORS.black }}>{a.title}</span>
                 <span style={{ fontWeight: 900, fontSize: 15.5, color: COLORS.blue }}>{formatIDR(boxPrice(a.boxSize))} · {a.boxSize} cookies</span>
                 <span style={{ fontSize: 12.5, color: COLORS.muted, lineHeight: 1.35 }}>{a.items.map((it) => `${it.qty}× ${cookies.find((c) => c.id === it.flavorId)?.name || it.flavorId}`).join(", ")}</span>
-                <span style={{ marginTop: 4, fontSize: 12.5, fontWeight: 800, color: COLORS.blue }}>＋ Add box</span>
-              </button>
-            ))}
+                <div style={{ marginTop: 6 }}>
+                  {q > 0 ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <button onClick={() => removeOneAssortment(a.key)} aria-label={`Remove one ${a.title}`} style={stepBtn}>–</button>
+                      <span style={{ fontWeight: 800, fontSize: 15, minWidth: 16, textAlign: "center" }}>{q}</span>
+                      <button onClick={() => addAssortment(a)} aria-label={`Add one ${a.title}`} style={stepBtn}>+</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => addAssortment(a)} style={{ border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, borderRadius: 999, padding: "8px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>＋ Add box</button>
+                  )}
+                </div>
+              </div>
+              );
+            })}
           </div>
         </section>
 
@@ -333,16 +362,30 @@ export default function CafePOS() {
         <section id="boxes" style={{ scrollMarginTop: 96, paddingTop: 18 }}>
           <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 12px" }}>📦 Boxes</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-            {[3, 6].map((size) => (
-              <button key={size} onClick={() => setBoxBuild({ size, picks: {} })} style={{
-                textAlign: "left", border: `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff",
-                cursor: "pointer", padding: 18, display: "flex", flexDirection: "column", gap: 4,
+            {[3, 6].map((size) => {
+              const q = boxCount(size);
+              return (
+              <div key={size} style={{
+                textAlign: "left", border: q > 0 ? `2px solid ${COLORS.blue}` : `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff",
+                padding: 18, display: "flex", flexDirection: "column", gap: 6,
               }}>
                 <span style={{ fontWeight: 800, fontSize: 17, color: COLORS.black }}>Box of {size}</span>
                 <span style={{ fontWeight: 900, fontSize: 18, color: COLORS.blue }}>{formatIDR(boxPrice(size))}</span>
                 <span style={{ fontSize: 12.5, color: COLORS.muted }}>Pick any {size} cookies</span>
-              </button>
-            ))}
+                <div style={{ marginTop: 6 }}>
+                  {q > 0 ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <button onClick={() => removeOneBox(size)} aria-label={`Remove a box of ${size}`} style={stepBtn}>–</button>
+                      <span style={{ fontWeight: 800, fontSize: 15, minWidth: 16, textAlign: "center" }}>{q}</span>
+                      <button onClick={() => setBoxBuild({ size, picks: {} })} aria-label={`Build another box of ${size}`} style={stepBtn}>+</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setBoxBuild({ size, picks: {} })} style={{ border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, borderRadius: 999, padding: "8px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>＋ Build box</button>
+                  )}
+                </div>
+              </div>
+              );
+            })}
           </div>
         </section>
 
