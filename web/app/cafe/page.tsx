@@ -290,7 +290,7 @@ export default function CafePOS() {
       {/* Kiosk header + jump nav */}
       <div style={{ position: "sticky", top: 0, zIndex: 20, background: "rgba(255,255,255,0.96)", backdropFilter: "blur(8px)", borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "14px 16px 10px" }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: COLORS.black, margin: 0 }}>Order here 🍪</h1>
+          <Image src="/logo.png" alt="Cookie Doh" width={132} height={44} style={{ width: 132, height: "auto", borderRadius: 8, display: "block" }} />
           <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto" }}>
             {[{ id: "boxes", label: "📦 Boxes" }, ...sections].map((s) => (
               <button key={s.id} onClick={() => jump(s.id)} style={{

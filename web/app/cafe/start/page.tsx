@@ -13,8 +13,8 @@ export default function CafeStartPage() {
 
       {/* Content */}
       <div style={{ position: "relative", zIndex: 10, textAlign: "center", padding: 24 }}>
-        <div className="font-dearjoe" style={{ fontSize: 72, lineHeight: 1, color: "#fff", textShadow: "0 2px 16px rgba(0,0,0,0.4)" }}>cookie doh</div>
-        <p style={{ marginTop: 12, fontSize: 20, fontWeight: 600, color: "rgba(255,255,255,0.95)", textShadow: "0 1px 8px rgba(0,0,0,0.4)" }}>where the cookie magic happens</p>
+        <Image src="/logo.png" alt="Cookie Doh" width={360} height={120} priority style={{ width: "min(360px, 78vw)", height: "auto", borderRadius: 18, boxShadow: "0 16px 44px rgba(0,0,0,0.4)" }} />
+        <p style={{ marginTop: 18, fontSize: 20, fontWeight: 600, color: "rgba(255,255,255,0.95)", textShadow: "0 1px 8px rgba(0,0,0,0.4)" }}>where the cookie magic happens</p>
 
         <Link href="/cafe" style={{
           display: "inline-block", marginTop: 48, background: "#fff", color: COLORS.blue,
