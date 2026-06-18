@@ -1,7 +1,6 @@
 // web/app/api/flavors/availability/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { LOCATIONS } from "@/lib/locations";
 
 function supaAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -53,12 +52,14 @@ export async function GET() {
       if (eff) p.soldOutCount += 1;
     });
 
-    // Aggregated: sold out for the storefront only when ALL locations track it and
-    // every one is sold out. Any untracked location => still available somewhere.
-    const totalLocations = LOCATIONS.length;
+    // Aggregated: sold out for the storefront when every location that TRACKS the
+    // item is sold out. A location with no row is treated as "available there", and
+    // an item with no rows anywhere never appears here (stays available by default).
+    // (Previously this required a row at ALL 4 locations, so single-location items
+    //  could never show as sold out.)
     const map: Record<string, boolean> = {};
     Object.entries(perItem).forEach(([item, p]) => {
-      map[item] = p.rows >= totalLocations && p.soldOutCount >= totalLocations;
+      map[item] = p.rows > 0 && p.soldOutCount >= p.rows;
     });
 
     return NextResponse.json({ ok: true, map, byLocation }, { status: 200 });

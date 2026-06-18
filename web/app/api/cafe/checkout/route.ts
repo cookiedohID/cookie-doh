@@ -5,8 +5,16 @@ import { createSnapToken } from "@/lib/midtrans";
 import { notifyNewOrder } from "@/lib/notify";
 import { canonicalPhone } from "@/lib/phone";
 import { loyaltyForPhone } from "@/app/api/loyalty/lookup/route";
+import { FLAVORS } from "@/lib/catalog";
+import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
 
 export const runtime = "nodejs";
+
+// Prices are authoritative on the server — this is a customer-operated self-
+// checkout, so the client's price/kind can't be trusted.
+const CAFE_COOKIE_PRICE = 32500; // single cookie at the register (matches the POS)
+const COOKIE_IDS = new Set(FLAVORS.map((f: any) => String(f.id)));
+const DRINK_IDS = new Set(SMOOTHIES.map((s) => String(s.id)));
 
 function supaAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -24,15 +32,27 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const rawItems = Array.isArray(body?.items) ? body.items : [];
     const items = rawItems
-      .map((it: any) => ({
-        id: String(it?.id || ""),
-        name: String(it?.name || "Item"),
-        kind: it?.kind === "drink" ? "drink" : "cookie",
-        price: Math.max(0, Math.round(Number(it?.price) || 0)),
-        quantity: Math.max(1, Math.round(Number(it?.quantity) || 1)),
-        free: it?.free === true,
-      }))
-      .filter((it: any) => it.id);
+      .map((it: any) => {
+        const id = String(it?.id || "");
+        const inCookie = COOKIE_IDS.has(id);
+        const inDrink = DRINK_IDS.has(id);
+        // Resolve kind from the trusted catalog; only fall back to the client's
+        // kind for the two ids that exist as BOTH a cookie and a smoothie.
+        let kind: "cookie" | "drink" | null =
+          inCookie && !inDrink ? "cookie" : inDrink && !inCookie ? "drink" : null;
+        if (!kind && inCookie && inDrink) kind = it?.kind === "drink" ? "drink" : "cookie";
+        const free = it?.free === true;
+        const unit = kind === "drink" ? SMOOTHIE_PRICE : CAFE_COOKIE_PRICE;
+        return {
+          id,
+          name: String(it?.name || "Item"),
+          kind,
+          price: free ? 0 : unit, // never trust client price
+          quantity: Math.max(1, Math.round(Number(it?.quantity) || 1)),
+          free,
+        };
+      })
+      .filter((it: any) => it.id && it.kind); // drop unknown ids
 
     if (!items.length) return NextResponse.json({ ok: false, error: "Cart is empty" }, { status: 400 });
 

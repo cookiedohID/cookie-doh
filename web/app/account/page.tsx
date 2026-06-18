@@ -28,6 +28,7 @@ export default function AccountPage() {
   const [qr, setQr] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [loadErr, setLoadErr] = useState("");
 
   async function token() {
     const { data } = await getSupabaseBrowser().auth.getSession();
@@ -36,6 +37,7 @@ export default function AccountPage() {
 
   async function load() {
     setLoading(true);
+    setLoadErr("");
     try {
       const t = await token();
       if (!t) { router.replace("/account/login"); return; }
@@ -47,7 +49,12 @@ export default function AccountPage() {
         if (j?.phone) setPhone(j.phone); // re-verify an existing-but-unverified number
         return;
       }
-      if (j?.member) { setMember(j.member); }
+      if (j?.member) { setMember(j.member); return; }
+      // Neither member nor needsPhone (e.g. backend error, or a phone linked to
+      // another account) — surface it instead of rendering a blank page.
+      setLoadErr(j?.error || "We couldn't load your account. Please try again.");
+    } catch {
+      setLoadErr("We couldn't load your account. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -148,6 +155,22 @@ export default function AccountPage() {
             </form>
           )}
           <button onClick={logout} style={{ marginTop: 14, border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer" }}>Log out</button>
+        </div>
+      </main>
+    );
+  }
+
+  if (loadErr) {
+    return (
+      <main style={{ minHeight: "100vh", background: COLORS.bg }}>
+        <div style={{ maxWidth: 420, margin: "0 auto", padding: "60px 16px", textAlign: "center" }}>
+          <div style={{ fontSize: 36 }}>😕</div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: COLORS.black, marginTop: 8 }}>Something went wrong</h1>
+          <p style={{ color: COLORS.muted, fontSize: 14, marginTop: 6 }}>{loadErr}</p>
+          <div style={{ marginTop: 20, display: "grid", gap: 10 }}>
+            <button onClick={load} style={{ height: 48, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, cursor: "pointer" }}>Try again</button>
+            <button onClick={logout} style={{ border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer" }}>Log out</button>
+          </div>
         </div>
       </main>
     );
