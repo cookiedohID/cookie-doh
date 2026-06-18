@@ -60,6 +60,7 @@ export default function SiteHeader() {
       { href: "/cookies", label: "Cookies" },
       { href: "/smoothies", label: "Smoothies" },
       { href: "/bundles", label: "Bundles" },
+      { href: "/account", label: "Member" },
     ],
     []
   );

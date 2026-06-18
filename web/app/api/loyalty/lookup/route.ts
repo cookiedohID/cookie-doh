@@ -32,22 +32,32 @@ export async function loyaltyForPhone(supa: any, phone: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const phone = canonicalPhone(body?.phone);
-    if (!phone) return NextResponse.json({ ok: false, error: "Enter a valid phone." }, { status: 400 });
+    const code = String(body?.code || "").trim();
+    let phone = canonicalPhone(body?.phone);
 
     const supa = supaAdmin();
-    const { data: cust } = await supa
-      .from("customers")
-      .select("name")
-      .eq("phone", phone)
-      .maybeSingle();
+
+    // Resolve a scanned membership code (e.g. "CD32181818") to the member's phone.
+    let name: string | null = null;
+    if (!phone && code) {
+      const { data: c } = await supa.from("customers").select("phone, name").eq("member_code", code).maybeSingle();
+      if (c?.phone) { phone = c.phone; name = c.name || null; }
+    }
+
+    if (!phone) return NextResponse.json({ ok: false, error: "Enter a valid phone or scan a member QR." }, { status: 400 });
+
+    if (name === null) {
+      const { data: cust } = await supa.from("customers").select("name").eq("phone", phone).maybeSingle();
+      name = cust?.name || null;
+    }
 
     const loyalty = await loyaltyForPhone(supa, phone);
     if (!loyalty) return NextResponse.json({ ok: false, error: "No history" }, { status: 200 });
 
     return NextResponse.json({
       ok: true,
-      name: cust?.name || null,
+      phone, // returned so the POS can use it for redemption + checkout after a scan
+      name,
       freeCookies: loyalty.freeCookies,
       freeDrinks: loyalty.freeDrinks,
       cookieStamps: loyalty.cookieStamps,
