@@ -3,7 +3,7 @@
 // web/app/cafe/page.tsx — in-store self-checkout / register POS (kiosk)
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { FLAVORS } from "@/lib/catalog";
+import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
 import { COLORS } from "@/lib/theme";
 
@@ -30,6 +30,9 @@ export default function CafePOS() {
   const [rewards, setRewards] = useState<{ name: string | null; freeCookies: number; freeDrinks: number } | null>(null);
   const [redeemKind, setRedeemKind] = useState<Kind | null>(null);
   const [detail, setDetail] = useState<MenuItem | null>(null);
+  // Boxes: pick any N cookies at the box price.
+  const [boxes, setBoxes] = useState<{ key: string; size: number; items: { id: string; name: string; qty: number }[] }[]>([]);
+  const [boxBuild, setBoxBuild] = useState<{ size: number; picks: Record<string, { name: string; qty: number }> } | null>(null);
 
   // paid / print phase
   const [paid, setPaid] = useState<{ orderNo: string; lines: Line[]; total: number } | null>(null);
@@ -59,8 +62,13 @@ export default function CafePOS() {
   );
 
   const lines = Object.entries(cart).map(([key, l]) => ({ key, ...l }));
-  const total = lines.reduce((s, l) => s + (l.free ? 0 : l.item.price * l.qty), 0);
+  const boxPrice = (size: number) => (BOX_PRICES as any)[size] || 0;
+  const itemsTotal = lines.reduce((s, l) => s + (l.free ? 0 : l.item.price * l.qty), 0);
+  const boxesTotal = boxes.reduce((s, b) => s + boxPrice(b.size), 0);
+  const total = itemsTotal + boxesTotal;
   const paidCount = lines.reduce((s, l) => s + (l.free ? 0 : l.qty), 0);
+  const payable = paidCount > 0 || boxes.length > 0;
+  const boxPickCount = boxBuild ? Object.values(boxBuild.picks).reduce((s, v) => s + v.qty, 0) : 0;
 
   const usedFree = (kind: Kind) => lines.filter((l) => l.free && l.item.kind === kind).reduce((s, l) => s + l.qty, 0);
   const remainingFree = (kind: Kind) =>
@@ -123,14 +131,37 @@ export default function CafePOS() {
     setRewards(r?.ok ? { name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks } : { name: null, freeCookies: 0, freeDrinks: 0 });
   }
 
-  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); }
+  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setBoxes([]); }
+
+  // ---- box builder ----
+  function bumpPick(item: MenuItem, d: number) {
+    setBoxBuild((bb) => {
+      if (!bb) return bb;
+      const cur = bb.picks[item.id]?.qty || 0;
+      const others = Object.entries(bb.picks).reduce((s, [k, v]) => s + (k === item.id ? 0 : v.qty), 0);
+      let next = cur + d;
+      if (next < 0) next = 0;
+      if (others + next > bb.size) next = bb.size - others; // can't exceed box size
+      const picks = { ...bb.picks };
+      if (next <= 0) delete picks[item.id];
+      else picks[item.id] = { name: item.name, qty: next };
+      return { ...bb, picks };
+    });
+  }
+  function addBox() {
+    if (!boxBuild || boxPickCount !== boxBuild.size) return;
+    const items = Object.entries(boxBuild.picks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
+    setBoxes((bs) => [...bs, { key: `box-${boxBuild.size}-${bs.length}-${items.map((i) => i.id + i.qty).join("")}`, size: boxBuild.size, items }]);
+    setBoxBuild(null);
+  }
+  function removeBox(key: string) { setBoxes((bs) => bs.filter((b) => b.key !== key)); }
 
   function jump(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function charge() {
-    if (!paidCount) return;
+    if (!payable) return;
     setErr("");
     setBusy(true);
     try {
@@ -139,6 +170,7 @@ export default function CafePOS() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           items: lines.map((l) => ({ id: l.item.id, name: l.item.name, kind: l.item.kind, price: l.free ? 0 : l.item.price, quantity: l.qty, free: !!l.free })),
+          boxes: boxes.map((b) => ({ size: b.size, items: b.items.map((it) => ({ id: it.id, name: it.name, qty: it.qty })) })),
           memberPhone: memberPhone || undefined,
         }),
       });
@@ -221,7 +253,7 @@ export default function CafePOS() {
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "14px 16px 10px" }}>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: COLORS.black, margin: 0 }}>Order here 🍪</h1>
           <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto" }}>
-            {sections.map((s) => (
+            {[{ id: "boxes", label: "📦 Boxes" }, ...sections].map((s) => (
               <button key={s.id} onClick={() => jump(s.id)} style={{
                 flex: "0 0 auto", border: "1px solid rgba(0,0,0,0.14)", background: "#fff", borderRadius: 999,
                 padding: "8px 18px", fontWeight: 800, fontSize: 14, cursor: "pointer", color: COLORS.black,
@@ -232,6 +264,23 @@ export default function CafePOS() {
       </div>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 16px 0" }}>
+        {/* Boxes — pick any N cookies at the box price */}
+        <section id="boxes" style={{ scrollMarginTop: 96, paddingTop: 18 }}>
+          <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 12px" }}>📦 Boxes</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+            {[3, 6].map((size) => (
+              <button key={size} onClick={() => setBoxBuild({ size, picks: {} })} style={{
+                textAlign: "left", border: `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff",
+                cursor: "pointer", padding: 18, display: "flex", flexDirection: "column", gap: 4,
+              }}>
+                <span style={{ fontWeight: 800, fontSize: 17, color: COLORS.black }}>Box of {size}</span>
+                <span style={{ fontWeight: 900, fontSize: 18, color: COLORS.blue }}>{formatIDR(boxPrice(size))}</span>
+                <span style={{ fontSize: 12.5, color: COLORS.muted }}>Pick any {size} cookies · save {formatIDR(size * COOKIE_PRICE - boxPrice(size))}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
         {sections.map((s) => (
           <section key={s.id} id={s.id} style={{ scrollMarginTop: 96, paddingTop: 18 }}>
             <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 12px" }}>{s.label}</h2>
@@ -307,6 +356,47 @@ export default function CafePOS() {
         </div>
       ) : null}
 
+      {/* Box builder modal */}
+      {boxBuild ? (
+        <div onClick={() => setBoxBuild(null)} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, maxWidth: 560, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ padding: "16px 18px", borderBottom: "1px solid rgba(0,0,0,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>Box of {boxBuild.size}</div>
+                <div style={{ fontSize: 13, color: boxPickCount === boxBuild.size ? COLORS.blue : COLORS.muted, fontWeight: 700 }}>Pick {boxPickCount}/{boxBuild.size} cookies · {formatIDR(boxPrice(boxBuild.size))}</div>
+              </div>
+              <button onClick={() => setBoxBuild(null)} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: COLORS.sand, fontWeight: 900, cursor: "pointer", fontSize: 16 }}>×</button>
+            </div>
+            <div style={{ padding: 16, overflow: "auto", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+              {cookies.map((c) => {
+                const q = boxBuild.picks[c.id]?.qty || 0;
+                const full = boxPickCount >= boxBuild.size && q === 0;
+                return (
+                  <div key={c.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, overflow: "hidden", background: "#fff", opacity: full ? 0.45 : 1 }}>
+                    <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand }}>
+                      {c.image ? <Image src={c.image} alt={c.name} fill style={{ objectFit: "cover" }} sizes="160px" /> : null}
+                    </div>
+                    <div style={{ padding: "8px 10px" }}>
+                      <div style={{ fontWeight: 700, fontSize: 12.5, color: COLORS.black, minHeight: 30, lineHeight: 1.2 }}>{c.name}</div>
+                      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 4 }}>
+                        <button onClick={() => bumpPick(c, -1)} disabled={q === 0} style={{ ...stepBtn, opacity: q === 0 ? 0.4 : 1 }}>–</button>
+                        <span style={{ fontWeight: 800, fontSize: 14, minWidth: 14, textAlign: "center" }}>{q}</span>
+                        <button onClick={() => bumpPick(c, 1)} disabled={boxPickCount >= boxBuild.size} style={{ ...stepBtn, opacity: boxPickCount >= boxBuild.size ? 0.4 : 1 }}>+</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ padding: 16, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+              <button onClick={addBox} disabled={boxPickCount !== boxBuild.size} style={{ ...btn(COLORS.blue), width: "100%", opacity: boxPickCount === boxBuild.size ? 1 : 0.5, cursor: boxPickCount === boxBuild.size ? "pointer" : "not-allowed" }}>
+                {boxPickCount === boxBuild.size ? `Add box · ${formatIDR(boxPrice(boxBuild.size))}` : `Pick ${boxBuild.size - boxPickCount} more`}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Cart bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.10)", padding: "12px 16px", boxShadow: "0 -8px 24px rgba(0,0,0,0.06)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
@@ -314,8 +404,14 @@ export default function CafePOS() {
             <div style={{ marginBottom: 8, fontWeight: 800, fontSize: 13, color: "#0014A7" }}>🎁 Tap the {redeemKind} above to add it free</div>
           ) : null}
 
-          {lines.length ? (
+          {lines.length || boxes.length ? (
             <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
+              {boxes.map((b) => (
+                <div key={b.key} style={{ flex: "0 0 auto", border: `1px solid ${COLORS.blue}`, background: "rgba(0,20,167,0.06)", borderRadius: 999, padding: "4px 6px 4px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>📦 Box of {b.size} · {formatIDR(boxPrice(b.size))}</span>
+                  <button onClick={() => removeBox(b.key)} aria-label="Remove box" style={miniBtn}>×</button>
+                </div>
+              ))}
               {lines.map((l) => (
                 <div key={l.key} style={{ flex: "0 0 auto", border: l.free ? `1px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.12)", background: l.free ? "rgba(0,20,167,0.06)" : "#fff", borderRadius: 999, padding: "4px 6px 4px 12px", display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>{l.free ? "🎁 " : ""}{l.item.name}{l.free ? " · FREE" : ""}</span>
@@ -344,9 +440,9 @@ export default function CafePOS() {
             {memberPhone && !rewards ? (
               <button onClick={checkRewards} style={{ flex: "0 0 auto", borderRadius: 12, height: 50, padding: "0 16px", border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 800, cursor: "pointer" }}>Rewards</button>
             ) : null}
-            <button onClick={charge} disabled={!paidCount || busy} style={{
+            <button onClick={charge} disabled={!payable || busy} style={{
               flex: "0 0 auto", borderRadius: 999, height: 50, padding: "0 22px", border: "none",
-              background: paidCount ? COLORS.blue : "rgba(0,20,167,0.4)", color: "#fff", fontWeight: 900, fontSize: 15, cursor: paidCount && !busy ? "pointer" : "not-allowed",
+              background: payable ? COLORS.blue : "rgba(0,20,167,0.4)", color: "#fff", fontWeight: 900, fontSize: 15, cursor: payable && !busy ? "pointer" : "not-allowed",
             }}>{busy ? "…" : `Charge QRIS · ${formatIDR(total)}`}</button>
           </div>
           {err ? <div style={{ color: "crimson", fontWeight: 700, fontSize: 13, marginTop: 6 }}>{err}</div> : null}

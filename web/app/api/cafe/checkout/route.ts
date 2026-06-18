@@ -5,7 +5,7 @@ import { createSnapToken } from "@/lib/midtrans";
 import { notifyNewOrder } from "@/lib/notify";
 import { canonicalPhone } from "@/lib/phone";
 import { loyaltyForPhone } from "@/app/api/loyalty/lookup/route";
-import { FLAVORS } from "@/lib/catalog";
+import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
 
 export const runtime = "nodejs";
@@ -54,9 +54,32 @@ export async function POST(req: Request) {
       })
       .filter((it: any) => it.id && it.kind); // drop unknown ids
 
-    if (!items.length) return NextResponse.json({ ok: false, error: "Cart is empty" }, { status: 400 });
+    // Boxes (3 / 6 cookies at the box price) — flatten to cookie lines, priced
+    // server-side from BOX_PRICES so the client can't dictate the discount.
+    const rawBoxes = Array.isArray(body?.boxes) ? body.boxes : [];
+    const boxItems: any[] = [];
+    for (const b of rawBoxes) {
+      const size = Number(b?.size);
+      if (size !== 3 && size !== 6) {
+        return NextResponse.json({ ok: false, error: "Box must be 3 or 6 cookies." }, { status: 400 });
+      }
+      const picks = (Array.isArray(b?.items) ? b.items : [])
+        .map((it: any) => ({ id: String(it?.id || ""), name: String(it?.name || "Item"), qty: Math.max(1, Math.round(Number(it?.qty ?? it?.quantity) || 1)) }))
+        .filter((it: any) => it.id && COOKIE_IDS.has(it.id));
+      const count = picks.reduce((s: number, it: any) => s + it.qty, 0);
+      if (count !== size) {
+        return NextResponse.json({ ok: false, error: `Box of ${size} must have exactly ${size} cookies.` }, { status: 400 });
+      }
+      const unit = Math.round((BOX_PRICES as any)[size] / size); // 90k/3 and 180k/6 both = 30000
+      for (const p of picks) {
+        boxItems.push({ id: p.id, name: p.name, kind: "cookie", price: unit, quantity: p.qty, free: false });
+      }
+    }
 
-    const total = items.reduce((s: number, it: any) => s + (it.free ? 0 : it.price * it.quantity), 0);
+    const allItems = [...items, ...boxItems];
+    if (!allItems.length) return NextResponse.json({ ok: false, error: "Cart is empty" }, { status: 400 });
+
+    const total = allItems.reduce((s: number, it: any) => s + (it.free ? 0 : it.price * it.quantity), 0);
     if (total <= 0) return NextResponse.json({ ok: false, error: "Add at least one paid item" }, { status: 400 });
 
     const memberPhone = canonicalPhone(body?.memberPhone);
@@ -65,8 +88,8 @@ export async function POST(req: Request) {
 
     // Server-side reward check: free lines must be backed by real available rewards.
     const supaCheck = supaAdmin();
-    const freeCookies = items.filter((i: any) => i.free && i.kind === "cookie").reduce((s: number, i: any) => s + i.quantity, 0);
-    const freeDrinks = items.filter((i: any) => i.free && i.kind === "drink").reduce((s: number, i: any) => s + i.quantity, 0);
+    const freeCookies = allItems.filter((i: any) => i.free && i.kind === "cookie").reduce((s: number, i: any) => s + i.quantity, 0);
+    const freeDrinks = allItems.filter((i: any) => i.free && i.kind === "drink").reduce((s: number, i: any) => s + i.quantity, 0);
     if (freeCookies || freeDrinks) {
       if (!memberPhone) return NextResponse.json({ ok: false, error: "Member phone required to use rewards." }, { status: 400 });
       const loy = await loyaltyForPhone(supaCheck, memberPhone);
@@ -100,7 +123,7 @@ export async function POST(req: Request) {
     const orderInsert: any = {
       customer_name: customerName,
       customer_phone: memberPhone || null,
-      items_json: items,
+      items_json: allItems,
       subtotal_idr: total,
       total_idr: total,
       shipping_cost_idr: 0,
@@ -141,7 +164,7 @@ export async function POST(req: Request) {
       customerPhone: memberPhone,
       fulfilment: "Cafe",
       totalIdr: total,
-      items,
+      items: allItems,
       adminUrl: `${siteUrl()}/admin/orders/${orderRow.id}`,
     });
 
