@@ -1,7 +1,7 @@
 "use client";
 
 // web/app/cafe/page.tsx — in-store self-checkout / register POS
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { FLAVORS } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
@@ -13,6 +13,19 @@ const formatIDR = (n: number) => `Rp ${Number(n).toLocaleString("id-ID")}`;
 type Kind = "cookie" | "drink";
 type MenuItem = { id: string; name: string; image?: string; price: number; kind: Kind; ingredients?: string[] };
 type Line = { item: MenuItem; qty: number; free?: boolean };
+
+// Printer calibration: open /cafe?calibrate=1 to jump straight to the print phase
+// with a representative order (2 paid cookies + 1 free cookie + 1 drink) so the
+// Clabel thermal printer can be tuned without taking a real payment.
+const CALIBRATION_SNAPSHOT: { orderNo: string; lines: Line[]; total: number } = {
+  orderNo: "CALIBRATION",
+  total: COOKIE_PRICE * 2 + SMOOTHIE_PRICE,
+  lines: [
+    { item: { id: "the-one", name: "The One", price: COOKIE_PRICE, kind: "cookie" }, qty: 2 },
+    { item: { id: "ruby-glow", name: "Ruby Glow", price: SMOOTHIE_PRICE, kind: "drink", ingredients: ["Plain yoghurt base", "Strawberry", "Dragon fruit", "Honey"] }, qty: 1 },
+    { item: { id: "the-one", name: "The One", price: COOKIE_PRICE, kind: "cookie" }, qty: 1, free: true },
+  ],
+};
 
 export default function CafePOS() {
   const [tab, setTab] = useState<Kind>("cookie");
@@ -26,6 +39,14 @@ export default function CafePOS() {
   // paid / print phase
   const [paid, setPaid] = useState<{ orderNo: string; lines: Line[]; total: number } | null>(null);
   const [printDoc, setPrintDoc] = useState<"receipt" | "stickers" | "recipe">("receipt");
+
+  // Printer calibration mode (?calibrate=1) — seed a sample order, no payment.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (new URLSearchParams(window.location.search).get("calibrate") === "1") {
+      setPaid(CALIBRATION_SNAPSHOT);
+    }
+  }, []);
 
   const cookies: MenuItem[] = useMemo(
     () => FLAVORS.map((f: any) => ({ id: String(f.id), name: String(f.name), image: f.image, price: COOKIE_PRICE, kind: "cookie" as const })),
@@ -125,8 +146,13 @@ export default function CafePOS() {
       <main style={{ minHeight: "100vh", background: COLORS.bg }}>
         <PrintStyles />
         <div className="cafe-screen" style={{ maxWidth: 520, margin: "0 auto", padding: "40px 16px", textAlign: "center" }}>
-          <div style={{ fontSize: 40 }}>✅</div>
-          <h1 style={{ fontSize: 26, fontWeight: 800, color: COLORS.black, margin: "8px 0 2px" }}>Payment received</h1>
+          {paid.orderNo === "CALIBRATION" ? (
+            <div style={{ background: "#fff4cc", border: "1px solid #e6c200", borderRadius: 12, padding: "8px 12px", fontWeight: 800, fontSize: 13, color: "#7a5c00", marginBottom: 10 }}>
+              🖨️ Printer calibration — no payment taken
+            </div>
+          ) : null}
+          <div style={{ fontSize: 40 }}>{paid.orderNo === "CALIBRATION" ? "🖨️" : "✅"}</div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: COLORS.black, margin: "8px 0 2px" }}>{paid.orderNo === "CALIBRATION" ? "Test print" : "Payment received"}</h1>
           <p style={{ color: COLORS.muted }}>Order {paid.orderNo} · {formatIDR(paid.total)}</p>
 
           <div style={{ marginTop: 24, display: "grid", gap: 10 }}>
