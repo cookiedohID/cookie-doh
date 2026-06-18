@@ -275,7 +275,7 @@ export default function CafePOS() {
               }}>
                 <span style={{ fontWeight: 800, fontSize: 17, color: COLORS.black }}>Box of {size}</span>
                 <span style={{ fontWeight: 900, fontSize: 18, color: COLORS.blue }}>{formatIDR(boxPrice(size))}</span>
-                <span style={{ fontSize: 12.5, color: COLORS.muted }}>Pick any {size} cookies · save {formatIDR(size * COOKIE_PRICE - boxPrice(size))}</span>
+                <span style={{ fontSize: 12.5, color: COLORS.muted }}>Pick any {size} cookies</span>
               </button>
             ))}
           </div>
