@@ -6,7 +6,7 @@ import { COLORS } from "@/lib/theme";
 
 export default function CafeStartPage() {
   return (
-    <main style={{ position: "relative", minHeight: "100vh", display: "grid", placeItems: "center", overflow: "hidden", background: COLORS.black }}>
+    <main style={{ position: "relative", minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", overflow: "hidden", background: COLORS.black, paddingBottom: "14vh" }}>
       {/* Hero */}
       <Image src="/flavors/CxCookiedoh/hero image.png" alt="" fill priority sizes="100vw" style={{ objectFit: "cover" }} />
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.30) 40%, rgba(0,0,0,0.65) 100%)" }} />
