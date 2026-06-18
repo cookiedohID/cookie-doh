@@ -132,7 +132,7 @@ export default function CafePOS() {
     setRewards(r?.ok ? { name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks } : { name: null, freeCookies: 0, freeDrinks: 0 });
   }
 
-  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setBoxes([]); }
+  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setBoxes([]); setReview(false); }
 
   // ---- box builder ----
   function bumpPick(item: MenuItem, d: number) {
@@ -241,6 +241,44 @@ export default function CafePOS() {
           <p style={{ marginTop: 18, fontSize: 16, fontWeight: 700, color: COLORS.blue }}>🖨️ Printing your receipt, stickers &amp; recipe…</p>
           <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6 }}>Please collect them at the counter.</p>
           <button onClick={() => setPaid(null)} style={{ ...btn(COLORS.blue), marginTop: 28, width: 220 }}>＋ New order</button>
+        </div>
+      </main>
+    );
+  }
+
+  // ---------------- REVIEW / ORDER SUMMARY ----------------
+  if (review) {
+    return (
+      <main style={{ minHeight: "100vh", background: COLORS.bg, paddingBottom: 40 }}>
+        <div style={{ maxWidth: 520, margin: "0 auto", padding: "20px 16px" }}>
+          <button onClick={() => { setReview(false); setErr(""); }} style={{ border: "none", background: "none", color: COLORS.blue, fontWeight: 800, cursor: "pointer", fontSize: 14, padding: 0 }}>← Back to menu</button>
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.black, margin: "10px 0 16px" }}>Review your order</h1>
+
+          <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, overflow: "hidden" }}>
+            {boxes.map((b) => (
+              <div key={b.key} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, color: COLORS.black }}>
+                  <span>📦 Box of {b.size}</span><span>{formatIDR(boxPrice(b.size))}</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: COLORS.muted, marginTop: 4 }}>{b.items.map((it) => `${it.qty}× ${it.name}`).join(", ")}</div>
+              </div>
+            ))}
+            {lines.map((l) => (
+              <div key={l.key} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(0,0,0,0.06)", display: "flex", justifyContent: "space-between", color: COLORS.black }}>
+                <span style={{ fontWeight: 700 }}>{l.free ? "🎁 " : ""}{l.qty}× {l.item.name}{l.free ? " (free)" : ""}</span>
+                <span style={{ fontWeight: 700 }}>{l.free ? "FREE" : formatIDR(l.item.price * l.qty)}</span>
+              </div>
+            ))}
+            <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", fontWeight: 900, fontSize: 19, color: COLORS.black }}>
+              <span>Total</span><span>{formatIDR(total)}</span>
+            </div>
+          </div>
+
+          {memberPhone ? <div style={{ marginTop: 12, fontSize: 13, color: COLORS.muted }}>Member: {memberPhone}</div> : null}
+          {err ? <div style={{ color: "crimson", fontWeight: 700, fontSize: 13, marginTop: 10 }}>{err}</div> : null}
+
+          <button onClick={charge} disabled={busy} style={{ ...btn(COLORS.blue), width: "100%", marginTop: 18, opacity: busy ? 0.6 : 1 }}>{busy ? "…" : `Charge QRIS · ${formatIDR(total)}`}</button>
+          <p style={{ textAlign: "center", color: COLORS.muted, fontSize: 12.5, marginTop: 10 }}>Scan the QR with any e-wallet (GoPay, OVO, DANA…) to pay.</p>
         </div>
       </main>
     );
@@ -441,10 +479,10 @@ export default function CafePOS() {
             {memberPhone && !rewards ? (
               <button onClick={checkRewards} style={{ flex: "0 0 auto", borderRadius: 12, height: 50, padding: "0 16px", border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 800, cursor: "pointer" }}>Rewards</button>
             ) : null}
-            <button onClick={charge} disabled={!payable || busy} style={{
+            <button onClick={() => setReview(true)} disabled={!payable} style={{
               flex: "0 0 auto", borderRadius: 999, height: 50, padding: "0 22px", border: "none",
-              background: payable ? COLORS.blue : "rgba(0,20,167,0.4)", color: "#fff", fontWeight: 900, fontSize: 15, cursor: payable && !busy ? "pointer" : "not-allowed",
-            }}>{busy ? "…" : `Charge QRIS · ${formatIDR(total)}`}</button>
+              background: payable ? COLORS.blue : "rgba(0,20,167,0.4)", color: "#fff", fontWeight: 900, fontSize: 15, cursor: payable ? "pointer" : "not-allowed",
+            }}>{`Review · ${formatIDR(total)}`}</button>
           </div>
           {err ? <div style={{ color: "crimson", fontWeight: 700, fontSize: 13, marginTop: 6 }}>{err}</div> : null}
         </div>
