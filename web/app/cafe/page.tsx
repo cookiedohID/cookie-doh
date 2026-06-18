@@ -237,7 +237,8 @@ export default function CafePOS() {
             <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 12px" }}>{s.label}</h2>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
               {s.items.map((it) => {
-                const q = cart[`${it.kind}:${it.id}`]?.qty || 0;
+                const key = `${it.kind}:${it.id}`;
+                const q = cart[key]?.qty || 0;
                 return (
                   <div key={`${it.kind}:${it.id}`} onClick={() => add(it)} role="button" style={{
                     textAlign: "left", border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
@@ -254,9 +255,17 @@ export default function CafePOS() {
                     </div>
                     <div style={{ padding: "10px 12px" }}>
                       <div style={{ fontWeight: 700, fontSize: 13.5, color: COLORS.black, lineHeight: 1.2, minHeight: 34 }}>{it.name}</div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 }}>
                         <span style={{ fontWeight: 800, color: COLORS.blue, fontSize: 13 }}>{formatIDR(it.price)}</span>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: "#127a3e" }}>+ Add</span>
+                        {q > 0 ? (
+                          <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <button onClick={(e) => { e.stopPropagation(); bump(key, -1); }} aria-label={`Remove one ${it.name}`} style={stepBtn}>–</button>
+                            <span style={{ fontWeight: 800, fontSize: 14, minWidth: 14, textAlign: "center" }}>{q}</span>
+                            <button onClick={(e) => { e.stopPropagation(); bump(key, 1); }} aria-label={`Add one ${it.name}`} style={stepBtn}>+</button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 12, fontWeight: 800, color: "#127a3e" }}>+ Add</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -354,6 +363,7 @@ export default function CafePOS() {
 
 const btn = (bg: string): React.CSSProperties => ({ height: 52, borderRadius: 14, border: "none", background: bg, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer" });
 const miniBtn: React.CSSProperties = { width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "#fff", fontWeight: 900, cursor: "pointer" };
+const stepBtn: React.CSSProperties = { width: 30, height: 30, borderRadius: 999, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 900, fontSize: 17, lineHeight: 1, cursor: "pointer", display: "grid", placeItems: "center" };
 const rewardBtn = (active: boolean): React.CSSProperties => ({ borderRadius: 999, padding: "6px 12px", border: `1px solid #127a3e`, background: active ? "#127a3e" : "#fff", color: active ? "#fff" : "#127a3e", fontWeight: 800, fontSize: 12.5, cursor: "pointer" });
 
 // ---------------- Print docs (thermal, 80mm) — used by the calibration preview ----------------
