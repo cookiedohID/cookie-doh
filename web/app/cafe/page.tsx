@@ -361,7 +361,7 @@ export default function CafePOS() {
 
       {/* Detail modal — ingredients + allergens */}
       {detail ? (
-        <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", padding: 16 }}>
+        <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, maxWidth: 420, width: "100%", maxHeight: "86vh", overflow: "auto" }}>
             <div style={{ position: "relative", width: "100%", aspectRatio: "16/10", background: COLORS.sand }}>
               {detail.image ? <Image src={detail.image} alt={detail.name} fill style={{ objectFit: "cover" }} sizes="420px" /> : null}
@@ -389,7 +389,11 @@ export default function CafePOS() {
                   <div style={{ fontSize: 12.5, color: "#7a5c00", marginTop: 2 }}>{detail.allergens}</div>
                 </div>
               ) : null}
-              <button onClick={() => { add(detail); setDetail(null); }} style={{ ...btn(COLORS.blue), marginTop: 16, width: "100%" }}>＋ Add to order</button>
+              {boxBuild ? (
+                <button onClick={() => { bumpPick(detail, 1); setDetail(null); }} disabled={boxPickCount >= boxBuild.size} style={{ ...btn(COLORS.blue), marginTop: 16, width: "100%", opacity: boxPickCount >= boxBuild.size ? 0.5 : 1, cursor: boxPickCount >= boxBuild.size ? "not-allowed" : "pointer" }}>{boxPickCount >= boxBuild.size ? "Box is full" : "＋ Add to box"}</button>
+              ) : (
+                <button onClick={() => { add(detail); setDetail(null); }} style={{ ...btn(COLORS.blue), marginTop: 16, width: "100%" }}>＋ Add to order</button>
+              )}
             </div>
           </div>
         </div>
@@ -412,11 +416,12 @@ export default function CafePOS() {
                 const atMax = boxPickCount >= boxBuild.size;
                 return (
                   <div key={c.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, background: "#fff", display: "flex", flexDirection: "column" }}>
-                    <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, flex: "0 0 auto", overflow: "hidden", borderTopLeftRadius: 13, borderTopRightRadius: 13 }}>
+                    <div onClick={() => setDetail(c)} style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, flex: "0 0 auto", overflow: "hidden", borderTopLeftRadius: 13, borderTopRightRadius: 13, cursor: "pointer" }}>
                       {c.image ? <Image src={c.image} alt={c.name} fill style={{ objectFit: "cover" }} sizes="200px" /> : null}
+                      <span style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 999, background: "rgba(255,255,255,0.92)", color: COLORS.blue, fontWeight: 900, fontSize: 13, display: "grid", placeItems: "center", pointerEvents: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}>ⓘ</span>
                     </div>
                     <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: COLORS.black, minHeight: 34, lineHeight: 1.2 }}>{c.name}</div>
+                      <div onClick={() => setDetail(c)} style={{ fontWeight: 700, fontSize: 13, color: COLORS.black, minHeight: 34, lineHeight: 1.2, cursor: "pointer" }}>{c.name}</div>
                       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
                         <button onClick={() => bumpPick(c, -1)} disabled={q === 0} style={{ ...stepBtn, opacity: q === 0 ? 0.35 : 1 }}>–</button>
                         <span style={{ fontWeight: 800, fontSize: 14, minWidth: 14, textAlign: "center" }}>{q}</span>
