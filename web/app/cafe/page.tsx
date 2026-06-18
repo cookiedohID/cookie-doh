@@ -259,7 +259,7 @@ export default function CafePOS() {
                             <button onClick={(e) => { e.stopPropagation(); bump(key, 1); }} aria-label={`Add one ${it.name}`} style={stepBtn}>+</button>
                           </div>
                         ) : (
-                          <button onClick={(e) => { e.stopPropagation(); add(it); }} aria-label={`Add ${it.name}`} style={{ border: "none", background: "#0014A7", color: "#fff", borderRadius: 999, padding: "7px 16px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>+ Add</button>
+                          <button onClick={(e) => { e.stopPropagation(); add(it); }} aria-label={`Add ${it.name}`} style={{ border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, borderRadius: 999, padding: "7px 16px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>+ Add</button>
                         )}
                       </div>
                     </div>
