@@ -367,18 +367,18 @@ export default function CafePOS() {
               </div>
               <button onClick={() => setBoxBuild(null)} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: COLORS.sand, fontWeight: 900, cursor: "pointer", fontSize: 16 }}>×</button>
             </div>
-            <div style={{ padding: 16, overflow: "auto", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+            <div style={{ padding: 16, overflow: "auto", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, alignItems: "start" }}>
               {cookies.map((c) => {
                 const q = boxBuild.picks[c.id]?.qty || 0;
                 const full = boxPickCount >= boxBuild.size && q === 0;
                 return (
-                  <div key={c.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, overflow: "hidden", background: "#fff", opacity: full ? 0.45 : 1 }}>
-                    <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand }}>
+                  <div key={c.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, overflow: "hidden", background: "#fff", opacity: full ? 0.45 : 1, display: "flex", flexDirection: "column" }}>
+                    <div style={{ position: "relative", width: "100%", height: 96, background: COLORS.sand, flex: "0 0 auto" }}>
                       {c.image ? <Image src={c.image} alt={c.name} fill style={{ objectFit: "cover" }} sizes="160px" /> : null}
                     </div>
-                    <div style={{ padding: "8px 10px" }}>
-                      <div style={{ fontWeight: 700, fontSize: 12.5, color: COLORS.black, minHeight: 30, lineHeight: 1.2 }}>{c.name}</div>
-                      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10, marginTop: 4 }}>
+                    <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+                      <div style={{ fontWeight: 700, fontSize: 12, color: COLORS.black, minHeight: 28, lineHeight: 1.15 }}>{c.name}</div>
+                      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
                         <button onClick={() => bumpPick(c, -1)} disabled={q === 0} style={{ ...stepBtn, opacity: q === 0 ? 0.4 : 1 }}>–</button>
                         <span style={{ fontWeight: 800, fontSize: 14, minWidth: 14, textAlign: "center" }}>{q}</span>
                         <button onClick={() => bumpPick(c, 1)} disabled={boxPickCount >= boxBuild.size} style={{ ...stepBtn, opacity: boxPickCount >= boxBuild.size ? 0.4 : 1 }}>+</button>
