@@ -240,18 +240,13 @@ export default function CafePOS() {
                 const key = `${it.kind}:${it.id}`;
                 const q = cart[key]?.qty || 0;
                 return (
-                  <div key={`${it.kind}:${it.id}`} onClick={() => add(it)} role="button" style={{
+                  <div key={`${it.kind}:${it.id}`} onClick={() => setDetail(it)} role="button" aria-label={`${it.name} — details`} style={{
                     textAlign: "left", border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
                     borderRadius: 16, overflow: "hidden", background: "#fff", cursor: "pointer", position: "relative",
                   }}>
                     <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand }}>
                       {it.image ? <Image src={it.image} alt={it.name} fill style={{ objectFit: "cover" }} sizes="(max-width:700px) 50vw, 260px" /> : null}
                       {q > 0 ? <span style={{ position: "absolute", top: 8, right: 8, background: COLORS.blue, color: "#fff", borderRadius: 999, minWidth: 26, height: 26, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 13 }}>{q}</span> : null}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setDetail(it); }}
-                        aria-label={`Details for ${it.name}`}
-                        style={{ position: "absolute", top: 8, left: 8, width: 28, height: 28, borderRadius: 999, border: "none", background: "rgba(255,255,255,0.92)", color: COLORS.blue, fontWeight: 900, fontSize: 15, cursor: "pointer", display: "grid", placeItems: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}
-                      >ⓘ</button>
                     </div>
                     <div style={{ padding: "10px 12px" }}>
                       <div style={{ fontWeight: 700, fontSize: 13.5, color: COLORS.black, lineHeight: 1.2, minHeight: 34 }}>{it.name}</div>
@@ -264,7 +259,7 @@ export default function CafePOS() {
                             <button onClick={(e) => { e.stopPropagation(); bump(key, 1); }} aria-label={`Add one ${it.name}`} style={stepBtn}>+</button>
                           </div>
                         ) : (
-                          <span style={{ fontSize: 12, fontWeight: 800, color: "#127a3e" }}>+ Add</span>
+                          <button onClick={(e) => { e.stopPropagation(); add(it); }} aria-label={`Add ${it.name}`} style={{ border: "none", background: "#127a3e", color: "#fff", borderRadius: 999, padding: "7px 16px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>+ Add</button>
                         )}
                       </div>
                     </div>
