@@ -76,7 +76,7 @@ export default function BundlesPage() {
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: COLORS.black }}>
             Pick {need} {kind === "cookie" ? "cookie" : "drink"}{need > 1 ? "s" : ""}
           </h2>
-          <span style={{ fontWeight: 800, fontSize: 13, color: count === need ? "#127a3e" : COLORS.muted }}>{count}/{need}</span>
+          <span style={{ fontWeight: 800, fontSize: 13, color: count === need ? "#0014A7" : COLORS.muted }}>{count}/{need}</span>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4" style={{ gap: 12 }}>
           {items.map((it) => {

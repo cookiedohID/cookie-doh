@@ -207,7 +207,7 @@ export default function CafePOS() {
           <p style={{ color: COLORS.muted, fontSize: 15 }}>Order {paid.orderNo} · {formatIDR(paid.total)}</p>
           <p style={{ marginTop: 18, fontSize: 16, fontWeight: 700, color: COLORS.blue }}>🖨️ Printing your receipt, stickers &amp; recipe…</p>
           <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6 }}>Please collect them at the counter.</p>
-          <button onClick={() => setPaid(null)} style={{ ...btn("#127a3e"), marginTop: 28, width: 220 }}>＋ New order</button>
+          <button onClick={() => setPaid(null)} style={{ ...btn(COLORS.blue), marginTop: 28, width: 220 }}>＋ New order</button>
         </div>
       </main>
     );
@@ -259,7 +259,7 @@ export default function CafePOS() {
                             <button onClick={(e) => { e.stopPropagation(); bump(key, 1); }} aria-label={`Add one ${it.name}`} style={stepBtn}>+</button>
                           </div>
                         ) : (
-                          <button onClick={(e) => { e.stopPropagation(); add(it); }} aria-label={`Add ${it.name}`} style={{ border: "none", background: "#127a3e", color: "#fff", borderRadius: 999, padding: "7px 16px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>+ Add</button>
+                          <button onClick={(e) => { e.stopPropagation(); add(it); }} aria-label={`Add ${it.name}`} style={{ border: "none", background: "#0014A7", color: "#fff", borderRadius: 999, padding: "7px 16px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>+ Add</button>
                         )}
                       </div>
                     </div>
@@ -311,7 +311,7 @@ export default function CafePOS() {
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.10)", padding: "12px 16px", boxShadow: "0 -8px 24px rgba(0,0,0,0.06)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
           {redeemKind ? (
-            <div style={{ marginBottom: 8, fontWeight: 800, fontSize: 13, color: "#127a3e" }}>🎁 Tap the {redeemKind} above to add it free</div>
+            <div style={{ marginBottom: 8, fontWeight: 800, fontSize: 13, color: "#0014A7" }}>🎁 Tap the {redeemKind} above to add it free</div>
           ) : null}
 
           {lines.length ? (
@@ -329,7 +329,7 @@ export default function CafePOS() {
 
           {rewards && (rewards.freeCookies > 0 || rewards.freeDrinks > 0) ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: "#127a3e" }}>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: "#0014A7" }}>
                 🎁 {rewards.name ? rewards.name + " · " : ""}{rewards.freeCookies} free cookie · {rewards.freeDrinks} free drink
               </span>
               {remainingFree("cookie") > 0 ? <button onClick={() => setRedeemKind(redeemKind === "cookie" ? null : "cookie")} style={rewardBtn(redeemKind === "cookie")}>Use free cookie</button> : null}
@@ -359,7 +359,7 @@ export default function CafePOS() {
 const btn = (bg: string): React.CSSProperties => ({ height: 52, borderRadius: 14, border: "none", background: bg, color: "#fff", fontWeight: 800, fontSize: 16, cursor: "pointer" });
 const miniBtn: React.CSSProperties = { width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "#fff", fontWeight: 900, cursor: "pointer" };
 const stepBtn: React.CSSProperties = { width: 30, height: 30, borderRadius: 999, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 900, fontSize: 17, lineHeight: 1, cursor: "pointer", display: "grid", placeItems: "center" };
-const rewardBtn = (active: boolean): React.CSSProperties => ({ borderRadius: 999, padding: "6px 12px", border: `1px solid #127a3e`, background: active ? "#127a3e" : "#fff", color: active ? "#fff" : "#127a3e", fontWeight: 800, fontSize: 12.5, cursor: "pointer" });
+const rewardBtn = (active: boolean): React.CSSProperties => ({ borderRadius: 999, padding: "6px 12px", border: `1px solid #0014A7`, background: active ? "#0014A7" : "#fff", color: active ? "#fff" : "#0014A7", fontWeight: 800, fontSize: 12.5, cursor: "pointer" });
 
 // ---------------- Print docs (thermal, 80mm) — used by the calibration preview ----------------
 function PrintStyles() {

@@ -222,7 +222,7 @@ export default function AccountPage() {
                 ))}
               </div>
               {c.free > 0 ? (
-                <div style={{ marginTop: 10, fontWeight: 800, color: "#127a3e" }}>🎁 {c.free} free {c.label.includes("Cookies") ? "cookie" : "drink"}{c.free > 1 ? "s" : ""} ready!</div>
+                <div style={{ marginTop: 10, fontWeight: 800, color: "#0014A7" }}>🎁 {c.free} free {c.label.includes("Cookies") ? "cookie" : "drink"}{c.free > 1 ? "s" : ""} ready!</div>
               ) : (
                 <div style={{ marginTop: 10, fontSize: 13, color: COLORS.muted }}>{10 - c.stamps} more to your next free one</div>
               )}

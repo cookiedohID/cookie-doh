@@ -149,7 +149,7 @@ export default function CustomersAdminPage() {
                       <div style={{ width: `${(row.stamps / 10) * 100}%`, height: "100%", background: COLORS.blue }} />
                     </div>
                     {row.free > 0 ? (
-                      <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: "#127a3e" }}>
+                      <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: "#0014A7" }}>
                         🎁 {row.free} free available
                       </div>
                     ) : (
@@ -189,7 +189,7 @@ export default function CustomersAdminPage() {
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <div style={{ fontWeight: 800, color: COLORS.black, fontSize: 13.5 }}>{formatIDR(o.total_idr)}</div>
-                      <div style={{ fontSize: 11.5, fontWeight: 800, color: String(o.payment_status).toUpperCase() === "PAID" ? "#127a3e" : COLORS.muted }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 800, color: String(o.payment_status).toUpperCase() === "PAID" ? "#0014A7" : COLORS.muted }}>
                         {o.payment_status}
                       </div>
                     </div>
