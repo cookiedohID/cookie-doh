@@ -1,0 +1,11 @@
+{
+  "serverUrl": "https://YOUR-DOMAIN.com",
+  "token": "PASTE_THE_SAME_VALUE_AS_PRINT_AGENT_TOKEN",
+  "pollSeconds": 4,
+  "printerType": "EPSON",
+  "printers": {
+    "receipt": "printer:Receipt Printer",
+    "stickers": "printer:Label Printer",
+    "recipe": "printer:Recipe Printer"
+  }
+}

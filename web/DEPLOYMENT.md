@@ -16,6 +16,7 @@ Run these once, in any order. All statements are idempotent (`if not exists` /
 | `sql/locations.sql` | `location_stock` (per-store inventory) |
 | `sql/phone_otps.sql` | `phone_otps` (WhatsApp OTP store) + `auth_user_id` column + **enables RLS** |
 | `sql/loyalty_redemptions.sql` | `loyalty_redemptions` table + `reserve_rewards()` RPC (atomic reward reservation) + **enables RLS** |
+| `sql/print_queue.sql` | adds `orders.printed_at` (cafe print agent queue) |
 
 > `sql/inventory_stock.sql` is **obsolete** — superseded by `location_stock`. Don't run it.
 
@@ -54,6 +55,11 @@ browser — never put secrets there.
 | `NEXT_PUBLIC_MIDTRANS_IS_PRODUCTION` | must match the above |
 | `NEXT_PUBLIC_CHECKOUT_MODE` | `midtrans` (or `manual` for bank-transfer flow) |
 | `NEXT_PUBLIC_MANUAL_PAYMENT_INSTRUCTIONS` | only if `manual` |
+
+### Cafe printing (local print agent)
+| Var | Notes |
+|-----|-------|
+| `PRINT_AGENT_TOKEN` | shared secret the counter PC's print agent sends — **secret**. Set the same value in `print-agent/config.json`. See `print-agent/README.md`. |
 
 ### Notifications (orders → admin)
 | Var | Notes |
@@ -115,6 +121,19 @@ double-create shipments (their idempotency markers don't see each other).
   for outbound OTP + order alerts.
 
 ---
+
+## 5b. Cafe printing (3 USB printers, auto-print on payment)
+The browser can't silently drive 3 printers, and Vercel (cloud) can't reach a
+printer on the cafe LAN. So a small **local print agent** runs on the counter PC
+(`print-agent/`): it polls `/api/cafe/print-queue` for PAID cafe orders and prints
+receipt → recipe → stickers to the 3 USB printers, then marks them printed. This
+fires whether the customer paid at the counter or on their **own phone**.
+
+Setup: set `PRINT_AGENT_TOKEN` (above) + run `sql/print_queue.sql`, then follow
+**`print-agent/README.md`** on the counter PC. Test wiring with `node index.js --test`.
+
+The in-browser print buttons on `/cafe` remain as a manual fallback, and
+`/cafe?calibrate=1` still works for quick calibration.
 
 ## 6. Pre-launch smoke test
 1. `npm run build` passes.

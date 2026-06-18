@@ -1,0 +1,16 @@
+{
+  "name": "cookie-doh-print-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local print agent for the Cookie Doh cafe POS. Polls the cloud for paid cafe orders and prints the receipt, item stickers, and drink recipes to three USB thermal printers.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "node-thermal-printer": "^4.4.4"
+  }
+}
