@@ -33,6 +33,7 @@ export default function CafePOS() {
   // Boxes: pick any N cookies at the box price.
   const [boxes, setBoxes] = useState<{ key: string; size: number; items: { id: string; name: string; qty: number }[] }[]>([]);
   const [boxBuild, setBoxBuild] = useState<{ size: number; picks: Record<string, { name: string; qty: number }> } | null>(null);
+  const [review, setReview] = useState(false); // order summary screen before paying
 
   // paid / print phase
   const [paid, setPaid] = useState<{ orderNo: string; lines: Line[]; total: number } | null>(null);
@@ -370,18 +371,18 @@ export default function CafePOS() {
             <div style={{ padding: 16, overflow: "auto", flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, alignItems: "start" }}>
               {cookies.map((c) => {
                 const q = boxBuild.picks[c.id]?.qty || 0;
-                const full = boxPickCount >= boxBuild.size && q === 0;
+                const atMax = boxPickCount >= boxBuild.size;
                 return (
-                  <div key={c.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, overflow: "hidden", background: "#fff", opacity: full ? 0.45 : 1, display: "flex", flexDirection: "column" }}>
-                    <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, flex: "0 0 auto" }}>
+                  <div key={c.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, background: "#fff", display: "flex", flexDirection: "column" }}>
+                    <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, flex: "0 0 auto", overflow: "hidden", borderTopLeftRadius: 13, borderTopRightRadius: 13 }}>
                       {c.image ? <Image src={c.image} alt={c.name} fill style={{ objectFit: "cover" }} sizes="200px" /> : null}
                     </div>
                     <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
                       <div style={{ fontWeight: 700, fontSize: 13, color: COLORS.black, minHeight: 34, lineHeight: 1.2 }}>{c.name}</div>
                       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
-                        <button onClick={() => bumpPick(c, -1)} disabled={q === 0} style={{ ...stepBtn, opacity: q === 0 ? 0.4 : 1 }}>–</button>
+                        <button onClick={() => bumpPick(c, -1)} disabled={q === 0} style={{ ...stepBtn, opacity: q === 0 ? 0.35 : 1 }}>–</button>
                         <span style={{ fontWeight: 800, fontSize: 14, minWidth: 14, textAlign: "center" }}>{q}</span>
-                        <button onClick={() => bumpPick(c, 1)} disabled={boxPickCount >= boxBuild.size} style={{ ...stepBtn, opacity: boxPickCount >= boxBuild.size ? 0.4 : 1 }}>+</button>
+                        <button onClick={() => bumpPick(c, 1)} disabled={atMax} title={atMax ? "Box is full" : undefined} style={{ ...stepBtn, opacity: atMax ? 0.35 : 1 }}>+</button>
                       </div>
                     </div>
                   </div>
