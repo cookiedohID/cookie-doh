@@ -15,6 +15,7 @@ Run these once, in any order. All statements are idempotent (`if not exists` /
 | `sql/customers.sql` | `customers` table (membership, loyalty counters) + **enables RLS** |
 | `sql/locations.sql` | `location_stock` (per-store inventory) |
 | `sql/phone_otps.sql` | `phone_otps` (WhatsApp OTP store) + `auth_user_id` column + **enables RLS** |
+| `sql/loyalty_redemptions.sql` | `loyalty_redemptions` table + `reserve_rewards()` RPC (atomic reward reservation) + **enables RLS** |
 
 > `sql/inventory_stock.sql` is **obsolete** — superseded by `location_stock`. Don't run it.
 
@@ -128,31 +129,22 @@ double-create shipments (their idempotency markers don't see each other).
 
 Tracked from the pre-commit adversarial review. None block launch.
 
-### Loyalty redemption double-spend (medium — **do before heavy promo use**)
-Reward availability is derived only from **PAID** orders. A free line on a
-**PENDING** order doesn't reduce the balance until the webhook marks it PAID, so
-two rapid cafe checkouts for the same member can each see the same balance and
-both settle → more free items than earned. Bounded (in-store, each non-free item
-is still paid), but real.
+### ✅ Loyalty redemption double-spend — FIXED (run the SQL)
+Reward availability is derived from **PAID** orders, so two rapid cafe checkouts
+for the same member could each see the same balance and both settle → more free
+items than earned. Now gated by an **atomic reservation** (`sql/loyalty_redemptions.sql`):
+- Cafe checkout calls `reserve_rewards(...)` which takes a per-phone advisory lock,
+  subtracts reward units already reserved-but-unpaid, and only succeeds if enough
+  remain — all in one atomic step.
+- The Midtrans webhook marks the reservation `consumed` on payment (so it isn't
+  double-counted against the derived balance) or `released` on failure.
+- Abandoned reservations stop counting after 30 minutes.
+- **Fail-safe:** if the table/RPC isn't deployed yet, checkout logs a warning and
+  falls back to the previous (non-atomic) derived check — it won't break.
 
-**Proposed fix (atomic reservation):**
-1. New `loyalty_redemptions(id, phone, kind, qty, order_id, status, created_at)`
-   table, or use the existing dead `customers.cookies_redeemed/drinks_redeemed`.
-2. A Postgres RPC `reserve_rewards(phone, cookies, drinks)` that takes
-   `pg_advisory_xact_lock(hashtext(phone))`, computes available
-   (earned − reserved − consumed), and inserts reservation rows only if
-   `available >= requested`, returning success/failure atomically.
-3. Cafe checkout calls the RPC **before** creating the order; release/expire the
-   reservation if the order isn't paid within N minutes (or on webhook FAILED).
-4. Count `reserved` + `consumed` toward redeemed in `loyaltyFromOrders`.
-
-Deferred because a half-built atomic path on a live checkout is worse than the
-bounded leak — needs supervised testing.
+**Action: run `sql/loyalty_redemptions.sql`** to activate the protection.
 
 ### Other deferred items
-- **Cafe checkout still trusts client `free` flag** — price + kind are now
-  server-authoritative (fixed), but `free` is only validated against the racy
-  availability check above; fold into the reservation RPC.
 - **OTP brute-force hardening** — has a 5-attempt cap; make the attempts
   increment atomic and rate-limit `send`/`verify` per IP.
 - **Stock decremented before shipment confirmed** — now recoverable

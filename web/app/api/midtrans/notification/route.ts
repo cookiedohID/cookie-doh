@@ -210,6 +210,27 @@ export async function POST(req: Request) {
       })
       .eq("id", order.id);
 
+    // Settle any loyalty reward reservation tied to this order. Idempotent — only
+    // touches still-'reserved' rows, so webhook retries are safe. Never throws
+    // (the table may not be deployed yet).
+    try {
+      if (paid) {
+        await supabase
+          .from("loyalty_redemptions")
+          .update({ status: "consumed", order_id: order.id })
+          .eq("midtrans_order_id", midtrans_order_id)
+          .eq("status", "reserved");
+      } else if (txStatus !== "pending") {
+        await supabase
+          .from("loyalty_redemptions")
+          .update({ status: "released" })
+          .eq("midtrans_order_id", midtrans_order_id)
+          .eq("status", "reserved");
+      }
+    } catch (e) {
+      console.error("loyalty reservation settle failed:", e);
+    }
+
 
     // Cafe (in-store) orders: no delivery — just decrement stock + notify, once.
     if (paid && order?.meta?.channel === "cafe") {

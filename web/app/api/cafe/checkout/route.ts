@@ -60,6 +60,8 @@ export async function POST(req: Request) {
     if (total <= 0) return NextResponse.json({ ok: false, error: "Add at least one paid item" }, { status: 400 });
 
     const memberPhone = canonicalPhone(body?.memberPhone);
+    const customerName = String(body?.customerName || "").trim() || "Cafe customer";
+    const midtransOrderId = `CDC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // Server-side reward check: free lines must be backed by real available rewards.
     const supaCheck = supaAdmin();
@@ -71,9 +73,28 @@ export async function POST(req: Request) {
       if (!loy || freeCookies > loy.freeCookies || freeDrinks > loy.freeDrinks) {
         return NextResponse.json({ ok: false, error: "Not enough rewards available for this member." }, { status: 400 });
       }
+      // Atomically reserve the rewards so two rapid/concurrent checkouts for the
+      // same member can't both pass the check above and double-spend. The webhook
+      // marks the reservation consumed (paid) or released (failed).
+      // Fail-safe: if reserve_rewards isn't deployed yet, fall back to the check.
+      try {
+        const { data: reserved, error: rErr } = await supaCheck.rpc("reserve_rewards", {
+          p_phone: memberPhone,
+          p_avail_cookies: loy.freeCookies,
+          p_avail_drinks: loy.freeDrinks,
+          p_want_cookies: freeCookies,
+          p_want_drinks: freeDrinks,
+          p_midtrans_order_id: midtransOrderId,
+        });
+        if (rErr) {
+          console.warn("[cafe] reserve_rewards unavailable, using derived check:", rErr.message);
+        } else if (reserved === false) {
+          return NextResponse.json({ ok: false, error: "Not enough rewards available for this member." }, { status: 400 });
+        }
+      } catch (e: any) {
+        console.warn("[cafe] reserve_rewards failed, using derived check:", e?.message || e);
+      }
     }
-    const customerName = String(body?.customerName || "").trim() || "Cafe customer";
-    const midtransOrderId = `CDC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     const supabase = supaCheck;
     const orderInsert: any = {
