@@ -2,7 +2,13 @@
  
 "use client";
 
+import { usePathname } from "next/navigation";
+
 export default function WhatsAppButton() {
+  const pathname = usePathname();
+  // Hide the floating WhatsApp button on the cafe POS (kiosk mode).
+  if (pathname?.startsWith("/cafe")) return null;
+
   const phone = "6281932181818";
   const message = encodeURIComponent("Hi Cookie Doh 👋 I’d like to order cookies 🍪");
 

@@ -89,6 +89,10 @@ export default function SiteHeader() {
     return () => window.removeEventListener("focus", onFocus);
   }, [pathname]);
 
+  // Kiosk mode: the cafe POS is a standalone full-screen register — hide the
+  // storefront nav so a walk-in customer can't navigate away from it.
+  if (pathname?.startsWith("/cafe")) return null;
+
   return (
     <header
       style={{
