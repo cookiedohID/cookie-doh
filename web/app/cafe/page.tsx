@@ -2,6 +2,7 @@
 
 // web/app/cafe/page.tsx — in-store self-checkout / register POS (kiosk)
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
@@ -25,6 +26,7 @@ type MenuItem = {
 type Line = { item: MenuItem; qty: number; free?: boolean };
 
 export default function CafePOS() {
+  const router = useRouter();
   const [cart, setCart] = useState<Record<string, Line>>({});
   const [memberPhone, setMemberPhone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -102,13 +104,32 @@ export default function CafePOS() {
     }
   }, []);
 
-  // After a real payment, return to the menu for the next customer.
+  // After a real payment, return to the attract screen for the next customer.
   useEffect(() => {
     if (paid && !calibrate) {
-      const t = setTimeout(() => setPaid(null), 12000);
+      const t = setTimeout(() => router.replace("/cafe/start"), 12000);
       return () => clearTimeout(t);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paid, calibrate]);
+
+  // Idle timeout: 5 minutes with no interaction → back to the attract screen.
+  useEffect(() => {
+    if (paid) return; // the paid screen has its own redirect
+    let t: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(t);
+      t = setTimeout(() => router.replace("/cafe/start"), 5 * 60 * 1000);
+    };
+    reset();
+    const events = ["pointerdown", "keydown", "touchstart"];
+    events.forEach((e) => window.addEventListener(e, reset, { passive: true }));
+    return () => {
+      clearTimeout(t);
+      events.forEach((e) => window.removeEventListener(e, reset));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paid]);
 
   // Member QR camera scan (native BarcodeDetector — Chrome/Edge). Stops the
   // camera + detection loop on unmount/cancel.
@@ -366,7 +387,7 @@ export default function CafePOS() {
           <p style={{ color: COLORS.muted, fontSize: 15 }}>Order {paid.orderNo} · {formatIDR(paid.total)}</p>
           <p style={{ marginTop: 18, fontSize: 16, fontWeight: 700, color: COLORS.blue }}>🖨️ Printing your receipt, stickers &amp; recipe…</p>
           <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6 }}>Please collect them at the counter.</p>
-          <button onClick={() => setPaid(null)} style={{ ...btn(COLORS.blue), marginTop: 28, width: 220 }}>＋ New order</button>
+          <button onClick={() => router.replace("/cafe/start")} style={{ ...btn(COLORS.blue), marginTop: 28, width: 220 }}>Done</button>
         </div>
       </main>
     );
