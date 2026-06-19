@@ -282,9 +282,19 @@ export default function CheckoutPage() {
         const { data } = await getSupabaseBrowser().auth.getSession();
         const t = data.session?.access_token;
         if (!t) return;
-        const res = await fetch("/api/account/addresses", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
+        const auth = { Authorization: `Bearer ${t}` };
+        const res = await fetch("/api/account/addresses", { headers: auth, cache: "no-store" });
         const j = await res.json().catch(() => ({}));
         if (!cancelled && j?.ok && Array.isArray(j.addresses)) setSavedAddresses(j.addresses);
+
+        // Pre-fill the member's name + phone (only if the fields are still empty,
+        // so anything the customer typed wins). Stays fully editable.
+        const meRes = await fetch("/api/account/me", { headers: auth, cache: "no-store" });
+        const meJ = await meRes.json().catch(() => ({}));
+        if (!cancelled && meJ?.member) {
+          if (meJ.member.name) setName((cur) => cur || meJ.member.name);
+          if (meJ.member.phone) setPhone((cur) => cur || meJ.member.phone);
+        }
       } catch { /* not logged in / not enabled — ignore */ }
     })();
     return () => { cancelled = true; };
