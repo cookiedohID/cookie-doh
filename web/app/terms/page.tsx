@@ -41,8 +41,8 @@ export default function TermsPage() {
         <section style={sec}>
           <h2 style={h2}>Orders &amp; payment</h2>
           <p style={p}>
-            You place an order through our website or in-store. Payment is processed securely by Midtrans. Your
-            order is confirmed once payment is received. We may decline or cancel an order (for example, if an
+            You place an order through our website or in-store. Payment is processed securely by a trusted
+            third-party payment provider. Your order is confirmed once payment is received. We may decline or cancel an order (for example, if an
             item is unavailable or we cannot deliver to your area), and will refund any payment for a cancelled order.
           </p>
         </section>
@@ -50,7 +50,7 @@ export default function TermsPage() {
         <section style={sec}>
           <h2 style={h2}>Delivery &amp; pickup</h2>
           <p style={p}>
-            We deliver through our courier partners (Lalamove and Biteship) to supported areas, or you can pick up
+            We deliver through trusted third-party courier partners to supported areas, or you can pick up
             at one of our locations. Delivery times and fees are estimates and may vary with distance, demand, and
             courier availability.
           </p>

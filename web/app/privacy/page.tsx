@@ -38,7 +38,7 @@ export default function PrivacyPage() {
             <li style={li}><strong>Order details</strong> — your name, phone number, email, delivery address, and the items you order.</li>
             <li style={li}><strong>Membership &amp; loyalty</strong> — your phone number (your member ID), name, and reward/stamp history.</li>
             <li style={li}><strong>Account sign-in</strong> — if you sign in with Google, we receive your name and email from Google; if you use email sign-in, your email address.</li>
-            <li style={li}><strong>Payment</strong> — payments are processed by our payment provider (Midtrans). We do <strong>not</strong> collect or store your card or bank details.</li>
+            <li style={li}><strong>Payment</strong> — payments are processed by a secure third-party payment provider. We do <strong>not</strong> collect or store your card or bank details.</li>
             <li style={li}><strong>Device data</strong> — your browser stores your cart locally on your device.</li>
           </ul>
         </section>
@@ -56,16 +56,14 @@ export default function PrivacyPage() {
 
         <section style={sec}>
           <h2 style={h2}>Service providers we share data with</h2>
-          <p style={p}>We share only the information needed for these trusted providers to operate our service on our behalf:</p>
+          <p style={p}>To run our service, we share only the information needed with trusted third-party providers acting on our behalf. These fall into the following categories:</p>
           <ul style={{ paddingLeft: 20 }}>
-            <li style={li}><strong>Midtrans</strong> — secure payment processing.</li>
-            <li style={li}><strong>Supabase</strong> — secure database and login.</li>
-            <li style={li}><strong>Google</strong> — &quot;Sign in with Google&quot; (only if you choose it).</li>
-            <li style={li}><strong>Fonnte</strong> — WhatsApp order notifications.</li>
-            <li style={li}><strong>Resend</strong> — email notifications.</li>
-            <li style={li}><strong>Lalamove &amp; Biteship</strong> — delivery and shipment tracking.</li>
+            <li style={li}><strong>Payment processing</strong> — to take your payment securely. We never see or store your card or bank details.</li>
+            <li style={li}><strong>Hosting, database &amp; sign-in</strong> — to run our website, store your data securely, and manage your account login (including the optional &quot;Sign in with Google&quot;).</li>
+            <li style={li}><strong>Notifications</strong> — to send order updates by WhatsApp and email.</li>
+            <li style={li}><strong>Delivery &amp; logistics</strong> — to deliver your order and provide shipment tracking.</li>
           </ul>
-          <p style={p}>We do not sell your personal information.</p>
+          <p style={p}>These providers may use your information only to provide their service to us, not for their own purposes. We do not sell your personal information.</p>
         </section>
 
         <section style={sec}>
