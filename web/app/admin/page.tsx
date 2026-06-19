@@ -10,6 +10,7 @@ const SECTIONS = [
   { href: "/admin/customers", title: "Customers", desc: "Members, purchase history & loyalty", emoji: "👥" },
   { href: "/admin/flavors", title: "Inventory", desc: "Per-location stock & sold-out", emoji: "📦" },
   { href: "/admin/locations", title: "Locations", desc: "Manage stores & transfer stock", emoji: "📍" },
+  { href: "/admin/help", title: "Manual", desc: "How everything works", emoji: "📖" },
 ];
 
 export default function AdminHome() {
