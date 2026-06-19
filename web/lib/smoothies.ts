@@ -21,7 +21,7 @@ export type Smoothie = {
   description?: string; // brand tagline
   ingredients?: string[];
   tags?: string[]; // keyword pills
-  image?: string; // e.g. "/smoothies/berry-bloom.png"
+  image?: string; // e.g. "/smoothies/berry-bloom.jpg"
   badges?: string[];
   soldOut?: boolean;
 };
@@ -43,7 +43,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Layers of vibrant berries unfolding into a bright and creamy daydream.",
     ingredients: ["Strawberry", "Raspberry", "Blueberry", "Apple", "Yoghurt"],
     tags: ["Berry", "Vibrant", "Fruity"],
-    image: "/smoothies/berry-bloom.png",
+    image: "/smoothies/berry-bloom.jpg",
   },
   {
     id: "berry-spell",
@@ -53,7 +53,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Strawberries, raspberries and creamy yoghurt woven into a little sip of magic.",
     ingredients: ["Strawberry", "Raspberry", "Banana", "Green Apple", "Yoghurt"],
     tags: ["Berry", "Creamy", "Refreshing"],
-    image: "/smoothies/berry-spell.png",
+    image: "/smoothies/berry-spell.jpg",
   },
   {
     id: "blue-moon",
@@ -63,7 +63,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Blueberries and sweet fruit swirled into a dreamy, moonlit blend.",
     ingredients: ["Blueberry", "Banana", "Apple", "Yoghurt"],
     tags: ["Blueberry", "Smooth", "Dreamy"],
-    image: "/smoothies/blue-moon.png",
+    image: "/smoothies/blue-moon.jpg",
   },
   {
     id: "midnight-berry",
@@ -73,7 +73,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Dark berries and creamy yoghurt tangled in a rich, velvety escape.",
     ingredients: ["Blackberry", "Blueberry", "Raspberry", "Apple", "Yoghurt"],
     tags: ["Mixed Berry", "Rich", "Bold"],
-    image: "/smoothies/midnight-berry.png",
+    image: "/smoothies/midnight-berry.jpg",
   },
   {
     id: "pink-stardust",
@@ -83,7 +83,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Bright berries and sparkling citrus scattered with a little stardust.",
     ingredients: ["Strawberry", "Raspberry", "Lemon", "Apple", "Sorbet"],
     tags: ["Berry", "Citrus", "Sparkling"],
-    image: "/smoothies/pink-stardust.png",
+    image: "/smoothies/pink-stardust.jpg",
   },
   {
     id: "ruby-glow",
@@ -93,7 +93,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Bright berries and crisp apple bursting with a radiant, ruby-red charm.",
     ingredients: ["Strawberry", "Cranberry", "Apple", "Yoghurt"],
     tags: ["Berry", "Tart", "Refreshing"],
-    image: "/smoothies/ruby-glow.png",
+    image: "/smoothies/ruby-glow.jpg",
     badges: ["Best Seller"],
   },
   {
@@ -104,7 +104,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Sweet strawberries and creamy banana finished with a playful blush.",
     ingredients: ["Strawberry", "Banana", "Apple", "Yoghurt"],
     tags: ["Strawberry", "Sweet", "Classic"],
-    image: "/smoothies/strawberry-kiss.png",
+    image: "/smoothies/strawberry-kiss.jpg",
   },
 
   // ---- Tropical ----
@@ -116,7 +116,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Vibrant dragon fruit and golden mango drifting through a tropical fantasy.",
     ingredients: ["Dragon Fruit", "Mango", "Yoghurt"],
     tags: ["Dragon Fruit", "Tropical", "Exotic"],
-    image: "/smoothies/dragon-dream.png",
+    image: "/smoothies/dragon-dream.jpg",
   },
   {
     id: "golden-glow",
@@ -126,7 +126,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Sun-ripened mangoes and a sparkle of citrus, blended into pure liquid sunshine.",
     ingredients: ["Mango", "Apple", "Lemon", "Yoghurt"],
     tags: ["Mango", "Citrus", "Bright"],
-    image: "/smoothies/golden-glow.png",
+    image: "/smoothies/golden-glow.jpg",
   },
   {
     id: "island-daydream",
@@ -136,7 +136,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Juicy watermelon and delicate lychee drifting through a tropical escape.",
     ingredients: ["Watermelon", "Lychee", "Sorbet"],
     tags: ["Watermelon", "Lychee", "Cooling"],
-    image: "/smoothies/island-daydream.png",
+    image: "/smoothies/island-daydream.jpg",
   },
   {
     id: "mango-tango",
@@ -146,7 +146,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Sun-ripened mangoes dancing through a frosty tropical escape.",
     ingredients: ["Harum Manis Mango", "Apple Juice", "Sorbet"],
     tags: ["Mango", "Fruity", "Refreshing"],
-    image: "/smoothies/mango-tango.png",
+    image: "/smoothies/mango-tango.jpg",
   },
   {
     id: "sunbeam",
@@ -156,7 +156,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Sweet mango, creamy banana and a kiss of citrus in every golden sip.",
     ingredients: ["Mango", "Banana", "Apple", "Lemon", "Yoghurt"],
     tags: ["Mango", "Citrus", "Creamy"],
-    image: "/smoothies/sunbeam.png",
+    image: "/smoothies/sunbeam.jpg",
   },
   {
     id: "tropical-bliss",
@@ -166,7 +166,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Golden mangoes and creamy banana drifting through a tropical escape.",
     ingredients: ["Mango", "Banana", "Sorbet"],
     tags: ["Mango", "Banana", "Tropical"],
-    image: "/smoothies/tropical-bliss.png",
+    image: "/smoothies/tropical-bliss.jpg",
   },
 
   // ---- Cookie Blends ----
@@ -178,7 +178,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Caramel swirls, molten chocolate and a cookie worth falling for.",
     ingredients: ["Cookie", "Milk Chocolate", "Brown Sugar", "Sea Salt", "Caramel Ice Cream"],
     tags: ["Cookie", "Chocolate", "Caramel"],
-    image: "/smoothies/cookie-crush.png",
+    image: "/smoothies/cookie-crush.jpg",
     badges: ["Signature"],
   },
   {
@@ -189,7 +189,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Rich cocoa, dark chocolate and tart raspberries made for sweet surrender.",
     ingredients: ["Raspberry", "Dark Chocolate", "Cocoa", "Coconut Milk", "Caramel Ice Cream"],
     tags: ["Chocolate", "Raspberry", "Decadent"],
-    image: "/smoothies/dark-temptation.png",
+    image: "/smoothies/dark-temptation.jpg",
   },
   {
     id: "monkey-business",
@@ -199,7 +199,7 @@ export const SMOOTHIES: Smoothie[] = [
       "Bananas, chocolate and cookie crumbs getting up to no good.",
     ingredients: ["Banana", "Cookie", "Milk Chocolate", "Caramel Ice Cream"],
     tags: ["Banana", "Chocolate", "Cookie"],
-    image: "/smoothies/monkey-business.png",
+    image: "/smoothies/monkey-business.jpg",
   },
   {
     id: "sweet-talker",
@@ -209,6 +209,6 @@ export const SMOOTHIES: Smoothie[] = [
       "Strawberries, banana and caramel saying all the right things, one sip at a time.",
     ingredients: ["Strawberry", "Banana", "Caramel Ice Cream"],
     tags: ["Strawberry", "Caramel", "Creamy"],
-    image: "/smoothies/sweet-talker.png",
+    image: "/smoothies/sweet-talker.jpg",
   },
 ];

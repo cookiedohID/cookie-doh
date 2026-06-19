@@ -93,7 +93,7 @@ export default function HomePage() {
       <section className="relative flex min-h-[80vh] items-center overflow-hidden">
         {/* Optimized, priority-loaded hero image (replaces the raw CSS background) */}
         <Image
-          src="/flavors/CxCookiedoh/hero image.png"
+          src="/flavors/CxCookiedoh/hero image.jpg"
           alt=""
           fill
           priority
