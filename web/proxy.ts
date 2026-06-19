@@ -39,7 +39,7 @@ export default async function proxy(req: NextRequest) {
   const isAdminArea = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
   const isLogin = pathname === "/admin/login" || pathname.startsWith("/api/admin/login");
   if (isAdminArea && !isLogin) {
-    const password = process.env.ADMIN_PASSWORD;
+    const password = process.env.ADMIN_BASIC_PASS || process.env.ADMIN_PASSWORD;
     if (password) {
       const cookie = req.cookies.get(COOKIE)?.value;
       const ok = Boolean(cookie) && cookie === (await expectedToken(password));

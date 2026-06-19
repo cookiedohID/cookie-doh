@@ -13,10 +13,10 @@ const token = (password: string) =>
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const password = String(body?.password || "");
-  const expected = process.env.ADMIN_PASSWORD || "";
+  const expected = process.env.ADMIN_BASIC_PASS || process.env.ADMIN_PASSWORD || "";
 
   if (!expected) {
-    return NextResponse.json({ ok: false, error: "Admin password isn't set yet. Add ADMIN_PASSWORD in Vercel." }, { status: 503 });
+    return NextResponse.json({ ok: false, error: "Admin password isn't set yet (ADMIN_BASIC_PASS)." }, { status: 503 });
   }
   // Constant-time compare.
   const a = Buffer.from(password);
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   const res = NextResponse.json({ ok: true });
   res.cookies.set(COOKIE, token(expected), {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 30, // 30 days
