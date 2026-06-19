@@ -59,9 +59,11 @@ function normalizeItems(cart: any): OrderLine[] {
     const items = Array.isArray(b?.items) ? b.items : [];
     for (const it of items) {
       const id = String(it?.id ?? it?.flavorId ?? "").trim();
+      if (!id) continue; // never emit id-less lines — they break stock decrement, loyalty, and Biteship
       const name = (it?.name || it?.item_name || "Item").toString();
       const qty = Math.max(0, Math.floor(Number(it?.quantity || 0)));
-      const price = Math.max(0, Math.round(Number(it?.price ?? 0)));
+      const priceRaw = Math.round(Number(it?.price ?? 0));
+      const price = priceRaw > 0 ? priceRaw : 32500; // fall back to the single-cookie price, never 0
       if (qty > 0) out.push({ id, name, price, quantity: qty, ...(isBundle ? { bundle: true } : {}) });
     }
   }

@@ -222,7 +222,7 @@ export default function CafePOS() {
   function addBox() {
     if (!boxBuild || boxPickCount !== boxBuild.size) return;
     const items = Object.entries(boxBuild.picks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
-    setBoxes((bs) => [...bs, { key: `box-${boxBuild.size}-${bs.length}-${items.map((i) => i.id + i.qty).join("")}`, size: boxBuild.size, items }]);
+    setBoxes((bs) => [...bs, { key: `box-${boxBuild.size}-${Math.random().toString(36).slice(2, 9)}`, size: boxBuild.size, items }]);
     setBoxBuild(null);
   }
   function removeBox(key: string) { setBoxes((bs) => bs.filter((b) => b.key !== key)); }
@@ -789,7 +789,7 @@ export default function CafePOS() {
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: lines.length ? 4 : 0 }}>
             <button onClick={startScan} aria-label="Scan member QR" title="Scan member QR" style={{ flex: "0 0 auto", borderRadius: 12, height: 50, width: 52, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontSize: 20, cursor: "pointer" }}>📷</button>
-            <input value={memberPhone} onChange={(e) => { setMemberPhone(e.target.value.replace(/[^\d+]/g, "")); setRewards(null); setRedeemKind(null); }}
+            <input value={memberPhone} onChange={(e) => { setMemberPhone(e.target.value.replace(/[^\d+]/g, "")); setRewards(null); setRedeemKind(null); setCart((c) => Object.fromEntries(Object.entries(c).filter(([, l]) => !l.free))); }}
               placeholder="Member phone (optional)" inputMode="tel"
               style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.16)", fontSize: 14 }} />
             {memberPhone && !rewards ? (

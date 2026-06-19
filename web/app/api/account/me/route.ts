@@ -60,11 +60,17 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
   //    null); once a logged-in user binds it, only they may claim it afterwards.
   const { data: otp } = await supa
     .from("phone_otps")
-    .select("verified, auth_user_id")
+    .select("verified, auth_user_id, expires_at")
     .eq("phone", phone)
     .maybeSingle();
+  // A null-auth_user_id OTP (verified during signup, before the account existed)
+  // is only claimable while still within its short validity window — this bounds
+  // the signup race where another user could grab a just-verified phone. Once
+  // bound to a user, only that user may claim it.
+  const otpFresh = otp?.expires_at ? new Date(otp.expires_at).getTime() > Date.now() : false;
   const phoneVerified =
-    Boolean(otp?.verified) && (otp?.auth_user_id == null || otp.auth_user_id === user.id);
+    Boolean(otp?.verified) &&
+    (otp?.auth_user_id === user.id || (otp?.auth_user_id == null && otpFresh));
   if (!phoneVerified) {
     return { kind: "needsVerify", phone };
   }
@@ -88,6 +94,11 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
     )
     .select("id, phone, name, email, member_code, cookies_redeemed, drinks_redeemed")
     .maybeSingle();
+
+  // Bind this verified phone to the user so a later claimant can't grab it.
+  if (otp?.auth_user_id == null) {
+    await supa.from("phone_otps").update({ auth_user_id: user.id }).eq("phone", phone).is("auth_user_id", null);
+  }
 
   // Loyalty from paid orders matched by phone (exact canonical match — ilike is
   // only a loose prefilter, see /api/loyalty/lookup).
