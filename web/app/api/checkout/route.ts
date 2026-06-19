@@ -4,6 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 import { createSnapToken, midtransEnv } from "@/lib/midtrans";
 import { notifyNewOrder } from "@/lib/notify";
 import { upsertCustomerForOrder } from "@/lib/customers";
+import { canonicalPhone } from "@/lib/phone";
+import { loyaltyForPhone } from "@/app/api/loyalty/lookup/route";
 
 export const runtime = "nodejs";
 
@@ -118,6 +120,54 @@ export async function POST(req: Request) {
     const midtransOrderId =
       (payload?.midtrans_order_id || payload?.midtransOrderId || "").toString().trim() ||
       makeMidtransOrderId(checkoutMode);
+
+    // ---- Loyalty redemption (members applying earned free cookies/drinks online) ----
+    // Free lines are added at Rp0, validated against the member's REAL balance, and
+    // atomically reserved (reserve_rewards). The Midtrans webhook consumes the
+    // reservation on payment / releases it on failure — same path as the cafe.
+    const redeemReq = Array.isArray(payload?.redeem) ? payload.redeem : [];
+    if (redeemReq.length) {
+      const phone = canonicalPhone(customerPhone);
+      if (!phone) {
+        return NextResponse.json({ ok: false, error: "Sign in (or add your member phone) to use rewards." }, { status: 400 });
+      }
+      const freeLines = redeemReq
+        .map((r: any) => ({
+          id: String(r?.id || "").trim(),
+          name: String(r?.name || "").trim() || "Free item",
+          kind: r?.kind === "drink" ? "drink" : "cookie",
+          price: 0,
+          quantity: Math.max(0, Math.floor(Number(r?.quantity ?? 1))),
+          free: true,
+        }))
+        .filter((l: any) => l.id && l.quantity > 0);
+      const wantCookies = freeLines.filter((l: any) => l.kind === "cookie").reduce((s: number, l: any) => s + l.quantity, 0);
+      const wantDrinks = freeLines.filter((l: any) => l.kind === "drink").reduce((s: number, l: any) => s + l.quantity, 0);
+      if (wantCookies || wantDrinks) {
+        const supaCheck = supaAdmin();
+        const loy = await loyaltyForPhone(supaCheck, phone);
+        if (!loy || wantCookies > loy.freeCookies || wantDrinks > loy.freeDrinks) {
+          return NextResponse.json({ ok: false, error: "Not enough rewards available." }, { status: 400 });
+        }
+        try {
+          const { data: reserved, error: rErr } = await supaCheck.rpc("reserve_rewards", {
+            p_phone: phone,
+            p_avail_cookies: loy.freeCookies,
+            p_avail_drinks: loy.freeDrinks,
+            p_want_cookies: wantCookies,
+            p_want_drinks: wantDrinks,
+            p_midtrans_order_id: midtransOrderId,
+          });
+          if (rErr) console.warn("[checkout] reserve_rewards unavailable, using derived check:", rErr.message);
+          else if (reserved === false) {
+            return NextResponse.json({ ok: false, error: "Not enough rewards available." }, { status: 400 });
+          }
+        } catch (e: any) {
+          console.warn("[checkout] reserve_rewards failed, using derived check:", e?.message || e);
+        }
+        items.push(...freeLines);
+      }
+    }
 
     // scheduling & pickup & quote meta
     const fulfillment = payload?.fulfillment || null;

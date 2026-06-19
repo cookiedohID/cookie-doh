@@ -9,6 +9,8 @@ import GoogleAddressInput from "@/components/GoogleAddressInput";
 import { clearCart, getCart, CART_KEY } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { FLAVORS } from "@/lib/catalog";
+import { SMOOTHIES } from "@/lib/smoothies";
 
 declare global {
   interface Window {
@@ -251,6 +253,14 @@ export default function CheckoutPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  // Loyalty rewards available to a logged-in member, + their redemption picks.
+  const [availFreeCookies, setAvailFreeCookies] = useState(0);
+  const [availFreeDrinks, setAvailFreeDrinks] = useState(0);
+  const [redeemCookieId, setRedeemCookieId] = useState("");
+  const [redeemCookieQty, setRedeemCookieQty] = useState(0);
+  const [redeemDrinkId, setRedeemDrinkId] = useState("");
+  const [redeemDrinkQty, setRedeemDrinkQty] = useState(0);
+
   // Gift: send with a handwritten card.
   const [isGift, setIsGift] = useState(false);
   const [giftMessage, setGiftMessage] = useState("");
@@ -298,6 +308,10 @@ export default function CheckoutPage() {
         if (!cancelled && meJ?.member) {
           if (meJ.member.name) setName((cur) => cur || meJ.member.name);
           if (meJ.member.phone) setPhone((cur) => cur || meJ.member.phone);
+          if (meJ.member.loyalty) {
+            setAvailFreeCookies(Math.max(0, Number(meJ.member.loyalty.freeCookies || 0)));
+            setAvailFreeDrinks(Math.max(0, Number(meJ.member.loyalty.freeDrinks || 0)));
+          }
         }
       } catch { /* ignore */ }
 
@@ -589,6 +603,10 @@ export default function CheckoutPage() {
 
         notes,
         gift: isGift ? { message: giftMessage.trim(), to: giftTo.trim(), from: giftFrom.trim() } : null,
+        redeem: [
+          redeemCookieId && redeemCookieQty > 0 ? { id: redeemCookieId, name: FLAVORS.find((f: any) => f.id === redeemCookieId)?.name || "Cookie", kind: "cookie", quantity: Math.min(redeemCookieQty, availFreeCookies) } : null,
+          redeemDrinkId && redeemDrinkQty > 0 ? { id: redeemDrinkId, name: SMOOTHIES.find((s: any) => s.id === redeemDrinkId)?.name || "Drink", kind: "drink", quantity: Math.min(redeemDrinkQty, availFreeDrinks) } : null,
+        ].filter(Boolean),
         cart,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
         total: grandTotal,
@@ -770,6 +788,58 @@ export default function CheckoutPage() {
               </label>
             </div>
           </section>
+
+          {/* Loyalty rewards (members only) */}
+          {(availFreeCookies > 0 || availFreeDrinks > 0) ? (
+            <section
+              style={{
+                borderRadius: 18,
+                border: (redeemCookieQty > 0 || redeemDrinkQty > 0) ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
+                padding: 14,
+                background: "#fff",
+                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div style={{ fontWeight: 950, color: COLORS.black }}>🎁 Your free rewards</div>
+              <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
+                You have {availFreeCookies} free cookie{availFreeCookies !== 1 ? "s" : ""} and {availFreeDrinks} free drink{availFreeDrinks !== 1 ? "s" : ""}. Add them to this order at no charge.
+              </div>
+
+              {availFreeCookies > 0 ? (
+                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 110px", gap: 10, alignItems: "end" }}>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Free cookie flavour</span>
+                    <select value={redeemCookieId} onChange={(e) => { setRedeemCookieId(e.target.value); if (e.target.value && redeemCookieQty === 0) setRedeemCookieQty(1); if (!e.target.value) setRedeemCookieQty(0); }} style={sameStyle}>
+                      <option value="">Don&apos;t use</option>
+                      {FLAVORS.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Qty (max {availFreeCookies})</span>
+                    <input type="number" min={0} max={availFreeCookies} value={redeemCookieQty} disabled={!redeemCookieId}
+                      onChange={(e) => setRedeemCookieQty(Math.max(0, Math.min(availFreeCookies, Math.floor(Number(e.target.value) || 0))))} style={sameStyle} />
+                  </label>
+                </div>
+              ) : null}
+
+              {availFreeDrinks > 0 ? (
+                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 110px", gap: 10, alignItems: "end" }}>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Free drink flavour</span>
+                    <select value={redeemDrinkId} onChange={(e) => { setRedeemDrinkId(e.target.value); if (e.target.value && redeemDrinkQty === 0) setRedeemDrinkQty(1); if (!e.target.value) setRedeemDrinkQty(0); }} style={sameStyle}>
+                      <option value="">Don&apos;t use</option>
+                      {SMOOTHIES.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Qty (max {availFreeDrinks})</span>
+                    <input type="number" min={0} max={availFreeDrinks} value={redeemDrinkQty} disabled={!redeemDrinkId}
+                      onChange={(e) => setRedeemDrinkQty(Math.max(0, Math.min(availFreeDrinks, Math.floor(Number(e.target.value) || 0))))} style={sameStyle} />
+                  </label>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
 
           {/* Gift */}
           <section
