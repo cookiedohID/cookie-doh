@@ -22,7 +22,7 @@ export const ASSORTMENTS: Assortment[] = [
     title: "Crowd Favourites",
     tagline: "The greatest hits",
     description:
-      "Our three most-loved cookies in one little box: the bold dark-chocolate The One, the deeply rich The Other One, and the serene Matcha Magic.",
+      "Our three most-loved cookies in one little box: the bold dark-chocolate The One, the deeply rich The Other One, and the serene Matcha Magic. The perfect first taste of Cookie Doh.",
     badge: "Bestseller",
     boxSize: 3,
     items: [
@@ -36,7 +36,7 @@ export const ASSORTMENTS: Assortment[] = [
     title: "The Best Mix",
     tagline: "A little of everything",
     description:
-      "A curated half-dozen — double helpings of our two bestsellers, plus earthy Matcha Magic and a cozy Midnight Crave.",
+      "A curated half-dozen for every mood — double helpings of our two bestsellers, plus earthy Matcha Magic and a cozy, late-night Midnight Crave. Made for sharing (or keeping all to yourself).",
     badge: "Fan Favourite",
     boxSize: 6,
     items: [
@@ -51,7 +51,7 @@ export const ASSORTMENTS: Assortment[] = [
     title: "Soft & Floral",
     tagline: "Gift-ready & elegant",
     description:
-      "A delicate, pretty box — fragrant Rose Lullaby, calming Lavender Hush, a blush of Strawberry Kiss, and a bright Ruby Glow.",
+      "A delicate, pretty box that makes a lovely gift — fragrant Rose Lullaby, calming Lavender Hush, a blush of Strawberry Kiss, and a bright Ruby Glow. Romance in cookie form.",
     badge: "Gift Pick",
     boxSize: 6,
     items: [
