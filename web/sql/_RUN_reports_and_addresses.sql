@@ -70,3 +70,18 @@ create index if not exists orders_paid_at_idx
   where payment_status = 'PAID';
 create index if not exists orders_created_at_idx
   on public.orders (created_at desc);
+
+-- ---------- Redemption OTP (staff anti-misuse) ----------
+-- Separate from phone_otps so sending a redemption code never disturbs a
+-- member's account verification. At the POS, redeeming free rewards requires a
+-- code sent to the member's own WhatsApp — so staff can't quietly redeem.
+-- Service-role only (RLS on, no policies).
+create table if not exists public.redemption_otps (
+  phone text primary key,                    -- canonical "+62XXXXXXXXXX"
+  code_hash text not null,
+  expires_at timestamptz not null,
+  attempts integer not null default 0,
+  last_sent_at timestamptz not null default now()
+);
+
+alter table public.redemption_otps enable row level security;

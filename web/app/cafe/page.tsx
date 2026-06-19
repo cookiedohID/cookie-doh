@@ -31,8 +31,12 @@ export default function CafePOS() {
   const [memberPhone, setMemberPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [rewards, setRewards] = useState<{ name: string | null; freeCookies: number; freeDrinks: number } | null>(null);
+  const [rewards, setRewards] = useState<{ name: string | null; freeCookies: number; freeDrinks: number; cookieStamps: number; drinkStamps: number } | null>(null);
   const [redeemKind, setRedeemKind] = useState<Kind | null>(null);
+  // Redemption requires an OTP the MEMBER receives on WhatsApp — so staff can't
+  // redeem someone's rewards without the member approving. Verified per order.
+  const [redeemVerified, setRedeemVerified] = useState(false);
+  const [otp, setOtp] = useState<{ open: boolean; code: string; busy: boolean; note: string; sent: boolean }>({ open: false, code: "", busy: false, note: "", sent: false });
   const [detail, setDetail] = useState<MenuItem | null>(null);
   // Boxes: pick any N cookies at the box price.
   const [boxes, setBoxes] = useState<{ key: string; size: number; items: { id: string; name: string; qty: number }[]; label?: string; assortKey?: string }[]>([]);
@@ -198,7 +202,13 @@ export default function CafePOS() {
     const r = await fetch("/api/loyalty/lookup", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: memberPhone }),
     }).then((x) => x.json()).catch(() => null);
-    setRewards(r?.ok ? { name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks } : { name: null, freeCookies: 0, freeDrinks: 0 });
+    if (r?.ok) {
+      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0 });
+      setErr("");
+    } else {
+      setRewards(null);
+      setErr(r?.error || "No member found for that phone.");
+    }
   }
 
   function startScan() {
@@ -217,13 +227,47 @@ export default function CafePOS() {
     }).then((x) => x.json()).catch(() => null);
     if (r?.ok) {
       if (r.phone) setMemberPhone(r.phone);
-      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks });
+      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0 });
+      setErr("");
     } else {
       setErr(r?.error || "Member not found for that QR.");
     }
   }
 
-  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setBoxes([]); setBundles([]); setBundleBuild(null); setReview(false); }
+  // Detach the current member from the order (e.g. a customer says "that's not me").
+  function clearMember() {
+    setMemberPhone(""); setRewards(null); setRedeemKind(null); setRedeemVerified(false);
+    setOtp({ open: false, code: "", busy: false, note: "", sent: false });
+    setCart((c) => Object.fromEntries(Object.entries(c).filter(([, l]) => !l.free)));
+  }
+
+  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setRedeemVerified(false); setOtp({ open: false, code: "", busy: false, note: "", sent: false }); setBoxes([]); setBundles([]); setBundleBuild(null); setReview(false); }
+
+  // Redemption OTP: send a code to the member's WhatsApp, then verify it before
+  // any free reward can be applied.
+  async function sendRedeemOtp() {
+    if (!memberPhone) return;
+    setOtp((o) => ({ ...o, busy: true, note: "" }));
+    const r = await fetch("/api/loyalty/redeem-otp/send", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: memberPhone }),
+    }).then((x) => x.json()).catch(() => null);
+    if (r?.ok) setOtp((o) => ({ ...o, busy: false, sent: true, note: "Code sent to the member's WhatsApp." }));
+    else setOtp((o) => ({ ...o, busy: false, note: r?.error || "Couldn't send the code." }));
+  }
+  async function verifyRedeemOtp() {
+    setOtp((o) => ({ ...o, busy: true, note: "" }));
+    const r = await fetch("/api/loyalty/redeem-otp/verify", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: memberPhone, code: otp.code }),
+    }).then((x) => x.json()).catch(() => null);
+    if (r?.ok) { setRedeemVerified(true); setOtp({ open: false, code: "", busy: false, note: "", sent: false }); }
+    else setOtp((o) => ({ ...o, busy: false, note: r?.error || "Incorrect code." }));
+  }
+  // Staff taps "Use free X" — require the member's WhatsApp OTP first.
+  function requestRedeem(kind: Kind) {
+    if (redeemKind === kind) { setRedeemKind(null); return; }
+    if (!redeemVerified) { setOtp({ open: true, code: "", busy: false, note: "", sent: false }); return; }
+    setRedeemKind(kind);
+  }
 
   // ---- box builder ----
   function bumpPick(item: MenuItem, d: number) {
@@ -457,6 +501,28 @@ export default function CafePOS() {
             ))}
           </nav>
         </div>
+        {/* Member welcome / anti-misuse banner — whoever's attached is shown big
+            and bold, so a customer notices if it isn't them. */}
+        {rewards ? (
+          <div style={{ background: "#fff" }}>
+            <div style={{ maxWidth: 1100, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 22, fontWeight: 900, color: COLORS.blue }}>👋 Welcome, {rewards.name || "Member"}!</span>
+              <span style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 14, fontWeight: 800, color: COLORS.black, alignItems: "center" }}>
+                <span style={welcomeChip}>🍪 {rewards.cookieStamps}/10</span>
+                <span style={welcomeChip}>🥤 {rewards.drinkStamps}/10</span>
+                {rewards.freeCookies > 0 ? <span style={welcomeFree}>🎁 {rewards.freeCookies} free cookie ready</span> : null}
+                {rewards.freeDrinks > 0 ? <span style={welcomeFree}>🎁 {rewards.freeDrinks} free drink ready</span> : null}
+              </span>
+              <button onClick={clearMember} style={{ marginLeft: "auto", border: "1px solid rgba(0,0,0,0.18)", background: "#fff", color: COLORS.muted, fontWeight: 800, fontSize: 13, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>Not you? ✕</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: "rgba(255,255,255,0.10)" }}>
+            <div style={{ maxWidth: 1100, margin: "0 auto", padding: "7px 16px", fontSize: 13, color: "rgba(255,255,255,0.92)", textAlign: "center", fontWeight: 700 }}>
+              Are you a member? Scan your QR below to collect points &amp; redeem rewards 🍪
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "8px 16px 0" }}>
@@ -804,8 +870,8 @@ export default function CafePOS() {
               <span style={{ fontSize: 12.5, fontWeight: 800, color: "#0014A7" }}>
                 🎁 {rewards.name ? rewards.name + " · " : ""}{rewards.freeCookies} free cookie · {rewards.freeDrinks} free drink
               </span>
-              {remainingFree("cookie") > 0 ? <button onClick={() => setRedeemKind(redeemKind === "cookie" ? null : "cookie")} style={rewardBtn(redeemKind === "cookie")}>Use free cookie</button> : null}
-              {remainingFree("drink") > 0 ? <button onClick={() => setRedeemKind(redeemKind === "drink" ? null : "drink")} style={rewardBtn(redeemKind === "drink")}>Use free drink</button> : null}
+              {remainingFree("cookie") > 0 ? <button onClick={() => requestRedeem("cookie")} style={rewardBtn(redeemKind === "cookie")}>{redeemVerified ? "Use free cookie" : "🔒 Use free cookie"}</button> : null}
+              {remainingFree("drink") > 0 ? <button onClick={() => requestRedeem("drink")} style={rewardBtn(redeemKind === "drink")}>{redeemVerified ? "Use free drink" : "🔒 Use free drink"}</button> : null}
             </div>
           ) : null}
 
@@ -825,6 +891,29 @@ export default function CafePOS() {
           {err ? <div style={{ color: "crimson", fontWeight: 700, fontSize: 13, marginTop: 6 }}>{err}</div> : null}
         </div>
       </div>
+
+      {/* Redemption OTP — the member approves on their own WhatsApp */}
+      {otp.open ? (
+        <div onClick={() => setOtp((o) => ({ ...o, open: false }))} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50, display: "grid", placeItems: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, padding: 22, width: "100%", maxWidth: 380 }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.black }}>Confirm reward redemption</div>
+            <p style={{ marginTop: 6, fontSize: 13.5, color: COLORS.muted, lineHeight: 1.5 }}>
+              Send a code to <strong>{rewards?.name || "the member"}</strong>&apos;s WhatsApp ({memberPhone}). They read it back to you to approve using their free reward.
+            </p>
+            {!otp.sent ? (
+              <button onClick={sendRedeemOtp} disabled={otp.busy} style={{ marginTop: 14, width: "100%", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, padding: "13px", borderRadius: 999, cursor: "pointer" }}>{otp.busy ? "Sending…" : "Send code to member's WhatsApp"}</button>
+            ) : (
+              <>
+                <input value={otp.code} onChange={(e) => setOtp((o) => ({ ...o, code: e.target.value.replace(/\D/g, "").slice(0, 6) }))} placeholder="Enter 6-digit code" inputMode="numeric" style={{ marginTop: 14, width: "100%", padding: "13px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.18)", fontSize: 18, letterSpacing: 4, textAlign: "center", boxSizing: "border-box" }} />
+                <button onClick={verifyRedeemOtp} disabled={otp.busy || otp.code.length < 6} style={{ marginTop: 10, width: "100%", border: "none", background: otp.code.length >= 6 ? COLORS.blue : "rgba(0,20,167,0.4)", color: "#fff", fontWeight: 800, padding: "13px", borderRadius: 999, cursor: otp.code.length >= 6 ? "pointer" : "not-allowed" }}>{otp.busy ? "Checking…" : "Confirm"}</button>
+                <button onClick={sendRedeemOtp} disabled={otp.busy} style={{ marginTop: 8, width: "100%", border: "none", background: "transparent", color: COLORS.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Resend code</button>
+              </>
+            )}
+            {otp.note ? <div style={{ marginTop: 10, fontSize: 13, color: otp.note.toLowerCase().includes("sent") ? COLORS.blue : "crimson", fontWeight: 700 }}>{otp.note}</div> : null}
+            <button onClick={() => setOtp({ open: false, code: "", busy: false, note: "", sent: false })} style={{ marginTop: 12, width: "100%", border: "none", background: "transparent", color: COLORS.muted, fontWeight: 700, fontSize: 13, cursor: "pointer" }}>Cancel</button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -833,6 +922,8 @@ const btn = (bg: string): React.CSSProperties => ({ height: 52, borderRadius: 14
 const miniBtn: React.CSSProperties = { width: 28, height: 28, borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "#fff", fontWeight: 900, cursor: "pointer" };
 const stepBtn: React.CSSProperties = { width: 30, height: 30, borderRadius: 999, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 900, fontSize: 17, lineHeight: 1, cursor: "pointer", display: "grid", placeItems: "center" };
 const rewardBtn = (active: boolean): React.CSSProperties => ({ borderRadius: 999, padding: "6px 12px", border: `1px solid #0014A7`, background: active ? "#0014A7" : "#fff", color: active ? "#fff" : "#0014A7", fontWeight: 800, fontSize: 12.5, cursor: "pointer" });
+const welcomeChip: React.CSSProperties = { background: "#EAF2FF", color: "#0014A7", borderRadius: 999, padding: "4px 11px", fontWeight: 800 };
+const welcomeFree: React.CSSProperties = { background: "#0014A7", color: "#fff", borderRadius: 999, padding: "4px 11px", fontWeight: 800 };
 
 // ---------------- Print docs (thermal, 80mm) — used by the calibration preview ----------------
 function PrintStyles() {
