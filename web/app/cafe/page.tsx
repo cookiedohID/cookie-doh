@@ -83,6 +83,14 @@ export default function CafePOS() {
   const total = itemsTotal + boxesTotal + bundlesTotal;
   const paidCount = lines.reduce((s, l) => s + (l.free ? 0 : l.qty), 0);
   const payable = paidCount > 0 || boxes.length > 0 || bundles.length > 0;
+
+  // Box upsell: single cookies cost more per cookie than a box (Rp30,000/cookie).
+  // Nudge the customer toward a box once they have 3+ singles so they don't overpay.
+  const singleCookieCount = lines.reduce((s, l) => s + (l.item.kind === "cookie" && !l.free ? l.qty : 0), 0);
+  const singleCookieSpend = lines.reduce((s, l) => s + (l.item.kind === "cookie" && !l.free ? l.qty * l.item.price : 0), 0);
+  const boxPerCookie = (BOX_PRICES as any)[3] / 3; // 30,000
+  const boxSavings = Math.max(0, Math.round(singleCookieSpend - singleCookieCount * boxPerCookie));
+  const showBoxNudge = singleCookieCount >= 3 && boxSavings > 0;
   const boxPickCount = boxBuild ? Object.values(boxBuild.picks).reduce((s, v) => s + v.qty, 0) : 0;
   const bundleCookieCount = bundleBuild ? Object.values(bundleBuild.cookiePicks).reduce((s, v) => s + v.qty, 0) : 0;
   const bundleDrinkCount = bundleBuild ? Object.values(bundleBuild.drinkPicks).reduce((s, v) => s + v.qty, 0) : 0;
@@ -862,6 +870,15 @@ export default function CafePOS() {
                   <button onClick={() => bump(l.key, 1)} style={miniBtn}>+</button>
                 </div>
               ))}
+            </div>
+          ) : null}
+
+          {showBoxNudge ? (
+            <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 8, padding: "8px 12px", borderRadius: 12, background: "#FFF4E5", border: "1px solid rgba(255,90,0,0.3)" }}>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.black }}>
+                💡 {singleCookieCount} single cookies — order a box & save {formatIDR(boxSavings)} (boxes are {formatIDR(boxPerCookie)}/cookie)
+              </span>
+              <button onClick={() => jump("boxes")} style={{ flex: "0 0 auto", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>View boxes</button>
             </div>
           ) : null}
 

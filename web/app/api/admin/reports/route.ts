@@ -61,6 +61,7 @@ export async function GET(req: Request) {
 
     // ---- Aggregations ----
     const dailyMap: Record<string, { orders: number; revenue: number }> = {};
+    const dailyDetail: Record<string, Array<{ orderNo: any; total: number; items: { name: string; qty: number }[] }>> = {};
     const itemMap: Record<string, { id: string; name: string; kind: string; qty: number; revenue: number; freeQty: number }> = {};
     const locMap: Record<string, { orders: number; revenue: number }> = {};
     const redeemMap: Record<string, { id: string; name: string; kind: string; qty: number }> = {};
@@ -73,6 +74,14 @@ export async function GET(req: Request) {
       totalRevenue += rev;
       dailyMap[d] = dailyMap[d] || { orders: 0, revenue: 0 };
       dailyMap[d].orders += 1; dailyMap[d].revenue += rev;
+      dailyDetail[d] = dailyDetail[d] || [];
+      dailyDetail[d].push({
+        orderNo: o.order_no ?? null,
+        total: rev,
+        items: (Array.isArray(o.items_json) ? o.items_json : [])
+          .map((it: any) => ({ name: String(it?.name ?? "Item"), qty: Math.max(0, Math.floor(Number(it?.quantity ?? 0))) }))
+          .filter((x: any) => x.qty > 0),
+      });
       locMap[o._loc] = locMap[o._loc] || { orders: 0, revenue: 0 };
       locMap[o._loc].orders += 1; locMap[o._loc].revenue += rev;
 
@@ -143,7 +152,7 @@ export async function GET(req: Request) {
       range: { from, to, locationId: locFilter },
       locations: LOCATIONS.map((l) => ({ id: l.id, name: l.short })),
       summary: { orders: orders.length, revenue: totalRevenue, freeCookies, freeDrinks },
-      daily, items, byLocation, redemptions, inventory, movements,
+      daily, dailyDetail, items, byLocation, redemptions, inventory, movements,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });

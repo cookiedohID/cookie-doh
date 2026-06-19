@@ -7,7 +7,7 @@ import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
-type Item = { name: string; qty: number; price: number; free: boolean };
+type Item = { id?: string; name: string; qty: number; price: number; free: boolean; href?: string | null };
 type Order = {
   id: string;
   orderNo: number | null;
@@ -100,7 +100,12 @@ export default function MyOrdersPage() {
                   <div style={{ marginTop: 10, display: "grid", gap: 4 }}>
                     {o.items.map((it, i) => (
                       <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#333" }}>
-                        <span>{it.qty}× {it.name}{it.free ? <span style={{ color: COLORS.blue, fontWeight: 700 }}> · free</span> : null}</span>
+                        <span>
+                          {it.qty}× {it.href ? (
+                            <Link href={it.href} style={{ color: COLORS.blue, textDecoration: "none", fontWeight: 600 }}>{it.name}</Link>
+                          ) : it.name}
+                          {it.free ? <span style={{ color: COLORS.blue, fontWeight: 700 }}> · free</span> : null}
+                        </span>
                         <span style={{ color: COLORS.muted }}>{it.free || !it.price ? "—" : rupiah(it.price * it.qty)}</span>
                       </div>
                     ))}

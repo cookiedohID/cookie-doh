@@ -2,7 +2,7 @@
 
 // web/app/admin/reports/page.tsx — admin reporting: daily sales, items,
 // per-location comparison, inventory, redeemed items.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, Fragment } from "react";
 import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 
@@ -31,6 +31,7 @@ export default function AdminReportsPage() {
   const [to, setTo] = useState(isoDaysAgo(0));
   const [locationId, setLocationId] = useState("");
   const [tab, setTab] = useState<Tab>("daily");
+  const [openDay, setOpenDay] = useState<string | null>(null);
   const [data, setData] = useState<Report | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -115,9 +116,31 @@ export default function AdminReportsPage() {
               {tab === "daily" && (
                 <>
                   <thead><tr><th style={th}>Date</th><th style={th}>Orders</th><th style={th}>Revenue</th></tr></thead>
-                  <tbody>{(data.daily || []).map((r: any) => (
-                    <tr key={r.date}><td style={td}>{r.date}</td><td style={td}>{r.orders}</td><td style={td}>{rupiah(r.revenue)}</td></tr>
-                  ))}{(data.daily || []).length === 0 && <tr><td style={td} colSpan={3}>No sales in range.</td></tr>}</tbody>
+                  <tbody>{(data.daily || []).map((r: any) => {
+                    const open = openDay === r.date;
+                    const detail: any[] = (data.dailyDetail || {})[r.date] || [];
+                    return (
+                      <Fragment key={r.date}>
+                        <tr onClick={() => setOpenDay(open ? null : r.date)} style={{ cursor: "pointer" }}>
+                          <td style={{ ...td, fontWeight: 700 }}>{open ? "▾" : "▸"} {r.date}</td>
+                          <td style={td}>{r.orders}</td>
+                          <td style={td}>{rupiah(r.revenue)}</td>
+                        </tr>
+                        {open ? (
+                          <tr>
+                            <td colSpan={3} style={{ padding: "6px 14px 12px", background: "rgba(0,0,0,0.02)" }}>
+                              {detail.map((o, i) => (
+                                <div key={i} style={{ fontSize: 12.5, color: "#333", padding: "4px 0", borderBottom: i < detail.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none" }}>
+                                  <strong>{o.orderNo ? `#${o.orderNo}` : "Order"}</strong> · {rupiah(o.total)}
+                                  {o.items?.length ? <span style={{ color: COLORS.muted }}> — {o.items.map((it: any) => `${it.qty}× ${it.name}`).join(", ")}</span> : null}
+                                </div>
+                              ))}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    );
+                  })}{(data.daily || []).length === 0 && <tr><td style={td} colSpan={3}>No sales in range.</td></tr>}</tbody>
                 </>
               )}
               {tab === "items" && (

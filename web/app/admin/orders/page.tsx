@@ -178,6 +178,37 @@ export default function AdminOrdersPage() {
     return json;
   };
 
+  const removeOrder = async (orderId: string, label: string) => {
+    if (!window.confirm(`Delete order ${label}? This permanently removes it and cannot be undone.`)) return;
+    setBusyId(orderId);
+    try {
+      setErr(null);
+      const res = await fetch(`/api/admin/orders/${orderId}`, { method: "DELETE" });
+      const { json } = await safeJson(res);
+      if (!res.ok) throw new Error(json?.error || "Delete failed");
+      await load();
+    } catch (e: any) {
+      setErr(e?.message || "Delete failed");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const deleteAllUnpaid = async () => {
+    const unpaid = orders.filter((o: any) => String(o.payment_status).toUpperCase() !== "PAID");
+    if (unpaid.length === 0) { window.alert("No unpaid orders to delete."); return; }
+    if (!window.confirm(`Delete ${unpaid.length} unpaid order(s)? This is for clearing test orders and cannot be undone.`)) return;
+    try {
+      setErr(null);
+      for (const o of unpaid) {
+        await fetch(`/api/admin/orders/${(o as any).id}`, { method: "DELETE" });
+      }
+      await load();
+    } catch (e: any) {
+      setErr(e?.message || "Bulk delete failed");
+    }
+  };
+
   const onQuick = async (orderId: string, action: "paid" | "sending" | "sent") => {
       if (!isUuid(orderId)) {
       setErr("Invalid order id");
@@ -302,6 +333,12 @@ export default function AdminOrdersPage() {
           <Link href="/admin/reports" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
             Reports
           </Link>
+          <button
+            onClick={deleteAllUnpaid}
+            style={{ border: "1px solid rgba(192,57,43,0.4)", background: "#fff", color: "#C0392B", fontWeight: 800, fontSize: 13, padding: "6px 12px", borderRadius: 999, cursor: "pointer" }}
+          >
+            🗑 Delete all unpaid
+          </button>
           <button
             onClick={async () => { await fetch("/api/admin/login", { method: "DELETE" }); window.location.href = "/admin/login"; }}
             style={{ border: "none", background: "none", color: "#6B6B6B", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
@@ -616,6 +653,19 @@ export default function AdminOrdersPage() {
                             Track
                           </a>
                         ) : null}
+
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            removeOrder(uuid, o.order_no ? `#${o.order_no}` : "");
+                          }}
+                          style={{ ...pillButtonStyle("#fff", busy), color: "#C0392B", border: "1px solid rgba(192,57,43,0.4)" }}
+                        >
+                          🗑 Delete
+                        </button>
                       </div>
                     ) : (
                       <span style={{ fontSize: 12, color: "#999" }}>No valid ID</span>

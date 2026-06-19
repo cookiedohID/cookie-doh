@@ -123,6 +123,34 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   }
 }
 
+// Delete an order (by uuid or order_no) plus its dependent rows. Admin-only
+// (gated by proxy.ts). Mainly for clearing unpaid test orders.
+export async function DELETE(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params;
+    const supabase = supabaseAdmin();
+
+    // Resolve to the order's uuid.
+    let orderId = isUuid(id) ? id : null;
+    if (!orderId) {
+      const { data: found } = await supabase.from("orders").select("id").eq("order_no", Number(id)).maybeSingle();
+      orderId = found?.id ?? null;
+    }
+    if (!orderId) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+    // Remove dependent rows first (best-effort — tables may not exist).
+    for (const t of ["shipments", "loyalty_redemptions", "stock_movements"]) {
+      try { await supabase.from(t).delete().eq("order_id", orderId); } catch { /* ignore */ }
+    }
+
+    const { error } = await supabase.from("orders").delete().eq("id", orderId);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || "Delete failed" }, { status: 500 });
+  }
+}
+
 function normalizeItems(order: any): any[] {
   const itemsJson = order?.items_json;
   if (Array.isArray(itemsJson)) return itemsJson;

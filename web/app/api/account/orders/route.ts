@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { canonicalPhone, phoneSignificant } from "@/lib/phone";
+import { classifyItem } from "@/lib/loyalty";
 
 export const runtime = "nodejs";
 
@@ -68,15 +69,22 @@ export async function GET(req: Request) {
       .filter((o: any) => phoneSignificant(o?.customer_phone) === sig)
       .map((o: any) => {
         const items = Array.isArray(o?.items_json)
-          ? o.items_json.map((it: any) => ({
-              name: String(it?.name ?? "Item"),
-              qty: Number(it?.quantity ?? 1),
-              price: Number(it?.price ?? 0),
-              // ONLY an explicitly-redeemed reward is "free". A zero per-line price
-              // usually means a box/bundle item (priced at the set level), not a
-              // giveaway — labelling those "free" wrongly looked like we gave them away.
-              free: it?.free === true,
-            }))
+          ? o.items_json.map((it: any) => {
+              const id = String(it?.id ?? "");
+              const kind = classifyItem(id, it?.kind);
+              return {
+                id,
+                name: String(it?.name ?? "Item"),
+                qty: Number(it?.quantity ?? 1),
+                price: Number(it?.price ?? 0),
+                // ONLY an explicitly-redeemed reward is "free". A zero per-line price
+                // usually means a box/bundle item (priced at the set level), not a
+                // giveaway — labelling those "free" wrongly looked like we gave them away.
+                free: it?.free === true,
+                // Where "reorder" should take the customer.
+                href: kind === "cookie" ? "/cookies" : kind === "drink" ? "/smoothies" : null,
+              };
+            })
           : [];
         return {
           id: o.id,
