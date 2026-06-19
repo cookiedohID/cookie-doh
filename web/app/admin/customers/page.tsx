@@ -72,6 +72,7 @@ export default function CustomersAdminPage() {
           <div style={{ display: "flex", gap: 14 }}>
             <Link href="/admin/flavors" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Inventory →</Link>
             <Link href="/admin/orders" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Orders →</Link>
+            <Link href="/admin/reports" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Reports →</Link>
           </div>
         </div>
 

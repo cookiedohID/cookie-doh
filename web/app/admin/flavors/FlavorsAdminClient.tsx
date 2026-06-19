@@ -137,9 +137,14 @@ export default function FlavorsAdminClient() {
         <header style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
             <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Admin · Inventory</h1>
-            <Link href="/admin/orders" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
-              Orders →
-            </Link>
+            <div style={{ display: "flex", gap: 14 }}>
+              <Link href="/admin/orders" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
+                Orders →
+              </Link>
+              <Link href="/admin/reports" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
+                Reports →
+              </Link>
+            </div>
           </div>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B", fontSize: 13.5, lineHeight: 1.4 }}>
             Stock is tracked <b>per location</b>. Pick a location, set a stock number per item

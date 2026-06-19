@@ -74,6 +74,24 @@ function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number): num
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
+/**
+ * Which store fulfils an order — the single source of truth shared by stock
+ * decrement (lib/stock.ts) and the reports, so sales and inventory always
+ * attribute to the SAME location. Prefer the quoted origin, else nearest store
+ * to the delivery coords, else the pickup location, else the default store.
+ */
+export function locationForOrder(order: any): string {
+  let locationId: string | undefined = order?.meta?.quote?.origin?.id;
+  if (!locationId) {
+    const shipping = order?.shipping_json || {};
+    const lat = Number(shipping.destination_lat ?? shipping.lat);
+    const lng = Number(shipping.destination_lng ?? shipping.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) locationId = nearestLocation(lat, lng).id;
+  }
+  if (!locationId) locationId = order?.meta?.pickup?.locationId || DEFAULT_LOCATION_ID;
+  return locationId || DEFAULT_LOCATION_ID;
+}
+
 /** Pick the nearest active location to a customer coordinate. Falls back to default. */
 export function nearestLocation(
   lat?: number | null,

@@ -299,6 +299,9 @@ export default function AdminOrdersPage() {
           <Link href="/admin/stock" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
             Stock
           </Link>
+          <Link href="/admin/reports" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
+            Reports
+          </Link>
         </div>
       </div>
 
