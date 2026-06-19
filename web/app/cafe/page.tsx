@@ -895,6 +895,7 @@ export default function CafePOS() {
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: lines.length ? 4 : 0 }}>
             <button onClick={startScan} aria-label="Scan member QR" title="Scan member QR" style={{ flex: "0 0 auto", borderRadius: 12, height: 50, width: 52, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontSize: 20, cursor: "pointer" }}>📷</button>
             <input value={memberPhone} onChange={(e) => { setMemberPhone(e.target.value.replace(/[^\d+]/g, "")); setRewards(null); setRedeemKind(null); setCart((c) => Object.fromEntries(Object.entries(c).filter(([, l]) => !l.free))); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (memberPhone && !rewards) checkRewards(); } }}
               placeholder="Member phone (optional)" inputMode="tel"
               style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.16)", fontSize: 14 }} />
             {memberPhone && !rewards ? (
