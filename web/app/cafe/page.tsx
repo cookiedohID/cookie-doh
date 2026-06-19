@@ -1,7 +1,7 @@
 "use client";
 
 // web/app/cafe/page.tsx — in-store self-checkout / register POS (kiosk)
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
@@ -39,6 +39,8 @@ export default function CafePOS() {
   // Bundles: fixed-price set of X cookies + Y drinks (customer picks).
   const [bundles, setBundles] = useState<{ key: string; bundleId: string; label: string; price: number; cookies: { id: string; name: string; qty: number }[]; drinks: { id: string; name: string; qty: number }[] }[]>([]);
   const [bundleBuild, setBundleBuild] = useState<{ bundleId: string; cookiePicks: Record<string, { name: string; qty: number }>; drinkPicks: Record<string, { name: string; qty: number }> } | null>(null);
+  const [scanning, setScanning] = useState(false); // member QR camera scan
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // paid / print phase
   const [paid, setPaid] = useState<{ orderNo: string; lines: Line[]; total: number } | null>(null);
@@ -108,6 +110,44 @@ export default function CafePOS() {
     }
   }, [paid, calibrate]);
 
+  // Member QR camera scan (native BarcodeDetector — Chrome/Edge). Stops the
+  // camera + detection loop on unmount/cancel.
+  useEffect(() => {
+    if (!scanning) return;
+    let stream: MediaStream | null = null;
+    let raf = 0;
+    let cancelled = false;
+    const BD = (window as any).BarcodeDetector;
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
+        const v = videoRef.current;
+        if (v) { v.srcObject = stream; await v.play().catch(() => {}); }
+        const detector = new BD({ formats: ["qr_code"] });
+        const loop = async () => {
+          if (cancelled || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            const raw = codes && codes[0] ? String(codes[0].rawValue || "").trim() : "";
+            if (raw) { onScanned(raw); return; }
+          } catch {}
+          raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+      } catch {
+        setErr("Couldn't open the camera. Allow camera access, or enter the member's phone.");
+        setScanning(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      if (stream) stream.getTracks().forEach((t) => t.stop());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanning]);
+
   function add(item: MenuItem) {
     // Keys include the kind: two SKUs (ruby-glow, strawberry-kiss) exist as BOTH
     // a cookie and a smoothie, so keying by id alone would collapse them.
@@ -138,6 +178,28 @@ export default function CafePOS() {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: memberPhone }),
     }).then((x) => x.json()).catch(() => null);
     setRewards(r?.ok ? { name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks } : { name: null, freeCookies: 0, freeDrinks: 0 });
+  }
+
+  function startScan() {
+    if (typeof window === "undefined") return;
+    if (!(window as any).BarcodeDetector) {
+      setErr("QR scanning isn't supported on this device — enter the member's phone instead.");
+      return;
+    }
+    setErr("");
+    setScanning(true);
+  }
+  async function onScanned(code: string) {
+    setScanning(false);
+    const r = await fetch("/api/loyalty/lookup", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }),
+    }).then((x) => x.json()).catch(() => null);
+    if (r?.ok) {
+      if (r.phone) setMemberPhone(r.phone);
+      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks });
+    } else {
+      setErr(r?.error || "Member not found for that QR.");
+    }
   }
 
   function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setBoxes([]); setBundles([]); setBundleBuild(null); setReview(false); }
@@ -648,6 +710,21 @@ export default function CafePOS() {
         );
       })() : null}
 
+      {/* Member QR scan camera */}
+      {scanning ? (
+        <div onClick={() => setScanning(false)} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,0.85)", display: "grid", placeItems: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ textAlign: "center", maxWidth: 420, width: "100%" }}>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 18, marginBottom: 12 }}>Scan member QR</div>
+            <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", borderRadius: 20, overflow: "hidden", background: "#000" }}>
+              <video ref={videoRef} playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <div style={{ position: "absolute", inset: "18%", border: "3px solid rgba(255,255,255,0.85)", borderRadius: 16, pointerEvents: "none" }} />
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, marginTop: 12 }}>Point at the member&apos;s QR in their Cookie Doh account.</div>
+            <button onClick={() => setScanning(false)} style={{ marginTop: 16, borderRadius: 999, border: "1px solid rgba(255,255,255,0.5)", background: "transparent", color: "#fff", fontWeight: 800, fontSize: 15, padding: "12px 28px", cursor: "pointer" }}>Cancel</button>
+          </div>
+        </div>
+      ) : null}
+
       {/* Cart bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.10)", padding: "12px 16px", boxShadow: "0 -8px 24px rgba(0,0,0,0.06)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
@@ -691,6 +768,7 @@ export default function CafePOS() {
           ) : null}
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: lines.length ? 4 : 0 }}>
+            <button onClick={startScan} aria-label="Scan member QR" title="Scan member QR" style={{ flex: "0 0 auto", borderRadius: 12, height: 50, width: 52, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontSize: 20, cursor: "pointer" }}>📷</button>
             <input value={memberPhone} onChange={(e) => { setMemberPhone(e.target.value.replace(/[^\d+]/g, "")); setRewards(null); setRedeemKind(null); }}
               placeholder="Member phone (optional)" inputMode="tel"
               style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.16)", fontSize: 14 }} />
