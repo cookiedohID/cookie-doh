@@ -442,40 +442,52 @@ export default function CafePOS() {
         <section id="assortments" style={{ scrollMarginTop: 96, paddingTop: 18 }}>
           <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 2px" }}>✨ Assortments</h2>
           <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 12px" }}>Curated boxes — ready in one tap.</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          <div style={{ display: "grid", gap: 18 }}>
             {ASSORTMENTS.map((a) => {
               const q = assortmentQty(a.key);
               const pics = a.items.map((it) => cookies.find((c) => c.id === it.flavorId)).filter(Boolean) as MenuItem[];
               return (
-              <div key={a.key} style={{
-                position: "relative",
-                textAlign: "left", border: q > 0 ? `2px solid ${COLORS.blue}` : `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff",
-                padding: 16, display: "flex", flexDirection: "column", gap: 5,
-              }}>
-                {q > 0 ? <span style={{ position: "absolute", top: 10, right: 10, background: COLORS.blue, color: "#fff", borderRadius: 999, minWidth: 26, height: 26, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 13, zIndex: 1 }}>{q}</span> : null}
-                <div style={{ display: "flex", gap: 5, marginBottom: 3 }}>
-                  {pics.map((c, i) => (
-                    <div key={c.id + i} style={{ position: "relative", width: 50, height: 50, borderRadius: 10, overflow: "hidden", background: COLORS.sand, flex: "0 0 auto" }}>
-                      {c.image ? <Image src={c.image} alt={c.name} fill style={{ objectFit: "cover" }} sizes="50px" /> : null}
+                <article key={a.key} style={{ borderRadius: 22, overflow: "hidden", background: "#fff", border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", boxShadow: "0 10px 30px rgba(0,0,0,0.06)" }}>
+                  {/* Photo strip — the labelled cookie shots */}
+                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${pics.length}, 1fr)`, position: "relative" }}>
+                    {pics.map((c, i) => (
+                      <div key={c.id + i} style={{ position: "relative", aspectRatio: "1/1", background: COLORS.sand }}>
+                        {c.image ? <Image src={c.image} alt={c.name} fill style={{ objectFit: "cover" }} sizes="(max-width:768px) 25vw, 280px" /> : null}
+                      </div>
+                    ))}
+                    <span style={{ position: "absolute", top: 12, left: 12, background: COLORS.orange, color: "#fff", fontSize: 12, fontWeight: 800, padding: "5px 11px", borderRadius: 999 }}>{a.badge}</span>
+                    {q > 0 ? <span style={{ position: "absolute", top: 12, right: 12, background: COLORS.blue, color: "#fff", borderRadius: 999, minWidth: 30, height: 30, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 14 }}>{q}</span> : null}
+                  </div>
+
+                  <div style={{ padding: "18px 18px 20px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+                      <div>
+                        <span className="font-dearjoe" style={{ fontSize: 18, color: COLORS.blue }}>{a.tagline}</span>
+                        <h3 style={{ margin: "2px 0 0", fontSize: 22, fontWeight: 800, color: COLORS.black }}>{a.title} <span style={{ color: COLORS.muted, fontWeight: 700, fontSize: 15 }}>· Box of {a.boxSize}</span></h3>
+                      </div>
+                      <div style={{ fontWeight: 900, color: COLORS.blue, fontSize: 20 }}>{formatIDR(boxPrice(a.boxSize))}</div>
                     </div>
-                  ))}
-                </div>
-                <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.blue, textTransform: "uppercase", letterSpacing: 0.4 }}>{a.badge}</span>
-                <span style={{ fontWeight: 800, fontSize: 16, color: COLORS.black }}>{a.title}</span>
-                <span style={{ fontWeight: 900, fontSize: 15.5, color: COLORS.blue }}>{formatIDR(boxPrice(a.boxSize))} · {a.boxSize} cookies</span>
-                <span style={{ fontSize: 12.5, color: COLORS.muted, lineHeight: 1.35 }}>{a.items.map((it) => `${it.qty}× ${cookies.find((c) => c.id === it.flavorId)?.name || it.flavorId}`).join(", ")}</span>
-                <div style={{ marginTop: 6 }}>
-                  {q > 0 ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <button onClick={() => removeOneAssortment(a.key)} aria-label={`Remove one ${a.title}`} style={stepBtn}>–</button>
-                      <span style={{ fontWeight: 800, fontSize: 15, minWidth: 16, textAlign: "center" }}>{q}</span>
-                      <button onClick={() => addAssortment(a)} aria-label={`Add one ${a.title}`} style={stepBtn}>+</button>
+                    <p style={{ margin: "12px 0 0", color: "#444", lineHeight: 1.55, fontSize: 14.5 }}>{a.description}</p>
+                    <div style={{ margin: "14px 0 0", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {a.items.map((it) => (
+                        <span key={it.flavorId} style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.black, background: COLORS.sand, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 999, padding: "5px 11px" }}>
+                          {cookies.find((c) => c.id === it.flavorId)?.name || it.flavorId}{it.qty > 1 ? ` ×${it.qty}` : ""}
+                        </span>
+                      ))}
                     </div>
-                  ) : (
-                    <button onClick={() => addAssortment(a)} style={{ border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, borderRadius: 999, padding: "8px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>＋ Add box</button>
-                  )}
-                </div>
-              </div>
+                    <div style={{ marginTop: 18 }}>
+                      {q > 0 ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                          <button onClick={() => removeOneAssortment(a.key)} aria-label={`Remove one ${a.title}`} style={stepBtn}>–</button>
+                          <span style={{ fontWeight: 800, fontSize: 17, minWidth: 18, textAlign: "center" }}>{q}</span>
+                          <button onClick={() => addAssortment(a)} aria-label={`Add one ${a.title}`} style={stepBtn}>+</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => addAssortment(a)} style={{ border: "none", borderRadius: 999, padding: "13px 24px", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", boxShadow: "0 10px 22px rgba(0,0,0,0.08)" }}>＋ Add box · {formatIDR(boxPrice(a.boxSize))}</button>
+                      )}
+                    </div>
+                  </div>
+                </article>
               );
             })}
           </div>
