@@ -332,13 +332,10 @@ export default function AdminOrdersPage() {
             Orders
           </Link>
           <Link href="/admin/flavors" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
-            Flavors
+            Inventory
           </Link>
-          <Link href="/admin/assortments" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
-            Assortments
-          </Link>
-          <Link href="/admin/stock" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
-            Stock
+          <Link href="/admin/customers" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
+            Customers
           </Link>
           <Link href="/admin/reports" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
             Reports
