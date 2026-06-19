@@ -213,6 +213,19 @@ const INSTANT_SLOTS = [
 
 const SAMEDAY_SLOT = { value: "08:00-22:00", label: "08:00 – 22:00" } as const;
 
+// Same-day (Lalamove) covers ~Greater Jakarta + Bekasi; beyond this we switch to
+// intercity (Biteship next-day couriers).
+const JKT_LAT = -6.2;
+const JKT_LNG = 106.83;
+const SAMEDAY_RADIUS_KM = 90;
+function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number) {
+  const R = 6371;
+  const dLat = ((bLat - aLat) * Math.PI) / 180;
+  const dLng = ((bLng - aLng) * Math.PI) / 180;
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
 type FulfillmentType = "delivery" | "pickup";
 type DeliverySpeed = "instant" | "sameday";
 
@@ -369,6 +382,12 @@ export default function CheckoutPage() {
   const [quoteMeta, setQuoteMeta] = useState<any>(null);
   const [quoteUpdatedAt, setQuoteUpdatedAt] = useState<Date | null>(null);
 
+  // Delivery mode: same-day (Lalamove, Greater Jakarta+Bekasi) vs intercity
+  // (Biteship next-day couriers). 'unavailable' = Biteship can't reach the address.
+  const [deliveryMode, setDeliveryMode] = useState<"sameday" | "intercity" | "unavailable" | null>(null);
+  const [intercityRates, setIntercityRates] = useState<any[]>([]);
+  const [selectedCourier, setSelectedCourier] = useState<any>(null);
+
   const quoteAbortRef = useRef<AbortController | null>(null);
 
   const mapsKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
@@ -461,40 +480,84 @@ export default function CheckoutPage() {
     setShippingLoading(true);
     setShippingError(null);
 
+    const distKm = haversineKm(addressLat, addressLng, JKT_LAT, JKT_LNG);
+
+    // ---- Same-day zone (Greater Jakarta + Bekasi): Lalamove. Unchanged behaviour. ----
+    if (distKm <= SAMEDAY_RADIUS_KM) {
+      setDeliveryMode("sameday");
+      setIntercityRates([]);
+      setSelectedCourier(null);
+      try {
+        const res = await fetch("/api/shipping/lalamove/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: ac.signal,
+          body: JSON.stringify({ lat: addressLat, lng: addressLng, speed: deliverySpeed }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok || j?.ok === false) throw new Error(j?.error || "Failed to calculate delivery fee");
+        const price = Number(j?.price);
+        if (!Number.isFinite(price)) throw new Error("Invalid quote price");
+        setShippingCost(ceilToThousand(price));
+        setQuoteMeta(j);
+        setQuoteUpdatedAt(j?.quoteAt ? new Date(String(j.quoteAt)) : new Date());
+      } catch (e: any) {
+        if (e?.name === "AbortError") return;
+        setShippingCost(null); setQuoteMeta(null); setQuoteUpdatedAt(null);
+        setShippingError(e?.message || "Unable to calculate delivery fee");
+      } finally {
+        setShippingLoading(false);
+      }
+      return;
+    }
+
+    // ---- Intercity zone: Biteship next-day couriers, quoted by postal code. ----
+    setDeliveryMode("intercity");
+    setQuoteMeta(null);
+    setQuoteUpdatedAt(null);
+    const pc = String(postalCode || "").trim();
+    if (!/^\d{5}$/.test(pc)) {
+      setIntercityRates([]); setSelectedCourier(null); setShippingCost(null);
+      setShippingError("Enter your 5-digit postal code for intercity delivery.");
+      setShippingLoading(false);
+      return;
+    }
     try {
-      const res = await fetch("/api/shipping/lalamove/quote", {
+      const totalUnits = Array.isArray((cart as any)?.boxes)
+        ? (cart as any).boxes.reduce((s: number, b: any) => s + (b.items || []).reduce((ss: number, it: any) => ss + (it.quantity || 0), 0), 0)
+        : 0;
+      const weight = Math.max(500, totalUnits * 180 + 200);
+      const res = await fetch("/api/shipping/rates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: ac.signal,
-        body: JSON.stringify({ lat: addressLat, lng: addressLng, speed: deliverySpeed }),
+        body: JSON.stringify({ destination_postal_code: Number(pc), value: 180000, weight }),
       });
-
       const j = await res.json().catch(() => ({}));
-      if (!res.ok || j?.ok === false) throw new Error(j?.error || "Failed to calculate delivery fee");
-
-      const price = Number(j?.price);
-      if (!Number.isFinite(price)) throw new Error("Invalid quote price");
-
-      setShippingCost(ceilToThousand(price));
-      setQuoteMeta(j);
-
-      const now = j?.quoteAt ? new Date(String(j.quoteAt)) : new Date();
-      setQuoteUpdatedAt(now);
+      const rawRates: any[] = Array.isArray(j?.data?.pricing) ? j.data.pricing : [];
+      // Only keep options with a real numeric price (guards against a NaN total).
+      const rates = rawRates.filter((x) => Number.isFinite(Number(x?.price)));
+      if (!res.ok || rates.length === 0) {
+        setDeliveryMode("unavailable");
+        setIntercityRates([]); setSelectedCourier(null); setShippingCost(null);
+        setShippingError("Sorry — we can't ship to this address yet. Try pickup or a closer address.");
+        return;
+      }
+      const sorted = rates.slice().sort((a, b) => Number(a.price) - Number(b.price));
+      setIntercityRates(sorted);
+      setSelectedCourier(sorted[0]);
+      setShippingCost(Number(sorted[0].price));
+      setShippingError(null);
     } catch (e: any) {
       if (e?.name === "AbortError") return;
-      setShippingCost(null);
-      setQuoteMeta(null);
-      setQuoteUpdatedAt(null);
-      setShippingError(e?.message || "Unable to calculate delivery fee");
-      if (opts?.manual) {
-        // keep same behavior; user can retry
-      }
+      setIntercityRates([]); setSelectedCourier(null); setShippingCost(null);
+      setShippingError("Couldn't load delivery options — please try again.");
     } finally {
       setShippingLoading(false);
     }
   };
 
-  // Auto re-quote on address/speed change (debounced)
+  // Auto re-quote on address/speed/postal change (debounced)
   useEffect(() => {
     if (fulfillment !== "delivery") {
       setShippingCost(0);
@@ -502,6 +565,9 @@ export default function CheckoutPage() {
       setShippingLoading(false);
       setQuoteMeta(null);
       setQuoteUpdatedAt(null);
+      setDeliveryMode(null);
+      setIntercityRates([]);
+      setSelectedCourier(null);
       return;
     }
     if (!canQuote) return;
@@ -512,7 +578,7 @@ export default function CheckoutPage() {
 
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fulfillment, deliverySpeed, addressResolved, addressLat, addressLng]);
+  }, [fulfillment, deliverySpeed, addressResolved, addressLat, addressLng, postalCode]);
 
   const deliveryFee = fulfillment === "delivery" ? shippingCost : 0;
   const grandTotal = subtotal + (deliveryFee || 0);
@@ -526,9 +592,13 @@ export default function CheckoutPage() {
       if (!addressResolved || addressLat === null || addressLng === null) {
         return "Please choose a valid address from the Google suggestions.";
       }
+      if (deliveryMode === "unavailable")
+        return "Sorry, we can't ship to this address. Please choose pickup or a closer address.";
+      if (deliveryMode === "intercity" && !selectedCourier)
+        return "Please choose a courier for intercity delivery.";
       if (shippingCost == null)
         return "Delivery fee unavailable. Please recalculate delivery fee.";
-      if (noSlotsLeftToday)
+      if (deliveryMode !== "intercity" && noSlotsLeftToday)
         return "No delivery slots left for today. Please choose another date.";
     }
 
@@ -601,6 +671,11 @@ export default function CheckoutPage() {
               }
             : null,
 
+        // Intercity courier (Biteship). Null for same-day/pickup.
+        courier_company: deliveryMode === "intercity" && selectedCourier ? selectedCourier.courier_code : null,
+        courier_type: deliveryMode === "intercity" && selectedCourier ? selectedCourier.courier_service_code : null,
+        courier_service: deliveryMode === "intercity" && selectedCourier ? selectedCourier.courier_service_name : null,
+
         notes,
         gift: isGift ? { message: giftMessage.trim(), to: giftTo.trim(), from: giftFrom.trim() } : null,
         redeem: [
@@ -610,7 +685,11 @@ export default function CheckoutPage() {
         cart,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
         total: grandTotal,
-        meta: { quote: quoteMeta },
+        meta: {
+          quote: quoteMeta,
+          delivery_mode: fulfillment === "delivery" ? deliveryMode : null,
+          courier: deliveryMode === "intercity" ? selectedCourier : null,
+        },
       };
 
       const res = await fetch("/api/checkout", {
@@ -1175,7 +1254,7 @@ export default function CheckoutPage() {
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                     <div style={{ fontWeight: 950, color: COLORS.black }}>
-                      {shownLabel || "Live quote (Lalamove)"}
+                      {deliveryMode === "intercity" ? "🚚 Next-day / intercity" : (shownLabel || "Live quote (Lalamove)")}
                     </div>
                     <button
                       type="button"
@@ -1243,6 +1322,29 @@ export default function CheckoutPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Intercity courier picker (out-of-zone addresses) */}
+                {deliveryMode === "intercity" && intercityRates.length > 0 ? (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Choose your courier</div>
+                    <div style={{ display: "grid", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+                      {intercityRates.map((r: any, i: number) => {
+                        const active = !!selectedCourier && selectedCourier.courier_code === r.courier_code && selectedCourier.courier_service_code === r.courier_service_code;
+                        const nextDay = /^\s*1\s*-\s*1/.test(String(r.duration || ""));
+                        return (
+                          <button key={i} type="button" onClick={() => { setSelectedCourier(r); setShippingCost(Number(r.price)); }}
+                            style={{ textAlign: "left", borderRadius: 12, border: active ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.12)", background: active ? "rgba(0,20,167,0.06)" : "#fff", padding: "10px 12px", cursor: "pointer", display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                            <span style={{ minWidth: 0 }}>
+                              <span style={{ fontWeight: 900, color: COLORS.black }}>{r.courier_name} — {r.courier_service_name}</span>
+                              <span style={{ display: "block", fontSize: 12, color: "#6B6B6B", marginTop: 2 }}>{String(r.duration || "")}{nextDay ? " · next-day ⚡" : ""}</span>
+                            </span>
+                            <span style={{ fontWeight: 950, color: COLORS.black, whiteSpace: "nowrap" }}>{formatIDR(Number(r.price))}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
 
                 <div style={{ display: "grid", gap: 8 }}>
                   <input

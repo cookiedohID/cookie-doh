@@ -46,6 +46,9 @@ export async function createBiteshipOrder(input: CreateBiteshipOrderInput) {
   const shipper_organization = process.env.BITESHIP_SHIPPER_ORG ?? "Cookie Doh";
 
   const payload: any = {
+    // back-reference to our order (midtrans_order_id)
+    reference_id: input.external_id,
+
     // shipper
     shipper_contact_name,
     shipper_contact_phone,

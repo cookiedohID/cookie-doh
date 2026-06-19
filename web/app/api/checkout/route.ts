@@ -192,6 +192,12 @@ export async function POST(req: Request) {
       destination_area_id: destinationAreaId || null,
       destination_area_label: destinationAreaLabel || null,
 
+      // Intercity courier (Biteship). Set only for out-of-zone delivery; the
+      // Midtrans webhook reads these to create the next-day shipment by postal.
+      courier_company: (payload?.courier_company || null),
+      courier_type: (payload?.courier_type || null),
+      courier_service: (payload?.courier_service || null),
+
       subtotal_idr: subtotal || null,
       shipping_cost_idr: shippingCost || 0,
       total_idr: totalIdr || null,

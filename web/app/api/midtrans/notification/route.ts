@@ -3,6 +3,7 @@ import { decrementStockForOrder } from "@/lib/stock";
 import { NextResponse } from "next/server";
 import midtransClient from "midtrans-client";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { createBiteshipOrder as createIntercityShipment } from "@/lib/biteship";
 
 export const runtime = "nodejs";
 
@@ -293,7 +294,30 @@ export async function POST(req: Request) {
           .maybeSingle();
 
         if (!existing?.biteship_order_id) {
-          const biteship = await createBiteshipOrder(order);
+          // Intercity orders carry a customer-chosen Biteship courier + postal —
+          // ship via the postal-based helper (matches the quoted rate). Same-day /
+          // area-based orders keep the existing lat/lng path untouched.
+          const isIntercity = order?.meta?.delivery_mode === "intercity" && order?.courier_company;
+          const biteship = isIntercity
+            ? await createIntercityShipment({
+                external_id: order.midtrans_order_id,
+                destination_address: order.shipping_address || order.address || "",
+                destination_contact_name: order.customer_name || order?.customer_json?.name || "Customer",
+                destination_contact_phone: order.customer_phone || order?.customer_json?.phone || "",
+                destination_postal_code: order.postal ? Number(order.postal) : null,
+                courier_company: order.courier_company,
+                courier_type: order.courier_type,
+                items: (Array.isArray(order.items_json) ? order.items_json : []).map((it: any) => ({
+                  name: String(it?.name || "Item"),
+                  value: (Number(it?.price) || 0) * (Number(it?.quantity) || 1),
+                  quantity: Number(it?.quantity) || 1,
+                  // Per-item weight matches the checkout quote (180g) so the shipped
+                  // weight never exceeds what the customer was charged for.
+                  weight: 180,
+                })),
+                order_note: order.notes || "",
+              })
+            : await createBiteshipOrder(order);
 
           await supabase.from("shipments").insert({
             order_id: order.id,

@@ -199,7 +199,10 @@ export default function GoogleAddressInput({
         const dLat = (lat - -6.25) * 111;
         const dLng = (lng - 106.83) * 111 * Math.cos((-6.25 * Math.PI) / 180);
         const km = Math.sqrt(dLat * dLat + dLng * dLng);
-        if (km > 80) return; // out of service area — stay unresolved
+        // Allow anywhere in Indonesia (the country restriction guards the rest) —
+        // far addresses are handled by intercity shipping at checkout. The wide cap
+        // only rejects an obviously-wrong match outside the archipelago.
+        if (km > 4000) return;
       }
 
       const { postal, city, building } = extractAddressParts(place);
