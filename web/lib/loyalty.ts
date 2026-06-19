@@ -61,7 +61,10 @@ export function loyaltyFromOrders(orders: any[]): LoyaltyProgress {
       if (!qty) continue;
 
       if (it?.bundle === true) continue; // bundle items don't earn
-      const isFree = it?.free === true || Number(it?.price) === 0;
+      // A redeemed reward is explicitly flagged free:true (and priced 0). A price
+      // of 0 ALONE is not a redemption — box/assortment lines are priced at the
+      // set level, so price-0 box cookies should EARN, not be counted as redeemed.
+      const isFree = it?.free === true;
 
       if (isFree) {
         if (kind === "cookie") cookieFree += qty;

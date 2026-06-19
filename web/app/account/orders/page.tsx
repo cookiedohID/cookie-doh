@@ -101,7 +101,7 @@ export default function MyOrdersPage() {
                     {o.items.map((it, i) => (
                       <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#333" }}>
                         <span>{it.qty}× {it.name}{it.free ? <span style={{ color: COLORS.blue, fontWeight: 700 }}> · free</span> : null}</span>
-                        <span style={{ color: COLORS.muted }}>{it.free ? "—" : rupiah(it.price * it.qty)}</span>
+                        <span style={{ color: COLORS.muted }}>{it.free || !it.price ? "—" : rupiah(it.price * it.qty)}</span>
                       </div>
                     ))}
                   </div>

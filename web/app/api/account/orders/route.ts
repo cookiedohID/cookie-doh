@@ -72,7 +72,10 @@ export async function GET(req: Request) {
               name: String(it?.name ?? "Item"),
               qty: Number(it?.quantity ?? 1),
               price: Number(it?.price ?? 0),
-              free: Boolean(it?.free) || Number(it?.price ?? 0) === 0,
+              // ONLY an explicitly-redeemed reward is "free". A zero per-line price
+              // usually means a box/bundle item (priced at the set level), not a
+              // giveaway — labelling those "free" wrongly looked like we gave them away.
+              free: it?.free === true,
             }))
           : [];
         return {
