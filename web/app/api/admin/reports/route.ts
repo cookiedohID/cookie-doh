@@ -61,7 +61,7 @@ export async function GET(req: Request) {
 
     // ---- Aggregations ----
     const dailyMap: Record<string, { orders: number; revenue: number }> = {};
-    const dailyDetail: Record<string, Array<{ orderNo: any; total: number; items: { name: string; qty: number }[] }>> = {};
+    const dailyDetail: Record<string, Array<{ id: string; orderNo: any; total: number; items: { name: string; qty: number }[] }>> = {};
     const itemMap: Record<string, { id: string; name: string; kind: string; qty: number; revenue: number; freeQty: number }> = {};
     const locMap: Record<string, { orders: number; revenue: number }> = {};
     const redeemMap: Record<string, { id: string; name: string; kind: string; qty: number }> = {};
@@ -76,6 +76,7 @@ export async function GET(req: Request) {
       dailyMap[d].orders += 1; dailyMap[d].revenue += rev;
       dailyDetail[d] = dailyDetail[d] || [];
       dailyDetail[d].push({
+        id: o.id,
         orderNo: o.order_no ?? null,
         total: rev,
         items: (Array.isArray(o.items_json) ? o.items_json : [])

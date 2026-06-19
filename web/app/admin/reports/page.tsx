@@ -123,10 +123,15 @@ export default function AdminReportsPage() {
                           <tr>
                             <td colSpan={3} style={{ padding: "6px 14px 12px", background: "rgba(0,0,0,0.02)" }}>
                               {detail.map((o, i) => (
-                                <div key={i} style={{ fontSize: 12.5, color: "#333", padding: "4px 0", borderBottom: i < detail.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none" }}>
-                                  <strong>{o.orderNo ? `#${o.orderNo}` : "Order"}</strong> · {rupiah(o.total)}
-                                  {o.items?.length ? <span style={{ color: COLORS.muted }}> — {o.items.map((it: any) => `${it.qty}× ${it.name}`).join(", ")}</span> : null}
-                                </div>
+                                <Link key={i} href={o.id ? `/admin/orders/${o.id}` : "#"} style={{ textDecoration: "none", display: "block" }}>
+                                  <div style={{ fontSize: 12.5, color: "#333", padding: "5px 6px", margin: "0 -6px", borderRadius: 8, borderBottom: i < detail.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none", cursor: "pointer" }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,20,167,0.06)")}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                                    <strong style={{ color: COLORS.blue }}>{o.orderNo ? `#${o.orderNo}` : "Order"}</strong> · {rupiah(o.total)}
+                                    {o.items?.length ? <span style={{ color: COLORS.muted }}> — {o.items.map((it: any) => `${it.qty}× ${it.name}`).join(", ")}</span> : null}
+                                    <span style={{ color: COLORS.blue, fontWeight: 800 }}> ›</span>
+                                  </div>
+                                </Link>
                               ))}
                             </td>
                           </tr>
