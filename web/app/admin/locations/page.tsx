@@ -82,14 +82,7 @@ export default function AdminLocationsPage() {
   return (
     <main style={{ minHeight: "100vh", background: COLORS.sand }}>
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "28px 18px 80px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: COLORS.black, margin: 0 }}>Locations</h1>
-          <div style={{ display: "flex", gap: 14 }}>
-            <Link href="/admin" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Home</Link>
-            <Link href="/admin/flavors" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Inventory</Link>
-            <Link href="/admin/reports" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Reports</Link>
-          </div>
-        </div>
+        <h1 style={{ fontSize: 26, fontWeight: 900, color: COLORS.black, margin: 0 }}>Locations</h1>
         <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6 }}>
           Manage your stores and move stock between them. New locations are inventory/transfer points — delivery still ships from your existing stores.
         </p>

@@ -61,14 +61,7 @@ export default function AdminReportsPage() {
   return (
     <main style={{ minHeight: "100vh", background: COLORS.sand }}>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: "28px 18px 80px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 900, color: COLORS.black, margin: 0 }}>Reports</h1>
-          <div style={{ display: "flex", gap: 14 }}>
-            <Link href="/admin/orders" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Orders</Link>
-            <Link href="/admin/customers" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Customers</Link>
-            <Link href="/admin/flavors" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Inventory</Link>
-          </div>
-        </div>
+        <h1 style={{ fontSize: 26, fontWeight: 900, color: COLORS.black, margin: 0 }}>Reports</h1>
 
         {/* Filters */}
         <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>

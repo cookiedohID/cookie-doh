@@ -67,14 +67,7 @@ export default function CustomersAdminPage() {
   return (
     <main style={{ minHeight: "100vh", background: "#fff" }}>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "22px 16px 80px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Admin · Customers</h1>
-          <div style={{ display: "flex", gap: 14 }}>
-            <Link href="/admin/flavors" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Inventory →</Link>
-            <Link href="/admin/orders" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Orders →</Link>
-            <Link href="/admin/reports" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>Reports →</Link>
-          </div>
-        </div>
+        <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Admin · Customers</h1>
 
         <input
           value={q}

@@ -94,6 +94,50 @@ export default function SiteHeader() {
   // storefront nav so a walk-in customer can't navigate away from it.
   if (pathname?.startsWith("/cafe")) return null;
 
+  // Admin mode: show admin functions instead of the storefront nav. The logo
+  // still links to the storefront homepage. The login page keeps a bare header.
+  if (pathname?.startsWith("/admin") && pathname !== "/admin/login") {
+    const adminNav: NavItem[] = [
+      { href: "/admin", label: "Home" },
+      { href: "/admin/orders", label: "Orders" },
+      { href: "/admin/flavors", label: "Inventory" },
+      { href: "/admin/locations", label: "Locations" },
+      { href: "/admin/reports", label: "Reports" },
+      { href: "/admin/customers", label: "Customers" },
+    ];
+    const adminActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(href + "/"));
+    return (
+      <header style={{ position: "sticky", top: 0, zIndex: 50, background: COLORS.blue, borderBottom: "1px solid rgba(255,255,255,0.14)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: "10px 14px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <Link href="/" aria-label="Cookie Doh storefront" style={{ display: "flex", alignItems: "center", minWidth: 0 }}>
+            <Image src="/logo.png" alt="Cookie Doh" width={140} height={28} priority style={{ height: "auto", width: "140px", maxWidth: "100%" }} />
+          </Link>
+          <nav aria-label="Admin" style={{ marginLeft: "auto", display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+            {adminNav.map((item) => {
+              const active = adminActive(item.href);
+              return (
+                <Link key={item.href} href={item.href} style={{
+                  textDecoration: "none", color: "rgba(255,255,255,0.92)", fontWeight: active ? 950 : 800,
+                  padding: "7px 11px", borderRadius: 999, whiteSpace: "nowrap",
+                  background: active ? "rgba(255,255,255,0.16)" : "transparent",
+                }}>
+                  {item.label}
+                </Link>
+              );
+            })}
+            <button
+              type="button"
+              onClick={async () => { await fetch("/api/admin/login", { method: "DELETE" }); window.location.href = "/admin/login"; }}
+              style={{ border: "1px solid rgba(255,255,255,0.3)", background: "transparent", color: "#fff", fontWeight: 800, fontSize: 13, padding: "7px 12px", borderRadius: 999, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              Log out
+            </button>
+          </nav>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header
       style={{

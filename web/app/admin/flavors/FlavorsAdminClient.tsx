@@ -135,23 +135,7 @@ export default function FlavorsAdminClient() {
     <main style={{ minHeight: "100vh", background: "#fff" }}>
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "22px 16px 80px" }}>
         <header style={{ marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-            <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Admin · Inventory</h1>
-            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-              <Link href="/admin" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
-                Home
-              </Link>
-              <Link href="/admin/locations" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
-                Locations &amp; transfer →
-              </Link>
-              <Link href="/admin/orders" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
-                Orders →
-              </Link>
-              <Link href="/admin/reports" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
-                Reports →
-              </Link>
-            </div>
-          </div>
+          <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Admin · Inventory</h1>
           <p style={{ margin: "6px 0 0", color: "#6B6B6B", fontSize: 13.5, lineHeight: 1.4 }}>
             Stock is tracked <b>per location</b>. Pick a location, set a stock number per item
             (blank = unlimited). Items hit <b>Sold Out</b> at 0, or flip the manual toggle.

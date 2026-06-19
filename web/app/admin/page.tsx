@@ -13,20 +13,11 @@ const SECTIONS = [
 ];
 
 export default function AdminHome() {
-  async function logout() {
-    await fetch("/api/admin/login", { method: "DELETE" });
-    window.location.href = "/admin/login";
-  }
   return (
     <main style={{ minHeight: "100vh", background: COLORS.sand }}>
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 18px 80px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-          <div>
-            <span className="font-dearjoe" style={{ fontSize: 22, color: COLORS.blue }}>cookie doh</span>
-            <h1 style={{ margin: "2px 0 0", fontSize: 28, fontWeight: 800, color: COLORS.black }}>Admin</h1>
-          </div>
-          <button onClick={logout} style={{ border: "none", background: "none", color: COLORS.muted, fontWeight: 800, fontSize: 13, cursor: "pointer" }}>Log out</button>
-        </div>
+        <span className="font-dearjoe" style={{ fontSize: 22, color: COLORS.blue }}>cookie doh</span>
+        <h1 style={{ margin: "2px 0 0", fontSize: 28, fontWeight: 800, color: COLORS.black }}>Admin</h1>
 
         <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
           {SECTIONS.map((s) => (

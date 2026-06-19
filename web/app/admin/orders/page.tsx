@@ -327,36 +327,13 @@ export default function AdminOrdersPage() {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
         <h1 style={{ margin: 0, fontSize: 22 }}>Admin — Orders</h1>
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <Link href="/admin/orders" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
-            Orders
-          </Link>
-          <Link href="/admin/flavors" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
-            Inventory
-          </Link>
-          <Link href="/admin/customers" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
-            Customers
-          </Link>
-          <Link href="/admin/reports" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
-            Reports
-          </Link>
-          <Link href="/admin/locations" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
-            Locations
-          </Link>
-          <button
-            onClick={deleteAllUnpaid}
-            disabled={bulkBusy}
-            style={{ border: "1px solid rgba(192,57,43,0.4)", background: bulkBusy ? "#FDECEC" : "#fff", color: "#C0392B", fontWeight: 800, fontSize: 13, padding: "6px 12px", borderRadius: 999, cursor: bulkBusy ? "wait" : "pointer" }}
-          >
-            {bulkBusy ? "Deleting…" : "🗑 Delete all unpaid"}
-          </button>
-          <button
-            onClick={async () => { await fetch("/api/admin/login", { method: "DELETE" }); window.location.href = "/admin/login"; }}
-            style={{ border: "none", background: "none", color: "#6B6B6B", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
-          >
-            Log out
-          </button>
-        </div>
+        <button
+          onClick={deleteAllUnpaid}
+          disabled={bulkBusy}
+          style={{ border: "1px solid rgba(192,57,43,0.4)", background: bulkBusy ? "#FDECEC" : "#fff", color: "#C0392B", fontWeight: 800, fontSize: 13, padding: "6px 12px", borderRadius: 999, cursor: bulkBusy ? "wait" : "pointer" }}
+        >
+          {bulkBusy ? "Deleting…" : "🗑 Delete all unpaid"}
+        </button>
       </div>
 
       {/* Status filter pills */}
