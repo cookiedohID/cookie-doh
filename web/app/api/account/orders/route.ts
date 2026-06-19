@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
     const { data } = await supa
       .from("orders")
-      .select("id, order_no, created_at, paid_at, total_idr, payment_status, fulfilment_status, items_json, meta, customer_phone")
+      .select("id, order_no, created_at, paid_at, total_idr, payment_status, fulfilment_status, items_json, meta, customer_phone, shipping_address, address, building_name")
       .ilike("customer_phone", `%${sig}%`)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -86,6 +86,11 @@ export async function GET(req: Request) {
               };
             })
           : [];
+        const meta = o?.meta || {};
+        const f = meta.fulfillment || {};
+        const pk = meta.pickup || {};
+        const g = meta.gift || null;
+        const fulfilType = meta.channel === "cafe" ? "cafe" : (f.type || o.fulfilment_status || null);
         return {
           id: o.id,
           orderNo: o.order_no ?? null,
@@ -93,8 +98,16 @@ export async function GET(req: Request) {
           paidAt: o.paid_at,
           total: Number(o.total_idr ?? 0),
           status: o.payment_status || "PENDING",
-          channel: o?.meta?.channel === "cafe" ? "Cafe" : (o.fulfilment_status || "Online"),
+          channel: meta.channel === "cafe" ? "Cafe" : (o.fulfilment_status || "Online"),
           items,
+          // Fulfilment: how/where/when this order is collected.
+          fulfilType, // 'delivery' | 'pickup' | 'cafe' | other
+          scheduleDate: f.scheduleDate || null,
+          scheduleTime: f.scheduleTime || null,
+          pickupName: pk.pointName || null,
+          pickupAddress: pk.pointAddress || null,
+          deliveryAddress: o.shipping_address || o.address || null,
+          gift: g && (g.message || g.to || g.from) ? { message: g.message || null, to: g.to || null, from: g.from || null } : null,
         };
       });
 

@@ -17,7 +17,21 @@ type Order = {
   status: string;
   channel: string;
   items: Item[];
+  fulfilType?: string | null;
+  scheduleDate?: string | null;
+  scheduleTime?: string | null;
+  pickupName?: string | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  gift?: { message: string | null; to: string | null; from: string | null } | null;
 };
+
+function fmtSchedule(date: string | null | undefined, time: string | null | undefined) {
+  if (!date && !time) return "";
+  let d = date || "";
+  try { if (date) d = new Date(date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }); } catch {}
+  return [d, time].filter(Boolean).join(" · ");
+}
 
 const rupiah = (n: number) => "Rp" + Math.round(n || 0).toLocaleString("id-ID");
 
@@ -97,6 +111,33 @@ export default function MyOrdersPage() {
                     <span>•</span>
                     <span>{o.channel}</span>
                   </div>
+
+                  {/* Where / when */}
+                  {o.pickupName || o.fulfilType === "pickup" ? (
+                    <div style={{ marginTop: 8, padding: "8px 10px", background: "rgba(0,0,0,0.03)", borderRadius: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#333" }}>🏬 Pickup{o.pickupName ? `: ${o.pickupName}` : ""}</div>
+                      {o.pickupAddress ? <div style={{ fontSize: 12.5, color: "#555", marginTop: 2, lineHeight: 1.4 }}>{o.pickupAddress}</div> : null}
+                      {fmtSchedule(o.scheduleDate, o.scheduleTime) ? <div style={{ fontSize: 12.5, color: "#555", marginTop: 2 }}>🕒 {fmtSchedule(o.scheduleDate, o.scheduleTime)}</div> : null}
+                    </div>
+                  ) : (o.fulfilType === "delivery" || o.deliveryAddress) ? (
+                    <div style={{ marginTop: 8, padding: "8px 10px", background: "rgba(0,0,0,0.03)", borderRadius: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#333" }}>🛵 Delivery{fmtSchedule(o.scheduleDate, o.scheduleTime) ? ` · ${fmtSchedule(o.scheduleDate, o.scheduleTime)}` : ""}</div>
+                      {o.deliveryAddress ? <div style={{ fontSize: 12.5, color: "#555", marginTop: 2, lineHeight: 1.4 }}>{o.deliveryAddress}</div> : null}
+                    </div>
+                  ) : fmtSchedule(o.scheduleDate, o.scheduleTime) ? (
+                    <div style={{ marginTop: 8, padding: "8px 10px", background: "rgba(0,0,0,0.03)", borderRadius: 10, fontSize: 13, fontWeight: 800, color: "#333" }}>🕒 {fmtSchedule(o.scheduleDate, o.scheduleTime)}</div>
+                  ) : null}
+
+                  {/* Gift card */}
+                  {o.gift ? (
+                    <div style={{ marginTop: 8, padding: "8px 10px", background: "#EAF2FF", border: "1px solid rgba(0,20,167,0.2)", borderRadius: 10 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.blue }}>🎁 Gift</div>
+                      {o.gift.to ? <div style={{ fontSize: 12.5, color: "#333", marginTop: 2 }}>To: {o.gift.to}</div> : null}
+                      {o.gift.from ? <div style={{ fontSize: 12.5, color: "#333" }}>From: {o.gift.from}</div> : null}
+                      {o.gift.message ? <div style={{ fontSize: 12.5, color: "#333", marginTop: 4, fontStyle: "italic", whiteSpace: "pre-wrap", lineHeight: 1.4 }}>&ldquo;{o.gift.message}&rdquo;</div> : null}
+                    </div>
+                  ) : null}
+
                   <div style={{ marginTop: 10, display: "grid", gap: 4 }}>
                     {o.items.map((it, i) => (
                       <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#333" }}>
