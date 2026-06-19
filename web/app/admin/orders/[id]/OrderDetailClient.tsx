@@ -159,6 +159,15 @@ export default function OrderDetailClient({ id }: { id: string }) {
         {order.created_at ? new Date(order.created_at).toLocaleString() : ""}
       </div>
 
+      {order.meta?.gift && (order.meta.gift.message || order.meta.gift.to || order.meta.gift.from) ? (
+        <section style={{ marginTop: 14, border: "2px solid #0014A7", borderRadius: 16, padding: 14, background: "#EAF2FF" }}>
+          <div style={{ fontWeight: 900, color: "#0014A7" }}>🎁 Gift — handwrite a card (no prices on the box)</div>
+          {order.meta.gift.to ? <div style={{ marginTop: 6 }}><b>To:</b> {order.meta.gift.to}</div> : null}
+          {order.meta.gift.from ? <div><b>From:</b> {order.meta.gift.from}</div> : null}
+          {order.meta.gift.message ? <div style={{ marginTop: 8, fontStyle: "italic", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>&ldquo;{order.meta.gift.message}&rdquo;</div> : null}
+        </section>
+      ) : null}
+
       <section style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, padding: 14 }}>
         <div style={{ fontWeight: 900 }}>Customer</div>
         <div style={{ marginTop: 6 }}>

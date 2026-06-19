@@ -164,6 +164,7 @@ export async function POST(req: Request) {
         pickup,
         quote,
         boxes_text: boxesText,
+        gift: payload?.gift || null,
       },
     };
 

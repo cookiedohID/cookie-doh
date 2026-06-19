@@ -251,6 +251,11 @@ export default function CheckoutPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  // Gift: send with a handwritten card.
+  const [isGift, setIsGift] = useState(false);
+  const [giftMessage, setGiftMessage] = useState("");
+  const [giftTo, setGiftTo] = useState("");
+  const [giftFrom, setGiftFrom] = useState("");
 
   // touched states for inline errors
   const [phoneTouched, setPhoneTouched] = useState(false);
@@ -583,6 +588,7 @@ export default function CheckoutPage() {
             : null,
 
         notes,
+        gift: isGift ? { message: giftMessage.trim(), to: giftTo.trim(), from: giftFrom.trim() } : null,
         cart,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
         total: grandTotal,
@@ -763,6 +769,51 @@ export default function CheckoutPage() {
                 )}
               </label>
             </div>
+          </section>
+
+          {/* Gift */}
+          <section
+            style={{
+              borderRadius: 18,
+              border: isGift ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
+              padding: 14,
+              background: "#fff",
+              boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+            }}
+          >
+            <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer" }}>
+              <span>
+                <span style={{ fontWeight: 950, color: COLORS.black }}>🎁 Send as a gift</span>
+                <span style={{ display: "block", marginTop: 4, color: "#6B6B6B", fontSize: 13 }}>We&apos;ll include a handwritten card and leave prices off the box.</span>
+              </span>
+              <input type="checkbox" checked={isGift} onChange={(e) => setIsGift(e.target.checked)} style={{ width: 22, height: 22, flex: "0 0 auto", cursor: "pointer" }} />
+            </label>
+
+            {isGift ? (
+              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>To</span>
+                    <input value={giftTo} onChange={(e) => setGiftTo(e.target.value)} style={sameStyle} placeholder="Recipient's name" />
+                  </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>From</span>
+                    <input value={giftFrom} onChange={(e) => setGiftFrom(e.target.value)} style={sameStyle} placeholder="Your name" />
+                  </label>
+                </div>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Card message</span>
+                  <textarea
+                    value={giftMessage}
+                    onChange={(e) => setGiftMessage(e.target.value.slice(0, 300))}
+                    maxLength={300}
+                    style={{ minHeight: 90, borderRadius: 14, border: "1px solid rgba(0,0,0,0.12)", padding: "10px 12px", outline: "none", resize: "vertical" }}
+                    placeholder="Write your message — we'll handwrite it on the card 🤍"
+                  />
+                  <span style={{ fontSize: 11, color: "#6B6B6B", textAlign: "right" }}>{giftMessage.length}/300</span>
+                </label>
+              </div>
+            ) : null}
           </section>
 
           {/* Fulfillment */}
