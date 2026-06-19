@@ -77,10 +77,10 @@ export default function TermsPage() {
         <section style={sec}>
           <h2 style={h2}>Membership &amp; loyalty rewards</h2>
           <p style={p}>
-            Members earn one free cookie for every 10 full-priced cookies purchased, and one free drink for every
-            10 full-priced drinks. Rewards have no cash value, are non-transferable, and may expire or change. We
-            may update or end the program at any time. Discounted sets (boxes and bundles) and free reward items do
-            not earn stamps.
+            Members earn one free cookie for every 10 cookies purchased, and one free drink for every 10 drinks.
+            Single cookies and drinks, boxes, and assortments all count toward stamps. Bundles, free reward items,
+            and other promotional items do not earn stamps. Rewards have no cash value, are non-transferable, and
+            may expire or change. We may update or end the program at any time.
           </p>
         </section>
 

@@ -229,6 +229,10 @@ export default function AccountPage() {
             </div>
           ))}
         </div>
+
+        <p style={{ marginTop: 12, fontSize: 12, color: COLORS.muted, lineHeight: 1.5, textAlign: "center" }}>
+          Stamps are earned on single cookies, drinks, boxes &amp; assortments. Bundles and other promotional items don&apos;t earn stamps.
+        </p>
       </div>
     </main>
   );

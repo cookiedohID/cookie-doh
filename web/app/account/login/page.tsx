@@ -107,7 +107,7 @@ export default function MemberLoginPage() {
         <p style={{ margin: "8px 0 0", color: COLORS.muted, fontSize: 14 }}>
           {step === "otp"
             ? note || "Enter the code from WhatsApp."
-            : "Earn a free cookie every 10 cookies, and a free drink every 10 drinks."}
+            : "Earn a free cookie every 10 cookies, and a free drink every 10 drinks. Single cookies, drinks, boxes & assortments count toward stamps — bundles and other promotional items don’t."}
         </p>
 
         <form onSubmit={onSubmit} style={{ marginTop: 22, display: "grid", gap: 10 }}>
