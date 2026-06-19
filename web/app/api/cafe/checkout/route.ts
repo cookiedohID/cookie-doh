@@ -7,6 +7,7 @@ import { canonicalPhone } from "@/lib/phone";
 import { loyaltyForPhone } from "@/app/api/loyalty/lookup/route";
 import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
+import { getBundle } from "@/lib/bundles";
 
 export const runtime = "nodejs";
 
@@ -76,7 +77,34 @@ export async function POST(req: Request) {
       }
     }
 
-    const allItems = [...items, ...boxItems];
+    // Bundles (fixed-price X cookies + Y drinks) — flatten to per-unit lines,
+    // priced server-side from the bundle definition, marked bundle:true so they
+    // don't earn loyalty stamps (a discounted set).
+    const rawBundles = Array.isArray(body?.bundles) ? body.bundles : [];
+    const bundleItems: any[] = [];
+    for (const b of rawBundles) {
+      const bundle = getBundle(String(b?.id || ""));
+      if (!bundle) return NextResponse.json({ ok: false, error: "Unknown bundle." }, { status: 400 });
+      const cookiePicks = (Array.isArray(b?.cookies) ? b.cookies : [])
+        .map((it: any) => ({ id: String(it?.id || ""), name: String(it?.name || "Item"), qty: Math.max(1, Math.round(Number(it?.qty ?? it?.quantity) || 1)) }))
+        .filter((it: any) => it.id && COOKIE_IDS.has(it.id));
+      const drinkPicks = (Array.isArray(b?.drinks) ? b.drinks : [])
+        .map((it: any) => ({ id: String(it?.id || ""), name: String(it?.name || "Item"), qty: Math.max(1, Math.round(Number(it?.qty ?? it?.quantity) || 1)) }))
+        .filter((it: any) => it.id && DRINK_IDS.has(it.id));
+      const cCount = cookiePicks.reduce((s: number, it: any) => s + it.qty, 0);
+      const dCount = drinkPicks.reduce((s: number, it: any) => s + it.qty, 0);
+      if (cCount !== bundle.cookies || dCount !== bundle.drinks) {
+        return NextResponse.json({ ok: false, error: `${bundle.name} needs ${bundle.cookies} cookies + ${bundle.drinks} drinks.` }, { status: 400 });
+      }
+      const units: { id: string; name: string; kind: "cookie" | "drink" }[] = [];
+      for (const p of cookiePicks) for (let i = 0; i < p.qty; i++) units.push({ id: p.id, name: p.name, kind: "cookie" });
+      for (const p of drinkPicks) for (let i = 0; i < p.qty; i++) units.push({ id: p.id, name: p.name, kind: "drink" });
+      const base = Math.floor(bundle.price / units.length);
+      const rem = bundle.price - base * units.length; // spread so the lines sum to the exact bundle price
+      units.forEach((u, i) => bundleItems.push({ id: u.id, name: u.name, kind: u.kind, price: base + (i < rem ? 1 : 0), quantity: 1, free: false, bundle: true }));
+    }
+
+    const allItems = [...items, ...boxItems, ...bundleItems];
     if (!allItems.length) return NextResponse.json({ ok: false, error: "Cart is empty" }, { status: 400 });
 
     const total = allItems.reduce((s: number, it: any) => s + (it.free ? 0 : it.price * it.quantity), 0);

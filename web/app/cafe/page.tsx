@@ -6,6 +6,7 @@ import Image from "next/image";
 import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
 import { ASSORTMENTS, type Assortment } from "@/lib/assortments";
+import { BUNDLES, getBundle } from "@/lib/bundles";
 import { COLORS } from "@/lib/theme";
 
 const COOKIE_PRICE = 32500;
@@ -35,6 +36,9 @@ export default function CafePOS() {
   const [boxes, setBoxes] = useState<{ key: string; size: number; items: { id: string; name: string; qty: number }[]; label?: string; assortKey?: string }[]>([]);
   const [boxBuild, setBoxBuild] = useState<{ size: number; picks: Record<string, { name: string; qty: number }> } | null>(null);
   const [review, setReview] = useState(false); // order summary screen before paying
+  // Bundles: fixed-price set of X cookies + Y drinks (customer picks).
+  const [bundles, setBundles] = useState<{ key: string; bundleId: string; label: string; price: number; cookies: { id: string; name: string; qty: number }[]; drinks: { id: string; name: string; qty: number }[] }[]>([]);
+  const [bundleBuild, setBundleBuild] = useState<{ bundleId: string; cookiePicks: Record<string, { name: string; qty: number }>; drinkPicks: Record<string, { name: string; qty: number }> } | null>(null);
 
   // paid / print phase
   const [paid, setPaid] = useState<{ orderNo: string; lines: Line[]; total: number } | null>(null);
@@ -67,10 +71,13 @@ export default function CafePOS() {
   const boxPrice = (size: number) => (BOX_PRICES as any)[size] || 0;
   const itemsTotal = lines.reduce((s, l) => s + (l.free ? 0 : l.item.price * l.qty), 0);
   const boxesTotal = boxes.reduce((s, b) => s + boxPrice(b.size), 0);
-  const total = itemsTotal + boxesTotal;
+  const bundlesTotal = bundles.reduce((s, b) => s + b.price, 0);
+  const total = itemsTotal + boxesTotal + bundlesTotal;
   const paidCount = lines.reduce((s, l) => s + (l.free ? 0 : l.qty), 0);
-  const payable = paidCount > 0 || boxes.length > 0;
+  const payable = paidCount > 0 || boxes.length > 0 || bundles.length > 0;
   const boxPickCount = boxBuild ? Object.values(boxBuild.picks).reduce((s, v) => s + v.qty, 0) : 0;
+  const bundleCookieCount = bundleBuild ? Object.values(bundleBuild.cookiePicks).reduce((s, v) => s + v.qty, 0) : 0;
+  const bundleDrinkCount = bundleBuild ? Object.values(bundleBuild.drinkPicks).reduce((s, v) => s + v.qty, 0) : 0;
 
   const usedFree = (kind: Kind) => lines.filter((l) => l.free && l.item.kind === kind).reduce((s, l) => s + l.qty, 0);
   const remainingFree = (kind: Kind) =>
@@ -133,7 +140,7 @@ export default function CafePOS() {
     setRewards(r?.ok ? { name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks } : { name: null, freeCookies: 0, freeDrinks: 0 });
   }
 
-  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setBoxes([]); setReview(false); }
+  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setBoxes([]); setBundles([]); setBundleBuild(null); setReview(false); }
 
   // ---- box builder ----
   function bumpPick(item: MenuItem, d: number) {
@@ -178,6 +185,41 @@ export default function CafePOS() {
     });
   }
 
+  // ---- bundles ----
+  const bundleCount = (bundleId: string) => bundles.filter((b) => b.bundleId === bundleId).length;
+  function removeOneBundle(bundleId: string) {
+    setBundles((bs) => {
+      for (let i = bs.length - 1; i >= 0; i--) if (bs[i].bundleId === bundleId) return bs.filter((_, idx) => idx !== i);
+      return bs;
+    });
+  }
+  function bumpBundlePick(item: MenuItem, d: number) {
+    const bundle = getBundle(bundleBuild?.bundleId);
+    if (!bundle) return;
+    const isCookie = item.kind === "cookie";
+    const limit = isCookie ? bundle.cookies : bundle.drinks;
+    setBundleBuild((bb) => {
+      if (!bb) return bb;
+      const picks = isCookie ? { ...bb.cookiePicks } : { ...bb.drinkPicks };
+      const cur = picks[item.id]?.qty || 0;
+      const others = Object.entries(picks).reduce((s, [k, v]) => s + (k === item.id ? 0 : v.qty), 0);
+      let next = cur + d;
+      if (next < 0) next = 0;
+      if (others + next > limit) next = limit - others;
+      if (next <= 0) delete picks[item.id]; else picks[item.id] = { name: item.name, qty: next };
+      return isCookie ? { ...bb, cookiePicks: picks } : { ...bb, drinkPicks: picks };
+    });
+  }
+  function addBundle() {
+    const bundle = getBundle(bundleBuild?.bundleId);
+    if (!bundle || !bundleBuild) return;
+    if (bundleCookieCount !== bundle.cookies || bundleDrinkCount !== bundle.drinks) return;
+    const cookiesList = Object.entries(bundleBuild.cookiePicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
+    const drinksList = Object.entries(bundleBuild.drinkPicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
+    setBundles((bs) => [...bs, { key: `bundle-${bundle.id}-${Math.random().toString(36).slice(2, 9)}`, bundleId: bundle.id, label: bundle.name, price: bundle.price, cookies: cookiesList, drinks: drinksList }]);
+    setBundleBuild(null);
+  }
+
   function jump(id: string) {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -193,6 +235,7 @@ export default function CafePOS() {
         body: JSON.stringify({
           items: lines.map((l) => ({ id: l.item.id, name: l.item.name, kind: l.item.kind, price: l.free ? 0 : l.item.price, quantity: l.qty, free: !!l.free })),
           boxes: boxes.map((b) => ({ size: b.size, items: b.items.map((it) => ({ id: it.id, name: it.name, qty: it.qty })) })),
+          bundles: bundles.map((b) => ({ id: b.bundleId, cookies: b.cookies.map((c) => ({ id: c.id, name: c.name, qty: c.qty })), drinks: b.drinks.map((d) => ({ id: d.id, name: d.name, qty: d.qty })) })),
           memberPhone: memberPhone || undefined,
         }),
       });
@@ -284,6 +327,14 @@ export default function CafePOS() {
                 <div style={{ fontSize: 12.5, color: COLORS.muted, marginTop: 4 }}>{b.items.map((it) => `${it.qty}× ${it.name}`).join(", ")}</div>
               </div>
             ))}
+            {bundles.map((b) => (
+              <div key={b.key} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 800, color: COLORS.black }}>
+                  <span>🎁 {b.label}</span><span>{formatIDR(b.price)}</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: COLORS.muted, marginTop: 4 }}>{[...b.cookies, ...b.drinks].map((it) => `${it.qty}× ${it.name}`).join(", ")}</div>
+              </div>
+            ))}
             {lines.map((l) => (
               <div key={l.key} style={{ padding: "12px 16px", borderBottom: "1px solid rgba(0,0,0,0.06)", display: "flex", justifyContent: "space-between", color: COLORS.black }}>
                 <span style={{ fontWeight: 700 }}>{l.free ? "🎁 " : ""}{l.qty}× {l.item.name}{l.free ? " (free)" : ""}</span>
@@ -313,7 +364,7 @@ export default function CafePOS() {
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
           <Image src="/logo.png" alt="Cookie Doh" width={140} height={28} priority style={{ width: 140, height: "auto", maxWidth: "100%", flex: "0 0 auto" }} />
           <nav style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center", overflowX: "auto" }}>
-            {[{ id: "assortments", label: "Assortments" }, { id: "boxes", label: "Boxes" }, { id: "cookies", label: "Cookies" }, { id: "drinks", label: "Drinks" }].map((s) => (
+            {[{ id: "assortments", label: "Assortments" }, { id: "boxes", label: "Boxes" }, { id: "bundles", label: "Bundles" }, { id: "cookies", label: "Cookies" }, { id: "drinks", label: "Drinks" }].map((s) => (
               <button key={s.id} onClick={() => jump(s.id)} style={{
                 flex: "0 0 auto", border: "1px solid transparent", background: "transparent",
                 color: "rgba(255,255,255,0.92)", fontWeight: 800, fontSize: 15, padding: "8px 12px",
@@ -385,6 +436,37 @@ export default function CafePOS() {
                     </div>
                   ) : (
                     <button onClick={() => setBoxBuild({ size, picks: {} })} style={{ border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, borderRadius: 999, padding: "8px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>＋ Build box</button>
+                  )}
+                </div>
+              </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Bundles — fixed-price cookie + drink sets */}
+        <section id="bundles" style={{ scrollMarginTop: 96, paddingTop: 18 }}>
+          <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 2px" }}>🎁 Bundles</h2>
+          <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 12px" }}>Pick your own cookies + drinks at a set price.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            {BUNDLES.map((bn) => {
+              const q = bundleCount(bn.id);
+              return (
+              <div key={bn.id} style={{ position: "relative", textAlign: "left", border: q > 0 ? `2px solid ${COLORS.blue}` : `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff", padding: 16, display: "flex", flexDirection: "column", gap: 5 }}>
+                {q > 0 ? <span style={{ position: "absolute", top: 10, right: 10, background: COLORS.blue, color: "#fff", borderRadius: 999, minWidth: 26, height: 26, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 13 }}>{q}</span> : null}
+                {bn.badge ? <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.blue, textTransform: "uppercase", letterSpacing: 0.4 }}>{bn.badge}</span> : null}
+                <span style={{ fontWeight: 800, fontSize: 16, color: COLORS.black }}>{bn.name}</span>
+                <span style={{ fontWeight: 900, fontSize: 15.5, color: COLORS.blue }}>{formatIDR(bn.price)}</span>
+                <span style={{ fontSize: 12.5, color: COLORS.muted, lineHeight: 1.35 }}>{bn.cookies} cookie{bn.cookies > 1 ? "s" : ""} + {bn.drinks} drink{bn.drinks > 1 ? "s" : ""}</span>
+                <div style={{ marginTop: 6 }}>
+                  {q > 0 ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <button onClick={() => removeOneBundle(bn.id)} aria-label={`Remove a ${bn.name}`} style={stepBtn}>–</button>
+                      <span style={{ fontWeight: 800, fontSize: 15, minWidth: 16, textAlign: "center" }}>{q}</span>
+                      <button onClick={() => setBundleBuild({ bundleId: bn.id, cookiePicks: {}, drinkPicks: {} })} aria-label={`Build another ${bn.name}`} style={stepBtn}>+</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setBundleBuild({ bundleId: bn.id, cookiePicks: {}, drinkPicks: {} })} style={{ border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, borderRadius: 999, padding: "8px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>＋ Build bundle</button>
                   )}
                 </div>
               </div>
@@ -514,6 +596,58 @@ export default function CafePOS() {
         </div>
       ) : null}
 
+      {/* Bundle builder modal — pick X cookies + Y drinks */}
+      {bundleBuild ? (() => {
+        const bn = getBundle(bundleBuild.bundleId);
+        if (!bn) return null;
+        const ready = bundleCookieCount === bn.cookies && bundleDrinkCount === bn.drinks;
+        const atMaxCookies = bundleCookieCount >= bn.cookies;
+        const atMaxDrinks = bundleDrinkCount >= bn.drinks;
+        const pickerCard = (item: MenuItem, q: number, atMax: boolean) => (
+          <div key={item.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, background: "#fff", display: "flex", flexDirection: "column" }}>
+            <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, flex: "0 0 auto", overflow: "hidden", borderTopLeftRadius: 13, borderTopRightRadius: 13 }}>
+              {item.image ? <Image src={item.image} alt={item.name} fill style={{ objectFit: "cover" }} sizes="160px" /> : null}
+            </div>
+            <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ fontWeight: 700, fontSize: 12.5, color: COLORS.black, minHeight: 32, lineHeight: 1.2 }}>{item.name}</div>
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+                <button onClick={() => bumpBundlePick(item, -1)} disabled={q === 0} style={{ ...stepBtn, opacity: q === 0 ? 0.4 : 1 }}>–</button>
+                <span style={{ fontWeight: 800, fontSize: 14, minWidth: 14, textAlign: "center" }}>{q}</span>
+                <button onClick={() => bumpBundlePick(item, 1)} disabled={atMax} style={{ ...stepBtn, opacity: atMax ? 0.4 : 1 }}>+</button>
+              </div>
+            </div>
+          </div>
+        );
+        return (
+          <div onClick={() => setBundleBuild(null)} style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", padding: 16 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, maxWidth: 640, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column" }}>
+              <div style={{ padding: "16px 18px", borderBottom: "1px solid rgba(0,0,0,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>{bn.name}</div>
+                  <div style={{ fontSize: 13, color: ready ? COLORS.blue : COLORS.muted, fontWeight: 700 }}>Cookies {bundleCookieCount}/{bn.cookies} · Drinks {bundleDrinkCount}/{bn.drinks} · {formatIDR(bn.price)}</div>
+                </div>
+                <button onClick={() => setBundleBuild(null)} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: COLORS.sand, fontWeight: 900, cursor: "pointer", fontSize: 16 }}>×</button>
+              </div>
+              <div style={{ padding: 16, overflow: "auto", flex: 1, minHeight: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: COLORS.black, margin: "0 0 8px" }}>🍪 Cookies ({bundleCookieCount}/{bn.cookies})</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, alignItems: "start" }}>
+                  {cookies.map((c) => pickerCard(c, bundleBuild.cookiePicks[c.id]?.qty || 0, atMaxCookies))}
+                </div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: COLORS.black, margin: "18px 0 8px" }}>🥤 Drinks ({bundleDrinkCount}/{bn.drinks})</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, alignItems: "start" }}>
+                  {drinks.map((d) => pickerCard(d, bundleBuild.drinkPicks[d.id]?.qty || 0, atMaxDrinks))}
+                </div>
+              </div>
+              <div style={{ padding: 16, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                <button onClick={addBundle} disabled={!ready} style={{ ...btn(COLORS.blue), width: "100%", opacity: ready ? 1 : 0.5, cursor: ready ? "pointer" : "not-allowed" }}>
+                  {ready ? `Add bundle · ${formatIDR(bn.price)}` : "Pick your cookies & drinks"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })() : null}
+
       {/* Cart bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: "#fff", borderTop: "1px solid rgba(0,0,0,0.10)", padding: "12px 16px", boxShadow: "0 -8px 24px rgba(0,0,0,0.06)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto" }}>
@@ -521,12 +655,18 @@ export default function CafePOS() {
             <div style={{ marginBottom: 8, fontWeight: 800, fontSize: 13, color: "#0014A7" }}>🎁 Tap the {redeemKind} above to add it free</div>
           ) : null}
 
-          {lines.length || boxes.length ? (
+          {lines.length || boxes.length || bundles.length ? (
             <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8 }}>
               {boxes.map((b) => (
                 <div key={b.key} style={{ flex: "0 0 auto", border: `1px solid ${COLORS.blue}`, background: "rgba(0,20,167,0.06)", borderRadius: 999, padding: "4px 6px 4px 12px", display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>📦 {b.label || `Box of ${b.size}`} · {formatIDR(boxPrice(b.size))}</span>
                   <button onClick={() => removeBox(b.key)} aria-label="Remove box" style={miniBtn}>×</button>
+                </div>
+              ))}
+              {bundles.map((b) => (
+                <div key={b.key} style={{ flex: "0 0 auto", border: `1px solid ${COLORS.blue}`, background: "rgba(0,20,167,0.06)", borderRadius: 999, padding: "4px 6px 4px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>🎁 {b.label} · {formatIDR(b.price)}</span>
+                  <button onClick={() => setBundles((bs) => bs.filter((x) => x.key !== b.key))} aria-label="Remove bundle" style={miniBtn}>×</button>
                 </div>
               ))}
               {lines.map((l) => (
