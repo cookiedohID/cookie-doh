@@ -104,6 +104,7 @@ export default function SiteHeader() {
       { href: "/admin/locations", label: "Locations" },
       { href: "/admin/reports", label: "Reports" },
       { href: "/admin/customers", label: "Customers" },
+      { href: "/admin/broadcast", label: "Broadcast" },
       { href: "/admin/help", label: "Manual" },
     ];
     const adminActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(href + "/"));
