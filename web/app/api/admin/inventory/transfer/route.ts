@@ -37,8 +37,10 @@ export async function POST(req: Request) {
 
     // Apply: decrement source, increment (or create) destination.
     await supa.from("location_stock").update({ stock: srcBefore - qty, updated_at: new Date().toISOString() }).eq("location_id", from).eq("item_id", itemId);
+    // Adding stock makes it available again — clear any manual sold-out flag at
+    // the destination (otherwise availability = sold_out OR stock<=0 keeps it hidden).
     await supa.from("location_stock").upsert(
-      { location_id: to, item_id: itemId, stock: dstBefore + qty, updated_at: new Date().toISOString() },
+      { location_id: to, item_id: itemId, stock: dstBefore + qty, sold_out: false, updated_at: new Date().toISOString() },
       { onConflict: "location_id,item_id" }
     );
 
