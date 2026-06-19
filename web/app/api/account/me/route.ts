@@ -71,30 +71,31 @@ type MemberResult =
   | { kind: "needsVerify"; phone: string };
 
 async function buildMember(supa: any, user: any, phone: string): Promise<MemberResult> {
+  // Fetch the three independent things in PARALLEL (this is the main speed-up —
+  // these used to run one after another, plus a write, on every page load):
+  //   (a) the customer row — ownership guard + tells us if a write is even needed
+  //   (b) the phone OTP    — possession guard
+  //   (c) the order history — used to compute loyalty below
+  const selectCols = "id, phone, name, email, member_code, auth_user_id, cookies_redeemed, drinks_redeemed";
+  const sig = phoneSignificant(phone);
+  const [custRes, otpRes, ordersRes] = await Promise.all([
+    supa.from("customers").select(selectCols).eq("phone", phone).maybeSingle(),
+    supa.from("phone_otps").select("verified, auth_user_id, expires_at").eq("phone", phone).maybeSingle(),
+    sig
+      ? supa.from("orders").select("payment_status, items_json, customer_phone").ilike("customer_phone", `%${sig}%`).limit(500)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const existing: any = custRes.data;
+  const otp: any = otpRes.data;
+
   // 1) Ownership guard: NEVER reassign a phone already linked to another account.
-  //    Without this, any signed-in user could POST a victim's phone and steal
-  //    their customer record + loyalty (account takeover).
-  const { data: existing } = await supa
-    .from("customers")
-    .select("auth_user_id")
-    .eq("phone", phone)
-    .maybeSingle();
   if (existing?.auth_user_id && existing.auth_user_id !== user.id) {
     return { kind: "ownedByOther" };
   }
 
-  // 2) Possession guard: the phone must have been verified via WhatsApp OTP.
-  //    At email signup the OTP is verified before the account exists (auth_user_id
-  //    null); once a logged-in user binds it, only they may claim it afterwards.
-  const { data: otp } = await supa
-    .from("phone_otps")
-    .select("verified, auth_user_id, expires_at")
-    .eq("phone", phone)
-    .maybeSingle();
-  // A null-auth_user_id OTP (verified during signup, before the account existed)
-  // is only claimable while still within its short validity window — this bounds
-  // the signup race where another user could grab a just-verified phone. Once
-  // bound to a user, only that user may claim it.
+  // 2) Possession guard: the phone must have been verified via WhatsApp OTP. A
+  //    null-auth_user_id OTP (verified at signup before the account existed) is
+  //    only claimable while still fresh; once bound, only that user may claim it.
   const otpFresh = otp?.expires_at ? new Date(otp.expires_at).getTime() > Date.now() : false;
   const phoneVerified =
     Boolean(otp?.verified) &&
@@ -103,53 +104,46 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
     return { kind: "needsVerify", phone };
   }
 
-  // 3) Safe to link/refresh the customer record.
-  let code = await resolveMemberCode(supa, phone);
+  // 3) Link/refresh the customer — but SKIP the write entirely when the record is
+  //    already correctly bound to this user (the common repeat-load case). The
+  //    per-load write was the main reason /account felt slow.
   const name = user?.user_metadata?.name || null;
-  const upsertRow = (memberCode: string) => ({
-    phone,
-    auth_user_id: user.id,
-    member_code: memberCode,
-    ...(name ? { name } : {}),
-    ...(user?.email ? { email: user.email } : {}),
-    phone_verified: true,
-    updated_at: new Date().toISOString(),
-  });
-  const selectCols = "id, phone, name, email, member_code, cookies_redeemed, drinks_redeemed";
-  let { data: cust, error: upErr } = await supa
-    .from("customers")
-    .upsert(upsertRow(code), { onConflict: "phone" })
-    .select(selectCols)
-    .maybeSingle();
-
-  // Race fallback: if another write grabbed our short code between the check and
-  // the upsert, retry with the always-unique full-significant code.
-  if (upErr && /member_code/i.test(upErr.message || "")) {
-    code = "CD" + (phoneSignificant(phone) || "");
-    ({ data: cust } = await supa
+  let cust: any = existing;
+  const alreadyBound = Boolean(existing && existing.auth_user_id === user.id && existing.member_code);
+  if (!alreadyBound) {
+    let code = await resolveMemberCode(supa, phone);
+    const upsertRow = (memberCode: string) => ({
+      phone,
+      auth_user_id: user.id,
+      member_code: memberCode,
+      ...(name ? { name } : {}),
+      ...(user?.email ? { email: user.email } : {}),
+      phone_verified: true,
+      updated_at: new Date().toISOString(),
+    });
+    let { data: row, error: upErr } = await supa
       .from("customers")
       .upsert(upsertRow(code), { onConflict: "phone" })
       .select(selectCols)
-      .maybeSingle());
+      .maybeSingle();
+    if (upErr && /member_code/i.test(upErr.message || "")) {
+      code = "CD" + (phoneSignificant(phone) || "");
+      ({ data: row } = await supa
+        .from("customers")
+        .upsert(upsertRow(code), { onConflict: "phone" })
+        .select(selectCols)
+        .maybeSingle());
+    }
+    cust = row || existing;
+    // Bind this verified phone to the user so a later claimant can't grab it.
+    if (otp?.auth_user_id == null) {
+      await supa.from("phone_otps").update({ auth_user_id: user.id }).eq("phone", phone).is("auth_user_id", null);
+    }
   }
 
-  // Bind this verified phone to the user so a later claimant can't grab it.
-  if (otp?.auth_user_id == null) {
-    await supa.from("phone_otps").update({ auth_user_id: user.id }).eq("phone", phone).is("auth_user_id", null);
-  }
-
-  // Loyalty from paid orders matched by phone (exact canonical match — ilike is
-  // only a loose prefilter, see /api/loyalty/lookup).
-  const sig = phoneSignificant(phone);
-  let orders: any[] = [];
-  if (sig) {
-    const { data } = await supa
-      .from("orders")
-      .select("payment_status, items_json, customer_phone")
-      .ilike("customer_phone", `%${sig}%`)
-      .limit(500);
-    orders = (data || []).filter((o: any) => phoneSignificant(o?.customer_phone) === sig);
-  }
+  // Loyalty from the paid orders we already fetched (exact canonical match — the
+  // ilike above is only a loose prefilter).
+  const orders = sig ? (ordersRes.data || []).filter((o: any) => phoneSignificant(o?.customer_phone) === sig) : [];
   const loyalty = loyaltyFromOrders(orders);
 
   return {
@@ -157,7 +151,7 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
     member: {
       name: cust?.name || name,
       phone,
-      memberCode: cust?.member_code || code,
+      memberCode: cust?.member_code || memberCodeFor(phone),
       loyalty,
     },
   };

@@ -277,27 +277,43 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await getSupabaseBrowser().auth.getSession();
-        const t = data.session?.access_token;
-        if (!t) return;
-        const auth = { Authorization: `Bearer ${t}` };
-        const res = await fetch("/api/account/addresses", { headers: auth, cache: "no-store" });
-        const j = await res.json().catch(() => ({}));
-        if (!cancelled && j?.ok && Array.isArray(j.addresses)) setSavedAddresses(j.addresses);
+    let hydrated = false;
+    const supabase = getSupabaseBrowser();
 
-        // Pre-fill the member's name + phone (only if the fields are still empty,
-        // so anything the customer typed wins). Stays fully editable.
+    async function hydrate(token: string) {
+      if (hydrated || cancelled) return;
+      hydrated = true;
+      const auth = { Authorization: `Bearer ${token}` };
+
+      // Pre-fill the member's name + phone (only if still empty, so typed input
+      // wins). Independent of the address fetch so one can't block the other.
+      try {
         const meRes = await fetch("/api/account/me", { headers: auth, cache: "no-store" });
         const meJ = await meRes.json().catch(() => ({}));
         if (!cancelled && meJ?.member) {
           if (meJ.member.name) setName((cur) => cur || meJ.member.name);
           if (meJ.member.phone) setPhone((cur) => cur || meJ.member.phone);
         }
-      } catch { /* not logged in / not enabled — ignore */ }
-    })();
-    return () => { cancelled = true; };
+      } catch { /* ignore */ }
+
+      try {
+        const res = await fetch("/api/account/addresses", { headers: auth, cache: "no-store" });
+        const j = await res.json().catch(() => ({}));
+        if (!cancelled && j?.ok && Array.isArray(j.addresses)) setSavedAddresses(j.addresses);
+      } catch { /* ignore */ }
+    }
+
+    // Try immediately, and again when auth state resolves (handles the case where
+    // the session isn't hydrated the instant this effect first runs).
+    supabase.auth.getSession().then(({ data }) => {
+      const t = data.session?.access_token;
+      if (t) hydrate(t);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      const t = session?.access_token;
+      if (t) hydrate(t);
+    });
+    return () => { cancelled = true; sub.subscription.unsubscribe(); };
   }, []);
 
   function applySavedAddress(a: any) {
