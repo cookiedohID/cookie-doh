@@ -302,6 +302,12 @@ export default function AdminOrdersPage() {
           <Link href="/admin/reports" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
             Reports
           </Link>
+          <button
+            onClick={async () => { await fetch("/api/admin/login", { method: "DELETE" }); window.location.href = "/admin/login"; }}
+            style={{ border: "none", background: "none", color: "#6B6B6B", fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+          >
+            Log out
+          </button>
         </div>
       </div>
 
