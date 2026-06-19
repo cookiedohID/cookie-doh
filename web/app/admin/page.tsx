@@ -9,6 +9,7 @@ const SECTIONS = [
   { href: "/admin/reports", title: "Reports", desc: "Daily sales, by item, per location, redeemed", emoji: "📊" },
   { href: "/admin/customers", title: "Customers", desc: "Members, purchase history & loyalty", emoji: "👥" },
   { href: "/admin/flavors", title: "Inventory", desc: "Per-location stock & sold-out", emoji: "📦" },
+  { href: "/admin/locations", title: "Locations", desc: "Manage stores & transfer stock", emoji: "📍" },
 ];
 
 export default function AdminHome() {

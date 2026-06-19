@@ -333,6 +333,9 @@ export default function AdminOrdersPage() {
           <Link href="/admin/reports" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
             Reports
           </Link>
+          <Link href="/admin/locations" style={{ color: "#0014a7", fontWeight: 900, textDecoration: "none" }}>
+            Locations
+          </Link>
           <button
             onClick={deleteAllUnpaid}
             style={{ border: "1px solid rgba(192,57,43,0.4)", background: "#fff", color: "#C0392B", fontWeight: 800, fontSize: 13, padding: "6px 12px", borderRadius: 999, cursor: "pointer" }}
