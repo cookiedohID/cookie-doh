@@ -442,6 +442,7 @@ export default function CafePOS() {
   // ---------------- SHOP (kiosk) ----------------
   return (
     <main style={{ minHeight: "100vh", background: COLORS.bg, paddingBottom: 160 }}>
+      <PrintStyles />
       {/* Kiosk header — matches the storefront header (blue bar, logo, nav) */}
       <div style={{ position: "sticky", top: 0, zIndex: 20, background: COLORS.blue, borderBottom: "1px solid rgba(255,255,255,0.14)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
@@ -517,7 +518,7 @@ export default function CafePOS() {
         {/* Boxes — pick any N cookies at the box price */}
         <section id="boxes" style={{ scrollMarginTop: 96, paddingTop: 18 }}>
           <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 12px" }}>📦 Boxes</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+          <div className="cd-cards-2">
             {[3, 6].map((size) => {
               const q = boxCount(size);
               return (
@@ -551,7 +552,7 @@ export default function CafePOS() {
         <section id="bundles" style={{ scrollMarginTop: 96, paddingTop: 18 }}>
           <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 2px" }}>🎁 Bundles</h2>
           <p style={{ fontSize: 13, color: COLORS.muted, margin: "0 0 12px" }}>Pick your own cookies + drinks at a set price.</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          <div className="cd-cards-3">
             {BUNDLES.map((bn) => {
               const q = bundleCount(bn.id);
               return (
@@ -581,7 +582,7 @@ export default function CafePOS() {
         {sections.map((s) => (
           <section key={s.id} id={s.id} style={{ scrollMarginTop: 96, paddingTop: 18 }}>
             <h2 style={{ fontSize: 19, fontWeight: 800, color: COLORS.black, margin: "0 0 12px" }}>{s.label}</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+            <div className="cd-cards-4">
               {s.items.map((it) => {
                 const key = `${it.kind}:${it.id}`;
                 const q = cart[key]?.qty || 0;
@@ -668,7 +669,7 @@ export default function CafePOS() {
               </div>
               <button onClick={() => setBoxBuild(null)} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: COLORS.sand, fontWeight: 900, cursor: "pointer", fontSize: 16 }}>×</button>
             </div>
-            <div style={{ padding: 16, overflow: "auto", flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, alignItems: "start" }}>
+            <div className="cd-picker" style={{ padding: 16, overflow: "auto", flex: 1, minHeight: 0, alignItems: "start" }}>
               {cookies.map((c) => {
                 const q = boxBuild.picks[c.id]?.qty || 0;
                 const atMax = boxPickCount >= boxBuild.size;
@@ -733,11 +734,11 @@ export default function CafePOS() {
               </div>
               <div style={{ padding: 16, overflow: "auto", flex: 1, minHeight: 0 }}>
                 <div style={{ fontWeight: 800, fontSize: 14, color: COLORS.black, margin: "0 0 8px" }}>🍪 Cookies ({bundleCookieCount}/{bn.cookies})</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, alignItems: "start" }}>
+                <div className="cd-picker" style={{ alignItems: "start" }}>
                   {cookies.map((c) => pickerCard(c, bundleBuild.cookiePicks[c.id]?.qty || 0, atMaxCookies))}
                 </div>
                 <div style={{ fontWeight: 800, fontSize: 14, color: COLORS.black, margin: "18px 0 8px" }}>🥤 Drinks ({bundleDrinkCount}/{bn.drinks})</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, alignItems: "start" }}>
+                <div className="cd-picker" style={{ alignItems: "start" }}>
                   {drinks.map((d) => pickerCard(d, bundleBuild.drinkPicks[d.id]?.qty || 0, atMaxDrinks))}
                 </div>
               </div>
@@ -847,6 +848,16 @@ function PrintStyles() {
       .doc { width: 72mm; font-family: -apple-system, system-ui, monospace; color: #000; }
       .sticker { width: 72mm; border-bottom: 1px dashed #999; padding: 6px 0 10px; page-break-inside: avoid; }
       .recipe { page-break-after: always; padding-bottom: 10px; }
+      /* Responsive POS card grids: 2-up on phones, fuller on the counter screen. */
+      .cd-cards-4, .cd-cards-3, .cd-cards-2, .cd-picker { display: grid; gap: 12px; }
+      .cd-cards-4, .cd-cards-3, .cd-picker { grid-template-columns: repeat(2, 1fr); }
+      .cd-cards-2 { grid-template-columns: 1fr; }
+      @media (min-width: 720px) {
+        .cd-cards-4 { grid-template-columns: repeat(4, 1fr); }
+        .cd-cards-3 { grid-template-columns: repeat(3, 1fr); }
+        .cd-cards-2 { grid-template-columns: repeat(2, 1fr); }
+        .cd-picker { grid-template-columns: repeat(3, 1fr); }
+      }
     `}</style>
   );
 }
