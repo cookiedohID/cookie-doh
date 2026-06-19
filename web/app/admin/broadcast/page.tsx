@@ -33,7 +33,7 @@ export default function BroadcastPage() {
   async function send() {
     setErr(""); setResult("");
     if (message.trim().length < 3) { setErr("Write a message first."); return; }
-    if (!window.confirm(`Send this WhatsApp to ${count ?? "?"} member(s)? This can't be undone.`)) return;
+    if (!window.confirm(`Send this WhatsApp to ${count ?? "?"} recipient(s)? This can't be undone.`)) return;
     setBusy(true);
     try {
       const res = await fetch("/api/admin/broadcast/send", {
@@ -42,7 +42,7 @@ export default function BroadcastPage() {
       });
       const j = await res.json().catch(() => ({}));
       if (!j?.ok) { setErr(j?.error || "Send failed."); return; }
-      setResult(`✅ Sent to ${j.sent} member(s).${j.failed ? ` ${j.failed} failed.` : ""}${j.capped ? ` (capped at ${j.capped} per send)` : ""}`);
+      setResult(`✅ Sent to ${j.sent} recipient(s).${j.failed ? ` ${j.failed} failed.` : ""}${j.capped ? ` (capped at ${j.capped} per send)` : ""}`);
       setMessage("");
     } finally { setBusy(false); }
   }
@@ -51,7 +51,7 @@ export default function BroadcastPage() {
     <main style={{ minHeight: "100vh", background: COLORS.sand }}>
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "28px 18px 80px" }}>
         <h1 style={{ fontSize: 26, fontWeight: 900, color: COLORS.black, margin: 0 }}>WhatsApp broadcast</h1>
-        <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6 }}>Message your members — new flavours, promos, reminders.</p>
+        <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6 }}>Message everyone who's ordered — new flavours, promos, reminders.</p>
 
         <section style={card}>
           <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.black, marginBottom: 8 }}>Who gets it</div>
@@ -86,7 +86,7 @@ export default function BroadcastPage() {
 
         <button onClick={send} disabled={busy || loadingCount || !count}
           style={{ marginTop: 16, width: "100%", border: "none", background: busy || !count ? "rgba(0,20,167,0.4)" : COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 16, padding: "14px", borderRadius: 999, cursor: busy || !count ? "not-allowed" : "pointer" }}>
-          {busy ? "Sending…" : `Send to ${count ?? 0} member${count === 1 ? "" : "s"}`}
+          {busy ? "Sending…" : `Send to ${count ?? 0} recipient${count === 1 ? "" : "s"}`}
         </button>
         <p style={{ marginTop: 10, fontSize: 12, color: COLORS.muted, textAlign: "center", lineHeight: 1.5 }}>
           Sends via WhatsApp (Fonnte) — each message has a small cost. Only message people who opted in.
