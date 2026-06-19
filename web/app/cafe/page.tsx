@@ -37,6 +37,10 @@ export default function CafePOS() {
   // redeem someone's rewards without the member approving. Verified per order.
   const [redeemVerified, setRedeemVerified] = useState(false);
   const [otp, setOtp] = useState<{ open: boolean; code: string; busy: boolean; note: string; sent: boolean }>({ open: false, code: "", busy: false, note: "", sent: false });
+  // Free-reward picker: a focused popup showing only single cookies/drinks,
+  // capped at the member's free quantity (no hunting through the full menu).
+  const [freePicker, setFreePicker] = useState<{ open: boolean; kind: Kind | null }>({ open: false, kind: null });
+  const [pendingRedeemKind, setPendingRedeemKind] = useState<Kind | null>(null);
   const [detail, setDetail] = useState<MenuItem | null>(null);
   // Boxes: pick any N cookies at the box price.
   const [boxes, setBoxes] = useState<{ key: string; size: number; items: { id: string; name: string; qty: number }[]; label?: string; assortKey?: string }[]>([]);
@@ -246,10 +250,11 @@ export default function CafePOS() {
   function clearMember() {
     setMemberPhone(""); setRewards(null); setRedeemKind(null); setRedeemVerified(false);
     setOtp({ open: false, code: "", busy: false, note: "", sent: false });
+    setFreePicker({ open: false, kind: null }); setPendingRedeemKind(null);
     setCart((c) => Object.fromEntries(Object.entries(c).filter(([, l]) => !l.free)));
   }
 
-  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setRedeemVerified(false); setOtp({ open: false, code: "", busy: false, note: "", sent: false }); setBoxes([]); setBundles([]); setBundleBuild(null); setReview(false); }
+  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setRedeemVerified(false); setOtp({ open: false, code: "", busy: false, note: "", sent: false }); setFreePicker({ open: false, kind: null }); setPendingRedeemKind(null); setBoxes([]); setBundles([]); setBundleBuild(null); setReview(false); }
 
   // Redemption OTP: send a code to the member's WhatsApp, then verify it before
   // any free reward can be applied.
@@ -267,14 +272,32 @@ export default function CafePOS() {
     const r = await fetch("/api/loyalty/redeem-otp/verify", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: memberPhone, code: otp.code }),
     }).then((x) => x.json()).catch(() => null);
-    if (r?.ok) { setRedeemVerified(true); setOtp({ open: false, code: "", busy: false, note: "", sent: false }); }
-    else setOtp((o) => ({ ...o, busy: false, note: r?.error || "Incorrect code." }));
+    if (r?.ok) {
+      setRedeemVerified(true);
+      setOtp({ open: false, code: "", busy: false, note: "", sent: false });
+      if (pendingRedeemKind) { setFreePicker({ open: true, kind: pendingRedeemKind }); setPendingRedeemKind(null); }
+    } else setOtp((o) => ({ ...o, busy: false, note: r?.error || "Incorrect code." }));
   }
-  // Staff taps "Use free X" — require the member's WhatsApp OTP first.
+  // Staff taps "Use free X" — require the member's WhatsApp OTP first, then open
+  // a focused picker (capped at the free quantity).
   function requestRedeem(kind: Kind) {
-    if (redeemKind === kind) { setRedeemKind(null); return; }
-    if (!redeemVerified) { setOtp({ open: true, code: "", busy: false, note: "", sent: false }); return; }
-    setRedeemKind(kind);
+    if (!redeemVerified) { setPendingRedeemKind(kind); setOtp({ open: true, code: "", busy: false, note: "", sent: false }); return; }
+    setFreePicker({ open: true, kind });
+  }
+
+  // Add/remove a free item from the picker, capped at the member's available count.
+  function bumpFree(item: MenuItem, d: number) {
+    const key = `free:${item.kind}:${item.id}`;
+    setCart((c) => {
+      const available = item.kind === "cookie" ? (rewards?.freeCookies || 0) : (rewards?.freeDrinks || 0);
+      const usedNow = Object.values(c).filter((l: any) => l.free && l.item.kind === item.kind).reduce((s: number, l: any) => s + l.qty, 0);
+      if (d > 0 && usedNow >= available) return c; // at the free limit
+      const next = Math.max(0, (c[key]?.qty || 0) + d);
+      const out: any = { ...c };
+      if (next <= 0) delete out[key];
+      else out[key] = { item, qty: next, free: true };
+      return out;
+    });
   }
 
   // ---- box builder ----
@@ -932,6 +955,51 @@ export default function CafePOS() {
           </div>
         </div>
       ) : null}
+
+      {/* Free-reward picker — only the relevant single items, capped at the free quantity */}
+      {freePicker.open && freePicker.kind ? (() => {
+        const kind = freePicker.kind as Kind;
+        const itemsForKind = kind === "cookie" ? cookies : drinks;
+        const available = kind === "cookie" ? (rewards?.freeCookies || 0) : (rewards?.freeDrinks || 0);
+        const used = usedFree(kind);
+        const atLimit = used >= available;
+        return (
+          <div onClick={() => setFreePicker({ open: false, kind: null })} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 55, display: "grid", placeItems: "center", padding: 16 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 600, maxHeight: "86vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+              <div style={{ padding: 18, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.black }}>🎁 Choose your free {kind === "cookie" ? "cookies" : "drinks"}</div>
+                <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted }}>{used}/{available} chosen — pick your flavour{available > 1 ? "s" : ""}.</div>
+              </div>
+              <div style={{ padding: 14, overflowY: "auto", flex: 1 }}>
+                <div className="cd-picker" style={{ alignItems: "start" }}>
+                  {itemsForKind.map((it) => {
+                    const qty = cart[`free:${kind}:${it.id}`]?.qty || 0;
+                    return (
+                      <div key={it.id} style={{ border: qty > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, overflow: "hidden", background: "#fff" }}>
+                        <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: "#f3f0ea" }}>
+                          {it.image ? <Image src={it.image} alt={it.name} fill style={{ objectFit: "cover" }} sizes="160px" /> : null}
+                          {qty > 0 ? <div style={{ position: "absolute", top: 6, right: 6, background: COLORS.blue, color: "#fff", borderRadius: 999, minWidth: 22, height: 22, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 900, padding: "0 6px" }}>{qty}</div> : null}
+                        </div>
+                        <div style={{ padding: 8 }}>
+                          <div style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.black, lineHeight: 1.2, minHeight: 30 }}>{it.name}</div>
+                          <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <button onClick={() => bumpFree(it, -1)} disabled={qty <= 0} style={{ ...stepBtn, opacity: qty <= 0 ? 0.4 : 1 }}>–</button>
+                            <span style={{ fontWeight: 800 }}>{qty}</span>
+                            <button onClick={() => bumpFree(it, 1)} disabled={atLimit} style={{ ...stepBtn, opacity: atLimit ? 0.4 : 1 }}>+</button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div style={{ padding: 14, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                <button onClick={() => setFreePicker({ open: false, kind: null })} style={{ width: "100%", height: 50, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 16, cursor: "pointer" }}>Done · {used} free {kind === "cookie" ? "cookie" : "drink"}{used !== 1 ? "s" : ""} added</button>
+              </div>
+            </div>
+          </div>
+        );
+      })() : null}
     </main>
   );
 }
