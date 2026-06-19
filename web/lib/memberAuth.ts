@@ -52,3 +52,24 @@ export async function signInWithGoogle() {
 export async function signOutMember() {
   await getSupabaseBrowser().auth.signOut();
 }
+
+// Forgot password: email the member a reset link that lands on /account/reset.
+export async function requestPasswordReset(email: string) {
+  if (!emailValid(email)) return { error: "Enter a valid email address." };
+  const supabase = getSupabaseBrowser();
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: `${window.location.origin}/account/reset`,
+  });
+  if (error) return { error: error.message };
+  return {};
+}
+
+// Set a new password (called on /account/reset once the recovery link has
+// established a session, or for a signed-in member changing their password).
+export async function updatePassword(password: string) {
+  if (!password || password.length < 6) return { error: "Password must be at least 6 characters." };
+  const supabase = getSupabaseBrowser();
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+  return {};
+}

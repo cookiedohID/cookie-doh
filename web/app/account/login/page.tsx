@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { COLORS } from "@/lib/theme";
-import { signInWithEmail, signUpWithEmail, signInWithGoogle } from "@/lib/memberAuth";
+import { signInWithEmail, signUpWithEmail, signInWithGoogle, requestPasswordReset } from "@/lib/memberAuth";
 import { canonicalPhone } from "@/lib/phone";
 
 const field: React.CSSProperties = {
@@ -17,8 +17,9 @@ const field: React.CSSProperties = {
 
 export default function MemberLoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "reset">("login");
   const [step, setStep] = useState<"form" | "otp">("form");
+  const [resetSent, setResetSent] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -44,6 +45,15 @@ export default function MemberLoginPage() {
     setErr("");
     setBusy(true);
     try {
+      if (mode === "reset") {
+        if (!emailValid(email)) return setErr("Enter a valid email.");
+        const res = await requestPasswordReset(email);
+        if ((res as any)?.error) return setErr((res as any).error);
+        setResetSent(true);
+        setNote(`If an account exists for ${email}, we've sent a reset link. Check your inbox (and spam).`);
+        return;
+      }
+
       if (mode === "login") {
         const res = await signInWithEmail(email, password);
         if ((res as any)?.error) return setErr((res as any).error);
@@ -102,10 +112,12 @@ export default function MemberLoginPage() {
       <div style={{ maxWidth: 420, margin: "0 auto", padding: "40px 16px 80px" }}>
         <span className="font-dearjoe" style={{ fontSize: 24, color: COLORS.blue }}>cookie doh members</span>
         <h1 style={{ margin: "4px 0 0", fontSize: 28, fontWeight: 800, color: COLORS.black }}>
-          {mode === "login" ? "Welcome back" : step === "otp" ? "Verify your number" : "Join the club"}
+          {mode === "reset" ? "Reset password" : mode === "login" ? "Welcome back" : step === "otp" ? "Verify your number" : "Join the club"}
         </h1>
         <p style={{ margin: "8px 0 0", color: COLORS.muted, fontSize: 14 }}>
-          {step === "otp"
+          {mode === "reset"
+            ? note || "Enter your email and we'll send you a link to set a new password."
+            : step === "otp"
             ? note || "Enter the code from WhatsApp."
             : "Earn a free cookie every 10 cookies, and a free drink every 10 drinks. Single cookies, drinks, boxes & assortments count toward stamps — bundles and other promotional items don’t."}
         </p>
@@ -115,7 +127,11 @@ export default function MemberLoginPage() {
             <input style={field} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
           ) : null}
 
-          {step === "form" ? (
+          {mode === "reset" ? (
+            !resetSent ? (
+              <input style={field} type="email" placeholder="Email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            ) : null
+          ) : step === "form" ? (
             <>
               <input style={field} type="email" placeholder="Email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               {mode === "signup" ? (
@@ -137,10 +153,12 @@ export default function MemberLoginPage() {
 
           {err ? <div style={{ color: "crimson", fontSize: 13, fontWeight: 700 }}>{err}</div> : null}
 
-          <button type="submit" disabled={busy}
-            style={{ marginTop: 4, height: 50, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 16, cursor: busy ? "not-allowed" : "pointer" }}>
-            {busy ? "…" : mode === "login" ? "Log in" : step === "otp" ? "Verify & create account" : "Continue"}
-          </button>
+          {!(mode === "reset" && resetSent) ? (
+            <button type="submit" disabled={busy}
+              style={{ marginTop: 4, height: 50, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 16, cursor: busy ? "not-allowed" : "pointer" }}>
+              {busy ? "…" : mode === "reset" ? "Send reset link" : mode === "login" ? "Log in" : step === "otp" ? "Verify & create account" : "Continue"}
+            </button>
+          ) : null}
 
           {mode === "signup" && step === "otp" ? (
             <button type="button" onClick={resend} style={{ border: "none", background: "none", color: COLORS.blue, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
@@ -149,8 +167,21 @@ export default function MemberLoginPage() {
           ) : null}
         </form>
 
-        {step === "form" ? (
+        {mode === "reset" ? (
+          <div style={{ marginTop: 16, textAlign: "center" }}>
+            <button type="button" onClick={() => { setMode("login"); setResetSent(false); setErr(""); setNote(""); }} style={{ border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+              ← Back to log in
+            </button>
+          </div>
+        ) : step === "form" ? (
           <>
+            {mode === "login" ? (
+              <div style={{ marginTop: 12, textAlign: "center" }}>
+                <button type="button" onClick={() => { setMode("reset"); setResetSent(false); setErr(""); setNote(""); }} style={{ border: "none", background: "none", color: COLORS.blue, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
+                  Forgot password?
+                </button>
+              </div>
+            ) : null}
             <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0", color: COLORS.muted, fontSize: 12 }}>
               <div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.12)" }} />or<div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.12)" }} />
             </div>
