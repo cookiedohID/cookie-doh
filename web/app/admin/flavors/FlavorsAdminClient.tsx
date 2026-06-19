@@ -137,7 +137,13 @@ export default function FlavorsAdminClient() {
         <header style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
             <h1 style={{ margin: 0, fontSize: 22, color: COLORS.black }}>Admin · Inventory</h1>
-            <div style={{ display: "flex", gap: 14 }}>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+              <Link href="/admin" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
+                Home
+              </Link>
+              <Link href="/admin/locations" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
+                Locations &amp; transfer →
+              </Link>
               <Link href="/admin/orders" style={{ color: COLORS.blue, fontWeight: 900, textDecoration: "none" }}>
                 Orders →
               </Link>
