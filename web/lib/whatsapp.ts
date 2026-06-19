@@ -30,29 +30,38 @@ export async function sendWhatsApp(params: {
     return { ok: false, skipped: true };
   }
 
-  try {
-    const res = await fetch("https://api.fonnte.com/send", {
-      method: "POST",
-      headers: {
-        Authorization: token,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        target: to,
-        message: params.message,
-        countryCode: "62",
-      }),
-    });
+  // Retry only on network-level failures (the fetch throws — e.g. a transient
+  // "fetch failed" reaching Fonnte). A real Fonnte response (auth/quota/invalid
+  // number) is deterministic, so we return it without retrying.
+  const MAX_ATTEMPTS = 3;
+  let lastError = "send failed";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch("https://api.fonnte.com/send", {
+        method: "POST",
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          target: to,
+          message: params.message,
+          countryCode: "62",
+        }),
+      });
 
-    const json: any = await res.json().catch(() => ({}));
-    if (!res.ok || json?.status === false) {
-      const error = json?.reason || json?.error || `Fonnte error (${res.status})`;
-      console.error("[whatsapp] send failed:", error);
-      return { ok: false, error };
+      const json: any = await res.json().catch(() => ({}));
+      if (!res.ok || json?.status === false) {
+        const error = json?.reason || json?.error || `Fonnte error (${res.status})`;
+        console.error("[whatsapp] send failed:", error);
+        return { ok: false, error };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      lastError = e?.message || "send failed";
+      console.error(`[whatsapp] send threw (attempt ${attempt}/${MAX_ATTEMPTS}):`, lastError);
+      if (attempt < MAX_ATTEMPTS) await new Promise((r) => setTimeout(r, 500 * attempt));
     }
-    return { ok: true };
-  } catch (e: any) {
-    console.error("[whatsapp] send threw:", e?.message || e);
-    return { ok: false, error: e?.message || "send failed" };
   }
+  return { ok: false, error: lastError };
 }
