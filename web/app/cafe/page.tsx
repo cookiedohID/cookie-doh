@@ -445,13 +445,21 @@ export default function CafePOS() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
             {ASSORTMENTS.map((a) => {
               const q = assortmentQty(a.key);
+              const pics = a.items.map((it) => cookies.find((c) => c.id === it.flavorId)).filter(Boolean) as MenuItem[];
               return (
               <div key={a.key} style={{
                 position: "relative",
                 textAlign: "left", border: q > 0 ? `2px solid ${COLORS.blue}` : `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff",
                 padding: 16, display: "flex", flexDirection: "column", gap: 5,
               }}>
-                {q > 0 ? <span style={{ position: "absolute", top: 10, right: 10, background: COLORS.blue, color: "#fff", borderRadius: 999, minWidth: 26, height: 26, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 13 }}>{q}</span> : null}
+                {q > 0 ? <span style={{ position: "absolute", top: 10, right: 10, background: COLORS.blue, color: "#fff", borderRadius: 999, minWidth: 26, height: 26, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 13, zIndex: 1 }}>{q}</span> : null}
+                <div style={{ display: "flex", gap: 5, marginBottom: 3 }}>
+                  {pics.map((c, i) => (
+                    <div key={c.id + i} style={{ position: "relative", width: 50, height: 50, borderRadius: 10, overflow: "hidden", background: COLORS.sand, flex: "0 0 auto" }}>
+                      {c.image ? <Image src={c.image} alt={c.name} fill style={{ objectFit: "cover" }} sizes="50px" /> : null}
+                    </div>
+                  ))}
+                </div>
                 <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.blue, textTransform: "uppercase", letterSpacing: 0.4 }}>{a.badge}</span>
                 <span style={{ fontWeight: 800, fontSize: 16, color: COLORS.black }}>{a.title}</span>
                 <span style={{ fontWeight: 900, fontSize: 15.5, color: COLORS.blue }}>{formatIDR(boxPrice(a.boxSize))} · {a.boxSize} cookies</span>
