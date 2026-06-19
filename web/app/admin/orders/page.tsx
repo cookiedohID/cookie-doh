@@ -134,6 +134,7 @@ export default function AdminOrdersPage() {
   const [err, setErr] = useState<string | null>(null);
   const [errDetail, setErrDetail] = useState<any>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
 
   // ✅ NEW: schedule date filter (delivery/pickup date)
@@ -195,18 +196,27 @@ export default function AdminOrdersPage() {
   };
 
   const deleteAllUnpaid = async () => {
-    const unpaid = orders.filter((o: any) => String(o.payment_status).toUpperCase() !== "PAID");
+    const unpaid = orders.filter((o: any) => String(o.payment_status).toUpperCase() !== "PAID" && o.id);
     if (unpaid.length === 0) { window.alert("No unpaid orders to delete."); return; }
-    if (!window.confirm(`Delete ${unpaid.length} unpaid order(s)? This is for clearing test orders and cannot be undone.`)) return;
-    try {
-      setErr(null);
-      for (const o of unpaid) {
-        await fetch(`/api/admin/orders/${(o as any).id}`, { method: "DELETE" });
-      }
-      await load();
-    } catch (e: any) {
-      setErr(e?.message || "Bulk delete failed");
+    if (!window.confirm(`Delete ${unpaid.length} unpaid order(s)? This permanently clears test orders and cannot be undone.`)) return;
+    setBulkBusy(true);
+    setErr(null);
+    let ok = 0, failed = 0;
+    // Delete in small parallel batches so 30+ orders clear in a couple of seconds.
+    const batch = 6;
+    for (let i = 0; i < unpaid.length; i += batch) {
+      const results = await Promise.all(
+        unpaid.slice(i, i + batch).map(async (o: any) => {
+          try { const r = await fetch(`/api/admin/orders/${o.id}`, { method: "DELETE" }); return r.ok; }
+          catch { return false; }
+        })
+      );
+      ok += results.filter(Boolean).length;
+      failed += results.length - results.filter(Boolean).length;
     }
+    await load();
+    setBulkBusy(false);
+    window.alert(`Deleted ${ok} order(s).${failed ? ` ${failed} could not be deleted.` : ""}`);
   };
 
   const onQuick = async (orderId: string, action: "paid" | "sending" | "sent") => {
@@ -338,9 +348,10 @@ export default function AdminOrdersPage() {
           </Link>
           <button
             onClick={deleteAllUnpaid}
-            style={{ border: "1px solid rgba(192,57,43,0.4)", background: "#fff", color: "#C0392B", fontWeight: 800, fontSize: 13, padding: "6px 12px", borderRadius: 999, cursor: "pointer" }}
+            disabled={bulkBusy}
+            style={{ border: "1px solid rgba(192,57,43,0.4)", background: bulkBusy ? "#FDECEC" : "#fff", color: "#C0392B", fontWeight: 800, fontSize: 13, padding: "6px 12px", borderRadius: 999, cursor: bulkBusy ? "wait" : "pointer" }}
           >
-            🗑 Delete all unpaid
+            {bulkBusy ? "Deleting…" : "🗑 Delete all unpaid"}
           </button>
           <button
             onClick={async () => { await fetch("/api/admin/login", { method: "DELETE" }); window.location.href = "/admin/login"; }}
