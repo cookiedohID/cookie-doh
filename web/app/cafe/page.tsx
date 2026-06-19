@@ -86,7 +86,9 @@ export default function CafePOS() {
   const bundlesTotal = bundles.reduce((s, b) => s + b.price, 0);
   const total = itemsTotal + boxesTotal + bundlesTotal;
   const paidCount = lines.reduce((s, l) => s + (l.free ? 0 : l.qty), 0);
-  const payable = paidCount > 0 || boxes.length > 0 || bundles.length > 0;
+  const freeCount = lines.reduce((s, l) => s + (l.free ? l.qty : 0), 0);
+  // Can proceed if there's anything in the cart — including a free-only redemption.
+  const payable = paidCount > 0 || boxes.length > 0 || bundles.length > 0 || freeCount > 0;
 
   // Box upsell: single cookies cost more per cookie than a box (Rp30,000/cookie).
   // Nudge the customer toward a box once they have 3+ singles so they don't overpay.
@@ -401,6 +403,10 @@ export default function CafePOS() {
       if (!res.ok || !j?.ok) { setErr(j?.error || "Checkout failed"); return; }
 
       const snapshot = { orderNo: String(j.order_no || j.order_id), lines: [...lines], total };
+
+      // Free-only redemption: nothing to charge — it's already done server-side.
+      if (j.free) { setPaid(snapshot); reset(); return; }
+
       const snap = (window as any).snap;
       if (snap?.pay) {
         snap.pay(j.snap_token, {
@@ -507,8 +513,8 @@ export default function CafePOS() {
           {memberPhone ? <div style={{ marginTop: 12, fontSize: 13, color: COLORS.muted }}>Member: {memberPhone}</div> : null}
           {err ? <div style={{ color: "crimson", fontWeight: 700, fontSize: 13, marginTop: 10 }}>{err}</div> : null}
 
-          <button onClick={charge} disabled={busy} style={{ ...btn(COLORS.blue), width: "100%", marginTop: 18, opacity: busy ? 0.6 : 1 }}>{busy ? "…" : `Charge QRIS · ${formatIDR(total)}`}</button>
-          <p style={{ textAlign: "center", color: COLORS.muted, fontSize: 12.5, marginTop: 10 }}>Scan the QR with any e-wallet (GoPay, OVO, DANA…) to pay.</p>
+          <button onClick={charge} disabled={busy} style={{ ...btn(COLORS.blue), width: "100%", marginTop: 18, opacity: busy ? 0.6 : 1 }}>{busy ? "…" : total <= 0 ? "🎁 Confirm free redemption" : `Charge QRIS · ${formatIDR(total)}`}</button>
+          <p style={{ textAlign: "center", color: COLORS.muted, fontSize: 12.5, marginTop: 10 }}>{total <= 0 ? "No payment needed — this is a free reward." : "Scan the QR with any e-wallet (GoPay, OVO, DANA…) to pay."}</p>
         </div>
       </main>
     );
@@ -916,14 +922,27 @@ export default function CafePOS() {
           ) : null}
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: lines.length ? 4 : 0 }}>
-            <button onClick={startScan} aria-label="Scan member QR" title="Scan member QR" style={{ flex: "0 0 auto", borderRadius: 12, height: 50, width: 52, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontSize: 20, cursor: "pointer" }}>📷</button>
-            <input value={memberPhone} onChange={(e) => { setMemberPhone(e.target.value.replace(/[^\d+]/g, "")); setRewards(null); setRedeemKind(null); setCart((c) => Object.fromEntries(Object.entries(c).filter(([, l]) => !l.free))); }}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (memberPhone && !rewards) checkRewards(); } }}
-              placeholder="Member phone (optional)" inputMode="tel"
-              style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.16)", fontSize: 14 }} />
-            {memberPhone && !rewards ? (
-              <button onClick={checkRewards} style={{ flex: "0 0 auto", borderRadius: 12, height: 50, padding: "0 16px", border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 800, cursor: "pointer" }}>Rewards</button>
-            ) : null}
+            {rewards ? (
+              // Member locked in — show who it is + a Cancel to clear (no editable
+              // field, so the phone can't be accidentally deleted).
+              <>
+                <div style={{ flex: 1, minWidth: 0, height: 50, display: "flex", alignItems: "center", gap: 8, padding: "0 14px", borderRadius: 12, background: "rgba(0,20,167,0.06)", border: `1px solid ${COLORS.blue}` }}>
+                  <span style={{ fontWeight: 800, color: COLORS.blue, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>👤 {rewards.name || memberPhone}</span>
+                </div>
+                <button onClick={clearMember} style={{ flex: "0 0 auto", borderRadius: 12, height: 50, padding: "0 16px", border: "1px solid rgba(192,57,43,0.4)", background: "#fff", color: "#C0392B", fontWeight: 800, cursor: "pointer" }}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <button onClick={startScan} aria-label="Scan member QR" title="Scan member QR" style={{ flex: "0 0 auto", borderRadius: 12, height: 50, width: 52, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontSize: 20, cursor: "pointer" }}>📷</button>
+                <input value={memberPhone} onChange={(e) => { setMemberPhone(e.target.value.replace(/[^\d+]/g, "")); setRewards(null); setRedeemKind(null); setCart((c) => Object.fromEntries(Object.entries(c).filter(([, l]) => !l.free))); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (memberPhone && !rewards) checkRewards(); } }}
+                  placeholder="Member phone (optional)" inputMode="tel"
+                  style={{ flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.16)", fontSize: 14 }} />
+                {memberPhone ? (
+                  <button onClick={checkRewards} style={{ flex: "0 0 auto", borderRadius: 12, height: 50, padding: "0 16px", border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 800, cursor: "pointer" }}>Rewards</button>
+                ) : null}
+              </>
+            )}
             <button onClick={() => setReview(true)} disabled={!payable} style={{
               flex: "0 0 auto", borderRadius: 999, height: 50, padding: "0 22px", border: "none",
               background: payable ? COLORS.blue : "rgba(0,20,167,0.4)", color: "#fff", fontWeight: 900, fontSize: 15, cursor: payable ? "pointer" : "not-allowed",

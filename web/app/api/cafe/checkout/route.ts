@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createSnapToken } from "@/lib/midtrans";
 import { notifyNewOrder } from "@/lib/notify";
+import { decrementStockForOrder } from "@/lib/stock";
 import { canonicalPhone } from "@/lib/phone";
 import { loyaltyForPhone } from "@/app/api/loyalty/lookup/route";
 import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
@@ -108,7 +109,6 @@ export async function POST(req: Request) {
     if (!allItems.length) return NextResponse.json({ ok: false, error: "Cart is empty" }, { status: 400 });
 
     const total = allItems.reduce((s: number, it: any) => s + (it.free ? 0 : it.price * it.quantity), 0);
-    if (total <= 0) return NextResponse.json({ ok: false, error: "Add at least one paid item" }, { status: 400 });
 
     const memberPhone = canonicalPhone(body?.memberPhone);
     const customerName = String(body?.customerName || "").trim() || "Cafe customer";
@@ -118,6 +118,13 @@ export async function POST(req: Request) {
     const supaCheck = supaAdmin();
     const freeCookies = allItems.filter((i: any) => i.free && i.kind === "cookie").reduce((s: number, i: any) => s + i.quantity, 0);
     const freeDrinks = allItems.filter((i: any) => i.free && i.kind === "drink").reduce((s: number, i: any) => s + i.quantity, 0);
+
+    // A Rp0 cart is allowed only if it's a pure free-reward redemption.
+    const isFreeOnly = total <= 0;
+    if (isFreeOnly && freeCookies === 0 && freeDrinks === 0) {
+      return NextResponse.json({ ok: false, error: "Add at least one item." }, { status: 400 });
+    }
+
     if (freeCookies || freeDrinks) {
       if (!memberPhone) return NextResponse.json({ ok: false, error: "Member phone required to use rewards." }, { status: 400 });
       const loy = await loyaltyForPhone(supaCheck, memberPhone);
@@ -156,10 +163,11 @@ export async function POST(req: Request) {
       total_idr: total,
       shipping_cost_idr: 0,
       midtrans_order_id: midtransOrderId,
-      payment_status: "PENDING",
-      shipment_status: "not_required",
+      payment_status: isFreeOnly ? "PAID" : "PENDING",
+      paid_at: isFreeOnly ? new Date().toISOString() : null,
+      shipment_status: isFreeOnly ? "done" : "not_required",
       fulfilment_status: "cafe",
-      checkout_mode: "midtrans",
+      checkout_mode: isFreeOnly ? "free" : "midtrans",
       meta: { channel: "cafe", member_phone: memberPhone || null },
     };
 
@@ -170,6 +178,33 @@ export async function POST(req: Request) {
       .maybeSingle();
     if (error) throw error;
     if (!orderRow?.id) throw new Error("Order insert failed");
+
+    // ---- Free-only redemption: nothing to charge — finish it now. ----
+    if (isFreeOnly) {
+      // Consume the reservation (the webhook does this on payment for paid orders).
+      try {
+        await supabase
+          .from("loyalty_redemptions")
+          .update({ status: "consumed", order_id: orderRow.id })
+          .eq("midtrans_order_id", midtransOrderId)
+          .eq("status", "reserved");
+      } catch (e) {
+        console.error("[cafe free] consume reservation failed:", e);
+      }
+      // Decrement stock for the free items handed over.
+      await decrementStockForOrder(supabase, { ...orderInsert, id: orderRow.id });
+      await notifyNewOrder({
+        orderNo: String(orderRow.order_no ?? orderRow.id),
+        status: "paid",
+        customerName,
+        customerPhone: memberPhone,
+        fulfilment: "Cafe (free reward)",
+        totalIdr: 0,
+        items: allItems,
+        adminUrl: `${siteUrl()}/admin/orders/${orderRow.id}`,
+      });
+      return NextResponse.json({ ok: true, free: true, order_id: orderRow.id, order_no: orderRow.order_no, total: 0 });
+    }
 
     const token = await createSnapToken({
       order_id: midtransOrderId,
