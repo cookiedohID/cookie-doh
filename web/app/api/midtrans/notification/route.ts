@@ -305,12 +305,26 @@ export async function POST(req: Request) {
             status: biteship?.status ?? "created",
             raw_json: biteship,
           });
-        }
 
-        await supabase
-          .from("orders")
-          .update({ shipment_status: "created" })
-          .eq("id", order.id);
+          // Mirror the tracking onto the orders row too — the admin and the
+          // customer order-lookup read waybill/tracking_url from orders (this is
+          // what the old /webhook wrote), so without this the tracking link would
+          // go blank for webcommerce orders.
+          await supabase
+            .from("orders")
+            .update({
+              biteship_order_id: biteship?.id ?? null,
+              waybill: biteship?.courier?.waybill ?? biteship?.waybill ?? biteship?.data?.courier?.waybill ?? null,
+              tracking_url: biteship?.courier?.tracking_url ?? biteship?.tracking_url ?? biteship?.data?.courier?.tracking_url ?? null,
+              shipment_status: "created",
+            })
+            .eq("id", order.id);
+        } else {
+          await supabase
+            .from("orders")
+            .update({ shipment_status: "created" })
+            .eq("id", order.id);
+        }
       } catch (shipErr: any) {
         console.error("midtrans notification: shipment creation failed:", shipErr);
         await supabase
