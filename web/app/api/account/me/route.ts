@@ -31,6 +31,34 @@ function memberCodeFor(phone: string) {
   return "CD" + sig.slice(-8); // e.g. CD81932181818 -> CD32181818
 }
 
+// Collision-safe member code. The short "CD"+last-8 code can collide when two
+// numbers share their last 8 local digits, and customers.member_code is UNIQUE —
+// so the second member's write used to silently fail (no QR). Resolution:
+//   1. Reuse this phone's existing code if it already has one (keeps printed QRs stable).
+//   2. Otherwise use the short code, unless another phone already holds it.
+//   3. On collision, fall back to "CD"+FULL significant digits, which is unique by
+//      construction (each canonical phone is unique and >8 digits, so it can never
+//      equal another number's last-8 code either).
+async function resolveMemberCode(supa: any, phone: string): Promise<string> {
+  const sig = phoneSignificant(phone) || "";
+  const { data: mine } = await supa
+    .from("customers")
+    .select("member_code")
+    .eq("phone", phone)
+    .maybeSingle();
+  if (mine?.member_code) return mine.member_code;
+
+  const base = memberCodeFor(phone);
+  const { data: clash } = await supa
+    .from("customers")
+    .select("phone")
+    .eq("member_code", base)
+    .maybeSingle();
+  if (!clash || clash.phone === phone) return base;
+
+  return "CD" + sig; // always-unique fallback
+}
+
 // Phone from the user's metadata (set at signup, or when a Google user adds it).
 function phoneFromUser(user: any): string | null {
   const meta = user?.user_metadata?.phone;
@@ -76,24 +104,34 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
   }
 
   // 3) Safe to link/refresh the customer record.
-  const code = memberCodeFor(phone);
+  let code = await resolveMemberCode(supa, phone);
   const name = user?.user_metadata?.name || null;
-  const { data: cust } = await supa
+  const upsertRow = (memberCode: string) => ({
+    phone,
+    auth_user_id: user.id,
+    member_code: memberCode,
+    ...(name ? { name } : {}),
+    ...(user?.email ? { email: user.email } : {}),
+    phone_verified: true,
+    updated_at: new Date().toISOString(),
+  });
+  const selectCols = "id, phone, name, email, member_code, cookies_redeemed, drinks_redeemed";
+  let { data: cust, error: upErr } = await supa
     .from("customers")
-    .upsert(
-      {
-        phone,
-        auth_user_id: user.id,
-        member_code: code,
-        ...(name ? { name } : {}),
-        ...(user?.email ? { email: user.email } : {}),
-        phone_verified: true,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "phone" }
-    )
-    .select("id, phone, name, email, member_code, cookies_redeemed, drinks_redeemed")
+    .upsert(upsertRow(code), { onConflict: "phone" })
+    .select(selectCols)
     .maybeSingle();
+
+  // Race fallback: if another write grabbed our short code between the check and
+  // the upsert, retry with the always-unique full-significant code.
+  if (upErr && /member_code/i.test(upErr.message || "")) {
+    code = "CD" + (phoneSignificant(phone) || "");
+    ({ data: cust } = await supa
+      .from("customers")
+      .upsert(upsertRow(code), { onConflict: "phone" })
+      .select(selectCols)
+      .maybeSingle());
+  }
 
   // Bind this verified phone to the user so a later claimant can't grab it.
   if (otp?.auth_user_id == null) {

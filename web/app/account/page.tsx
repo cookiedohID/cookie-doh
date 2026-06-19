@@ -3,6 +3,7 @@
 // web/app/account/page.tsx
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import QRCode from "qrcode";
 import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
@@ -233,6 +234,24 @@ export default function AccountPage() {
         <p style={{ marginTop: 12, fontSize: 12, color: COLORS.muted, lineHeight: 1.5, textAlign: "center" }}>
           Stamps are earned on single cookies, drinks, boxes &amp; assortments. Bundles and other promotional items don&apos;t earn stamps.
         </p>
+
+        {/* Account hub links */}
+        <div style={{ marginTop: 18, display: "grid", gap: 10 }}>
+          {[
+            { href: "/account/orders", label: "🧾 My Orders", hint: "Your cafe & online purchases" },
+            { href: "/account/addresses", label: "📍 Saved Addresses", hint: "For faster checkout" },
+          ].map((l) => (
+            <Link key={l.href} href={l.href} style={{ textDecoration: "none" }}>
+              <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontWeight: 800, color: COLORS.black }}>{l.label}</div>
+                  <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>{l.hint}</div>
+                </div>
+                <span style={{ color: COLORS.blue, fontWeight: 900, fontSize: 20 }}>›</span>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
     </main>
   );

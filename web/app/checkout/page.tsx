@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
 import { clearCart, getCart, CART_KEY } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 declare global {
   interface Window {
@@ -268,6 +269,37 @@ export default function CheckoutPage() {
   // Building & postal
   const [buildingName, setBuildingName] = useState("");
   const [postalCode, setPostalCode] = useState("");
+
+  // Saved addresses (members only) — purely a convenience picker that fills the
+  // fields below. The order payload is unchanged.
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [pickedAddressId, setPickedAddressId] = useState<string>("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await getSupabaseBrowser().auth.getSession();
+        const t = data.session?.access_token;
+        if (!t) return;
+        const res = await fetch("/api/account/addresses", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
+        const j = await res.json().catch(() => ({}));
+        if (!cancelled && j?.ok && Array.isArray(j.addresses)) setSavedAddresses(j.addresses);
+      } catch { /* not logged in / not enabled — ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  function applySavedAddress(a: any) {
+    setPickedAddressId(a.id);
+    setAddressBase(String(a.address || ""));
+    setAddressLat(typeof a.lat === "number" ? a.lat : null);
+    setAddressLng(typeof a.lng === "number" ? a.lng : null);
+    setAddressResolved(a.lat != null && a.lng != null);
+    setAddressTouched(false);
+    if (a.building_name) setBuildingName(String(a.building_name));
+    if (a.postal) setPostalCode(String(a.postal));
+  }
 
   // Fulfillment
   const [fulfillment, setFulfillment] = useState<FulfillmentType>("delivery");
@@ -918,6 +950,30 @@ export default function CheckoutPage() {
               <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
                 <div style={{ display: "grid", gap: 6 }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Address</div>
+
+                  {savedAddresses.length > 0 ? (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                      {savedAddresses.map((a) => {
+                        const active = pickedAddressId === a.id;
+                        return (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => applySavedAddress(a)}
+                            style={{
+                              border: active ? `1.5px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.15)",
+                              background: active ? "#EAF2FF" : "#fff",
+                              color: active ? COLORS.blue : COLORS.black,
+                              fontWeight: 700, fontSize: 12, padding: "7px 12px", borderRadius: 999, cursor: "pointer", maxWidth: 220, textAlign: "left",
+                            }}
+                            title={a.address}
+                          >
+                            📍 {a.label || (a.address ? String(a.address).split(",")[0] : "Saved")}{a.is_default ? " · default" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
 
                   <GoogleAddressInput
                     apiKey={mapsKey}
