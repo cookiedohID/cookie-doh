@@ -94,6 +94,32 @@ async function run(req: Request) {
     .filter(Boolean) as { loc: string; name: string; soldOut: boolean; stock: number | null }[];
   lowList.sort((a, b) => (a.soldOut === b.soldOut ? 0 : a.soldOut ? -1 : 1));
 
+  // ---- Referral activity (graceful if the table isn't there) ----
+  let refYesterday = 0;
+  let heavyReferrers: { phone: string; count: number }[] = [];
+  try {
+    const { data: refRows } = await supa
+      .from("referrals")
+      .select("referrer_phone, created_at")
+      .gte("created_at", new Date(Date.now() - 7 * 86400000).toISOString());
+    const week = refRows || [];
+    const fromMs = new Date(fromIso).getTime();
+    const toMs = new Date(toIso).getTime();
+    const byReferrer: Record<string, number> = {};
+    for (const r of week) {
+      const t = r?.created_at ? new Date(r.created_at).getTime() : 0;
+      if (t >= fromMs && t <= toMs) refYesterday += 1;
+      const p = String(r?.referrer_phone || "");
+      if (p) byReferrer[p] = (byReferrer[p] || 0) + 1;
+    }
+    heavyReferrers = Object.entries(byReferrer)
+      .filter(([, c]) => c >= 5) // flag anyone with 5+ referrals in a week
+      .map(([phone, count]) => ({ phone, count }))
+      .sort((a, b) => b.count - a.count);
+  } catch {
+    /* referrals table optional */
+  }
+
   // ---- Compose ----
   const lines: string[] = [];
   lines.push("☀️ Cookie Doh — Daily Digest");
@@ -129,6 +155,14 @@ async function run(req: Request) {
     if (lowList.length > 30) lines.push(`…and ${lowList.length - 30} more`);
   } else {
     lines.push("✅ All flavors in stock");
+  }
+
+  if (refYesterday > 0 || heavyReferrers.length) {
+    lines.push("");
+    lines.push(`👯 Referrals: ${refYesterday} yesterday`);
+    for (const h of heavyReferrers.slice(0, 5)) {
+      lines.push(`⚠️ ${h.phone} — ${h.count} this week (watch)`);
+    }
   }
 
   lines.push("");
