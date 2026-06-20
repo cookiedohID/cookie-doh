@@ -11,6 +11,7 @@ const SECTIONS = [
   { href: "/admin/flavors", title: "Inventory", desc: "Per-location stock & sold-out", emoji: "📦" },
   { href: "/admin/locations", title: "Locations", desc: "Manage stores & transfer stock", emoji: "📍" },
   { href: "/admin/broadcast", title: "Broadcast", desc: "WhatsApp your members", emoji: "📣" },
+  { href: "/admin/promos", title: "Promo codes", desc: "Discount codes for checkout", emoji: "🎟️" },
   { href: "/admin/help", title: "Manual", desc: "How everything works", emoji: "📖" },
 ];
 

@@ -259,6 +259,22 @@ export async function POST(req: Request) {
       console.error("referral qualify failed:", e);
     }
 
+    // Record promo-code usage once, on payment. UNIQUE(order_id) makes retries a
+    // no-op, so usage limits (counted from these rows) stay accurate.
+    try {
+      const promo = (order as any)?.meta?.promo;
+      if (paid && promo?.code) {
+        await supabase.from("promo_redemptions").insert({
+          code: promo.code,
+          phone: order.customer_phone || null,
+          order_id: order.id,
+          discount_idr: Number(promo.discount || 0),
+        });
+      }
+    } catch (e) {
+      console.error("promo redemption record failed:", e);
+    }
+
 
     // Cafe (in-store) orders: no delivery — just decrement stock + notify, once.
     if (paid && order?.meta?.channel === "cafe") {

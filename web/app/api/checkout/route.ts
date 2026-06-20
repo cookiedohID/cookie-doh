@@ -7,6 +7,7 @@ import { upsertCustomerForOrder } from "@/lib/customers";
 import { canonicalPhone } from "@/lib/phone";
 import { loyaltyForPhone } from "@/app/api/loyalty/lookup/route";
 import { cleanRefCode } from "@/lib/referrals";
+import { validatePromo } from "@/lib/promo";
 
 export const runtime = "nodejs";
 
@@ -126,6 +127,27 @@ export async function POST(req: Request) {
     const shippingCost = Number(payload?.shipping_cost_idr ?? payload?.shipping_cost ?? 0) || 0;
     const totalIdr = Number(payload?.total_idr ?? payload?.total ?? (subtotal + shippingCost)) || 0;
 
+    // ---- Promo code (server-authoritative) ----
+    // The discount is computed from the SERVER-derived cart subtotal (never a
+    // client-supplied subtotal) and applied exactly ONCE to a discount-free base
+    // (subtotal + shipping), so the client can neither inflate the discount nor
+    // double-apply it. Non-promo orders keep their existing total untouched.
+    let promoApplied: { code: string; discount: number } | null = null;
+    const promoCodeRaw = String(payload?.promo_code || "").trim();
+    let finalTotal = totalIdr;
+    if (promoCodeRaw) {
+      const serverSubtotal = Math.max(0, Math.floor(computeSubtotalFromCart(cart)));
+      const pv = await validatePromo(supabase, promoCodeRaw, serverSubtotal, customerPhone);
+      if (!pv.valid) {
+        return NextResponse.json({ ok: false, error: pv.reason || "That promo code can't be applied." }, { status: 400 });
+      }
+      promoApplied = { code: pv.code!, discount: pv.discount };
+      finalTotal = Math.max(0, serverSubtotal + shippingCost - pv.discount);
+      if (finalTotal < 1) {
+        return NextResponse.json({ ok: false, error: "This code would make the order free — please contact us to arrange it." }, { status: 400 });
+      }
+    }
+
     const checkoutMode = mode();
 
     const midtransOrderId =
@@ -211,7 +233,7 @@ export async function POST(req: Request) {
 
       subtotal_idr: subtotal || null,
       shipping_cost_idr: shippingCost || 0,
-      total_idr: totalIdr || null,
+      total_idr: finalTotal || null,
 
       midtrans_order_id: midtransOrderId,
 
@@ -233,6 +255,7 @@ export async function POST(req: Request) {
         boxes_text: boxesText,
         gift: payload?.gift || null,
         ref: refCode,
+        promo: promoApplied,
       },
     };
 
@@ -262,7 +285,7 @@ export async function POST(req: Request) {
       fulfilment: fulfillmentType,
       scheduleDate: fulfillment?.scheduleDate ?? null,
       scheduleTime: fulfillment?.scheduleTime ?? null,
-      totalIdr: orderRow.total_idr ?? totalIdr,
+      totalIdr: orderRow.total_idr ?? finalTotal,
       items,
       boxesText,
       adminUrl: `${siteUrl}/admin/orders/${orderRow.id}`,
@@ -297,7 +320,7 @@ export async function POST(req: Request) {
     // ✅ Midtrans SNAP POPUP mode = return snap_token
     const token = await createSnapToken({
       order_id: midtransOrderId,
-      gross_amount: totalIdr,
+      gross_amount: finalTotal,
       customer: { name: customerName, phone: customerPhone, email },
       siteUrl,
       itemsText: boxesText || undefined,

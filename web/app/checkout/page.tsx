@@ -266,6 +266,10 @@ export default function CheckoutPage() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number; label: string } | null>(null);
+  const [promoMsg, setPromoMsg] = useState("");
+  const [promoBusy, setPromoBusy] = useState(false);
   // Loyalty rewards available to a logged-in member, + their redemption picks.
   const [availFreeCookies, setAvailFreeCookies] = useState(0);
   const [availFreeDrinks, setAvailFreeDrinks] = useState(0);
@@ -581,7 +585,40 @@ export default function CheckoutPage() {
   }, [fulfillment, deliverySpeed, addressResolved, addressLat, addressLng, postalCode]);
 
   const deliveryFee = fulfillment === "delivery" ? shippingCost : 0;
-  const grandTotal = subtotal + (deliveryFee || 0);
+  const promoDiscount = appliedPromo ? Math.min(appliedPromo.discount, subtotal) : 0;
+  const grandTotal = Math.max(0, subtotal + (deliveryFee || 0) - promoDiscount);
+
+  async function applyPromo() {
+    const code = promoInput.trim();
+    if (!code) return;
+    setPromoBusy(true);
+    setPromoMsg("");
+    try {
+      const j = await (
+        await fetch("/api/promo/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, subtotal, phone: phone.trim() || null }),
+        })
+      ).json();
+      if (j?.valid) {
+        setAppliedPromo({ code: j.code, discount: j.discount, label: j.label });
+        setPromoMsg("");
+      } else {
+        setAppliedPromo(null);
+        setPromoMsg(j?.reason || "That code can't be applied.");
+      }
+    } catch {
+      setPromoMsg("Couldn't check that code — try again.");
+    } finally {
+      setPromoBusy(false);
+    }
+  }
+  function clearPromo() {
+    setAppliedPromo(null);
+    setPromoInput("");
+    setPromoMsg("");
+  }
 
   const validate = () => {
     if (!name.trim()) return "Please add your name.";
@@ -683,6 +720,7 @@ export default function CheckoutPage() {
           redeemDrinkId && redeemDrinkQty > 0 ? { id: redeemDrinkId, name: SMOOTHIES.find((s: any) => s.id === redeemDrinkId)?.name || "Drink", kind: "drink", quantity: Math.min(redeemDrinkQty, availFreeDrinks) } : null,
         ].filter(Boolean),
         cart,
+        promo_code: appliedPromo?.code || null,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
         total: grandTotal,
         meta: {
@@ -1447,6 +1485,37 @@ export default function CheckoutPage() {
               {fulfillment === "delivery" && shippingError ? (
                 <div style={{ marginTop: 6, color: "crimson", fontWeight: 900, fontSize: 12 }}>
                   Delivery quote failed. Please press <b>Recalculate</b> in Delivery details.
+                </div>
+              ) : null}
+
+              {/* Promo code */}
+              <div style={{ marginTop: 10 }}>
+                {appliedPromo ? (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", color: "#1d9e75", fontWeight: 900 }}>
+                    <div>🎟️ {appliedPromo.code} <span style={{ fontWeight: 700 }}>({appliedPromo.label})</span></div>
+                    <button type="button" onClick={clearPromo} style={{ border: "none", background: "none", color: "#6B6B6B", fontWeight: 800, cursor: "pointer", fontSize: 12 }}>Remove</button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      value={promoInput}
+                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyPromo(); } }}
+                      placeholder="Promo code"
+                      style={{ flex: 1, minWidth: 0, padding: "9px 11px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.18)", fontSize: 13, textTransform: "uppercase", boxSizing: "border-box" }}
+                    />
+                    <button type="button" onClick={applyPromo} disabled={promoBusy || !promoInput.trim()} style={{ border: "1px solid rgba(0,0,0,0.18)", background: "#fff", borderRadius: 10, padding: "0 14px", fontWeight: 800, fontSize: 13, color: COLORS.blue, cursor: promoBusy ? "wait" : "pointer", flex: "0 0 auto" }}>
+                      {promoBusy ? "…" : "Apply"}
+                    </button>
+                  </div>
+                )}
+                {promoMsg ? <div style={{ marginTop: 6, color: "#C0392B", fontWeight: 700, fontSize: 12 }}>{promoMsg}</div> : null}
+              </div>
+
+              {appliedPromo && promoDiscount > 0 ? (
+                <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", color: "#1d9e75", fontWeight: 900 }}>
+                  <div>Discount</div>
+                  <div>−{formatIDR(promoDiscount)}</div>
                 </div>
               ) : null}
 
