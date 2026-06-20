@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { canonicalPhone, phoneSignificant } from "@/lib/phone";
 import { loyaltyFromOrders } from "@/lib/loyalty";
+import { grantsForPhone } from "@/lib/loyaltyGrants";
 
 export const runtime = "nodejs";
 
@@ -26,7 +27,8 @@ export async function loyaltyForPhone(supa: any, phone: string) {
   // formats). Require an EXACT canonical match so a shorter significant-number
   // string can't match inside a different, longer number.
   const exact = (data || []).filter((o: any) => phoneSignificant(o?.customer_phone) === sig);
-  return loyaltyFromOrders(exact);
+  const grant = await grantsForPhone(supa, phone);
+  return loyaltyFromOrders(exact, grant);
 }
 
 export async function POST(req: Request) {

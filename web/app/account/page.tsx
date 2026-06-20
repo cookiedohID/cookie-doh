@@ -21,6 +21,7 @@ export default function AccountPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [member, setMember] = useState<Member | null>(null);
+  const [copied, setCopied] = useState(false);
   const [needsPhone, setNeedsPhone] = useState(false);
   const [phone, setPhone] = useState("");
   const [otpStep, setOtpStep] = useState<"phone" | "code">("phone");
@@ -185,6 +186,20 @@ export default function AccountPage() {
     { label: "🥤 Drinks", stamps: L.drinkStamps, free: L.freeDrinks },
   ];
 
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://www.cookiedoh.co.id";
+  const referralUrl = `${origin}/?ref=${member.memberCode}`;
+  const waText = `Get a FREE Cookie Doh cookie 🍪 Order your first box with my link and we both get one: ${referralUrl}`;
+  const waShare = `https://wa.me/?text=${encodeURIComponent(waText)}`;
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(referralUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard blocked — the field is selectable as a fallback */
+    }
+  };
+
   return (
     <main style={{ minHeight: "100vh", background: COLORS.bg }}>
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "32px 16px 80px" }}>
@@ -234,6 +249,28 @@ export default function AccountPage() {
         <p style={{ marginTop: 12, fontSize: 12, color: COLORS.muted, lineHeight: 1.5, textAlign: "center" }}>
           Stamps are earned on single cookies, drinks, boxes &amp; assortments. Bundles and other promotional items don&apos;t earn stamps.
         </p>
+
+        {/* Refer a friend */}
+        <div style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
+          <div style={{ fontWeight: 800, color: COLORS.black, fontSize: 16 }}>🎁 Refer a friend</div>
+          <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>
+            Give a cookie, get a cookie. When a friend orders a box of 6 (or more) for the first time with your link, you <b>both</b> get a free cookie 🍪
+          </div>
+          <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+            <input
+              readOnly
+              value={referralUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              style={{ flex: 1, minWidth: 0, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.15)", fontSize: 12, color: COLORS.black, background: COLORS.bg }}
+            />
+            <button onClick={copyLink} style={{ border: "1px solid rgba(0,0,0,0.15)", background: "#fff", borderRadius: 10, padding: "0 14px", fontWeight: 800, fontSize: 13, color: COLORS.blue, cursor: "pointer", flex: "0 0 auto" }}>
+              {copied ? "Copied!" : "Copy"}
+            </button>
+          </div>
+          <a href={waShare} target="_blank" rel="noreferrer" style={{ marginTop: 10, display: "block", textAlign: "center", background: "#25D366", color: "#fff", fontWeight: 800, fontSize: 14, padding: "12px", borderRadius: 999, textDecoration: "none" }}>
+            Share on WhatsApp
+          </a>
+        </div>
 
         {/* Account hub links */}
         <div style={{ marginTop: 18, display: "grid", gap: 10 }}>

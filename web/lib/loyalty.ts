@@ -48,7 +48,13 @@ export type LoyaltyProgress = {
   freeDrinks: number;
 };
 
-export function loyaltyFromOrders(orders: any[]): LoyaltyProgress {
+// `grant` adds free cookies/drinks earned OUTSIDE the buy-10 engine (e.g. a
+// referral bonus, stored in loyalty_grants). They stack on top of stamp-earned
+// rewards and are spent down by the same `free:true` redemption lines.
+export function loyaltyFromOrders(
+  orders: any[],
+  grant?: { cookies?: number; drinks?: number }
+): LoyaltyProgress {
   let cookieUnits = 0, drinkUnits = 0; // full-price, earning
   let cookieFree = 0, drinkFree = 0; // redeemed (free lines)
 
@@ -78,11 +84,13 @@ export function loyaltyFromOrders(orders: any[]): LoyaltyProgress {
 
   const earnedCookies = Math.floor(cookieUnits / STAMPS_PER_FREE);
   const earnedDrinks = Math.floor(drinkUnits / STAMPS_PER_FREE);
+  const grantCookies = Math.max(0, Math.floor(Number(grant?.cookies || 0)));
+  const grantDrinks = Math.max(0, Math.floor(Number(grant?.drinks || 0)));
 
   return {
     cookieStamps: cookieUnits % STAMPS_PER_FREE,
     drinkStamps: drinkUnits % STAMPS_PER_FREE,
-    freeCookies: Math.max(0, earnedCookies - cookieFree),
-    freeDrinks: Math.max(0, earnedDrinks - drinkFree),
+    freeCookies: Math.max(0, earnedCookies + grantCookies - cookieFree),
+    freeDrinks: Math.max(0, earnedDrinks + grantDrinks - drinkFree),
   };
 }

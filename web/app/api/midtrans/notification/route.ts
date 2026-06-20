@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import midtransClient from "midtrans-client";
 import { supabaseServer } from "@/lib/supabaseServer";
 import { createBiteshipOrder as createIntercityShipment } from "@/lib/biteship";
+import { tryQualifyReferral } from "@/lib/referrals";
+import { sendWhatsApp } from "@/lib/whatsapp";
 
 export const runtime = "nodejs";
 
@@ -230,6 +232,31 @@ export async function POST(req: Request) {
       }
     } catch (e) {
       console.error("loyalty reservation settle failed:", e);
+    }
+
+    // Referral rewards: if this PAID order carries a referral code and the buyer
+    // is a brand-new customer who spent at least a box of 6, credit both sides a
+    // free cookie. Idempotent (UNIQUE(referred_phone)); never blocks payment.
+    try {
+      if (paid) {
+        const ref = await tryQualifyReferral(supabase, order);
+        if (ref.qualified) {
+          await Promise.allSettled([
+            sendWhatsApp({
+              to: ref.referrerPhone,
+              message:
+                "🎉 Your friend just made their first Cookie Doh order with your link — you've earned a FREE cookie 🍪 Use it on your next order or at the counter. Thank you for sharing!",
+            }),
+            sendWhatsApp({
+              to: ref.friendPhone,
+              message:
+                "Welcome to Cookie Doh! 🍪 Thanks for your first order — there's a FREE cookie waiting on your next one. See you again soon 💛",
+            }),
+          ]);
+        }
+      }
+    } catch (e) {
+      console.error("referral qualify failed:", e);
     }
 
 

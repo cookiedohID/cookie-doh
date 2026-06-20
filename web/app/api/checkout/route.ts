@@ -6,6 +6,7 @@ import { notifyNewOrder } from "@/lib/notify";
 import { upsertCustomerForOrder } from "@/lib/customers";
 import { canonicalPhone } from "@/lib/phone";
 import { loyaltyForPhone } from "@/app/api/loyalty/lookup/route";
+import { cleanRefCode } from "@/lib/referrals";
 
 export const runtime = "nodejs";
 
@@ -88,11 +89,21 @@ function makeMidtransOrderId(checkoutMode: string) {
   return `${prefix}-${y}${m}${day}-${rand}`;
 }
 
+function readCookie(req: Request, name: string): string | null {
+  const c = req.headers.get("cookie") || "";
+  const m = c.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 export async function POST(req: Request) {
   try {
     const payload = await req.json();
     const siteUrl = getSiteUrl();
     const supabase = supaAdmin();
+
+    // Referral code (from the cd_ref cookie set when the friend clicked /?ref=…).
+    // Validated; rides along on the order so the payment webhook can reward it.
+    const refCode = cleanRefCode(readCookie(req, "cd_ref"));
 
     const customerName = (payload?.customer?.name || "").toString();
     const customerPhone = (payload?.customer?.phone || "").toString();
@@ -221,6 +232,7 @@ export async function POST(req: Request) {
         quote,
         boxes_text: boxesText,
         gift: payload?.gift || null,
+        ref: refCode,
       },
     };
 

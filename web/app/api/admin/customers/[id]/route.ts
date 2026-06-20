@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { phoneSignificant } from "@/lib/phone";
 import { loyaltyFromOrders } from "@/lib/loyalty";
+import { grantsForPhone } from "@/lib/loyaltyGrants";
 
 export const runtime = "nodejs";
 
@@ -38,15 +39,20 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
         .ilike("customer_phone", `%${sig}%`)
         .order("created_at", { ascending: false })
         .limit(200);
-      orders = ord || [];
+      // ilike is only a loose prefilter (orders store the phone as typed, in mixed
+      // formats). Require an EXACT canonical match so a shorter significant-number
+      // string can't match inside a different, longer number and inflate the totals.
+      orders = (ord || []).filter((o: any) => phoneSignificant(o?.customer_phone) === sig);
     }
 
     const totalSpent = orders
       .filter((o) => String(o.payment_status).toUpperCase() === "PAID")
       .reduce((s, o) => s + (Number(o.total_idr) || 0), 0);
 
-    // Loyalty is derived entirely from the order history (free lines = redeemed).
-    const loyalty = loyaltyFromOrders(orders);
+    // Loyalty is derived from order history (free lines = redeemed) plus any
+    // grants (e.g. referral bonuses).
+    const grant = await grantsForPhone(supa, customer.phone);
+    const loyalty = loyaltyFromOrders(orders, grant);
 
     return NextResponse.json(
       { ok: true, customer, orders, stats: { orders: orders.length, totalSpent }, loyalty },

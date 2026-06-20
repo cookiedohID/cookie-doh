@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { canonicalPhone, phoneSignificant } from "@/lib/phone";
 import { loyaltyFromOrders } from "@/lib/loyalty";
+import { grantsForPhone } from "@/lib/loyaltyGrants";
 
 export const runtime = "nodejs";
 
@@ -144,7 +145,8 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
   // Loyalty from the paid orders we already fetched (exact canonical match — the
   // ilike above is only a loose prefilter).
   const orders = sig ? (ordersRes.data || []).filter((o: any) => phoneSignificant(o?.customer_phone) === sig) : [];
-  const loyalty = loyaltyFromOrders(orders);
+  const grant = await grantsForPhone(supa, phone);
+  const loyalty = loyaltyFromOrders(orders, grant);
 
   return {
     kind: "member",

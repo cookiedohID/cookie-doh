@@ -153,6 +153,16 @@ export default function SuccessClient() {
   const [order, setOrder] = useState<any>(null);
   const [loadingOrder, setLoadingOrder] = useState<boolean>(true);
 
+  // A referral code is consumed by the order that just completed — clear the
+  // cd_ref cookie so it can't re-tag a later, unrelated order from this browser.
+  useEffect(() => {
+    try {
+      document.cookie = "cd_ref=; path=/; max-age=0; samesite=lax";
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     let alive = true;
     async function run() {
