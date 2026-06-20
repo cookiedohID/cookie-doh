@@ -1,0 +1,23 @@
+name: Daily owner digest (08:00 WIB)
+
+# Sends the owner a WhatsApp summary of yesterday's sales + low-stock list.
+# 01:00 UTC = 08:00 Asia/Jakarta. GitHub Actions (free) — Vercel Hobby crons
+# can't be relied on for a fixed time and we keep one scheduler for both jobs.
+on:
+  schedule:
+    - cron: "0 1 * * *" # 08:00 WIB (GitHub may delay a few minutes)
+  workflow_dispatch: {}
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send daily digest
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            "https://www.cookiedoh.co.id/api/cron/daily-digest")
+          echo "HTTP $code"
+          cat /tmp/resp.txt
+          echo
+          test "$code" = "200"

@@ -1,0 +1,23 @@
+name: Abandoned-cart nudge (hourly)
+
+# Runs every hour and pings the protected endpoint, which WhatsApps anyone whose
+# checkout has sat unpaid for 1–12h. GitHub Actions (free) is used instead of
+# Vercel Cron because the Vercel Hobby plan only allows daily crons.
+on:
+  schedule:
+    - cron: "0 * * * *" # top of every hour (UTC); GitHub may delay a few minutes
+  workflow_dispatch: {} # lets you run it manually from the Actions tab
+
+jobs:
+  nudge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger abandoned-cart nudge
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            "https://www.cookiedoh.co.id/api/cron/abandoned-cart")
+          echo "HTTP $code"
+          cat /tmp/resp.txt
+          echo
+          test "$code" = "200"
