@@ -11,13 +11,15 @@ A complete guide to every function of the Cookie Doh platform: the **website**, 
 ## Contents
 1. [The three areas](#1-the-three-areas)
 2. [Website (storefront) functions](#2-website-storefront-functions)
-3. [Membership & loyalty](#3-membership--loyalty)
+3. [Membership, loyalty & rewards](#3-membership-loyalty--rewards)
 4. [Cafe POS functions](#4-cafe-pos-functions)
 5. [Admin back office functions](#5-admin-back-office-functions)
-6. [Delivery & pickup](#6-delivery--pickup)
-7. [Notifications](#7-notifications)
-8. [Behind the scenes (services)](#8-behind-the-scenes-services)
-9. [One-time setup & maintenance](#9-one-time-setup--maintenance)
+6. [Marketing, growth & retention](#6-marketing-growth--retention)
+7. [Automatic background jobs](#7-automatic-background-jobs)
+8. [Delivery & pickup](#8-delivery--pickup)
+9. [Notifications](#9-notifications)
+10. [Behind the scenes (services)](#10-behind-the-scenes-services)
+11. [Setup & maintenance](#11-setup--maintenance)
 
 ---
 
@@ -29,7 +31,12 @@ A complete guide to every function of the Cookie Doh platform: the **website**, 
 | **Cafe POS** | `cookiedoh.co.id/cafe` | In-store staff / walk-in self-order |
 | **Admin back office** | `cookiedoh.co.id/admin` | You (password-protected) |
 
-A short in-app version of this manual also lives at **`/admin/help`**.
+A short in-app version of this manual lives at **`/admin/help`**. A customer-facing
+FAQ lives at **`/help`** (linked in the website footer).
+
+> **You can run all of this from your phone.** The admin, POS, and customer site are
+> all just web pages — open them in any phone browser, log into `/admin` once, and
+> manage everything from anywhere.
 
 ---
 
@@ -39,150 +46,208 @@ A short in-app version of this manual also lives at **`/admin/help`**.
 - **Home (`/`)** — hero, featured flavours, quick links.
 - **Build Your Box (`/build`)** — choose a **Box of 3** or **Box of 6**, then mix-and-match
   flavours. Box price is **Rp30,000 per cookie** (Box of 3 = Rp90,000, Box of 6 = Rp180,000).
-- **Cookies (`/cookies`)** — browse all cookie flavours.
-- **Smoothies (`/smoothies`)** — browse drinks.
-- **Bundles (`/bundles`)** — fixed-price sets of cookies + drinks (customer picks the contents).
-- **Assortments (`/assortments`)** — ready-made curated boxes; add in one tap.
+- **Flavours (`/flavors`)** — browse all cookie flavours. Sold-out flavours show a **Sold out**
+  badge and a **"🔔 Notify me when back"** button (see [Back-in-stock](#back-in-stock-alerts)).
+- **Cookies / Smoothies / Bundles / Assortments** — browse singles, drinks, fixed-price sets,
+  and ready-made curated boxes.
 - **Cart (`/cart`)** — review boxes/bundles before checkout.
 
 ### Checkout (`/checkout`)
-- **Contact details** — name + WhatsApp number. *If a member is logged in, these
-  pre-fill automatically (still editable).*
-- **🎁 Send as a gift** — toggle to add a **handwritten card** (To / From / message,
-  up to 300 characters). Prices are left off the box.
-- **Fulfilment** — choose **Delivery** (same-day) or **Pickup**, then pick a **date & time**.
-- **Delivery address** — Google-powered address search; saved-address chips appear for
-  logged-in members. A live delivery quote is shown.
-- **Notes** — optional special instructions.
-- **Payment** — QRIS / card via Midtrans. The order is confirmed once payment succeeds.
+- **Contact details** — name + WhatsApp number. *Pre-fills for logged-in members (still editable).*
+- **🎁 Send as a gift** — adds a **handwritten card** (To / From / message, up to 300 chars);
+  prices are left off the box.
+- **Fulfilment** — **Delivery** or **Pickup**, then pick a **date & time**.
+- **Delivery address** — Google address search; saved-address chips for members; live quote.
+- **🎟️ Promo code** — enter a code and tap **Apply** to see the discount before paying.
+- **🎁 Redeem free rewards** — a logged-in member with earned free cookies/drinks can apply them
+  here (validated against their real balance).
+- **Payment** — QRIS / card via Midtrans. The order confirms once payment succeeds.
+- **Order confirmation (`/checkout/success`)** shows the result; **`/account/orders`** keeps the
+  full history (pickup point or delivery address, date/time, and any gift note).
 
 ---
 
-## 3. Membership & loyalty
+## 3. Membership, loyalty & rewards
 
 ### Member account (`/account`)
-- **Sign up / log in** with email + password **or** Google.
-- The **phone number is the member ID**, verified by a one-time code sent on **WhatsApp**.
-- **Forgot password** — a reset link is on the login page (`/account/login`).
+- **Sign up / log in** with email + password **or** Google. The **phone number is the member ID**,
+  verified by a one-time code on **WhatsApp**. **Forgot password** link is on `/account/login`.
 - The account shows:
   - **Membership QR code** (scanned in-store to earn/redeem)
-  - **Loyalty progress** (cookie & drink stamps)
-  - **My Orders** (`/account/orders`) — full history, cafe + online, items link back to reorder
-  - **Saved Addresses** (`/account/addresses`) — add/edit multiple, set a default
+  - **Loyalty progress** (cookie & drink stamps + any free rewards ready)
+  - **🎂 Your birthday** — set month + day once for a yearly free-cookie surprise
+  - **🎁 Refer a friend** — your personal link + "Share on WhatsApp" button
+  - **My Orders** (`/account/orders`) and **Saved Addresses** (`/account/addresses`)
 
 ### Loyalty rules
 - **10 cookies → 1 free cookie**, **10 drinks → 1 free drink** (tracked separately).
 - **Earns stamps:** single cookies/drinks, **boxes**, and **assortments**.
 - **Does NOT earn:** **bundles**, free reward items, and other promotional items.
-- Progress **never resets** — leftovers roll forward (e.g. 12 cookies = 1 free + 2 toward the next).
-- Free rewards are calculated from **paid** orders only.
+- Progress **never resets** — leftovers roll forward. Free rewards come from **paid** orders only.
+
+### Where free rewards come from
+A member's available free cookies/drinks = **earned stamps + bonus grants − already redeemed**.
+"Bonus grants" are free cookies given outside the buy-10 engine:
+- **Referral** rewards (both sides, see below)
+- **Birthday** rewards
+These appear in the same balance and are redeemable the same way (POS or online checkout).
 
 ---
 
 ## 4. Cafe POS functions
 
-Open **`/cafe`** on the in-store tablet/register. It runs as a **full-screen kiosk**
-(the storefront menu/nav is hidden so a customer can't wander off).
+Open **`/cafe`** on the in-store tablet/register — a **full-screen kiosk** (storefront nav hidden).
 
-- **Sections** — Assortments, Boxes, Bundles, Cookies, Drinks (jump via the top nav).
-- **Add items** — tap to add singles; build a box (pick N cookies) or a bundle.
-- **💡 Box nudge** — if a customer has **3+ single cookies**, a banner suggests a box and
-  shows the saving (boxes are cheaper per cookie). "View boxes" jumps to the box section.
-- **Members:**
-  - **Scan QR** (📷) or type the member's phone, then "Rewards".
-  - A big **"👋 Welcome, [name]"** banner shows their points — so a walk-in immediately
-    notices if the wrong member is attached. **"Not you? ✕"** detaches it.
-  - The member **clears automatically after every order** (so it can't stick as a default).
-- **Redeeming free rewards (secure):** tap **"🔒 Use free cookie/drink"** → a code is sent
-  to **the member's own WhatsApp** → they read it to staff → enter it to confirm. This stops
-  staff from redeeming someone's rewards without the member present.
-- **Checkout** — review, then charge by **QRIS**. On payment it prints and returns to the
-  start screen. After ~5 minutes idle it also returns to the start screen.
+- **Sections** — Assortments, Boxes, Bundles, Cookies, Drinks.
+- **Add items** — tap singles; build a box (pick N cookies) or a bundle.
+- **💡 Box nudge** — 3+ single cookies prompts a "switch to a box and save" banner.
+- **Members:** **Scan QR** (📷) or type the phone, then **Rewards** (or press **Enter**). A big
+  **"👋 Welcome, [name]"** banner shows their points; **"Not you? ✕"** detaches. The member is
+  **locked** after lookup and **clears after every order**.
+- **Redeeming free rewards (secure):** a one-time code is sent to **the member's own WhatsApp**;
+  they read it to staff to confirm — so rewards can't be redeemed without the member present.
+  A **free-reward picker** limits choices to what they actually have. **Free-only redemptions are
+  allowed** (no purchase required).
+- **Checkout** — review, charge by **QRIS**, prints, returns to start (also after ~5 min idle).
 
 ---
 
 ## 5. Admin back office functions
 
-Go to **`/admin`** and sign in with the **admin password**. Every admin page and action is
-behind this login. **Log out** is in the top-right of the admin header.
-
-### Home (`/admin`)
-A dashboard with cards linking to each section.
+Go to **`/admin`** and sign in with the **admin password**. Everything is behind this login;
+**Log out** is in the top-right. The home page links to each section.
 
 ### Orders (`/admin/orders`)
-- List of **all orders** (cafe + online), newest first, with status filters and a schedule-date filter.
-- **Click a row** → full **order detail**: customer name/phone/email, delivery address,
-  items, totals, payment & fulfilment status, and the **🎁 gift card** block if it's a gift.
-- **Actions:** mark **Paid / Sending / Sent**, **Book Lalamove**, **WhatsApp Admin** (send an
-  update), open **Track** link.
-- **🗑 Delete** a single order, or **🗑 Delete all unpaid** to clear test/abandoned orders in
-  one go (it never touches paid orders).
+- All orders (cafe + online), newest first, with status/date filters.
+- **Click a row** → full detail: customer, address, items, totals, payment & fulfilment status,
+  the **🎁 gift card** block, and any **🎟️ promo / discount** applied.
+- **Actions:** mark Paid / Sending / Sent, Book Lalamove, WhatsApp the customer, open Track.
+- **🗑 Delete** one order, or **🗑 Delete all unpaid** to clear test/abandoned orders (paid are safe).
 
-### Inventory (`/admin/flavors`, also `/admin/inventory`)
-- Set **stock per location** for each item, or mark an item **sold out** at a location.
-- **No number = unlimited** (never sells out). Type a number to start tracking it.
+### Inventory (`/admin/flavors`)
+- Set **stock per location**, or mark an item **sold out** at a location. **No number = unlimited.**
 - An item is unavailable at a location if it's **flagged sold-out OR stock ≤ 0**.
+- The website shows a flavour as sold out only when **every** tracked store is out. Flipping it
+  back to available **WhatsApps everyone who asked to be notified** (see Back-in-stock).
 
 ### Locations & transfer (`/admin/locations`)
-- **Add / edit / delete stores** (name, short label, address).
-- **🔄 Internal transfer** — move an item's stock from one store to another. Counts update at
-  both stores and the move is logged. *Transferring stock in also clears the "sold out" flag.*
-- New locations are **inventory/transfer points**; delivery still ships from your existing stores.
+- Add / edit / delete stores. **🔄 Internal transfer** moves stock between stores (logged;
+  transferring stock in also clears "sold out").
 
 ### Reports (`/admin/reports`)
-Filter by **date range** and **location** at the top. Tabs:
-- **Daily sales** — revenue + order count per day. **Click a date** to expand its orders;
-  **click an order** to open its full detail.
-- **By item** — quantity sold + revenue per item.
-- **Locations** — sales compared across stores.
-- **Inventory** — current stock + a **movement history** (sales and transfers).
-- **Redeemed** — free items actually given out.
+Filter by date range + location. Tabs: **Daily sales** (click a date → its orders → an order),
+**By item**, **Locations**, **Inventory** (+ movement history), **Redeemed** (free items given out).
 
 ### Customers (`/admin/customers`)
-- Search customers by name; open one to see their orders, totals, and loyalty.
+- Search by name; open one to see orders, totals, and loyalty (including bonus grants).
+
+### Broadcast (`/admin/broadcast`)
+- Send a WhatsApp to a **segment** of everyone who's ever ordered. See [Marketing](#broadcast).
+
+### Promo codes (`/admin/promos`)
+- Create & manage discount codes. See [Promo codes](#promo-codes).
 
 ### Manual (`/admin/help`)
 - The in-app quick version of this document.
 
 ---
 
-## 6. Delivery & pickup
-- **Same-day delivery** via **Lalamove** to the Greater Jakarta + Bekasi service area
-  (the checkout address field checks coverage and shows a live quote).
+## 6. Marketing, growth & retention
+
+### Broadcast
+`/admin/broadcast` — pick **who** gets it and write the message.
+- **Segments:** Everyone (every customer who's ordered + all members), Active (ordered in 30 days),
+  Lapsed (45+ days quiet), VIPs (3+ orders or Rp300k+ spent). The live recipient count updates as
+  you choose.
+- Use **`{name}`** to personalise. A "Reply STOP to opt out" line is added automatically.
+- Costs a small amount per WhatsApp — only message people who expect to hear from you.
+
+### Promo codes
+`/admin/promos` — create a code (percent **or** fixed amount off), with optional **min spend**,
+**max-discount cap** (for percent), **total uses**, **uses per customer**, and **expiry**. Pause or
+delete any code; usage is shown per code.
+- Customers enter the code at checkout; the discount is **recomputed on our server** (never set by
+  the browser) and applied to the merchandise subtotal.
+- Great paired with a **Broadcast** ("Use LAVENDER15 this week").
+- *Note:* usage limits are best-effort across many simultaneous unpaid checkouts — fine for
+  marketing codes; tell us before relying on a strictly single-use, high-value code.
+
+### Referrals — give a cookie, get a cookie
+- Every member gets a **referral link** in `/account` (`/?ref=THEIRCODE`) + a WhatsApp share button.
+- When a **new** customer orders their **first** box worth **at least a box of 6 (Rp180k merchandise)**
+  using that link, **both** the member and the friend get **+1 free cookie**, and both get a WhatsApp.
+- One reward per friend (ever); a refund of the qualifying order **reverses** the bonus.
+- The daily digest flags anyone racking up an unusual number of referrals.
+
+### Birthday rewards
+- Members set a **month + day** in `/account` (no birth year collected).
+- Each morning the system grants a **free birthday cookie** + sends a "Happy birthday" WhatsApp to
+  anyone whose birthday is that day. One per member per year.
+
+### Back-in-stock alerts
+- On a **sold-out** flavour card, customers tap **"🔔 Notify me when back"** and leave a phone number.
+- When you flip that flavour back to available in **Inventory**, everyone subscribed gets a WhatsApp
+  and the list is cleared.
+
+### Abandoned-cart nudge
+- If someone starts checkout but doesn't pay within ~1 hour, they get **one** friendly WhatsApp with
+  a link to finish paying (their saved payment popup reopens). Runs hourly; one nudge per cart.
+
+---
+
+## 7. Automatic background jobs
+
+These run on their own (scheduled via **GitHub Actions**, hourly/daily):
+
+| Job | When | What it does |
+|-----|------|--------------|
+| **Abandoned-cart nudge** | Hourly | WhatsApps unpaid carts 1–12h old a "finish your order" link |
+| **Daily owner digest** | 08:00 WIB | WhatsApps **you** yesterday's sales, top sellers, per-store split, rewards redeemed, **low-stock list**, and referral activity |
+| **Birthday rewards** | 09:00 WIB | Grants the birthday cookie + sends the birthday message |
+
+The **back-in-stock** alert isn't scheduled — it fires the instant you mark a flavour available.
+
+---
+
+## 8. Delivery & pickup
+- **Same-day delivery** via **Lalamove** to Greater Jakarta + Bekasi (live quote at checkout).
+- **Intercity next-day** via **Biteship** for addresses outside the same-day zone — the checkout
+  checks Biteship coverage and shows courier options + price before paying.
 - **Pickup** at your configured pickup points.
-- **Tracking** links appear on the order once a shipment is created (Biteship).
-- *Intercity next-day shipping is possible to add (Biteship supports it) — not enabled yet.*
+- **Tracking** links appear on the order once a shipment is created.
 
 ---
 
-## 7. Notifications
-- **On a paid order:** you get a **WhatsApp** alert (Fonnte) **and** an **email** (Resend).
-- **Customers** get WhatsApp updates + order confirmations, and WhatsApp codes for
-  phone verification and reward redemption.
+## 9. Notifications
+- **On a paid order:** you get a **WhatsApp** (Fonnte) **and** an **email** (Resend).
+- **Customers** get order confirmations, WhatsApp codes for phone verification + reward redemption,
+  and the marketing/retention messages above.
 
 ---
 
-## 8. Behind the scenes (services)
+## 10. Behind the scenes (services)
 | Function | Provider |
 |----------|----------|
 | Payments (QRIS/card) | **Midtrans** |
 | Database & login | **Supabase** |
 | Same-day delivery | **Lalamove** |
-| Shipments & tracking | **Biteship** |
+| Intercity shipments & tracking | **Biteship** |
 | WhatsApp messages | **Fonnte** |
 | Email | **Resend** |
 | Hosting (auto-deploys on changes) | **Vercel** |
+| Scheduled jobs | **GitHub Actions** |
 | Sign in with Google | **Google OAuth** |
 
 ---
 
-## 9. One-time setup & maintenance
-- **Admin password** — set as `ADMIN_BASIC_PASS` in Vercel.
-- **Database migrations** — SQL files in `web/sql/` are run once in the Supabase SQL editor
-  (reporting/addresses/redemption-OTP and locations migrations).
+## 11. Setup & maintenance
+- **Admin password** — `ADMIN_BASIC_PASS` in Vercel.
+- **Scheduled jobs secret** — a `CRON_SECRET` GitHub Actions repo secret (set to the same value as
+  `ADMIN_RETRY_SECRET`) lets the GitHub jobs call the cron endpoints. No Vercel cron is used
+  (the Hobby plan only allows daily crons).
+- **Database migrations** — SQL files in `web/sql/` are run once in Supabase. All current feature
+  migrations have been applied (loyalty, referrals, promos, birthday, back-in-stock, etc.).
 - **Reset/verification emails** — for reliable delivery, point Supabase Auth SMTP at Resend.
-- **Google consent screen** — to show "CookieDoh" + logo instead of the Supabase address,
-  finish branding verification in the Google Auth Platform (domain already verified).
 
 ---
 

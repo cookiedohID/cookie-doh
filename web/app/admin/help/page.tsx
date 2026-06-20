@@ -41,8 +41,9 @@ export default function AdminHelpPage() {
             <li style={li}><b>Assortments</b> — ready-made curated boxes, one tap.</li>
             <li style={li}><b>Bundles</b> — fixed-price sets of cookies + drinks.</li>
             <li style={li}><b>Smoothies</b> — drinks.</li>
-            <li style={li}><b>Checkout</b> — choose <b>delivery</b> (same-day) or <b>pickup</b>, pick a date/time, pay by QRIS/card (Midtrans).</li>
+            <li style={li}><b>Checkout</b> — choose <b>delivery</b> (same-day or intercity next-day) or <b>pickup</b>, pick a date/time, pay by QRIS/card (Midtrans).</li>
             <li style={li}><b>🎁 Gift</b> — a checkout toggle adds a handwritten card (To / From / message) and leaves prices off the box.</li>
+            <li style={li}><b>🎟️ Promo code</b> — customers enter a code to get a discount; members can also <b>redeem free rewards</b> online.</li>
           </ul>
           <h3 style={h3}>Membership &amp; loyalty</h3>
           <ul style={{ paddingLeft: 18 }}>
@@ -58,6 +59,7 @@ export default function AdminHelpPage() {
             <li style={li}><b>What earns stamps:</b> single cookies/drinks, boxes, and assortments.</li>
             <li style={li}><b>What doesn't:</b> bundles, free reward items, and other promos.</li>
             <li style={li}>Progress never resets — leftovers roll forward (12 cookies = 1 free + 2 toward the next).</li>
+            <li style={li}><b>Bonus free cookies</b> from referrals and birthdays show in the same balance and redeem the same way.</li>
           </ul>
         </Section>
 
@@ -98,6 +100,41 @@ export default function AdminHelpPage() {
           </ul>
         </Section>
 
+        <Section title="📣 Admin — Broadcast">
+          <p style={p}>At <span style={code}>/admin/broadcast</span> — send a WhatsApp to a group of customers.</p>
+          <ul style={{ paddingLeft: 18 }}>
+            <li style={li}>Pick a <b>segment</b>: Everyone (all who've ordered + members), Active (30 days), Lapsed (45+ days), or VIPs (3+ orders / Rp300k+). The recipient count updates live.</li>
+            <li style={li}>Type <span style={code}>{"{name}"}</span> to personalise. A "Reply STOP to opt out" line is added automatically.</li>
+            <li style={li}>Each message costs a little — only message people who expect to hear from you.</li>
+          </ul>
+        </Section>
+
+        <Section title="🎟️ Admin — Promo codes">
+          <p style={p}>At <span style={code}>/admin/promos</span> — create discount codes customers enter at checkout.</p>
+          <ul style={{ paddingLeft: 18 }}>
+            <li style={li}><b>Percent</b> or <b>fixed amount</b> off, with optional <b>min spend</b>, <b>max-discount cap</b> (for percent), <b>total uses</b>, <b>uses per customer</b>, and <b>expiry</b>.</li>
+            <li style={li}><b>Pause</b> or <b>Delete</b> any code; usage is shown next to each.</li>
+            <li style={li}>The discount is recalculated on our server (the browser can't fake it). Pair a code with a Broadcast for a campaign.</li>
+          </ul>
+        </Section>
+
+        <Section title="💛 Growth &amp; retention (automatic)">
+          <h3 style={h3}>Referrals — give a cookie, get a cookie</h3>
+          <p style={p}>Members have a "Refer a friend" link in their account. When a <b>new</b> customer orders their <b>first box of 6+</b> with that link, <b>both</b> get a free cookie (a refund of that order reverses it). The daily digest flags unusual referral activity.</p>
+          <h3 style={h3}>Birthday rewards</h3>
+          <p style={p}>Members set a month + day in their account; each morning the system grants a free birthday cookie and sends a birthday WhatsApp.</p>
+          <h3 style={h3}>Back-in-stock alerts</h3>
+          <p style={p}>On a sold-out flavour, customers tap "Notify me when back". When you mark that flavour available again in <b>Inventory</b>, everyone subscribed gets a WhatsApp.</p>
+        </Section>
+
+        <Section title="⏰ Things that run automatically">
+          <ul style={{ paddingLeft: 18 }}>
+            <li style={li}><b>Abandoned-cart nudge</b> (hourly) — unpaid carts 1–12h old get one WhatsApp with a link to finish paying.</li>
+            <li style={li}><b>Daily digest</b> (08:00) — <b>you</b> get a WhatsApp with yesterday's sales, top sellers, per-store split, rewards redeemed, a <b>low-stock list</b>, and referral activity.</li>
+            <li style={li}><b>Birthday rewards</b> (09:00) — grants the cookie + sends the birthday message.</li>
+          </ul>
+        </Section>
+
         <Section title="🏪 Cafe POS (in-store)">
           <p style={p}>Open <span style={code}>/cafe</span> on the register/tablet. It's a full-screen kiosk — the storefront nav is hidden.</p>
           <ul style={{ paddingLeft: 18 }}>
@@ -111,6 +148,7 @@ export default function AdminHelpPage() {
         <Section title="🚚 Delivery &amp; pickup">
           <ul style={{ paddingLeft: 18 }}>
             <li style={li}><b>Same-day delivery</b> via Lalamove to the Greater Jakarta + Bekasi service area (the address field checks coverage).</li>
+            <li style={li}><b>Intercity next-day</b> via Biteship for addresses outside the same-day zone — the checkout shows courier options + price before paying.</li>
             <li style={li}><b>Pickup</b> at your configured points.</li>
             <li style={li}>Tracking links appear on the order once a shipment is created.</li>
           </ul>
@@ -140,6 +178,10 @@ export default function AdminHelpPage() {
           <p style={p}>Admin → Locations → <b>Internal transfer</b>. (Transferring in also un-marks "sold out".)</p>
           <h3 style={h3}>How do I see a customer's history?</h3>
           <p style={p}>Admin → Customers (search by name), or open any order for that customer.</p>
+          <h3 style={h3}>How do I run a discount campaign?</h3>
+          <p style={p}>Admin → <b>Promo codes</b> → create a code, then Admin → <b>Broadcast</b> → message a segment telling them to use it.</p>
+          <h3 style={h3}>A flavour is back in stock — how do I tell people?</h3>
+          <p style={p}>Just flip it to available in Admin → <b>Inventory</b>. Everyone who tapped "Notify me" is WhatsApped automatically.</p>
           <h3 style={h3}>How do I log out of admin?</h3>
           <p style={p}>The <b>Log out</b> button is in the top-right of the admin header.</p>
         </Section>

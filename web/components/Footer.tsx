@@ -22,6 +22,7 @@ export default function Footer() {
       }}
     >
       <div style={{ display: "flex", gap: 20, justifyContent: "center", flexWrap: "wrap", marginBottom: 14 }}>
+        <Link href="/help" style={link}>Help &amp; FAQ</Link>
         <Link href="/privacy" style={link}>Privacy Policy</Link>
         <Link href="/terms" style={link}>Terms of Service</Link>
       </div>
