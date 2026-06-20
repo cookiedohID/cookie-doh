@@ -4,6 +4,7 @@
 
 import Image from "next/image";
 import styles from "./ProductCard.module.css";
+import NotifyWhenBack from "./NotifyWhenBack";
 
 export type FlavorUI = {
   id: string;
@@ -156,6 +157,7 @@ export default function ProductCard({
             </button>
           </div>
         )}
+        {isSoldOut ? <div style={{ marginTop: 8 }}><NotifyWhenBack flavorId={flavor.id} /></div> : null}
       </div>
     </article>
   );

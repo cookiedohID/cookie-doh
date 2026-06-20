@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { FLAVORS } from "@/lib/catalog";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
+import { useFlavorAvailability } from "@/lib/useFlavorAvailability";
 
 const COOKIE_PRICE = 32500;
 
-function toCardFlavor(f: any): CardFlavorUI {
+function toCardFlavor(f: any, soldOut: boolean): CardFlavorUI {
   return {
     id: String(f.id),
     name: String(f.name ?? ""),
@@ -22,13 +23,18 @@ function toCardFlavor(f: any): CardFlavorUI {
     intensity: f.intensity,
     badges: Array.isArray(f.badges) ? f.badges : [],
     price: COOKIE_PRICE,
-    soldOut: Boolean((f as any).soldOut),
+    soldOut,
   };
 }
 
 export default function FlavorsPage() {
   const router = useRouter();
-  const cardFlavors = useMemo(() => FLAVORS.map(toCardFlavor), []);
+  const { map } = useFlavorAvailability();
+  // Sold out = the live per-location availability says so, OR the catalog flags it.
+  const cardFlavors = useMemo(
+    () => FLAVORS.map((f) => toCardFlavor(f, Boolean(map[String(f.id)] || (f as any).soldOut))),
+    [map]
+  );
 
   return (
     <main className="bg-white">
