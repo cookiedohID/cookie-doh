@@ -1,0 +1,21 @@
+name: Birthday rewards (09:00 WIB)
+
+# Daily: grant a free cookie + WhatsApp members whose birthday is today.
+on:
+  schedule:
+    - cron: "0 2 * * *" # 09:00 WIB
+  workflow_dispatch: {}
+
+jobs:
+  birthday:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run birthday rewards
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            "https://www.cookiedoh.co.id/api/cron/birthday-rewards")
+          echo "HTTP $code"
+          cat /tmp/resp.txt
+          echo
+          test "$code" = "200"

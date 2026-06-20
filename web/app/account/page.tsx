@@ -14,14 +14,21 @@ type Member = {
   name: string | null;
   phone: string;
   memberCode: string;
+  birthday: string | null;
   loyalty: { cookieStamps: number; drinkStamps: number; freeCookies: number; freeDrinks: number };
 };
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 export default function AccountPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [member, setMember] = useState<Member | null>(null);
   const [copied, setCopied] = useState(false);
+  const [bdayMonth, setBdayMonth] = useState("");
+  const [bdayDay, setBdayDay] = useState("");
+  const [bdaySaved, setBdaySaved] = useState(false);
+  const [bdayBusy, setBdayBusy] = useState(false);
   const [needsPhone, setNeedsPhone] = useState(false);
   const [phone, setPhone] = useState("");
   const [otpStep, setOtpStep] = useState<"phone" | "code">("phone");
@@ -73,6 +80,33 @@ export default function AccountPage() {
       QRCode.toDataURL(member.memberCode, { margin: 1, width: 220 }).then(setQr).catch(() => setQr(""));
     }
   }, [member?.memberCode]);
+
+  // Prefill the birthday pickers from the saved value.
+  useEffect(() => {
+    if (member?.birthday && /^\d{2}-\d{2}$/.test(member.birthday)) {
+      const [m, d] = member.birthday.split("-");
+      setBdayMonth(m);
+      setBdayDay(d);
+    }
+  }, [member?.birthday]);
+
+  async function saveBirthday() {
+    if (!bdayMonth || !bdayDay) return;
+    setBdayBusy(true);
+    setBdaySaved(false);
+    try {
+      const t = await token();
+      const res = await fetch("/api/account/birthday", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+        body: JSON.stringify({ birthday: `${bdayMonth}-${bdayDay}` }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (j?.ok) setBdaySaved(true);
+    } finally {
+      setBdayBusy(false);
+    }
+  }
 
   // Step 1: send a WhatsApp OTP to the entered phone.
   async function sendPhoneCode(e: React.FormEvent) {
@@ -249,6 +283,25 @@ export default function AccountPage() {
         <p style={{ marginTop: 12, fontSize: 12, color: COLORS.muted, lineHeight: 1.5, textAlign: "center" }}>
           Stamps are earned on single cookies, drinks, boxes &amp; assortments. Bundles and other promotional items don&apos;t earn stamps.
         </p>
+
+        {/* Birthday */}
+        <div style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
+          <div style={{ fontWeight: 800, color: COLORS.black, fontSize: 16 }}>🎂 Your birthday</div>
+          <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>Add it once and we'll surprise you with a free cookie every year 🍪</div>
+          <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
+            <select value={bdayMonth} onChange={(e) => { setBdayMonth(e.target.value); setBdaySaved(false); }} style={{ flex: 1, minWidth: 0, padding: "10px 11px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.18)", fontSize: 14, background: "#fff" }}>
+              <option value="">Month</option>
+              {MONTHS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, "0")}>{m}</option>)}
+            </select>
+            <select value={bdayDay} onChange={(e) => { setBdayDay(e.target.value); setBdaySaved(false); }} style={{ flex: 1, minWidth: 0, padding: "10px 11px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.18)", fontSize: 14, background: "#fff" }}>
+              <option value="">Day</option>
+              {Array.from({ length: 31 }).map((_, i) => <option key={i} value={String(i + 1).padStart(2, "0")}>{i + 1}</option>)}
+            </select>
+            <button onClick={saveBirthday} disabled={bdayBusy || !bdayMonth || !bdayDay} style={{ border: "none", background: bdaySaved ? "#1d9e75" : COLORS.blue, color: "#fff", borderRadius: 10, padding: "0 16px", fontWeight: 800, fontSize: 13, cursor: bdayBusy || !bdayMonth || !bdayDay ? "not-allowed" : "pointer", height: 40, flex: "0 0 auto" }}>
+              {bdayBusy ? "…" : bdaySaved ? "Saved ✓" : "Save"}
+            </button>
+          </div>
+        </div>
 
         {/* Refer a friend */}
         <div style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>

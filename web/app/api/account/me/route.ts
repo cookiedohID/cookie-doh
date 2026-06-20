@@ -67,7 +67,7 @@ function phoneFromUser(user: any): string | null {
 }
 
 type MemberResult =
-  | { kind: "member"; member: { name: string | null; phone: string; memberCode: string; loyalty: ReturnType<typeof loyaltyFromOrders> } }
+  | { kind: "member"; member: { name: string | null; phone: string; memberCode: string; birthday: string | null; loyalty: ReturnType<typeof loyaltyFromOrders> } }
   | { kind: "ownedByOther" }
   | { kind: "needsVerify"; phone: string };
 
@@ -77,7 +77,7 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
   //   (a) the customer row — ownership guard + tells us if a write is even needed
   //   (b) the phone OTP    — possession guard
   //   (c) the order history — used to compute loyalty below
-  const selectCols = "id, phone, name, email, member_code, auth_user_id, cookies_redeemed, drinks_redeemed";
+  const selectCols = "id, phone, name, email, member_code, auth_user_id, cookies_redeemed, drinks_redeemed, birthday";
   const sig = phoneSignificant(phone);
   const [custRes, otpRes, ordersRes] = await Promise.all([
     supa.from("customers").select(selectCols).eq("phone", phone).maybeSingle(),
@@ -154,6 +154,7 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
       name: cust?.name || name,
       phone,
       memberCode: cust?.member_code || memberCodeFor(phone),
+      birthday: cust?.birthday ?? null,
       loyalty,
     },
   };
