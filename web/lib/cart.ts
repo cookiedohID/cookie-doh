@@ -15,6 +15,7 @@ export type CartBox = {
   total: number; // box total (authoritative)
   kind?: "box" | "bundle"; // default "box"
   label?: string; // e.g. bundle name; shown instead of "Box of N"
+  reward?: { tierId: string; threshold: number }; // a spend-threshold reward (re-validated server-side)
 };
 
 export type CartState = {
@@ -78,6 +79,9 @@ function normalizeBox(box: any): CartBox | null {
     total: Number.isFinite(total) && total > 0 ? total : computed,
     ...(box.kind === "bundle" ? { kind: "bundle" as const } : {}),
     ...(box.label ? { label: String(box.label) } : {}),
+    ...(box.reward?.tierId
+      ? { reward: { tierId: String(box.reward.tierId), threshold: Math.max(0, Math.floor(Number(box.reward.threshold || 0))) } }
+      : {}),
   };
 }
 
@@ -239,6 +243,43 @@ export function addUpsellSingle(item: { id: string; name: string; price?: number
     });
   }
   writeCart(cart);
+}
+
+// Add (or replace) the spend-threshold reward. Only one reward at a time. It's a
+// "bundle" (so it doesn't earn loyalty — it's promotional) at the special price,
+// re-validated server-side at checkout.
+export function addSpendReward(tier: {
+  id: string;
+  threshold_idr: number;
+  label: string;
+  special_price_idr: number;
+  items: { id: string; name: string; quantity: number }[];
+}) {
+  const items: CartItem[] = (tier.items || [])
+    .map((it) => ({ id: String(it.id), name: String(it.name), price: 0, quantity: Math.max(1, Math.floor(Number(it.quantity || 1))) }))
+    .filter((it) => it.id);
+  if (!items.length) return;
+  const boxes = readCart().boxes.filter((b) => !b.reward); // one reward only
+  boxes.unshift({
+    boxSize: items.reduce((n, it) => n + it.quantity, 0),
+    items,
+    total: Math.max(0, Math.floor(Number(tier.special_price_idr || 0))),
+    kind: "bundle",
+    label: tier.label,
+    reward: { tierId: String(tier.id), threshold: Math.max(0, Math.floor(Number(tier.threshold_idr || 0))) },
+  });
+  writeCart({ boxes });
+}
+
+export function removeReward() {
+  const cart = readCart();
+  if (!cart.boxes.some((b) => b.reward)) return;
+  writeCart({ boxes: cart.boxes.filter((b) => !b.reward) });
+}
+
+// Merchandise subtotal that counts toward a reward threshold — excludes the reward itself.
+export function qualifyingSubtotal(state: CartState): number {
+  return state.boxes.filter((b) => !b.reward).reduce((s, b) => s + (Number(b.total) || 0), 0);
 }
 
 export function removeBoxAt(index: number) {

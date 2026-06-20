@@ -14,6 +14,7 @@ import {
 } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
 import CartUpsell from "@/components/CartUpsell";
+import CartSpendReward from "@/components/CartSpendReward";
 
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -343,6 +344,9 @@ export default function CartPage() {
                 <div>✨ Packed with care</div>
               </div>
             </section>
+
+            {/* Spend-threshold reward */}
+            <CartSpendReward cart={cart} onChanged={() => setCart(getCart())} />
 
             {/* Upsell — quick-add popular singles */}
             <CartUpsell onAdded={() => setCart(getCart())} />

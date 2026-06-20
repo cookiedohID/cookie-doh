@@ -8,6 +8,8 @@ import { canonicalPhone } from "@/lib/phone";
 import { loyaltyForPhone } from "@/app/api/loyalty/lookup/route";
 import { cleanRefCode } from "@/lib/referrals";
 import { validatePromo } from "@/lib/promo";
+import { rewardMatchesTier } from "@/lib/spendRewards";
+import { serverBoxTotal } from "@/lib/serverPricing";
 
 export const runtime = "nodejs";
 
@@ -123,29 +125,75 @@ export async function POST(req: Request) {
     const items = normalizeItems(cart);
     const boxesText = buildBoxesText(cart);
 
-    const subtotal = Number(payload?.subtotal_idr ?? payload?.subtotal ?? computeSubtotalFromCart(cart)) || 0;
     const shippingCost = Number(payload?.shipping_cost_idr ?? payload?.shipping_cost ?? 0) || 0;
-    const totalIdr = Number(payload?.total_idr ?? payload?.total ?? (subtotal + shippingCost)) || 0;
 
-    // ---- Promo code (server-authoritative) ----
-    // The discount is computed from the SERVER-derived cart subtotal (never a
-    // client-supplied subtotal) and applied exactly ONCE to a discount-free base
-    // (subtotal + shipping), so the client can neither inflate the discount nor
-    // double-apply it. Non-promo orders keep their existing total untouched.
+    // ---- Server-authoritative cart valuation ----
+    // The client's box.total / total / subtotal are NEVER trusted for money. Every
+    // non-reward box is re-priced from catalog constants (serverBoxTotal); the
+    // reward box is priced from the validated tier below. This binds the charged
+    // amount to the actual cart, closing crafted-payload underpayment.
+    const allBoxes = Array.isArray(cart?.boxes) ? cart.boxes : [];
+    const isReward = (b: any) => !!b?.reward?.tierId;
+    const nonRewardSubtotal = allBoxes
+      .filter((b: any) => !isReward(b))
+      .reduce((s: number, b: any) => s + serverBoxTotal(b), 0);
+
+    // ---- Spend-threshold reward (server-authoritative anti-abuse) ----
+    // The reward rides in the cart at a special price. Re-validate that the
+    // QUALIFYING (non-reward, server-priced) subtotal meets the tier threshold and
+    // that the reward's price + cookies match the tier — so it can't be kept after
+    // dropping below the threshold or swapped for pricier cookies. The reward is
+    // charged at the TIER's special price, never the client's value.
+    let rewardTotal = 0;
+    {
+      const rewardBoxes = allBoxes.filter(isReward);
+      if (rewardBoxes.length > 1) {
+        return NextResponse.json({ ok: false, error: "Only one reward per order." }, { status: 400 });
+      }
+      if (rewardBoxes.length === 1) {
+        const rb = rewardBoxes[0];
+        const { data: tier } = await supabase
+          .from("spend_rewards")
+          .select("id, threshold_idr, special_price_idr, items, active")
+          .eq("id", String(rb.reward.tierId))
+          .maybeSingle();
+        if (!tier || !tier.active) {
+          return NextResponse.json({ ok: false, error: "That reward is no longer available — please review your cart." }, { status: 400 });
+        }
+        if (nonRewardSubtotal < Number(tier.threshold_idr || 0)) {
+          return NextResponse.json(
+            { ok: false, error: `Spend at least Rp${Number(tier.threshold_idr).toLocaleString("id-ID")} (excluding the reward) to claim it.` },
+            { status: 400 }
+          );
+        }
+        if (!rewardMatchesTier({ total: Number(rb.total) || 0, items: rb.items || [] }, tier as any)) {
+          return NextResponse.json({ ok: false, error: "The reward in your cart doesn't match the offer — please re-add it." }, { status: 400 });
+        }
+        rewardTotal = Number(tier.special_price_idr) || 0;
+      }
+    }
+
+    // ---- Promo code (applies to MERCHANDISE only — never the reward's special price) ----
     let promoApplied: { code: string; discount: number } | null = null;
     const promoCodeRaw = String(payload?.promo_code || "").trim();
-    let finalTotal = totalIdr;
+    let discount = 0;
     if (promoCodeRaw) {
-      const serverSubtotal = Math.max(0, Math.floor(computeSubtotalFromCart(cart)));
-      const pv = await validatePromo(supabase, promoCodeRaw, serverSubtotal, customerPhone);
+      const pv = await validatePromo(supabase, promoCodeRaw, nonRewardSubtotal, customerPhone);
       if (!pv.valid) {
         return NextResponse.json({ ok: false, error: pv.reason || "That promo code can't be applied." }, { status: 400 });
       }
       promoApplied = { code: pv.code!, discount: pv.discount };
-      finalTotal = Math.max(0, serverSubtotal + shippingCost - pv.discount);
-      if (finalTotal < 1) {
-        return NextResponse.json({ ok: false, error: "This code would make the order free — please contact us to arrange it." }, { status: 400 });
-      }
+      discount = pv.discount;
+    }
+
+    // ---- Authoritative amounts (client totals ignored for the charge) ----
+    const subtotal = nonRewardSubtotal + rewardTotal;
+    const finalTotal = Math.max(0, nonRewardSubtotal - discount) + rewardTotal + shippingCost;
+    if (finalTotal < 1) {
+      return NextResponse.json(
+        { ok: false, error: promoApplied ? "This code would make the order free — please contact us to arrange it." : "Your cart is empty." },
+        { status: 400 }
+      );
     }
 
     const checkoutMode = mode();
@@ -295,7 +343,7 @@ export async function POST(req: Request) {
     if (checkoutMode === "manual") {
       const u = new URL(`${siteUrl}/checkout/pending`);
       u.searchParams.set("order_id", orderRow.id);
-      u.searchParams.set("total", String(orderRow.total_idr || totalIdr || 0));
+      u.searchParams.set("total", String(orderRow.total_idr || finalTotal || 0));
       u.searchParams.set("name", orderRow.customer_name || customerName || "");
       u.searchParams.set("phone", orderRow.customer_phone || customerPhone || "");
       u.searchParams.set("address", orderRow.shipping_address || shippingAddress || "");

@@ -95,7 +95,10 @@ export async function GET(req: Request) {
         const qty = Math.max(0, Math.floor(Number(it?.quantity ?? 0)));
         if (!qty) continue;
         const isFree = it?.free === true; // only explicit reward redemptions, not price-0 box lines
-        const lineRev = isFree ? 0 : Number(it?.price ?? 0) * qty;
+        // bundle/spend-reward lines are priced at the box level (special price), not
+        // per-cookie — don't attribute the per-item placeholder price to them.
+        const isBundleLine = it?.bundle === true;
+        const lineRev = isFree || isBundleLine ? 0 : Number(it?.price ?? 0) * qty;
 
         itemMap[id] = itemMap[id] || { id, name, kind, qty: 0, revenue: 0, freeQty: 0 };
         itemMap[id].qty += qty;
