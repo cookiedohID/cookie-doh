@@ -13,6 +13,7 @@ import {
   type CartState,
 } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
+import CartUpsell from "@/components/CartUpsell";
 
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -197,6 +198,8 @@ export default function CartPage() {
                       <div style={{ fontWeight: 950, color: COLORS.black }}>
                         {box.kind === "bundle"
                           ? `${box.label || "Bundle"} • ${boxCount} items`
+                          : box.label
+                          ? `${box.label} • ${boxCount} ${boxCount === 1 ? "cookie" : "cookies"}`
                           : `Box of ${box.boxSize} • ${boxCount} cookies`}
                       </div>
 
@@ -340,6 +343,9 @@ export default function CartPage() {
                 <div>✨ Packed with care</div>
               </div>
             </section>
+
+            {/* Upsell — quick-add popular singles */}
+            <CartUpsell onAdded={() => setCart(getCart())} />
 
             {/* Summary */}
             <section style={{ marginTop: 16 }}>

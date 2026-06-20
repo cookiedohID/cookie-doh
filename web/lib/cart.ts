@@ -207,6 +207,40 @@ export function addBundleToCart(params: {
   writeCart(cart);
 }
 
+// Add a single add-on cookie (cart upsell). Earns loyalty like any single cookie
+// (NOT a bundle). Merges into an existing same-flavour single so repeated taps
+// just bump the quantity instead of stacking entries.
+export function addUpsellSingle(item: { id: string; name: string; price?: number; image?: string }) {
+  const id = String(item.id);
+  if (!id) return;
+  const price = Number.isFinite(Number(item.price)) && Number(item.price) > 0 ? Number(item.price) : DEFAULT_COOKIE_PRICE;
+  const cart = readCart();
+  // Only merge into a previously-added add-on single — identified by a label on a
+  // non-bundle box AND the single price (32500). A real box (even all-same-flavour)
+  // has no label and uses the cheaper in-box price, so it's never touched.
+  const existing = cart.boxes.find(
+    (b) =>
+      b.kind !== "bundle" &&
+      !!b.label &&
+      b.items.length === 1 &&
+      String(b.items[0].id) === id &&
+      Number(b.items[0].price) === price
+  );
+  if (existing) {
+    existing.items[0].quantity += 1;
+    existing.boxSize = existing.items[0].quantity;
+    existing.total = existing.items[0].price * existing.items[0].quantity;
+  } else {
+    cart.boxes.unshift({
+      boxSize: 1,
+      items: [{ id, name: item.name, price, quantity: 1, ...(item.image ? { image: item.image } : {}) }],
+      total: price,
+      label: item.name,
+    });
+  }
+  writeCart(cart);
+}
+
 export function removeBoxAt(index: number) {
   const cart = readCart();
   const next = { boxes: cart.boxes.slice() };
