@@ -50,7 +50,7 @@ function buildBoxesText(cart: any) {
   return out.join("\n").trim();
 }
 
-type OrderLine = { id: string; name: string; price: number; quantity: number; bundle?: boolean };
+type OrderLine = { id: string; name: string; price: number; quantity: number; bundle?: boolean; kind?: "cookie" | "drink" };
 
 // Carry id + per-unit price (and a bundle flag) onto every order line. Without
 // these, paid orders can't decrement per-location stock and can't earn loyalty
@@ -70,7 +70,8 @@ function normalizeItems(cart: any): OrderLine[] {
       const qty = Math.max(0, Math.floor(Number(it?.quantity || 0)));
       const priceRaw = Math.round(Number(it?.price ?? 0));
       const price = priceRaw > 0 ? priceRaw : 32500; // fall back to the single-cookie price, never 0
-      if (qty > 0) out.push({ id, name, price, quantity: qty, ...(isBundle ? { bundle: true } : {}) });
+      const kind = it?.kind === "drink" || it?.kind === "cookie" ? it.kind : undefined;
+      if (qty > 0) out.push({ id, name, price, quantity: qty, ...(isBundle ? { bundle: true } : {}), ...(kind ? { kind } : {}) });
     }
   }
   return out;

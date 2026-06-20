@@ -200,7 +200,7 @@ export default function CartPage() {
                         {box.kind === "bundle"
                           ? `${box.label || "Bundle"} • ${boxCount} items`
                           : box.label
-                          ? `${box.label} • ${boxCount} ${boxCount === 1 ? "cookie" : "cookies"}`
+                          ? `${box.label} • ${boxCount} ${box.items.every((it: any) => it.kind === "drink") ? (boxCount === 1 ? "drink" : "drinks") : boxCount === 1 ? "cookie" : "cookies"}`
                           : `Box of ${box.boxSize} • ${boxCount} cookies`}
                       </div>
 
@@ -401,7 +401,7 @@ export default function CartPage() {
         >
           <div style={{ maxWidth: 980, margin: "0 auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
-              <div style={{ fontWeight: 900, color: COLORS.black }}>{totalItems} cookies</div>
+              <div style={{ fontWeight: 900, color: COLORS.black }}>{totalItems} {totalItems === 1 ? "item" : "items"}</div>
               <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Subtotal: {formatIDR(subtotal)}</div>
             </div>
 

@@ -2,8 +2,10 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
 import { COLORS } from "@/lib/theme";
 import { SMOOTHIE_PRICE, type Smoothie } from "@/lib/smoothies";
+import { addUpsellSingle } from "@/lib/cart";
 import styles from "./SmoothieCard.module.css";
 
 const formatIDR = (n: number) =>
@@ -14,6 +16,12 @@ const formatIDR = (n: number) =>
   }).format(n);
 
 export default function SmoothieCard({ item }: { item: Smoothie }) {
+  const [added, setAdded] = useState(false);
+  function add() {
+    addUpsellSingle({ id: String(item.id), name: String(item.name), price: SMOOTHIE_PRICE, image: item.image, kind: "drink" });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1400);
+  }
   return (
     <article className={styles.card} style={{ opacity: item.soldOut ? 0.55 : 1 }}>
       <div className={styles.imageWrap}>
@@ -99,7 +107,15 @@ export default function SmoothieCard({ item }: { item: Smoothie }) {
           </span>
           {item.soldOut ? (
             <span style={{ fontSize: 12, fontWeight: 800, color: COLORS.muted }}>Sold out</span>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              onClick={add}
+              style={{ border: "none", borderRadius: 999, padding: "8px 16px", fontWeight: 900, fontSize: 13, cursor: "pointer", background: added ? "#1d9e75" : COLORS.blue, color: "#fff" }}
+            >
+              {added ? "Added ✓" : "Add"}
+            </button>
+          )}
         </div>
       </div>
     </article>

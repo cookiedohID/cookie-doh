@@ -2,11 +2,12 @@
 import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
 
 export type CartItem = {
-  id: string; // flavor id
+  id: string; // flavor / smoothie id
   name: string;
-  price: number; // per-cookie price
+  price: number; // per-unit price
   quantity: number;
   image?: string;
+  kind?: "cookie" | "drink"; // drinks price differently and earn drink stamps
 };
 
 export type CartBox = {
@@ -64,8 +65,9 @@ function normalizeBox(box: any): CartBox | null {
       const image = String(it.image ?? cat?.image ?? "");
       const priceRaw = Number(it.price ?? DEFAULT_COOKIE_PRICE);
       const price = Number.isFinite(priceRaw) && priceRaw > 0 ? priceRaw : DEFAULT_COOKIE_PRICE;
+      const kind = it.kind === "drink" || it.kind === "cookie" ? it.kind : undefined;
 
-      return { id, name, image, quantity, price };
+      return { id, name, image, quantity, price, ...(kind ? { kind } : {}) };
     })
     .filter(Boolean) as CartItem[];
 
@@ -214,10 +216,11 @@ export function addBundleToCart(params: {
 // Add a single add-on cookie (cart upsell). Earns loyalty like any single cookie
 // (NOT a bundle). Merges into an existing same-flavour single so repeated taps
 // just bump the quantity instead of stacking entries.
-export function addUpsellSingle(item: { id: string; name: string; price?: number; image?: string }) {
+export function addUpsellSingle(item: { id: string; name: string; price?: number; image?: string; kind?: "cookie" | "drink" }) {
   const id = String(item.id);
   if (!id) return;
   const price = Number.isFinite(Number(item.price)) && Number(item.price) > 0 ? Number(item.price) : DEFAULT_COOKIE_PRICE;
+  const kind = item.kind === "drink" ? "drink" : undefined;
   const cart = readCart();
   // Only merge into a previously-added add-on single — identified by a label on a
   // non-bundle box AND the single price (32500). A real box (even all-same-flavour)
@@ -237,7 +240,7 @@ export function addUpsellSingle(item: { id: string; name: string; price?: number
   } else {
     cart.boxes.unshift({
       boxSize: 1,
-      items: [{ id, name: item.name, price, quantity: 1, ...(item.image ? { image: item.image } : {}) }],
+      items: [{ id, name: item.name, price, quantity: 1, ...(item.image ? { image: item.image } : {}), ...(kind ? { kind } : {}) }],
       total: price,
       label: item.name,
     });
