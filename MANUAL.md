@@ -50,7 +50,8 @@ FAQ lives at **`/help`** (linked in the website footer).
   badge and a **"🔔 Notify me when back"** button (see [Back-in-stock](#back-in-stock-alerts)).
 - **Cookies / Smoothies / Bundles / Assortments** — browse singles, drinks, fixed-price sets,
   and ready-made curated boxes.
-- **Cart (`/cart`)** — review boxes/bundles before checkout.
+- **Cart (`/cart`)** — review boxes/bundles before checkout. A **"Complete your order"** strip
+  suggests popular single cookies with one-tap **+ Add** (an easy upsell; each earns a loyalty stamp).
 
 ### Checkout (`/checkout`)
 - **Contact details** — name + WhatsApp number. *Pre-fills for logged-in members (still editable).*
