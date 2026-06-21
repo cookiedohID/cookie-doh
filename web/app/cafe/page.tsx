@@ -99,9 +99,13 @@ export default function CafePOS() {
   const boxSavings = Math.max(0, Math.round(singleCookieSpend - singleCookieCount * boxPerCookie));
   const showBoxNudge = singleCookieCount >= 3 && boxSavings > 0;
 
-  // Bundle-completion upsell: when the loose cookies + drinks are 1–2 short of a
-  // fixed-price bundle (and it genuinely saves), offer to fold them into the bundle.
+  // Bundle-completion upsell: when the loose cookies + drinks PLUS any cookies in
+  // build-your-own boxes are 1–2 short of a fixed-price bundle that genuinely saves,
+  // offer to fold them into the bundle. (Assortments are left intact — a curated pick.)
   const looseDrinkCount = lines.reduce((s, l) => s + (l.item.kind === "drink" && !l.free ? l.qty : 0), 0);
+  const plainBoxes = boxes.filter((b) => !b.assortKey);
+  const plainBoxCookieCount = plainBoxes.reduce((s, b) => s + b.items.reduce((ss, it) => ss + it.qty, 0), 0);
+  const plainBoxPaid = plainBoxes.reduce((s, b) => s + boxPrice(b.size), 0);
   const fillCookie = useMemo(() => {
     const list = FLAVORS as any[];
     const pick = list.find((f) => Array.isArray(f.badges) && f.badges.some((b: string) => POPULAR_BADGE.includes(b)) && !f.soldOut) || list.find((f) => !f.soldOut);
@@ -112,10 +116,10 @@ export default function CafePOS() {
     return pick ? { id: String(pick.id), name: String(pick.name) } : null;
   }, []);
   const bundleDeal = useMemo(() => {
-    const cookies = singleCookieCount;
+    const cookies = singleCookieCount + plainBoxCookieCount;
     const drinks = looseDrinkCount;
     if (cookies + drinks < 1) return null;
-    const paid = cookies * COOKIE_PRICE + drinks * SMOOTHIE_PRICE;
+    const paid = singleCookieCount * COOKIE_PRICE + looseDrinkCount * SMOOTHIE_PRICE + plainBoxPaid;
     const opts = BUNDLES.map((b) => {
       const needC = b.cookies - cookies;
       const needD = b.drinks - drinks;
@@ -131,7 +135,7 @@ export default function CafePOS() {
     }).filter(Boolean) as { b: (typeof BUNDLES)[number]; needC: number; needD: number; short: number; savings: number; marginal: number }[];
     opts.sort((a, z) => a.short - z.short || z.savings - a.savings);
     return opts[0] || null;
-  }, [singleCookieCount, looseDrinkCount, fillCookie, fillDrink]);
+  }, [singleCookieCount, looseDrinkCount, plainBoxCookieCount, plainBoxPaid, fillCookie, fillDrink]);
 
   const boxPickCount = boxBuild ? Object.values(boxBuild.picks).reduce((s, v) => s + v.qty, 0) : 0;
   const bundleCookieCount = bundleBuild ? Object.values(bundleBuild.cookiePicks).reduce((s, v) => s + v.qty, 0) : 0;
@@ -413,6 +417,13 @@ export default function CafePOS() {
         removeCount[key] = (removeCount[key] || 0) + l.qty;
       }
     }
+    // Fold build-your-own boxes (not assortments) into the bundle too.
+    const foldBoxKeys = new Set<string>();
+    for (const bx of boxes) {
+      if (bx.assortKey) continue;
+      for (const it of bx.items) cookiePicks[it.id] = { name: it.name, qty: (cookiePicks[it.id]?.qty || 0) + it.qty };
+      foldBoxKeys.add(bx.key);
+    }
     if (needC > 0 && fillCookie) cookiePicks[fillCookie.id] = { name: fillCookie.name, qty: (cookiePicks[fillCookie.id]?.qty || 0) + needC };
     if (needD > 0 && fillDrink) drinkPicks[fillDrink.id] = { name: fillDrink.name, qty: (drinkPicks[fillDrink.id]?.qty || 0) + needD };
 
@@ -427,6 +438,7 @@ export default function CafePOS() {
       }
       return next;
     });
+    if (foldBoxKeys.size) setBoxes((bs) => bs.filter((x) => !foldBoxKeys.has(x.key)));
     const cookiesList = Object.entries(cookiePicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
     const drinksList = Object.entries(drinkPicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
     setBundles((bs) => [...bs, { key: `bundle-${b.id}-${Math.random().toString(36).slice(2, 9)}`, bundleId: b.id, label: b.name, price: b.price, cookies: cookiesList, drinks: drinksList }]);
