@@ -48,9 +48,10 @@ export default function AccountPage() {
     setLoading(true);
     setLoadErr("");
     try {
-      const t = await token();
+      const t = await token().catch(() => null);
       if (!t) { router.replace("/account/login"); return; }
-      const res = await fetch("/api/account/me", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
+      const timeoutSignal = typeof AbortSignal !== "undefined" && (AbortSignal as any).timeout ? (AbortSignal as any).timeout(12000) : undefined;
+      const res = await fetch("/api/account/me", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store", signal: timeoutSignal });
       const j = await res.json().catch(() => ({}));
       if (res.status === 401) { router.replace("/account/login"); return; }
       if (j?.needsPhone) {
@@ -158,7 +159,14 @@ export default function AccountPage() {
   }
 
   async function logout() {
-    await signOutMember();
+    try { await signOutMember(); } catch { /* ignore */ }
+    // Belt-and-suspenders: nuke any lingering Supabase auth token so a broken
+    // session can never keep you stuck on this page.
+    try {
+      Object.keys(localStorage).forEach((k) => {
+        if (/sb-.*-auth-token/.test(k) || k.toLowerCase().includes("supabase")) localStorage.removeItem(k);
+      });
+    } catch { /* ignore */ }
     router.replace("/account/login");
   }
 
@@ -205,8 +213,9 @@ export default function AccountPage() {
           <p style={{ color: COLORS.muted, fontSize: 14, marginTop: 6 }}>{loadErr}</p>
           <div style={{ marginTop: 20, display: "grid", gap: 10 }}>
             <button onClick={load} style={{ height: 48, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, cursor: "pointer" }}>Try again</button>
-            <button onClick={logout} style={{ border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer" }}>Log out</button>
+            <button onClick={logout} style={{ height: 46, borderRadius: 999, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 900, cursor: "pointer" }}>Log out &amp; start over</button>
           </div>
+          <p style={{ color: COLORS.muted, fontSize: 12, marginTop: 12, lineHeight: 1.5 }}>Still stuck? Tap “Log out &amp; start over”, then sign in again.</p>
         </div>
       </main>
     );

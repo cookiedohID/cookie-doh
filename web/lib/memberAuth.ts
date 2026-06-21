@@ -50,7 +50,13 @@ export async function signInWithGoogle() {
 }
 
 export async function signOutMember() {
-  await getSupabaseBrowser().auth.signOut();
+  // scope:"local" clears the session on THIS device without a global network
+  // revoke — so a broken/unreachable session can't make sign-out hang. Never throws.
+  try {
+    await getSupabaseBrowser().auth.signOut({ scope: "local" });
+  } catch {
+    /* ignore — callers also force-clear local storage */
+  }
 }
 
 // Forgot password: email the member a reset link that lands on /account/reset.

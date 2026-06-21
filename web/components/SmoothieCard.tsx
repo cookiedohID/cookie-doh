@@ -2,10 +2,10 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { COLORS } from "@/lib/theme";
 import { SMOOTHIE_PRICE, type Smoothie } from "@/lib/smoothies";
-import { addUpsellSingle } from "@/lib/cart";
+import { addUpsellSingle, decUpsellSingle, getCart, looseSingleQty } from "@/lib/cart";
 import styles from "./SmoothieCard.module.css";
 
 const formatIDR = (n: number) =>
@@ -16,11 +16,19 @@ const formatIDR = (n: number) =>
   }).format(n);
 
 export default function SmoothieCard({ item }: { item: Smoothie }) {
-  const [added, setAdded] = useState(false);
-  function add() {
+  // Reflect how many of THIS smoothie are already in the cart, so the customer
+  // can see + adjust the quantity instead of blindly re-adding.
+  const [qty, setQty] = useState(0);
+  useEffect(() => {
+    setQty(looseSingleQty(getCart(), String(item.id), SMOOTHIE_PRICE));
+  }, [item.id]);
+  function inc() {
     addUpsellSingle({ id: String(item.id), name: String(item.name), price: SMOOTHIE_PRICE, image: item.image, kind: "drink" });
-    setAdded(true);
-    setTimeout(() => setAdded(false), 1400);
+    setQty((q) => q + 1);
+  }
+  function dec() {
+    decUpsellSingle({ id: String(item.id), price: SMOOTHIE_PRICE });
+    setQty((q) => Math.max(0, q - 1));
   }
   return (
     <article className={styles.card} style={{ opacity: item.soldOut ? 0.55 : 1 }}>
@@ -107,14 +115,14 @@ export default function SmoothieCard({ item }: { item: Smoothie }) {
           </span>
           {item.soldOut ? (
             <span style={{ fontSize: 12, fontWeight: 800, color: COLORS.muted }}>Sold out</span>
+          ) : qty > 0 ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+              <button type="button" onClick={dec} aria-label="Remove one" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: "pointer" }}>−</button>
+              <span style={{ minWidth: 16, textAlign: "center", fontWeight: 900, fontSize: 16, color: COLORS.black }}>{qty}</span>
+              <button type="button" onClick={inc} aria-label="Add one" style={{ width: 34, height: 34, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: "pointer" }}>＋</button>
+            </span>
           ) : (
-            <button
-              type="button"
-              onClick={add}
-              style={{ border: "none", borderRadius: 999, padding: "8px 16px", fontWeight: 900, fontSize: 13, cursor: "pointer", background: added ? "#1d9e75" : COLORS.blue, color: "#fff" }}
-            >
-              {added ? "Added ✓" : "Add"}
-            </button>
+            <button type="button" onClick={inc} style={{ border: "none", borderRadius: 999, padding: "8px 18px", fontWeight: 900, fontSize: 13, cursor: "pointer", background: COLORS.blue, color: "#fff" }}>Add</button>
           )}
         </div>
       </div>

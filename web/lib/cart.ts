@@ -274,6 +274,34 @@ export function addSpendReward(tier: {
   writeCart({ boxes });
 }
 
+// Current quantity of a loose single (cookie/drink add-on) in the cart.
+export function looseSingleQty(state: CartState, id: string, price: number): number {
+  const b = state.boxes.find(
+    (x) => x.kind !== "bundle" && !!x.label && x.items.length === 1 && String(x.items[0].id) === String(id) && Number(x.items[0].price) === price
+  );
+  return b ? Number(b.items[0].quantity) || 0 : 0;
+}
+
+// Remove one of a loose single (the inverse of addUpsellSingle).
+export function decUpsellSingle(item: { id: string; price?: number }) {
+  const id = String(item.id);
+  const price = Number.isFinite(Number(item.price)) && Number(item.price) > 0 ? Number(item.price) : DEFAULT_COOKIE_PRICE;
+  const cart = readCart();
+  const idx = cart.boxes.findIndex(
+    (b) => b.kind !== "bundle" && !!b.label && b.items.length === 1 && String(b.items[0].id) === id && Number(b.items[0].price) === price
+  );
+  if (idx < 0) return;
+  const box = cart.boxes[idx];
+  const q = (Number(box.items[0].quantity) || 0) - 1;
+  if (q <= 0) cart.boxes.splice(idx, 1);
+  else {
+    box.items[0].quantity = q;
+    box.boxSize = q;
+    box.total = box.items[0].price * q;
+  }
+  writeCart(cart);
+}
+
 export function removeReward() {
   const cart = readCart();
   if (!cart.boxes.some((b) => b.reward)) return;
