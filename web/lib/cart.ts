@@ -352,6 +352,76 @@ export function completeToBox(targetSize: 3 | 6, fill: { id: string; name: strin
   writeCart({ boxes: rest });
 }
 
+// ---- Bundle completion upsell ----------------------------------------------
+// "Convertible" boxes = real boxes + loose singles (NOT existing bundles/rewards)
+// that can be folded into a bundle.
+function isConvertibleBox(b: CartBox): boolean {
+  return b.kind !== "bundle" && !b.reward;
+}
+
+// Count cookies vs drinks across the convertible boxes (a box of 6 = 6 cookies).
+export function cartItemCounts(state: CartState): { cookies: number; drinks: number } {
+  let cookies = 0;
+  let drinks = 0;
+  for (const b of state.boxes) {
+    if (!isConvertibleBox(b)) continue;
+    for (const it of b.items) {
+      const q = Number(it.quantity) || 0;
+      if (it.kind === "drink") drinks += q;
+      else cookies += q;
+    }
+  }
+  return { cookies, drinks };
+}
+
+// Fold the cart's loose cookies + drinks into a named bundle, topping up the
+// shortfall with `fill` items. The bundle is server-priced by name. Leaves any
+// existing bundles/rewards untouched.
+export function completeToBundle(
+  bundle: { id: string; name: string; cookies: number; drinks: number; price: number },
+  fill: { cookie?: { id: string; name: string; image?: string }; drink?: { id: string; name: string; image?: string } }
+) {
+  const cart = readCart();
+  const convertible = cart.boxes.filter(isConvertibleBox);
+  if (!convertible.length) return;
+
+  const cookieItems: CartItem[] = [];
+  const drinkItems: CartItem[] = [];
+  for (const b of convertible)
+    for (const it of b.items) {
+      const base = { id: it.id, name: it.name, quantity: Number(it.quantity) || 0, ...(it.image ? { image: it.image } : {}) };
+      if (it.kind === "drink") drinkItems.push({ ...base, price: 39000, kind: "drink" });
+      else cookieItems.push({ ...base, price: DEFAULT_COOKIE_PRICE });
+    }
+
+  const cCount = cookieItems.reduce((n, it) => n + it.quantity, 0);
+  const dCount = drinkItems.reduce((n, it) => n + it.quantity, 0);
+  if (cCount > bundle.cookies || dCount > bundle.drinks) return; // must fit inside the bundle
+
+  const needC = bundle.cookies - cCount;
+  const needD = bundle.drinks - dCount;
+  if (needC > 0) {
+    if (!fill.cookie?.id) return;
+    cookieItems.push({ id: String(fill.cookie.id), name: String(fill.cookie.name), price: DEFAULT_COOKIE_PRICE, quantity: needC, ...(fill.cookie.image ? { image: fill.cookie.image } : {}) });
+  }
+  if (needD > 0) {
+    if (!fill.drink?.id) return;
+    drinkItems.push({ id: String(fill.drink.id), name: String(fill.drink.name), price: 39000, quantity: needD, kind: "drink", ...(fill.drink.image ? { image: fill.drink.image } : {}) });
+  }
+
+  // Merge same id+kind so the bundle shows clean lines.
+  const merged: CartItem[] = [];
+  for (const it of [...cookieItems, ...drinkItems]) {
+    const hit = merged.find((m) => m.id === it.id && m.kind === it.kind);
+    if (hit) hit.quantity += it.quantity;
+    else merged.push({ ...it });
+  }
+
+  const rest = cart.boxes.filter((b) => !isConvertibleBox(b));
+  rest.unshift({ boxSize: bundle.cookies + bundle.drinks, items: merged, total: bundle.price, kind: "bundle", label: bundle.name });
+  writeCart({ boxes: rest });
+}
+
 export function removeBoxAt(index: number) {
   const cart = readCart();
   const next = { boxes: cart.boxes.slice() };

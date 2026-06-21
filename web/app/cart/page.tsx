@@ -5,17 +5,22 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
+import { SMOOTHIES } from "@/lib/smoothies";
 import {
+  addUpsellSingle,
   clearCart,
+  decUpsellSingle,
   getCart,
   removeBoxAt,
   removeSoldOutItemsFromCart,
+  type CartItem,
   type CartState,
 } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
 import CartUpsell from "@/components/CartUpsell";
 import CartSpendReward from "@/components/CartSpendReward";
 import CartBoxDeal from "@/components/CartBoxDeal";
+import CartBundleDeal from "@/components/CartBundleDeal";
 
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -73,6 +78,25 @@ export default function CartPage() {
 
   const onRemoveBox = (idx: number) => {
     removeBoxAt(idx);
+    setCart(getCart());
+  };
+
+  // Resolve a thumbnail for a cart item (stored image → cookie catalog → smoothies).
+  const imageFor = (it: CartItem): string => {
+    if (it.image) return it.image;
+    const f = (CATALOG_FLAVORS as any[]).find((x) => String(x.id) === String(it.id));
+    if (f?.image) return f.image;
+    const s = SMOOTHIES.find((x) => x.id === String(it.id));
+    return s?.image || "";
+  };
+
+  // +/- a loose single (smoothie or single cookie add-on).
+  const incSingle = (it: CartItem) => {
+    addUpsellSingle({ id: it.id, name: it.name, price: it.price, image: it.image, kind: it.kind });
+    setCart(getCart());
+  };
+  const decSingle = (it: CartItem) => {
+    decUpsellSingle({ id: it.id, price: it.price });
     setCart(getCart());
   };
 
@@ -184,7 +208,71 @@ export default function CartPage() {
             <section style={{ display: "grid", gap: 12 }}>
               {cart.boxes.map((box, idx) => {
                 const boxCount = box.items.reduce((s, it) => s + (it.quantity || 0), 0);
+                const looseSingle = box.kind !== "bundle" && !box.reward && !!box.label && box.items.length === 1;
 
+                // Loose single (smoothie / single cookie) — thumbnail + quantity stepper.
+                if (looseSingle) {
+                  const it = box.items[0];
+                  const isSoldOut = soldOutSet.has(String(it.id));
+                  const img = imageFor(it);
+                  return (
+                    <article
+                      key={idx}
+                      style={{
+                        borderRadius: 18,
+                        border: "1px solid rgba(0,0,0,0.10)",
+                        padding: 12,
+                        background: COLORS.white,
+                        boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+                      }}
+                    >
+                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                        <div
+                          style={{
+                            width: 64,
+                            height: 64,
+                            borderRadius: 14,
+                            flex: "0 0 auto",
+                            background: img ? `#fff url("${img}") center/cover no-repeat` : COLORS.sand,
+                            border: "1px solid rgba(0,0,0,0.08)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 26,
+                          }}
+                        >
+                          {!img && (it.kind === "drink" ? "🥤" : "🍪")}
+                        </div>
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 900, color: COLORS.black, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            {it.name}
+                          </div>
+                          <div style={{ color: "#6B6B6B", fontSize: 13, marginTop: 2 }}>{formatIDR(it.price)} each</div>
+
+                          {isSoldOut ? (
+                            <div style={{ marginTop: 7 }}>
+                              <span style={{ padding: "5px 10px", borderRadius: 999, background: "rgba(0,0,0,0.72)", color: COLORS.white, fontWeight: 950, fontSize: 12, letterSpacing: "0.08em" }}>SOLD OUT</span>
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: 8, display: "inline-flex", alignItems: "center", gap: 12 }}>
+                              <button onClick={() => decSingle(it)} aria-label="Remove one" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: "pointer" }}>−</button>
+                              <span style={{ minWidth: 18, textAlign: "center", fontWeight: 900, fontSize: 16, color: COLORS.black }}>{it.quantity}</span>
+                              <button onClick={() => incSingle(it)} aria-label="Add one" style={{ width: 34, height: 34, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: "pointer" }}>＋</button>
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ textAlign: "right", flex: "0 0 auto" }}>
+                          <div style={{ fontWeight: 950, color: COLORS.black }}>{formatIDR(box.total || 0)}</div>
+                          <button onClick={() => onRemoveBox(idx)} style={{ marginTop: 6, border: "none", background: "transparent", color: "#6B6B6B", cursor: "pointer", fontWeight: 800, fontSize: 13, padding: 0 }}>Remove</button>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                }
+
+                // Box of N / bundle / reward — fixed set: contents (with thumbnails) + Remove box.
                 return (
                   <article
                     key={idx}
@@ -207,13 +295,7 @@ export default function CartPage() {
 
                       <button
                         onClick={() => onRemoveBox(idx)}
-                        style={{
-                          border: "none",
-                          background: "transparent",
-                          color: "#6B6B6B",
-                          cursor: "pointer",
-                          fontWeight: 800,
-                        }}
+                        style={{ border: "none", background: "transparent", color: "#6B6B6B", cursor: "pointer", fontWeight: 800 }}
                       >
                         Remove box
                       </button>
@@ -222,54 +304,45 @@ export default function CartPage() {
                     <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
                       {box.items.map((it) => {
                         const isSoldOut = soldOutSet.has(String(it.id));
+                        const img = imageFor(it);
                         return (
                           <div
                             key={it.id}
                             style={{
                               display: "flex",
-                              justifyContent: "space-between",
+                              alignItems: "center",
                               gap: 10,
-                              padding: "10px 10px",
+                              padding: "8px 10px",
                               borderRadius: 14,
                               background: COLORS.sand,
                               border: "1px solid rgba(0,0,0,0.06)",
                               opacity: isSoldOut ? 0.85 : 1,
                             }}
                           >
-                            <div style={{ minWidth: 0 }}>
-                              <div
-                                style={{
-                                  fontWeight: 800,
-                                  color: COLORS.black,
-                                  whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                }}
-                              >
+                            <div
+                              style={{
+                                width: 40,
+                                height: 40,
+                                borderRadius: 10,
+                                flex: "0 0 auto",
+                                background: img ? `#fff url("${img}") center/cover no-repeat` : "#fff",
+                                border: "1px solid rgba(0,0,0,0.08)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: 18,
+                              }}
+                            >
+                              {!img && (it.kind === "drink" ? "🥤" : "🍪")}
+                            </div>
+                            <div style={{ minWidth: 0, flex: 1 }}>
+                              <div style={{ fontWeight: 800, color: COLORS.black, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 {it.name} × {it.quantity}
                               </div>
-
                               {isSoldOut && (
-                                <div style={{ marginTop: 6, display: "inline-flex", alignItems: "center", gap: 8 }}>
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      padding: "5px 10px",
-                                      borderRadius: 999,
-                                      background: "rgba(0,0,0,0.72)",
-                                      color: COLORS.white,
-                                      fontWeight: 950,
-                                      fontSize: 12,
-                                      letterSpacing: "0.08em",
-                                    }}
-                                  >
-                                    SOLD OUT
-                                  </span>
-                                  <span style={{ color: "rgba(0,0,0,0.60)", fontWeight: 800, fontSize: 12 }}>
-                                    Remove to checkout
-                                  </span>
+                                <div style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{ padding: "4px 9px", borderRadius: 999, background: "rgba(0,0,0,0.72)", color: COLORS.white, fontWeight: 950, fontSize: 11, letterSpacing: "0.08em" }}>SOLD OUT</span>
+                                  <span style={{ color: "rgba(0,0,0,0.60)", fontWeight: 800, fontSize: 12 }}>Remove to checkout</span>
                                 </div>
                               )}
                             </div>
@@ -345,6 +418,9 @@ export default function CartPage() {
                 <div>✨ Packed with care</div>
               </div>
             </section>
+
+            {/* Complete-the-bundle deal (e.g. Box of 6 + 3 drinks → Party Pack) */}
+            <CartBundleDeal cart={cart} onChanged={() => setCart(getCart())} />
 
             {/* Complete-the-box deal */}
             <CartBoxDeal cart={cart} onChanged={() => setCart(getCart())} />
