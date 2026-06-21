@@ -1,5 +1,6 @@
 // web/lib/cart.ts
 import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
+import type { RepackCombo } from "@/lib/bundleDeals";
 
 export type CartItem = {
   id: string; // flavor / smoothie id
@@ -420,6 +421,80 @@ export function completeToBundle(
   const rest = cart.boxes.filter((b) => !isConvertibleBox(b));
   rest.unshift({ boxSize: bundle.cookies + bundle.drinks, items: merged, total: bundle.price, kind: "bundle", label: bundle.name });
   writeCart({ boxes: rest });
+}
+
+// A loose single = a labelled, non-bundle, non-reward box with one item (cookie OR drink).
+function isLooseSingleBox(b: CartBox): boolean {
+  return b.kind !== "bundle" && !b.reward && !!b.label && b.items.length === 1;
+}
+
+// Loose cookies + drinks only (for the "best deal" repackaging — boxes are left alone).
+export function looseSingleCounts(state: CartState): { cookies: number; drinks: number } {
+  let cookies = 0;
+  let drinks = 0;
+  for (const b of state.boxes) {
+    if (!isLooseSingleBox(b)) continue;
+    const it = b.items[0];
+    const q = Number(it.quantity) || 0;
+    if (it.kind === "drink") drinks += q;
+    else cookies += q;
+  }
+  return { cookies, drinks };
+}
+
+// Opt-in "best deal": repackage the loose cookies + drinks into the given bundle
+// combo, leaving the rest as loose singles. Builds each bundle from the actual loose
+// items and decrements exactly what was consumed.
+export function applyBestDeal(combo: RepackCombo) {
+  const cart = readCart();
+  const cookieQ: { id: string; name: string; image?: string }[] = [];
+  const drinkQ: { id: string; name: string; image?: string }[] = [];
+  for (const b of cart.boxes) {
+    if (!isLooseSingleBox(b)) continue;
+    const it = b.items[0];
+    for (let i = 0; i < (Number(it.quantity) || 0); i++) {
+      const e = { id: it.id, name: it.name, ...(it.image ? { image: it.image } : {}) };
+      if (it.kind === "drink") drinkQ.push(e);
+      else cookieQ.push(e);
+    }
+  }
+  let ci = 0;
+  let di = 0;
+  const consumed: Record<string, number> = {};
+  const newBundleBoxes: CartBox[] = [];
+  for (const x of combo) {
+    for (let n = 0; n < x.count; n++) {
+      const cm: Record<string, CartItem> = {};
+      const dm: Record<string, CartItem> = {};
+      for (let k = 0; k < x.cookies; k++) {
+        const it = cookieQ[ci++];
+        if (!it) return;
+        if (cm[it.id]) cm[it.id].quantity += 1;
+        else cm[it.id] = { id: it.id, name: it.name, price: DEFAULT_COOKIE_PRICE, quantity: 1, ...(it.image ? { image: it.image } : {}) };
+        consumed[`cookie:${it.id}`] = (consumed[`cookie:${it.id}`] || 0) + 1;
+      }
+      for (let k = 0; k < x.drinks; k++) {
+        const it = drinkQ[di++];
+        if (!it) return;
+        if (dm[it.id]) dm[it.id].quantity += 1;
+        else dm[it.id] = { id: it.id, name: it.name, price: 39000, quantity: 1, kind: "drink", ...(it.image ? { image: it.image } : {}) };
+        consumed[`drink:${it.id}`] = (consumed[`drink:${it.id}`] || 0) + 1;
+      }
+      newBundleBoxes.push({ boxSize: x.cookies + x.drinks, items: [...Object.values(cm), ...Object.values(dm)], total: x.price, kind: "bundle", label: x.name });
+    }
+  }
+  // Decrement the loose boxes by what we consumed; keep leftovers, drop emptied ones.
+  const rest: CartBox[] = [];
+  for (const b of cart.boxes) {
+    if (!isLooseSingleBox(b)) { rest.push(b); continue; }
+    const it = b.items[0];
+    const key = `${it.kind === "drink" ? "drink" : "cookie"}:${it.id}`;
+    const dec = consumed[key] || 0;
+    if (!dec) { rest.push(b); continue; }
+    const q = (Number(it.quantity) || 0) - dec;
+    if (q > 0) rest.push({ ...b, boxSize: q, total: it.price * q, items: [{ ...it, quantity: q }] });
+  }
+  writeCart({ boxes: [...newBundleBoxes, ...rest] });
 }
 
 export function removeBoxAt(index: number) {

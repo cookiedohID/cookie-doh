@@ -22,6 +22,7 @@ import CartUpsell from "@/components/CartUpsell";
 import CartSpendReward from "@/components/CartSpendReward";
 import CartBoxDeal from "@/components/CartBoxDeal";
 import CartBundleDeal from "@/components/CartBundleDeal";
+import CartBestDeal from "@/components/CartBestDeal";
 
 const formatIDR = (n: number) =>
   new Intl.NumberFormat("id-ID", {
@@ -426,6 +427,9 @@ export default function CartPage() {
 
             {/* Complete-the-bundle deal (e.g. Box of 6 + 3 drinks → Party Pack) */}
             <CartBundleDeal cart={cart} onChanged={() => setCart(getCart())} />
+
+            {/* Best-deal repackaging — cheapest price on what's already here (opt-in) */}
+            <CartBestDeal cart={cart} onChanged={() => setCart(getCart())} />
 
             {/* Complete-the-box deal */}
             <CartBoxDeal cart={cart} onChanged={() => setCart(getCart())} />

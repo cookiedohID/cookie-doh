@@ -8,6 +8,7 @@ import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
 import { ASSORTMENTS, type Assortment } from "@/lib/assortments";
 import { BUNDLES, getBundle } from "@/lib/bundles";
+import { bestRepackage, repackSummary, type RepackResult } from "@/lib/bundleDeals";
 import { COLORS } from "@/lib/theme";
 
 const COOKIE_PRICE = 32500;
@@ -136,6 +137,10 @@ export default function CafePOS() {
     opts.sort((a, z) => a.short - z.short || z.savings - a.savings);
     return opts[0] || null;
   }, [singleCookieCount, looseDrinkCount, plainBoxCookieCount, plainBoxPaid, fillCookie, fillDrink]);
+
+  // "Best deal" repackaging: cheapest way to price the LOOSE cookies + drinks the
+  // customer already has, using bundles + leftovers (opt-in, never adds anything).
+  const bestDeal = useMemo(() => bestRepackage(singleCookieCount, looseDrinkCount), [singleCookieCount, looseDrinkCount]);
 
   const boxPickCount = boxBuild ? Object.values(boxBuild.picks).reduce((s, v) => s + v.qty, 0) : 0;
   const bundleCookieCount = bundleBuild ? Object.values(bundleBuild.cookiePicks).reduce((s, v) => s + v.qty, 0) : 0;
@@ -431,6 +436,61 @@ export default function CafePOS() {
     for (const c of bd.cookies) cookiePicks[c.id] = { name: c.name, qty: c.qty };
     for (const d of bd.drinks) drinkPicks[d.id] = { name: d.name, qty: d.qty };
     setBundleBuild({ bundleId: bd.bundleId, cookiePicks, drinkPicks, editKey: bd.key });
+  }
+
+  // Opt-in "best deal": repackage the loose cookies + drinks into the cheapest bundle
+  // combination, leaving the rest as singles. Builds the bundle(s) from the actual
+  // loose items and removes exactly what was consumed.
+  function applyBestDeal(r: RepackResult) {
+    const cookieQ: { id: string; name: string }[] = [];
+    const drinkQ: { id: string; name: string }[] = [];
+    for (const l of Object.values(cart)) {
+      if (l.free) continue;
+      for (let i = 0; i < l.qty; i++) {
+        if (l.item.kind === "cookie") cookieQ.push({ id: l.item.id, name: l.item.name });
+        else if (l.item.kind === "drink") drinkQ.push({ id: l.item.id, name: l.item.name });
+      }
+    }
+    let ci = 0;
+    let di = 0;
+    const consumed: Record<string, number> = {};
+    const newBundles: typeof bundles = [];
+    for (const x of r.combo) {
+      for (let n = 0; n < x.count; n++) {
+        const cookiePicks: Record<string, { name: string; qty: number }> = {};
+        const drinkPicks: Record<string, { name: string; qty: number }> = {};
+        for (let k = 0; k < x.cookies; k++) {
+          const it = cookieQ[ci++];
+          if (!it) return;
+          cookiePicks[it.id] = { name: it.name, qty: (cookiePicks[it.id]?.qty || 0) + 1 };
+          consumed[`cookie:${it.id}`] = (consumed[`cookie:${it.id}`] || 0) + 1;
+        }
+        for (let k = 0; k < x.drinks; k++) {
+          const it = drinkQ[di++];
+          if (!it) return;
+          drinkPicks[it.id] = { name: it.name, qty: (drinkPicks[it.id]?.qty || 0) + 1 };
+          consumed[`drink:${it.id}`] = (consumed[`drink:${it.id}`] || 0) + 1;
+        }
+        newBundles.push({
+          key: `bundle-${x.bundleId}-${Math.random().toString(36).slice(2, 9)}`,
+          bundleId: x.bundleId, label: x.name, price: x.price,
+          cookies: Object.entries(cookiePicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty })),
+          drinks: Object.entries(drinkPicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty })),
+        });
+      }
+    }
+    setCart((prev) => {
+      const next = { ...prev };
+      for (const [key, cnt] of Object.entries(consumed)) {
+        const line = next[key];
+        if (!line) continue;
+        const q = line.qty - cnt;
+        if (q <= 0) delete next[key];
+        else next[key] = { ...line, qty: q };
+      }
+      return next;
+    });
+    setBundles((bs) => [...bs, ...newBundles]);
   }
   // Build-your-own boxes (no assortKey), counted per size.
   const boxCount = (size: number) => boxes.filter((b) => b.size === size && !b.assortKey).length;
@@ -1045,7 +1105,16 @@ export default function CafePOS() {
             );
           })() : null}
 
-          {showBoxNudge && !bundleDeal ? (() => {
+          {bestDeal ? (
+            <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 8, padding: "8px 12px", borderRadius: 12, background: "#FAEEDA", border: "1px solid #EF9F27" }}>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: "#633806" }}>
+                💡 Save {formatIDR(bestDeal.savings)}: take it as {repackSummary(bestDeal)}
+              </span>
+              <button onClick={() => applyBestDeal(bestDeal)} style={{ flex: "0 0 auto", border: "none", background: "#854F0B", color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 16px", borderRadius: 999, cursor: "pointer" }}>Apply</button>
+            </div>
+          ) : null}
+
+          {showBoxNudge && !bundleDeal && !bestDeal ? (() => {
             const target = singleCookieCount >= 6 ? 6 : 3;
             const save = target * COOKIE_PRICE - boxPrice(target);
             return (
@@ -1058,7 +1127,7 @@ export default function CafePOS() {
             );
           })() : null}
 
-          {lines.length > 0 && !lines.some((l) => l.item.kind === "drink") && !bundleDeal ? (
+          {lines.length > 0 && !lines.some((l) => l.item.kind === "drink") && !bundleDeal && !bestDeal ? (
             <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 8, padding: "8px 12px", borderRadius: 12, background: "#FFF4E5", border: "1px solid rgba(255,90,0,0.3)" }}>
               <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.black }}>🥤 Add a drink? {formatIDR(SMOOTHIE_PRICE)} each</span>
               <button onClick={() => jump("drinks")} style={{ flex: "0 0 auto", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>See drinks</button>
