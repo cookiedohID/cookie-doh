@@ -180,9 +180,11 @@ export default function AccountPage() {
     return (
       <main style={{ minHeight: "100vh", background: COLORS.bg }}>
         <div style={{ maxWidth: 420, margin: "0 auto", padding: "40px 16px" }}>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.black }}>{otpStep === "code" ? "Verify your number" : "One more thing"}</h1>
-          <p style={{ color: COLORS.muted, fontSize: 14 }}>
-            {otpStep === "code" ? (note || "Enter the code from WhatsApp.") : "Add your phone number to activate your membership & loyalty."}
+          <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.black }}>{otpStep === "code" ? "Verify your number" : "Link your WhatsApp"}</h1>
+          <p style={{ color: COLORS.muted, fontSize: 14, lineHeight: 1.55 }}>
+            {otpStep === "code"
+              ? (note || "Enter the code from WhatsApp.")
+              : "Your loyalty stamps and member QR are tied to your WhatsApp number — add it once to activate. Signed in with Google? Your number isn’t collected at sign-in, so this is the only step left."}
           </p>
           {otpStep === "phone" ? (
             <form onSubmit={sendPhoneCode} style={{ marginTop: 16, display: "grid", gap: 10 }}>

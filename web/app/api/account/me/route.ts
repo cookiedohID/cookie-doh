@@ -160,15 +160,50 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
   };
 }
 
+// When the auth user's metadata has no phone, recover a phone ALREADY BOUND to
+// this exact auth user from the authoritative tables. Keyed strictly on the
+// server-derived user.id (never a client-supplied phone), and only on rows already
+// bound to this user — so it can't claim someone else's number. This fixes the
+// redundant re-prompt: a fully verified+bound member whose user_metadata.phone was
+// never written (e.g. the first /account load was interrupted) was being asked to
+// "add your phone" again even though the binding exists in the DB.
+async function boundPhoneForUser(supa: any, userId: string): Promise<string | null> {
+  const { data: custRows } = await supa
+    .from("customers")
+    .select("phone, phone_verified")
+    .eq("auth_user_id", userId)
+    .limit(1);
+  const cust = custRows?.[0];
+  if (cust?.phone && cust.phone_verified) return canonicalPhone(String(cust.phone));
+
+  const { data: otpRows } = await supa
+    .from("phone_otps")
+    .select("phone")
+    .eq("auth_user_id", userId)
+    .eq("verified", true)
+    .limit(1);
+  const otp = otpRows?.[0];
+  if (otp?.phone) return canonicalPhone(String(otp.phone));
+
+  return null;
+}
+
 export async function GET(req: Request) {
   try {
     const supa = supaAdmin();
     const user = await getUser(supa, bearer(req));
     if (!user) return NextResponse.json({ ok: false, error: "Not signed in" }, { status: 401 });
 
-    const phone = phoneFromUser(user);
+    let phone = phoneFromUser(user);
+    let recovered = false;
     if (!phone) {
-      // Google users with no phone yet — ask them to add one.
+      // Metadata has no phone — before asking again, recover one already bound to
+      // THIS user in the DB (the genuine-redundant-prompt case).
+      phone = await boundPhoneForUser(supa, user.id);
+      recovered = Boolean(phone);
+    }
+    if (!phone) {
+      // Genuinely no phone on file (e.g. a fresh Google user) — ask them to add one.
       return NextResponse.json({ ok: true, needsPhone: true, email: user.email || null });
     }
     const r = await buildMember(supa, user, phone);
@@ -178,6 +213,17 @@ export async function GET(req: Request) {
     if (r.kind === "needsVerify") {
       // Phone on file but not OTP-verified (e.g. a legacy/Google link) — re-verify.
       return NextResponse.json({ ok: true, needsPhone: true, needsVerify: true, phone: r.phone, email: user.email || null });
+    }
+    // Self-heal: if we recovered the phone from the DB (metadata was empty), persist
+    // it onto the auth user so future loads resolve instantly without the fallback.
+    if (recovered) {
+      try {
+        await supa.auth.admin.updateUserById(user.id, {
+          user_metadata: { ...(user.user_metadata || {}), phone },
+        });
+      } catch {
+        /* non-fatal — the DB fallback still resolves it next time */
+      }
     }
     return NextResponse.json({ ok: true, member: r.member });
   } catch (e: any) {
