@@ -49,7 +49,7 @@ export default function CafePOS() {
   const [review, setReview] = useState(false); // order summary screen before paying
   // Bundles: fixed-price set of X cookies + Y drinks (customer picks).
   const [bundles, setBundles] = useState<{ key: string; bundleId: string; label: string; price: number; cookies: { id: string; name: string; qty: number }[]; drinks: { id: string; name: string; qty: number }[] }[]>([]);
-  const [bundleBuild, setBundleBuild] = useState<{ bundleId: string; cookiePicks: Record<string, { name: string; qty: number }>; drinkPicks: Record<string, { name: string; qty: number }> } | null>(null);
+  const [bundleBuild, setBundleBuild] = useState<{ bundleId: string; cookiePicks: Record<string, { name: string; qty: number }>; drinkPicks: Record<string, { name: string; qty: number }>; fold?: { boxKeys: string[] }; editKey?: string } | null>(null);
   const [scanning, setScanning] = useState(false); // member QR camera scan
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -400,48 +400,37 @@ export default function CafePOS() {
     setBoxes((bs) => [...bs, { key: `box-${target}-${Math.random().toString(36).slice(2, 9)}`, size: target, items: Object.values(itemsMap) }]);
   }
 
-  // One-tap "complete the bundle": fold the loose cookies + drinks into the bundle,
-  // topping up the shortfall with a bestseller, and clear those loose singles.
-  function makeBundleFromSingles(deal: { b: (typeof BUNDLES)[number]; needC: number; needD: number }) {
+  // "Complete the bundle" → open the bundle builder PRE-SEEDED with the cart's
+  // cookies + drinks (loose + build-your-own boxes) and the shortfall suggested with
+  // a bestseller. The user reviews/swaps and confirms — the final decision is theirs.
+  // On commit, addBundle removes the folded loose items + boxes (via `fold`).
+  function startBundleUpsell(deal: { b: (typeof BUNDLES)[number]; needC: number; needD: number }) {
     const { b, needC, needD } = deal;
     const cookiePicks: Record<string, { name: string; qty: number }> = {};
     const drinkPicks: Record<string, { name: string; qty: number }> = {};
-    const removeCount: Record<string, number> = {};
-    for (const [key, l] of Object.entries(cart)) {
+    for (const l of Object.values(cart)) {
       if (l.free) continue;
-      if (l.item.kind === "cookie") {
-        cookiePicks[l.item.id] = { name: l.item.name, qty: (cookiePicks[l.item.id]?.qty || 0) + l.qty };
-        removeCount[key] = (removeCount[key] || 0) + l.qty;
-      } else if (l.item.kind === "drink") {
-        drinkPicks[l.item.id] = { name: l.item.name, qty: (drinkPicks[l.item.id]?.qty || 0) + l.qty };
-        removeCount[key] = (removeCount[key] || 0) + l.qty;
-      }
+      if (l.item.kind === "cookie") cookiePicks[l.item.id] = { name: l.item.name, qty: (cookiePicks[l.item.id]?.qty || 0) + l.qty };
+      else if (l.item.kind === "drink") drinkPicks[l.item.id] = { name: l.item.name, qty: (drinkPicks[l.item.id]?.qty || 0) + l.qty };
     }
-    // Fold build-your-own boxes (not assortments) into the bundle too.
-    const foldBoxKeys = new Set<string>();
+    const boxKeys: string[] = [];
     for (const bx of boxes) {
       if (bx.assortKey) continue;
       for (const it of bx.items) cookiePicks[it.id] = { name: it.name, qty: (cookiePicks[it.id]?.qty || 0) + it.qty };
-      foldBoxKeys.add(bx.key);
+      boxKeys.push(bx.key);
     }
     if (needC > 0 && fillCookie) cookiePicks[fillCookie.id] = { name: fillCookie.name, qty: (cookiePicks[fillCookie.id]?.qty || 0) + needC };
     if (needD > 0 && fillDrink) drinkPicks[fillDrink.id] = { name: fillDrink.name, qty: (drinkPicks[fillDrink.id]?.qty || 0) + needD };
+    setBundleBuild({ bundleId: b.id, cookiePicks, drinkPicks, fold: { boxKeys } });
+  }
 
-    setCart((prev) => {
-      const next = { ...prev };
-      for (const [key, n] of Object.entries(removeCount)) {
-        const line = next[key];
-        if (!line) continue;
-        const q = line.qty - n;
-        if (q <= 0) delete next[key];
-        else next[key] = { ...line, qty: q };
-      }
-      return next;
-    });
-    if (foldBoxKeys.size) setBoxes((bs) => bs.filter((x) => !foldBoxKeys.has(x.key)));
-    const cookiesList = Object.entries(cookiePicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
-    const drinksList = Object.entries(drinkPicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
-    setBundles((bs) => [...bs, { key: `bundle-${b.id}-${Math.random().toString(36).slice(2, 9)}`, bundleId: b.id, label: b.name, price: b.price, cookies: cookiesList, drinks: drinksList }]);
+  // Edit an existing bundle: reopen the builder seeded with its current picks.
+  function startBundleEdit(bd: (typeof bundles)[number]) {
+    const cookiePicks: Record<string, { name: string; qty: number }> = {};
+    const drinkPicks: Record<string, { name: string; qty: number }> = {};
+    for (const c of bd.cookies) cookiePicks[c.id] = { name: c.name, qty: c.qty };
+    for (const d of bd.drinks) drinkPicks[d.id] = { name: d.name, qty: d.qty };
+    setBundleBuild({ bundleId: bd.bundleId, cookiePicks, drinkPicks, editKey: bd.key });
   }
   // Build-your-own boxes (no assortKey), counted per size.
   const boxCount = (size: number) => boxes.filter((b) => b.size === size && !b.assortKey).length;
@@ -495,7 +484,20 @@ export default function CafePOS() {
     if (bundleCookieCount !== bundle.cookies || bundleDrinkCount !== bundle.drinks) return;
     const cookiesList = Object.entries(bundleBuild.cookiePicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
     const drinksList = Object.entries(bundleBuild.drinkPicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
-    setBundles((bs) => [...bs, { key: `bundle-${bundle.id}-${Math.random().toString(36).slice(2, 9)}`, bundleId: bundle.id, label: bundle.name, price: bundle.price, cookies: cookiesList, drinks: drinksList }]);
+    // Upsell conversion: remove the loose items + build-your-own boxes we folded in.
+    if (bundleBuild.fold) {
+      setCart((c) => Object.fromEntries(Object.entries(c).filter(([, l]) => l.free)));
+      if (bundleBuild.fold.boxKeys.length) {
+        const keys = bundleBuild.fold.boxKeys;
+        setBoxes((bs) => bs.filter((x) => !keys.includes(x.key)));
+      }
+    }
+    // Edit: replace the bundle being edited.
+    const editKey = bundleBuild.editKey;
+    setBundles((bs) => [
+      ...(editKey ? bs.filter((x) => x.key !== editKey) : bs),
+      { key: `bundle-${bundle.id}-${Math.random().toString(36).slice(2, 9)}`, bundleId: bundle.id, label: bundle.name, price: bundle.price, cookies: cookiesList, drinks: drinksList },
+    ]);
     setBundleBuild(null);
   }
 
@@ -899,7 +901,9 @@ export default function CafePOS() {
                   <div key={c.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, background: "#fff", display: "flex", flexDirection: "column" }}>
                     <div onClick={() => setDetail(c)} style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, flex: "0 0 auto", overflow: "hidden", borderTopLeftRadius: 13, borderTopRightRadius: 13, cursor: "pointer" }}>
                       {c.image ? <Image src={c.image} alt={c.name} fill style={{ objectFit: "cover" }} sizes="200px" /> : null}
-                      <span style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 999, background: "rgba(255,255,255,0.92)", color: COLORS.blue, fontWeight: 900, fontSize: 13, display: "grid", placeItems: "center", pointerEvents: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}>ⓘ</span>
+                      {q > 0
+                        ? <span style={{ position: "absolute", top: 6, right: 6, minWidth: 26, height: 26, padding: "0 7px", borderRadius: 999, background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 14, display: "grid", placeItems: "center", pointerEvents: "none", boxShadow: "0 2px 6px rgba(0,0,0,0.25)" }}>{q}</span>
+                        : <span style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 999, background: "rgba(255,255,255,0.92)", color: COLORS.blue, fontWeight: 900, fontSize: 13, display: "grid", placeItems: "center", pointerEvents: "none", boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}>ⓘ</span>}
                     </div>
                     <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
                       <div onClick={() => setDetail(c)} style={{ fontWeight: 700, fontSize: 13, color: COLORS.black, minHeight: 34, lineHeight: 1.2, cursor: "pointer" }}>{c.name}</div>
@@ -933,6 +937,7 @@ export default function CafePOS() {
           <div key={item.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, background: "#fff", display: "flex", flexDirection: "column" }}>
             <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, flex: "0 0 auto", overflow: "hidden", borderTopLeftRadius: 13, borderTopRightRadius: 13 }}>
               {item.image ? <Image src={item.image} alt={item.name} fill style={{ objectFit: "cover" }} sizes="160px" /> : null}
+              {q > 0 ? <span style={{ position: "absolute", top: 6, right: 6, minWidth: 26, height: 26, padding: "0 7px", borderRadius: 999, background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 14, display: "grid", placeItems: "center", pointerEvents: "none", boxShadow: "0 2px 6px rgba(0,0,0,0.25)" }}>{q}</span> : null}
             </div>
             <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
               <div style={{ fontWeight: 700, fontSize: 12.5, color: COLORS.black, minHeight: 32, lineHeight: 1.2 }}>{item.name}</div>
@@ -951,6 +956,8 @@ export default function CafePOS() {
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>{bn.name}</div>
                   <div style={{ fontSize: 13, color: ready ? COLORS.blue : COLORS.muted, fontWeight: 700 }}>Cookies {bundleCookieCount}/{bn.cookies} · Drinks {bundleDrinkCount}/{bn.drinks} · {formatIDR(bn.price)}</div>
+                  {bundleBuild.fold ? <div style={{ fontSize: 12, color: "#0f6e56", fontWeight: 700, marginTop: 2 }}>✓ Your items are already in — swap any pick, then confirm.</div> : null}
+                  {bundleBuild.editKey ? <div style={{ fontSize: 12, color: COLORS.blue, fontWeight: 700, marginTop: 2 }}>Editing your bundle — adjust the picks.</div> : null}
                 </div>
                 <button onClick={() => setBundleBuild(null)} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: COLORS.sand, fontWeight: 900, cursor: "pointer", fontSize: 16 }}>×</button>
               </div>
@@ -1007,6 +1014,7 @@ export default function CafePOS() {
               {bundles.map((b) => (
                 <div key={b.key} style={{ flex: "0 0 auto", border: `1px solid ${COLORS.blue}`, background: "rgba(0,20,167,0.06)", borderRadius: 999, padding: "4px 6px 4px 12px", display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 13, fontWeight: 700 }}>🎁 {b.label} · {formatIDR(b.price)}</span>
+                  <button onClick={() => startBundleEdit(b)} aria-label={`Edit ${b.label}`} style={{ ...miniBtn, width: "auto", padding: "0 8px", fontSize: 12 }}>Edit</button>
                   <button onClick={() => setBundles((bs) => bs.filter((x) => x.key !== b.key))} aria-label="Remove bundle" style={miniBtn}>×</button>
                 </div>
               ))}
@@ -1032,7 +1040,7 @@ export default function CafePOS() {
                 <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.blue }}>
                   🎉 {marginal > 0 ? `Add ${addText} (+${formatIDR(marginal)}) → ${b.name}` : `Upgrade to ${b.name}`} · save {formatIDR(savings)}
                 </span>
-                <button onClick={() => makeBundleFromSingles(bundleDeal)} style={{ flex: "0 0 auto", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>Make it the {b.name}</button>
+                <button onClick={() => startBundleUpsell(bundleDeal)} style={{ flex: "0 0 auto", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>Make it the {b.name}</button>
               </div>
             );
           })() : null}

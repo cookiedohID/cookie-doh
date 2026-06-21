@@ -217,9 +217,8 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
             a card is never taller than the viewport. */}
         <style>{`
           .cd-flavor-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          @media (min-width: 640px) { .cd-flavor-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-          @media (min-width: 900px) { .cd-flavor-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-          @media (min-width: 1200px) { .cd-flavor-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+          @media (min-width: 700px) { .cd-flavor-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+          @media (min-width: 1100px) { .cd-flavor-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
         `}</style>
         <section className="cd-flavor-grid">
           {cardFlavors.map((f) => (
@@ -230,6 +229,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               onAdd={() => inc(f.id)}
               onRemove={() => dec(f.id)}
               disabledAdd={!canAddMore}
+              addLabel="Add"
             />
           ))}
         </section>

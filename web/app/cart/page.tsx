@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
@@ -229,11 +230,13 @@ export default function CartPage() {
                       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                         <div
                           style={{
+                            position: "relative",
                             width: 64,
                             height: 64,
                             borderRadius: 14,
+                            overflow: "hidden",
                             flex: "0 0 auto",
-                            background: img ? `#fff url("${img}") center/cover no-repeat` : COLORS.sand,
+                            background: COLORS.sand,
                             border: "1px solid rgba(0,0,0,0.08)",
                             display: "flex",
                             alignItems: "center",
@@ -241,7 +244,7 @@ export default function CartPage() {
                             fontSize: 26,
                           }}
                         >
-                          {!img && (it.kind === "drink" ? "🥤" : "🍪")}
+                          {img ? <Image src={img} alt={it.name} fill sizes="64px" style={{ objectFit: "cover" }} /> : (it.kind === "drink" ? "🥤" : "🍪")}
                         </div>
 
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -321,11 +324,13 @@ export default function CartPage() {
                           >
                             <div
                               style={{
+                                position: "relative",
                                 width: 40,
                                 height: 40,
                                 borderRadius: 10,
+                                overflow: "hidden",
                                 flex: "0 0 auto",
-                                background: img ? `#fff url("${img}") center/cover no-repeat` : "#fff",
+                                background: "#fff",
                                 border: "1px solid rgba(0,0,0,0.08)",
                                 display: "flex",
                                 alignItems: "center",
@@ -333,7 +338,7 @@ export default function CartPage() {
                                 fontSize: 18,
                               }}
                             >
-                              {!img && (it.kind === "drink" ? "🥤" : "🍪")}
+                              {img ? <Image src={img} alt={it.name} fill sizes="40px" style={{ objectFit: "cover" }} /> : (it.kind === "drink" ? "🥤" : "🍪")}
                             </div>
                             <div style={{ minWidth: 0, flex: 1 }}>
                               <div style={{ fontWeight: 800, color: COLORS.black, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
