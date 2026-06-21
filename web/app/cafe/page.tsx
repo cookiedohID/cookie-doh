@@ -324,6 +324,41 @@ export default function CafePOS() {
     setBoxBuild(null);
   }
   function removeBox(key: string) { setBoxes((bs) => bs.filter((b) => b.key !== key)); }
+
+  // One-tap "complete the box": pack the loose single cookies into the largest box
+  // that fits (no extra cookies added) — a pure saving the staff can offer.
+  function makeBoxFromSingles() {
+    const flat: { key: string; id: string; name: string }[] = [];
+    for (const [key, l] of Object.entries(cart)) {
+      if (l.item.kind === "cookie" && !l.free) {
+        for (let i = 0; i < l.qty; i++) flat.push({ key, id: l.item.id, name: l.item.name });
+      }
+    }
+    if (flat.length < 3) return;
+    const target = flat.length >= 6 ? 6 : 3;
+    const taken = flat.slice(0, target);
+
+    const itemsMap: Record<string, { id: string; name: string; qty: number }> = {};
+    const removeCount: Record<string, number> = {};
+    for (const c of taken) {
+      itemsMap[c.id] = itemsMap[c.id] || { id: c.id, name: c.name, qty: 0 };
+      itemsMap[c.id].qty += 1;
+      removeCount[c.key] = (removeCount[c.key] || 0) + 1;
+    }
+
+    setCart((prev) => {
+      const next = { ...prev };
+      for (const [key, n] of Object.entries(removeCount)) {
+        const line = next[key];
+        if (!line) continue;
+        const q = line.qty - n;
+        if (q <= 0) delete next[key];
+        else next[key] = { ...line, qty: q };
+      }
+      return next;
+    });
+    setBoxes((bs) => [...bs, { key: `box-${target}-${Math.random().toString(36).slice(2, 9)}`, size: target, items: Object.values(itemsMap) }]);
+  }
   // Build-your-own boxes (no assortKey), counted per size.
   const boxCount = (size: number) => boxes.filter((b) => b.size === size && !b.assortKey).length;
   function removeOneBox(size: number) {
@@ -902,12 +937,23 @@ export default function CafePOS() {
             </div>
           ) : null}
 
-          {showBoxNudge ? (
+          {showBoxNudge ? (() => {
+            const target = singleCookieCount >= 6 ? 6 : 3;
+            const save = target * COOKIE_PRICE - boxPrice(target);
+            return (
+              <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 8, padding: "8px 12px", borderRadius: 12, background: "#E1F5EE", border: "1px solid rgba(29,158,117,0.35)" }}>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: "#0f6e56" }}>
+                  🎁 {singleCookieCount} singles → make a Box of {target} & save {formatIDR(save)}
+                </span>
+                <button onClick={makeBoxFromSingles} style={{ flex: "0 0 auto", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>Make a Box of {target}</button>
+              </div>
+            );
+          })() : null}
+
+          {lines.length > 0 && !lines.some((l) => l.item.kind === "drink") ? (
             <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 8, padding: "8px 12px", borderRadius: 12, background: "#FFF4E5", border: "1px solid rgba(255,90,0,0.3)" }}>
-              <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.black }}>
-                💡 {singleCookieCount} single cookies — order a box & save {formatIDR(boxSavings)} (boxes are {formatIDR(boxPerCookie)}/cookie)
-              </span>
-              <button onClick={() => jump("boxes")} style={{ flex: "0 0 auto", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>View boxes</button>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.black }}>🥤 Add a drink? {formatIDR(SMOOTHIE_PRICE)} each</span>
+              <button onClick={() => jump("drinks")} style={{ flex: "0 0 auto", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>See drinks</button>
             </div>
           ) : null}
 
