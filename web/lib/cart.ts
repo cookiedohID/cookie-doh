@@ -285,6 +285,45 @@ export function qualifyingSubtotal(state: CartState): number {
   return state.boxes.filter((b) => !b.reward).reduce((s, b) => s + (Number(b.total) || 0), 0);
 }
 
+// A "loose cookie" = a single-cookie add-on (labelled, not a bundle, not a reward,
+// no drinks). These are what the "complete the box" upsell packs into a box.
+function isLooseCookieBox(b: CartBox): boolean {
+  return b.kind !== "bundle" && !b.reward && !!b.label && b.items.length > 0 && b.items.every((it) => it.kind !== "drink");
+}
+export function looseCookieCount(state: CartState): number {
+  return state.boxes
+    .filter(isLooseCookieBox)
+    .reduce((n, b) => n + b.items.reduce((s, it) => s + (Number(it.quantity) || 0), 0), 0);
+}
+
+// Pack the loose cookies into a Box of 3/6, topping up with `fill` cookies as
+// needed (the box is cheaper per cookie — the upsell "deal"). Replaces the loose
+// singles with one box priced at BOX_PRICES.
+export function completeToBox(targetSize: 3 | 6, fill: { id: string; name: string; image?: string }) {
+  const cart = readCart();
+  const loose = cart.boxes.filter(isLooseCookieBox);
+  if (!loose.length) return;
+
+  const items: CartItem[] = [];
+  let count = 0;
+  for (const b of loose)
+    for (const it of b.items) {
+      items.push({ id: it.id, name: it.name, price: DEFAULT_COOKIE_PRICE, quantity: it.quantity, ...(it.image ? { image: it.image } : {}) });
+      count += Number(it.quantity) || 0;
+    }
+  if (count > targetSize) return; // only used when loose cookies fit in the box
+
+  const need = targetSize - count;
+  if (need > 0) {
+    if (!fill?.id) return;
+    items.push({ id: String(fill.id), name: String(fill.name), price: DEFAULT_COOKIE_PRICE, quantity: need, ...(fill.image ? { image: fill.image } : {}) });
+  }
+
+  const rest = cart.boxes.filter((b) => !isLooseCookieBox(b));
+  rest.unshift({ boxSize: targetSize, items, total: BOX_PRICES[targetSize] });
+  writeCart({ boxes: rest });
+}
+
 export function removeBoxAt(index: number) {
   const cart = readCart();
   const next = { boxes: cart.boxes.slice() };
