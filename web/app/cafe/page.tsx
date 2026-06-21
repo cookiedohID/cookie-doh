@@ -11,6 +11,7 @@ import { BUNDLES, getBundle } from "@/lib/bundles";
 import { COLORS } from "@/lib/theme";
 
 const COOKIE_PRICE = 32500;
+const POPULAR_BADGE = ["Best Seller", "Bestseller", "Signature", "House Favorite", "Fan Favorite", "Crowd Favourite", "Crowd Favorite"];
 const formatIDR = (n: number) => `Rp ${Number(n).toLocaleString("id-ID")}`;
 
 // ⚠️ Conservative defaults — CONFIRM/REPLACE with real kitchen allergen data.
@@ -97,6 +98,41 @@ export default function CafePOS() {
   const boxPerCookie = (BOX_PRICES as any)[3] / 3; // 30,000
   const boxSavings = Math.max(0, Math.round(singleCookieSpend - singleCookieCount * boxPerCookie));
   const showBoxNudge = singleCookieCount >= 3 && boxSavings > 0;
+
+  // Bundle-completion upsell: when the loose cookies + drinks are 1–2 short of a
+  // fixed-price bundle (and it genuinely saves), offer to fold them into the bundle.
+  const looseDrinkCount = lines.reduce((s, l) => s + (l.item.kind === "drink" && !l.free ? l.qty : 0), 0);
+  const fillCookie = useMemo(() => {
+    const list = FLAVORS as any[];
+    const pick = list.find((f) => Array.isArray(f.badges) && f.badges.some((b: string) => POPULAR_BADGE.includes(b)) && !f.soldOut) || list.find((f) => !f.soldOut);
+    return pick ? { id: String(pick.id), name: String(pick.name) } : null;
+  }, []);
+  const fillDrink = useMemo(() => {
+    const pick = SMOOTHIES.find((s) => Array.isArray(s.badges) && s.badges.some((b) => POPULAR_BADGE.includes(b)) && !s.soldOut) || SMOOTHIES.find((s) => !s.soldOut);
+    return pick ? { id: String(pick.id), name: String(pick.name) } : null;
+  }, []);
+  const bundleDeal = useMemo(() => {
+    const cookies = singleCookieCount;
+    const drinks = looseDrinkCount;
+    if (cookies + drinks < 1) return null;
+    const paid = cookies * COOKIE_PRICE + drinks * SMOOTHIE_PRICE;
+    const opts = BUNDLES.map((b) => {
+      const needC = b.cookies - cookies;
+      const needD = b.drinks - drinks;
+      if (needC < 0 || needD < 0) return null;
+      const short = needC + needD;
+      if (short < 1 || short > 2) return null;
+      if (needC > 0 && !fillCookie) return null;
+      if (needD > 0 && !fillDrink) return null;
+      const shortCost = needC * COOKIE_PRICE + needD * SMOOTHIE_PRICE;
+      const savings = paid + shortCost - b.price;
+      if (savings < 10000) return null;
+      return { b, needC, needD, short, savings, marginal: b.price - paid };
+    }).filter(Boolean) as { b: (typeof BUNDLES)[number]; needC: number; needD: number; short: number; savings: number; marginal: number }[];
+    opts.sort((a, z) => a.short - z.short || z.savings - a.savings);
+    return opts[0] || null;
+  }, [singleCookieCount, looseDrinkCount, fillCookie, fillDrink]);
+
   const boxPickCount = boxBuild ? Object.values(boxBuild.picks).reduce((s, v) => s + v.qty, 0) : 0;
   const bundleCookieCount = bundleBuild ? Object.values(bundleBuild.cookiePicks).reduce((s, v) => s + v.qty, 0) : 0;
   const bundleDrinkCount = bundleBuild ? Object.values(bundleBuild.drinkPicks).reduce((s, v) => s + v.qty, 0) : 0;
@@ -358,6 +394,42 @@ export default function CafePOS() {
       return next;
     });
     setBoxes((bs) => [...bs, { key: `box-${target}-${Math.random().toString(36).slice(2, 9)}`, size: target, items: Object.values(itemsMap) }]);
+  }
+
+  // One-tap "complete the bundle": fold the loose cookies + drinks into the bundle,
+  // topping up the shortfall with a bestseller, and clear those loose singles.
+  function makeBundleFromSingles(deal: { b: (typeof BUNDLES)[number]; needC: number; needD: number }) {
+    const { b, needC, needD } = deal;
+    const cookiePicks: Record<string, { name: string; qty: number }> = {};
+    const drinkPicks: Record<string, { name: string; qty: number }> = {};
+    const removeCount: Record<string, number> = {};
+    for (const [key, l] of Object.entries(cart)) {
+      if (l.free) continue;
+      if (l.item.kind === "cookie") {
+        cookiePicks[l.item.id] = { name: l.item.name, qty: (cookiePicks[l.item.id]?.qty || 0) + l.qty };
+        removeCount[key] = (removeCount[key] || 0) + l.qty;
+      } else if (l.item.kind === "drink") {
+        drinkPicks[l.item.id] = { name: l.item.name, qty: (drinkPicks[l.item.id]?.qty || 0) + l.qty };
+        removeCount[key] = (removeCount[key] || 0) + l.qty;
+      }
+    }
+    if (needC > 0 && fillCookie) cookiePicks[fillCookie.id] = { name: fillCookie.name, qty: (cookiePicks[fillCookie.id]?.qty || 0) + needC };
+    if (needD > 0 && fillDrink) drinkPicks[fillDrink.id] = { name: fillDrink.name, qty: (drinkPicks[fillDrink.id]?.qty || 0) + needD };
+
+    setCart((prev) => {
+      const next = { ...prev };
+      for (const [key, n] of Object.entries(removeCount)) {
+        const line = next[key];
+        if (!line) continue;
+        const q = line.qty - n;
+        if (q <= 0) delete next[key];
+        else next[key] = { ...line, qty: q };
+      }
+      return next;
+    });
+    const cookiesList = Object.entries(cookiePicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
+    const drinksList = Object.entries(drinkPicks).map(([id, v]) => ({ id, name: v.name, qty: v.qty }));
+    setBundles((bs) => [...bs, { key: `bundle-${b.id}-${Math.random().toString(36).slice(2, 9)}`, bundleId: b.id, label: b.name, price: b.price, cookies: cookiesList, drinks: drinksList }]);
   }
   // Build-your-own boxes (no assortKey), counted per size.
   const boxCount = (size: number) => boxes.filter((b) => b.size === size && !b.assortKey).length;
@@ -760,8 +832,8 @@ export default function CafePOS() {
       {detail ? (
         <div onClick={() => setDetail(null)} style={{ position: "fixed", inset: 0, zIndex: 70, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, maxWidth: 420, width: "100%", maxHeight: "86vh", overflow: "auto" }}>
-            <div style={{ position: "relative", width: "100%", aspectRatio: "16/10", background: COLORS.sand }}>
-              {detail.image ? <Image src={detail.image} alt={detail.name} fill style={{ objectFit: "cover" }} sizes="420px" /> : null}
+            <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: "#fff" }}>
+              {detail.image ? <Image src={detail.image} alt={detail.name} fill style={{ objectFit: "contain" }} sizes="420px" /> : null}
               <button onClick={() => setDetail(null)} aria-label="Close" style={{ position: "absolute", top: 10, right: 10, width: 32, height: 32, borderRadius: 999, border: "none", background: "rgba(255,255,255,0.95)", fontWeight: 900, cursor: "pointer", fontSize: 16 }}>×</button>
             </div>
             <div style={{ padding: 18 }}>
@@ -937,7 +1009,23 @@ export default function CafePOS() {
             </div>
           ) : null}
 
-          {showBoxNudge ? (() => {
+          {bundleDeal ? (() => {
+            const { b, needC, needD, savings, marginal } = bundleDeal;
+            const parts: string[] = [];
+            if (needC > 0) parts.push(`${needC} cookie${needC > 1 ? "s" : ""}`);
+            if (needD > 0) parts.push(`${needD} drink${needD > 1 ? "s" : ""}`);
+            const addText = parts.join(" + ");
+            return (
+              <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 8, padding: "8px 12px", borderRadius: 12, background: "rgba(0,20,167,0.07)", border: `1px solid ${COLORS.blue}` }}>
+                <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.blue }}>
+                  🎉 {marginal > 0 ? `Add ${addText} (+${formatIDR(marginal)}) → ${b.name}` : `Upgrade to ${b.name}`} · save {formatIDR(savings)}
+                </span>
+                <button onClick={() => makeBundleFromSingles(bundleDeal)} style={{ flex: "0 0 auto", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>Make it the {b.name}</button>
+              </div>
+            );
+          })() : null}
+
+          {showBoxNudge && !bundleDeal ? (() => {
             const target = singleCookieCount >= 6 ? 6 : 3;
             const save = target * COOKIE_PRICE - boxPrice(target);
             return (
@@ -950,7 +1038,7 @@ export default function CafePOS() {
             );
           })() : null}
 
-          {lines.length > 0 && !lines.some((l) => l.item.kind === "drink") ? (
+          {lines.length > 0 && !lines.some((l) => l.item.kind === "drink") && !bundleDeal ? (
             <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 8, padding: "8px 12px", borderRadius: 12, background: "#FFF4E5", border: "1px solid rgba(255,90,0,0.3)" }}>
               <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.black }}>🥤 Add a drink? {formatIDR(SMOOTHIE_PRICE)} each</span>
               <button onClick={() => jump("drinks")} style={{ flex: "0 0 auto", border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>See drinks</button>

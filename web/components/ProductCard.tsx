@@ -48,10 +48,13 @@ export default function ProductCard({
   const addDisabled = !!disabledAdd || isSoldOut;
 
   return (
-    <article className={styles.card}>
+    <article className={`${styles.card}${quantity > 0 ? " " + styles.selected : ""}`}>
       <div
         className={`${styles.imageWrap} ${flavor.image2 ? styles.hasSecond : ""}`}
       >
+        {quantity > 0 && (
+          <div className={styles.cornerQty} aria-label={`${quantity} in box`}>{quantity}</div>
+        )}
         <Image
           src={flavor.image}
           alt={flavor.name}

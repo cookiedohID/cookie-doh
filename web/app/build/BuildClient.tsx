@@ -213,14 +213,15 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
           </div>
         </section>
 
-        {/* Flavor grid */}
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: 14,
-          }}
-        >
+        {/* Flavor grid — responsive: 2 across on phones, up to 5 on wide screens so
+            a card is never taller than the viewport. */}
+        <style>{`
+          .cd-flavor-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          @media (min-width: 640px) { .cd-flavor-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+          @media (min-width: 900px) { .cd-flavor-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+          @media (min-width: 1200px) { .cd-flavor-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+        `}</style>
+        <section className="cd-flavor-grid">
           {cardFlavors.map((f) => (
             <ProductCard
               key={f.id}
