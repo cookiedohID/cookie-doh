@@ -7,7 +7,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addBoxToCart } from "@/lib/cart";
 import { BOX_PRICES, FLAVORS as CATALOG_FLAVORS } from "@/lib/catalog";
-import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
+import { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
+import PickerCard from "@/components/PickerCard";
+import ItemDetailModal from "@/components/ItemDetailModal";
+import { COOKIE_ALLERGENS } from "@/lib/allergens";
 import { COLORS } from "@/lib/theme";
 
 type BoxSize = 3 | 6;
@@ -31,6 +34,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
   const [boxSize, setBoxSize] = useState<BoxSize>(initialBoxSize);
   const [qty, setQty] = useState<Record<string, number>>({});
+  const [detail, setDetail] = useState<CardFlavorUI | null>(null);
 
   // Reserve space for the sticky bottom CTA so the floating WhatsApp button
   // (and page content) clear it on mobile.
@@ -222,18 +226,32 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
         `}</style>
         <section className="cd-flavor-grid">
           {cardFlavors.map((f) => (
-            <ProductCard
+            <PickerCard
               key={f.id}
-              flavor={f}
-              quantity={qty[f.id] ?? 0}
-              onAdd={() => inc(f.id)}
-              onRemove={() => dec(f.id)}
-              disabledAdd={!canAddMore}
-              addLabel="Add"
+              name={f.name}
+              image={f.image}
+              price={f.price}
+              qty={qty[f.id] ?? 0}
+              badge={f.badges?.[0]}
+              soldOut={f.soldOut}
+              atMax={!canAddMore}
+              onInc={() => inc(f.id)}
+              onDec={() => dec(f.id)}
+              onOpenDetail={() => setDetail(f)}
             />
           ))}
         </section>
       </div>
+
+      {detail ? (
+        <ItemDetailModal
+          item={{ name: detail.name, image: detail.image, price: detail.price, description: detail.description, ingredients: detail.ingredients, allergens: COOKIE_ALLERGENS }}
+          onClose={() => setDetail(null)}
+          actionLabel={detail.soldOut ? "Sold out" : !canAddMore ? "Box is full" : "＋ Add to box"}
+          actionDisabled={!!detail.soldOut || !canAddMore}
+          onAction={() => { inc(detail.id); setDetail(null); }}
+        />
+      ) : null}
 
       {/* Sticky bottom bar */}
       <div

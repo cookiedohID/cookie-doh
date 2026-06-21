@@ -9,16 +9,12 @@ import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
 import { ASSORTMENTS, type Assortment } from "@/lib/assortments";
 import { BUNDLES, getBundle } from "@/lib/bundles";
 import { bestRepackage, repackSummary, type RepackResult } from "@/lib/bundleDeals";
+import { COOKIE_ALLERGENS, DRINK_ALLERGENS } from "@/lib/allergens";
 import { COLORS } from "@/lib/theme";
 
 const COOKIE_PRICE = 32500;
 const POPULAR_BADGE = ["Best Seller", "Bestseller", "Signature", "House Favorite", "Fan Favorite", "Crowd Favourite", "Crowd Favorite"];
 const formatIDR = (n: number) => `Rp ${Number(n).toLocaleString("id-ID")}`;
-
-// ⚠️ Conservative defaults — CONFIRM/REPLACE with real kitchen allergen data.
-// Over-warning is safe; under-warning is dangerous. Edit per item if needed.
-const COOKIE_ALLERGENS = "Contains: gluten (wheat), milk, egg. May contain: tree nuts, peanuts, soy.";
-const DRINK_ALLERGENS = "Contains: milk. May contain: tree nuts, peanuts.";
 
 type Kind = "cookie" | "drink";
 type MenuItem = {
@@ -932,7 +928,11 @@ export default function CafePOS() {
                   <div style={{ fontSize: 12.5, color: "#7a5c00", marginTop: 2 }}>{detail.allergens}</div>
                 </div>
               ) : null}
-              {boxBuild ? (
+              {bundleBuild ? (() => {
+                const bn = getBundle(bundleBuild.bundleId);
+                const atMax = detail.kind === "cookie" ? bundleCookieCount >= (bn?.cookies || 0) : bundleDrinkCount >= (bn?.drinks || 0);
+                return <button onClick={() => { bumpBundlePick(detail, 1); setDetail(null); }} disabled={atMax} style={{ ...btn(COLORS.blue), marginTop: 16, width: "100%", opacity: atMax ? 0.5 : 1, cursor: atMax ? "not-allowed" : "pointer" }}>{atMax ? `Picked enough ${detail.kind}s` : `＋ Add to ${bn?.name || "bundle"}`}</button>;
+              })() : boxBuild ? (
                 <button onClick={() => { bumpPick(detail, 1); setDetail(null); }} disabled={boxPickCount >= boxBuild.size} style={{ ...btn(COLORS.blue), marginTop: 16, width: "100%", opacity: boxPickCount >= boxBuild.size ? 0.5 : 1, cursor: boxPickCount >= boxBuild.size ? "not-allowed" : "pointer" }}>{boxPickCount >= boxBuild.size ? "Box is full" : "＋ Add to box"}</button>
               ) : (
                 <button onClick={() => { add(detail); setDetail(null); }} style={{ ...btn(COLORS.blue), marginTop: 16, width: "100%" }}>＋ Add to order</button>
@@ -995,7 +995,7 @@ export default function CafePOS() {
         const atMaxDrinks = bundleDrinkCount >= bn.drinks;
         const pickerCard = (item: MenuItem, q: number, atMax: boolean) => (
           <div key={item.id} style={{ border: q > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, background: "#fff", display: "flex", flexDirection: "column" }}>
-            <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, flex: "0 0 auto", overflow: "hidden", borderTopLeftRadius: 13, borderTopRightRadius: 13 }}>
+            <div onClick={() => setDetail(item)} role="button" aria-label={`${item.name} — details`} style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, flex: "0 0 auto", overflow: "hidden", borderTopLeftRadius: 13, borderTopRightRadius: 13, cursor: "pointer" }}>
               {item.image ? <Image src={item.image} alt={item.name} fill style={{ objectFit: "cover" }} sizes="160px" /> : null}
               {q > 0 ? <span style={{ position: "absolute", top: 6, right: 6, minWidth: 26, height: 26, padding: "0 7px", borderRadius: 999, background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 14, display: "grid", placeItems: "center", pointerEvents: "none", boxShadow: "0 2px 6px rgba(0,0,0,0.25)" }}>{q}</span> : null}
             </div>

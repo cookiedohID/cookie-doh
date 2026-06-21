@@ -2,31 +2,34 @@
 
 // web/app/bundles/page.tsx
 import { useMemo, useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FLAVORS } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
 import { BUNDLES, type Bundle } from "@/lib/bundles";
 import { addBundleToCart, type CartItem } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
+import { COOKIE_ALLERGENS, DRINK_ALLERGENS } from "@/lib/allergens";
+import PickerCard from "@/components/PickerCard";
+import ItemDetailModal from "@/components/ItemDetailModal";
 
 const COOKIE_PRICE = 32500;
 const formatIDR = (n: number) => `Rp ${Number(n).toLocaleString("id-ID")}`;
 
-type PickItem = { id: string; name: string; image?: string; price: number };
+type PickItem = { id: string; name: string; image?: string; price: number; description?: string; ingredients?: string[]; allergens?: string; badge?: string; soldOut?: boolean };
 
 export default function BundlesPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<Bundle | null>(null);
   const [cookieQty, setCookieQty] = useState<Record<string, number>>({});
   const [drinkQty, setDrinkQty] = useState<Record<string, number>>({});
+  const [detail, setDetail] = useState<{ item: PickItem; kind: "cookie" | "drink" } | null>(null);
 
   const cookies: PickItem[] = useMemo(
-    () => FLAVORS.map((f: any) => ({ id: String(f.id), name: String(f.name), image: f.image, price: COOKIE_PRICE })),
+    () => FLAVORS.map((f: any) => ({ id: String(f.id), name: String(f.name), image: f.image, price: COOKIE_PRICE, description: f.description, ingredients: f.ingredients, allergens: COOKIE_ALLERGENS, badge: Array.isArray(f.badges) ? f.badges[0] : undefined, soldOut: f.soldOut })),
     []
   );
   const drinks: PickItem[] = useMemo(
-    () => SMOOTHIES.map((s) => ({ id: s.id, name: s.name, image: s.image, price: SMOOTHIE_PRICE })),
+    () => SMOOTHIES.map((s) => ({ id: s.id, name: s.name, image: s.image, price: SMOOTHIE_PRICE, description: s.description, ingredients: s.ingredients, allergens: DRINK_ALLERGENS, badge: Array.isArray(s.badges) ? s.badges[0] : undefined, soldOut: s.soldOut })),
     []
   );
 
@@ -81,33 +84,20 @@ export default function BundlesPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4" style={{ gap: 12 }}>
           {items.map((it) => {
             const q = (kind === "cookie" ? cookieQty : drinkQty)[it.id] || 0;
-            const sel = q > 0;
             return (
-              <div
+              <PickerCard
                 key={it.id}
-                style={{
-                  border: sel ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)",
-                  boxShadow: sel ? "0 0 0 3px rgba(0,20,167,0.15)" : "none",
-                  borderRadius: 14,
-                  overflow: "hidden",
-                  background: "#fff",
-                  transition: "border-color .15s, box-shadow .15s",
-                }}
-              >
-                <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand }}>
-                  {it.image ? <Image src={it.image} alt={it.name} fill style={{ objectFit: "cover" }} sizes="150px" /> : null}
-                </div>
-                <div style={{ padding: 10 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: COLORS.black, minHeight: 34 }}>{it.name}</div>
-                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <button type="button" onClick={() => bump(kind, it.id, -1)} disabled={q === 0}
-                      style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", background: "#fff", fontWeight: 900, cursor: q === 0 ? "not-allowed" : "pointer" }}>–</button>
-                    <span style={{ fontWeight: 800 }}>{q}</span>
-                    <button type="button" onClick={() => bump(kind, it.id, 1)} disabled={count >= need}
-                      style={{ width: 32, height: 32, borderRadius: 8, border: "none", background: count >= need ? "rgba(0,0,0,0.15)" : COLORS.blue, color: "#fff", fontWeight: 900, cursor: count >= need ? "not-allowed" : "pointer" }}>+</button>
-                  </div>
-                </div>
-              </div>
+                name={it.name}
+                image={it.image}
+                price={it.price}
+                qty={q}
+                badge={it.badge}
+                soldOut={it.soldOut}
+                atMax={count >= need}
+                onInc={() => bump(kind, it.id, 1)}
+                onDec={() => bump(kind, it.id, -1)}
+                onOpenDetail={() => setDetail({ item: it, kind })}
+              />
             );
           })}
         </div>
@@ -138,6 +128,19 @@ export default function BundlesPage() {
             </button>
           </div>
         </div>
+
+        {detail ? (() => {
+          const atLimit = (detail.kind === "cookie" ? cookieCount : drinkCount) >= (detail.kind === "cookie" ? cookiesNeeded : drinksNeeded);
+          return (
+            <ItemDetailModal
+              item={{ name: detail.item.name, image: detail.item.image, price: detail.item.price, description: detail.item.description, ingredients: detail.item.ingredients, allergens: detail.item.allergens }}
+              onClose={() => setDetail(null)}
+              actionLabel={detail.item.soldOut ? "Sold out" : atLimit ? `Picked enough ${detail.kind}s` : `＋ Add to ${selected.name}`}
+              actionDisabled={!!detail.item.soldOut || atLimit}
+              onAction={() => { bump(detail.kind, detail.item.id, 1); setDetail(null); }}
+            />
+          );
+        })() : null}
       </main>
     );
   }
