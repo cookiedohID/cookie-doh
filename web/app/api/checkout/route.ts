@@ -10,6 +10,7 @@ import { cleanRefCode } from "@/lib/referrals";
 import { validatePromo } from "@/lib/promo";
 import { rewardMatchesTier } from "@/lib/spendRewards";
 import { serverBoxTotal } from "@/lib/serverPricing";
+import { classifyItem } from "@/lib/loyalty";
 
 export const runtime = "nodejs";
 
@@ -257,6 +258,20 @@ export async function POST(req: Request) {
     const quote = payload?.meta?.quote || null;
 
     const fulfillmentType = (fulfillment?.type || payload?.fulfilment_status || "").toString().trim() || null;
+
+    // 🥤 Smoothies are perishable: a delivery order containing a drink may ONLY use
+    // instant delivery — never scheduled same-day, never intercity. (Pickup is fine.)
+    const orderHasDrink = items.some((it) => classifyItem(String(it.id), (it as any).kind) === "drink");
+    if (orderHasDrink && fulfillmentType === "delivery") {
+      const dmode = String(payload?.meta?.delivery_mode || "");
+      const dspeed = String(payload?.delivery?.speed || fulfillment?.deliverySpeed || "");
+      if (dmode === "intercity" || dspeed !== "instant") {
+        return NextResponse.json(
+          { ok: false, error: "Smoothies can only be sent by instant delivery (not same-day or intercity). Please switch to instant delivery or pickup." },
+          { status: 400 }
+        );
+      }
+    }
 
     const orderInsert: any = {
       customer_name: customerName || null,

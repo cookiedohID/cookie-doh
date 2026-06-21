@@ -11,6 +11,7 @@ import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { FLAVORS } from "@/lib/catalog";
 import { SMOOTHIES } from "@/lib/smoothies";
+import { classifyItem } from "@/lib/loyalty";
 
 declare global {
   interface Window {
@@ -446,8 +447,18 @@ export default function CheckoutPage() {
   const nowMinJakarta = useMemo(() => jakartaMinutesNow(), [scheduleDate, deliverySpeed]);
   const isScheduleTodayJakarta = !!scheduleDate && scheduleDate === todayJakarta;
 
-  // ✅ Same-day disabled ONLY if scheduleDate is today AND after 12:00
-  const samedayDisabled = false;
+  // 🥤 Smoothies are perishable — a cart with any drink can ONLY go out by INSTANT
+  // delivery (no scheduled same-day, no intercity). Detect it and force instant.
+  const cartHasDrink = useMemo(
+    () => cart.boxes.some((b: any) => (b.items || []).some((it: any) => classifyItem(String(it.id), it.kind) === "drink")),
+    [cart]
+  );
+  useEffect(() => {
+    if (cartHasDrink) setDeliverySpeed("instant");
+  }, [cartHasDrink]);
+
+  // ✅ Same-day disabled if a drink is in the cart (instant only), or per the slot rules below.
+  const samedayDisabled = cartHasDrink;
 
   // ✅ Instant slots filtered for today only
   const instantSlotOptions = useMemo(() => {
@@ -631,6 +642,8 @@ export default function CheckoutPage() {
       }
       if (deliveryMode === "unavailable")
         return "Sorry, we can't ship to this address. Please choose pickup or a closer address.";
+      if (cartHasDrink && deliveryMode === "intercity")
+        return "🥤 Smoothies are instant-delivery only and can't be shipped to this address. Please choose pickup, a closer address, or remove the smoothie.";
       if (deliveryMode === "intercity" && !selectedCourier)
         return "Please choose a courier for intercity delivery.";
       if (shippingCost == null)
@@ -682,7 +695,7 @@ export default function CheckoutPage() {
           type: fulfillment,
           scheduleDate,
           scheduleTime,
-          deliverySpeed: fulfillment === "delivery" ? "sameday" : null,
+          deliverySpeed: fulfillment === "delivery" ? deliverySpeed : null,
         },
 
         delivery:
@@ -1067,28 +1080,37 @@ export default function CheckoutPage() {
                 <div style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Delivery type</div>
                 <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
 
-                  <button
-                    type="button"
-                    onClick={() => !samedayDisabled && setDeliverySpeed("sameday")}
-                    disabled={samedayDisabled}
-                    style={{
-                      textAlign: "left",
-                      borderRadius: 16,
-                      padding: 12,
-                      border:
-                        deliverySpeed === "sameday"
-                          ? `2px solid ${COLORS.blue}`
-                          : "1px solid rgba(0,0,0,0.10)",
-                      background: deliverySpeed === "sameday" ? "rgba(0,20,167,0.06)" : COLORS.sand,
-                      cursor: samedayDisabled ? "not-allowed" : "pointer",
-                      opacity: samedayDisabled ? 0.55 : 1,
-                    }}
-                  >
-                    <div style={{ fontWeight: 900, color: COLORS.black }}>Same-day</div>
-                    <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                      08:00 – 22:00 
+                  {cartHasDrink ? (
+                    <div style={{ textAlign: "left", borderRadius: 16, padding: 12, border: `2px solid ${COLORS.blue}`, background: "rgba(0,20,167,0.06)" }}>
+                      <div style={{ fontWeight: 900, color: COLORS.black }}>⚡ Instant delivery</div>
+                      <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                        🥤 Smoothies are kept cold — delivered as soon as possible, within Greater Jakarta only.
+                      </div>
                     </div>
-                  </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => !samedayDisabled && setDeliverySpeed("sameday")}
+                      disabled={samedayDisabled}
+                      style={{
+                        textAlign: "left",
+                        borderRadius: 16,
+                        padding: 12,
+                        border:
+                          deliverySpeed === "sameday"
+                            ? `2px solid ${COLORS.blue}`
+                            : "1px solid rgba(0,0,0,0.10)",
+                        background: deliverySpeed === "sameday" ? "rgba(0,20,167,0.06)" : COLORS.sand,
+                        cursor: samedayDisabled ? "not-allowed" : "pointer",
+                        opacity: samedayDisabled ? 0.55 : 1,
+                      }}
+                    >
+                      <div style={{ fontWeight: 900, color: COLORS.black }}>Same-day</div>
+                      <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
+                        08:00 – 22:00
+                      </div>
+                    </button>
+                  )}
                 </div>
 
                 <div style={{ marginTop: 8, fontSize: 12, color: "#6B6B6B", fontWeight: 700 }}>
