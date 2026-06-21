@@ -82,8 +82,8 @@ FAQ lives at **`/help`** (linked in the website footer).
 
 ### Loyalty rules
 - **10 cookies → 1 free cookie**, **10 drinks → 1 free drink** (tracked separately).
-- **Earns stamps:** single cookies/drinks, **boxes**, and **assortments**.
-- **Does NOT earn:** **bundles**, free reward items, and other promotional items.
+- **Earns stamps:** every cookie/drink you buy — single cookies/drinks, **boxes**, **assortments**, and **bundles**.
+- **Does NOT earn:** only **redeemed free rewards** (the free cookie/drink you cash in).
 - Progress **never resets** — leftovers roll forward. Free rewards come from **paid** orders only.
 
 ### Where free rewards come from

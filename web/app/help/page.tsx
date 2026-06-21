@@ -54,7 +54,7 @@ export default function HelpPage() {
           <h2 style={h2}>⭐ Membership &amp; rewards</h2>
           <QA q="How does loyalty work?">
             Buy <b>10 cookies → get 1 free</b>, and <b>10 drinks → get 1 free</b> (counted separately). Single cookies/drinks,
-            boxes, and assortments all earn stamps. Your progress never resets.
+            boxes, assortments, and bundles all earn stamps. Your progress never resets.
           </QA>
           <QA q="How do I become a member?">
             Sign up at <Link href="/account" style={{ color: COLORS.blue, fontWeight: 700 }}>your account</Link> with email or

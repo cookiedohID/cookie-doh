@@ -3,10 +3,10 @@
 // Loyalty: buy any 10 FULL-PRICED cookies -> 1 free cookie; any 10 full-priced
 // drinks -> 1 free drink. Everything is derived from the customer's PAID orders.
 //
-// An order line counts toward EARNING only if it's a full-price catalog cookie/
-// drink. Lines that are `free` (a redeemed reward) or `bundle` (discounted set)
-// do NOT earn stamps. Free lines instead count as REDEMPTIONS, so:
-//   available free = floor(fullPriceUnits / 10) - freeUnitsAlreadyTaken
+// Every cookie/drink the customer BUYS earns a stamp — singles, boxes,
+// assortments, AND bundles/spend-reward items. The ONLY lines that don't earn are
+// `free` (a redeemed reward), which instead count as REDEMPTIONS, so:
+//   available free = floor(boughtUnits / 10) - freeUnitsAlreadyTaken
 
 import { FLAVORS } from "@/lib/catalog";
 import { SMOOTHIES } from "@/lib/smoothies";
@@ -66,10 +66,10 @@ export function loyaltyFromOrders(
       const qty = Math.max(0, Math.floor(Number(it?.quantity ?? 0)));
       if (!qty) continue;
 
-      if (it?.bundle === true) continue; // bundle items don't earn
-      // A redeemed reward is explicitly flagged free:true (and priced 0). A price
-      // of 0 ALONE is not a redemption — box/assortment lines are priced at the
-      // set level, so price-0 box cookies should EARN, not be counted as redeemed.
+      // Bundles and spend-reward items DO earn now (every purchased cookie/drink
+      // earns). Only an explicitly-flagged `free:true` line (a redeemed reward) is
+      // a redemption; a price of 0 alone is not (box/assortment cookies are priced
+      // at the set level and still earn).
       const isFree = it?.free === true;
 
       if (isFree) {

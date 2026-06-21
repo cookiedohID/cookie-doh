@@ -281,7 +281,7 @@ export default function AccountPage() {
         </div>
 
         <p style={{ marginTop: 12, fontSize: 12, color: COLORS.muted, lineHeight: 1.5, textAlign: "center" }}>
-          Stamps are earned on single cookies, drinks, boxes &amp; assortments. Bundles and other promotional items don&apos;t earn stamps.
+          Every cookie &amp; drink you buy earns a stamp — singles, boxes, assortments &amp; bundles. Only redeemed free rewards don&apos;t.
         </p>
 
         {/* Birthday */}

@@ -79,8 +79,8 @@ export async function POST(req: Request) {
     }
 
     // Bundles (fixed-price X cookies + Y drinks) — flatten to per-unit lines,
-    // priced server-side from the bundle definition, marked bundle:true so they
-    // don't earn loyalty stamps (a discounted set).
+    // priced server-side from the bundle definition, marked bundle:true (a
+    // discounted set — used for reporting; bundle items still earn loyalty stamps).
     const rawBundles = Array.isArray(body?.bundles) ? body.bundles : [];
     const bundleItems: any[] = [];
     for (const b of rawBundles) {

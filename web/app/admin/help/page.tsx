@@ -56,8 +56,8 @@ export default function AdminHelpPage() {
         <Section title="🍪 Loyalty rules (how stamps work)">
           <ul style={{ paddingLeft: 18 }}>
             <li style={li}>Buy <b>10 cookies → 1 free cookie</b>; buy <b>10 drinks → 1 free drink</b>. Cookies and drinks are tracked separately.</li>
-            <li style={li}><b>What earns stamps:</b> single cookies/drinks, boxes, and assortments.</li>
-            <li style={li}><b>What doesn't:</b> bundles, free reward items, and other promos.</li>
+            <li style={li}><b>What earns stamps:</b> every cookie/drink they buy — singles, boxes, assortments, and bundles.</li>
+            <li style={li}><b>What doesn't:</b> only redeemed free rewards (the free item they cash in).</li>
             <li style={li}>Progress never resets — leftovers roll forward (12 cookies = 1 free + 2 toward the next).</li>
             <li style={li}><b>Bonus free cookies</b> from referrals and birthdays show in the same balance and redeem the same way.</li>
           </ul>
