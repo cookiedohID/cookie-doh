@@ -12,6 +12,7 @@ export type Bundle = {
   drinks: number; // how many drinks the customer chooses
   price: number; // fixed bundle price (Rupiah)
   badge?: string;
+  badgeColor?: string; // hex for the badge (defaults to orange where rendered)
   image?: string;
 };
 
@@ -23,7 +24,8 @@ export const BUNDLES: Bundle[] = [
     cookies: 1,
     drinks: 1,
     price: 65000, // vs ~71.5k separately
-    badge: "Best Value",
+    badge: "Perfect Solo Treat",
+    badgeColor: "#FF5A00",
   },
   {
     id: "sweet-sharer",
@@ -32,6 +34,8 @@ export const BUNDLES: Bundle[] = [
     cookies: 3,
     drinks: 2,
     price: 159000, // vs ~175.5k separately
+    badge: "Most Popular",
+    badgeColor: "#1F9D57",
   },
   {
     id: "party-pack",
@@ -40,7 +44,8 @@ export const BUNDLES: Bundle[] = [
     cookies: 6,
     drinks: 4,
     price: 299000, // vs ~351k separately
-    badge: "Crowd Favourite",
+    badge: "Best Value",
+    badgeColor: "#0014A7",
   },
 ];
 

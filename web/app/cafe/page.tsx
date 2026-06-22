@@ -838,7 +838,7 @@ export default function CafePOS() {
               return (
               <div key={bn.id} style={{ position: "relative", textAlign: "left", border: q > 0 ? `2px solid ${COLORS.blue}` : `1px solid ${COLORS.blue}`, borderRadius: 16, background: "#fff", padding: 16, display: "flex", flexDirection: "column", gap: 5 }}>
                 {q > 0 ? <span style={{ position: "absolute", top: 10, right: 10, background: COLORS.blue, color: "#fff", borderRadius: 999, minWidth: 26, height: 26, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 13 }}>{q}</span> : null}
-                {bn.badge ? <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.blue, textTransform: "uppercase", letterSpacing: 0.4 }}>{bn.badge}</span> : null}
+                {bn.badge ? <span style={{ fontSize: 11, fontWeight: 800, color: bn.badgeColor || COLORS.blue, textTransform: "uppercase", letterSpacing: 0.4 }}>{bn.badge}</span> : null}
                 <span style={{ fontWeight: 800, fontSize: 16, color: COLORS.black }}>{bn.name}</span>
                 <span style={{ fontWeight: 900, fontSize: 15.5, color: COLORS.blue }}>{formatIDR(bn.price)}</span>
                 <span style={{ fontSize: 12.5, color: COLORS.muted, lineHeight: 1.35 }}>{bn.cookies} cookie{bn.cookies > 1 ? "s" : ""} + {bn.drinks} drink{bn.drinks > 1 ? "s" : ""}</span>

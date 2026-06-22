@@ -164,7 +164,7 @@ export default function BundlesPage() {
           <div key={b.id} style={{ border: "1px solid rgba(0,0,0,0.10)", borderRadius: 18, background: "#fff", padding: 18, display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 8 }}>
               <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>{b.name}</div>
-              {b.badge ? <span style={{ background: COLORS.orange, color: "#fff", fontSize: 11, fontWeight: 800, padding: "4px 9px", borderRadius: 999, whiteSpace: "nowrap" }}>{b.badge}</span> : null}
+              {b.badge ? <span style={{ background: b.badgeColor || COLORS.orange, color: "#fff", fontSize: 11, fontWeight: 800, padding: "4px 9px", borderRadius: 999, whiteSpace: "nowrap" }}>{b.badge}</span> : null}
             </div>
             <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.black }}>{compositionText(b)}</div>
             <p className="hidden sm:block" style={{ margin: 0, color: COLORS.muted, fontSize: 13.5, lineHeight: 1.45, flex: 1 }}>{b.description}</p>
@@ -180,7 +180,7 @@ export default function BundlesPage() {
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, maxWidth: 420, width: "100%", maxHeight: "88vh", overflow: "auto", padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 10 }}>
               <div>
-                {infoBundle.badge ? <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.blue, textTransform: "uppercase", letterSpacing: "0.04em" }}>{infoBundle.badge}</span> : null}
+                {infoBundle.badge ? <span style={{ fontSize: 11, fontWeight: 800, color: infoBundle.badgeColor || COLORS.blue, textTransform: "uppercase", letterSpacing: "0.04em" }}>{infoBundle.badge}</span> : null}
                 <h3 style={{ margin: "2px 0 0", fontSize: 22, fontWeight: 800, color: COLORS.black }}>{infoBundle.name}</h3>
               </div>
               <button onClick={() => setInfoBundle(null)} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: COLORS.sand, fontWeight: 900, cursor: "pointer", fontSize: 16, flex: "0 0 auto" }}>×</button>
