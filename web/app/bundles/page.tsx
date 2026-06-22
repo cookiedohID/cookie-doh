@@ -162,7 +162,7 @@ export default function BundlesPage() {
               <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>{b.name}</div>
               {b.badge ? <span style={{ background: COLORS.orange, color: "#fff", fontSize: 11, fontWeight: 800, padding: "4px 9px", borderRadius: 999, whiteSpace: "nowrap" }}>{b.badge}</span> : null}
             </div>
-            <p style={{ margin: 0, color: COLORS.muted, fontSize: 13.5, lineHeight: 1.45, flex: 1 }}>{b.description}</p>
+            <p className="hidden sm:block" style={{ margin: 0, color: COLORS.muted, fontSize: 13.5, lineHeight: 1.45, flex: 1 }}>{b.description}</p>
             <div style={{ fontWeight: 900, color: COLORS.blue, fontSize: 18 }}>{formatIDR(b.price)}</div>
             <button type="button" onClick={() => choose(b)} style={{ marginTop: 4, height: 46, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, cursor: "pointer" }}>Choose this bundle</button>
           </div>

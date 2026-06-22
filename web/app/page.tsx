@@ -370,14 +370,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div
-            style={{
-              marginTop: 16,
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 14,
-            }}
-          >
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 items-start sm:items-stretch" style={{ marginTop: 16 }}>
             {cardFlavors.map((f) => (
               <ProductCard
                 key={f.id}
@@ -420,14 +413,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div
-            style={{
-              marginTop: 16,
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 14,
-            }}
-          >
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 items-start sm:items-stretch" style={{ marginTop: 16 }}>
             {SMOOTHIES.map((s) => (
               <SmoothieCard key={s.id} item={s} />
             ))}

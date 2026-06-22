@@ -90,9 +90,9 @@ export default function AssortmentsPage() {
                   <div style={{ fontWeight: 900, color: COLORS.blue, fontSize: 20 }}>{formatIDR(BOX_PRICES[a.boxSize])}</div>
                 </div>
 
-                <p style={{ margin: "12px 0 0", color: "#444", lineHeight: 1.55, fontSize: 14.5 }}>{a.description}</p>
+                <p className="hidden sm:block" style={{ margin: "12px 0 0", color: "#444", lineHeight: 1.55, fontSize: 14.5 }}>{a.description}</p>
 
-                <div style={{ margin: "14px 0 0", display: "flex", flexWrap: "wrap", gap: 6 }}>
+                <div className="hidden sm:flex" style={{ margin: "14px 0 0", flexWrap: "wrap", gap: 6 }}>
                   {a.items.map((it) => (
                     <span key={it.flavorId} style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.black, background: COLORS.sand, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 999, padding: "5px 11px" }}>
                       {flavor(it.flavorId)?.name}{it.qty > 1 ? ` ×${it.qty}` : ""}
