@@ -26,6 +26,7 @@ export const BUNDLES: Bundle[] = [
     price: 65000, // vs ~71.5k separately
     badge: "Perfect Solo Treat",
     badgeColor: "#FF5A00",
+    image: "/bundles/daily-duo.jpg",
   },
   {
     id: "sweet-sharer",
