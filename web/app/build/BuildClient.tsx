@@ -181,9 +181,12 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
                   cursor: "pointer",
                 }}
               >
-                <div style={{ fontWeight: 800 }}>{opt.title}</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ fontWeight: 800 }}>{opt.title}</div>
+                  <div style={{ fontWeight: 900, color: COLORS.blue, fontSize: 14 }}>{formatIDR(BOX_PRICES[opt.size])}</div>
+                </div>
                 <div style={{ fontSize: 12, color: "#6B6B6B", marginTop: 4 }}>
-                  {opt.desc}
+                  {opt.desc} · {formatIDR(Math.round(BOX_PRICES[opt.size] / opt.size))}/cookie
                 </div>
               </button>
             );
@@ -230,7 +233,6 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
               key={f.id}
               name={f.name}
               image={f.image}
-              price={f.price}
               qty={qty[f.id] ?? 0}
               badge={f.badges?.[0]}
               soldOut={f.soldOut}
@@ -245,7 +247,7 @@ export default function BuildClient({ initialBoxSize = 6 }: { initialBoxSize?: B
 
       {detail ? (
         <ItemDetailModal
-          item={{ name: detail.name, image: detail.image, price: detail.price, description: detail.description, ingredients: detail.ingredients, allergens: COOKIE_ALLERGENS }}
+          item={{ name: detail.name, image: detail.image, description: detail.description, ingredients: detail.ingredients, allergens: COOKIE_ALLERGENS }}
           onClose={() => setDetail(null)}
           actionLabel={detail.soldOut ? "Sold out" : !canAddMore ? "Box is full" : "＋ Add to box"}
           actionDisabled={!!detail.soldOut || !canAddMore}

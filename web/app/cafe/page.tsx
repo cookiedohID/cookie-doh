@@ -909,7 +909,7 @@ export default function CafePOS() {
             <div style={{ padding: 18 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                 <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: COLORS.black }}>{detail.name}</h3>
-                <span style={{ fontWeight: 800, color: COLORS.blue }}>{formatIDR(detail.price)}</span>
+                {!boxBuild && !bundleBuild ? <span style={{ fontWeight: 800, color: COLORS.blue }}>{formatIDR(detail.price)}</span> : null}
               </div>
               {detail.description ? <p style={{ color: COLORS.muted, fontSize: 14, marginTop: 8 }}>{detail.description}</p> : null}
               {detail.ingredients?.length ? (

@@ -89,7 +89,6 @@ export default function BundlesPage() {
                 key={it.id}
                 name={it.name}
                 image={it.image}
-                price={it.price}
                 qty={q}
                 badge={it.badge}
                 soldOut={it.soldOut}
@@ -133,7 +132,7 @@ export default function BundlesPage() {
           const atLimit = (detail.kind === "cookie" ? cookieCount : drinkCount) >= (detail.kind === "cookie" ? cookiesNeeded : drinksNeeded);
           return (
             <ItemDetailModal
-              item={{ name: detail.item.name, image: detail.item.image, price: detail.item.price, description: detail.item.description, ingredients: detail.item.ingredients, allergens: detail.item.allergens }}
+              item={{ name: detail.item.name, image: detail.item.image, description: detail.item.description, ingredients: detail.item.ingredients, allergens: detail.item.allergens }}
               onClose={() => setDetail(null)}
               actionLabel={detail.item.soldOut ? "Sold out" : atLimit ? `Picked enough ${detail.kind}s` : `＋ Add to ${selected.name}`}
               actionDisabled={!!detail.item.soldOut || atLimit}
