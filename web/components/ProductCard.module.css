@@ -428,3 +428,25 @@
     padding: 0 12px;
   }
 }
+
+/* Mobile = lite: hide the dense detail (ingredient list + tag pills); keep image,
+   name, tagline + action. Desktop (≥640px) shows everything. Also let the card size
+   to its content so the button sits under the name (no stretched gap). */
+@media (max-width: 639px) {
+  .ingredients,
+  .textureRow {
+    display: none;
+  }
+
+  .body {
+    flex: 0 0 auto;
+  }
+
+  .title {
+    min-height: 0;
+  }
+
+  .ctaRow {
+    margin-top: 12px;
+  }
+}

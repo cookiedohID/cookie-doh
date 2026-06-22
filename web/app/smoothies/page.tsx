@@ -58,7 +58,7 @@ export default function SmoothiesPage() {
               {CATEGORY_TAGLINES[g.category]}
             </p>
 
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-4 items-start sm:items-stretch">
               {g.items.map((item) => (
                 <SmoothieCard key={item.id} item={item} />
               ))}

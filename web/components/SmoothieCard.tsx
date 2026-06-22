@@ -66,10 +66,18 @@ export default function SmoothieCard({ item }: { item: Smoothie }) {
         ) : null}
 
         {item.ingredients?.length ? (
-          <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.4, color: "#6b6b6b", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+          <p className="hidden sm:block" style={{ margin: 0, fontSize: 11.5, lineHeight: 1.4, color: "#6b6b6b" }}>
             <span style={{ fontWeight: 750, color: "#4f4f4f" }}>Key ingredients:</span>{" "}
             {item.ingredients.join(" · ")}
           </p>
+        ) : null}
+
+        {item.tags?.length ? (
+          <div className="hidden sm:flex" style={{ flexWrap: "wrap", gap: 6 }}>
+            {item.tags.slice(0, 3).map((t) => (
+              <span key={t} style={{ fontSize: 11.5, padding: "5px 9px", borderRadius: 999, border: "1px solid rgba(0,20,167,0.18)", color: COLORS.blue, background: "rgba(0,20,167,0.05)", fontWeight: 700, whiteSpace: "nowrap" }}>{t}</span>
+            ))}
+          </div>
         ) : null}
 
         <div style={{ marginTop: "auto", paddingTop: 8 }}>
