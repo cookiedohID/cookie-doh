@@ -8,13 +8,6 @@ import { SMOOTHIE_PRICE, type Smoothie } from "@/lib/smoothies";
 import { addUpsellSingle, decUpsellSingle, getCart, looseSingleQty } from "@/lib/cart";
 import styles from "./SmoothieCard.module.css";
 
-const formatIDR = (n: number) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(n);
-
 export default function SmoothieCard({ item }: { item: Smoothie }) {
   // Reflect how many of THIS smoothie are already in the cart, so the customer
   // can see + adjust the quantity instead of blindly re-adding.
@@ -64,65 +57,32 @@ export default function SmoothieCard({ item }: { item: Smoothie }) {
         ) : null}
       </div>
 
-      <div style={{ padding: "14px 14px 16px", display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
-        <div style={{ fontWeight: 800, fontSize: 17, color: COLORS.black }}>{item.name}</div>
+      <div style={{ padding: "11px 12px 12px", display: "flex", flexDirection: "column", gap: 7, flex: 1 }}>
+        <div style={{ fontWeight: 800, fontSize: 15.5, color: COLORS.black, lineHeight: 1.2 }}>{item.name}</div>
         {item.description ? (
-          <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.45, color: COLORS.muted }}>
+          <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.4, color: COLORS.muted, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
             {item.description}
           </p>
         ) : null}
 
         {item.ingredients?.length ? (
-          <p style={{ margin: 0, fontSize: 12.5, lineHeight: 1.4, color: "#6b6b6b" }}>
+          <p style={{ margin: 0, fontSize: 11.5, lineHeight: 1.4, color: "#6b6b6b", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
             <span style={{ fontWeight: 750, color: "#4f4f4f" }}>Key ingredients:</span>{" "}
             {item.ingredients.join(" · ")}
           </p>
         ) : null}
 
-        {item.tags?.length ? (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {item.tags.slice(0, 3).map((t) => (
-              <span
-                key={t}
-                style={{
-                  fontSize: 11.5,
-                  padding: "5px 9px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(0,20,167,0.18)",
-                  color: COLORS.blue,
-                  background: "rgba(0,20,167,0.05)",
-                  fontWeight: 700,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        <div
-          style={{
-            marginTop: "auto",
-            paddingTop: 8,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <span style={{ fontWeight: 850, fontSize: 16, color: COLORS.blue }}>
-            {formatIDR(SMOOTHIE_PRICE)}
-          </span>
+        <div style={{ marginTop: "auto", paddingTop: 8 }}>
           {item.soldOut ? (
             <span style={{ fontSize: 12, fontWeight: 800, color: COLORS.muted }}>Sold out</span>
           ) : qty > 0 ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
               <button type="button" onClick={dec} aria-label="Remove one" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: "pointer" }}>−</button>
               <span style={{ minWidth: 16, textAlign: "center", fontWeight: 900, fontSize: 16, color: COLORS.black }}>{qty}</span>
               <button type="button" onClick={inc} aria-label="Add one" style={{ width: 34, height: 34, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 18, lineHeight: 1, cursor: "pointer" }}>＋</button>
-            </span>
+            </div>
           ) : (
-            <button type="button" onClick={inc} style={{ border: "none", borderRadius: 999, padding: "8px 18px", fontWeight: 900, fontSize: 13, cursor: "pointer", background: COLORS.blue, color: "#fff" }}>Add</button>
+            <button type="button" onClick={inc} style={{ width: "100%", border: "none", borderRadius: 999, padding: "10px 18px", fontWeight: 900, fontSize: 14, cursor: "pointer", background: COLORS.blue, color: "#fff" }}>Add</button>
           )}
         </div>
       </div>

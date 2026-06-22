@@ -38,9 +38,12 @@ export default function SmoothiesPage() {
             Cookie Doh Blend
           </h1>
           <p style={{ margin: "12px 0 0", maxWidth: 560, opacity: 0.9, lineHeight: 1.5 }}>
-            Freshly blended fruit, yoghurt &amp; sorbet. Every blend {formatIDR(SMOOTHIE_PRICE)} —
-            order in store or message us on WhatsApp.
+            Freshly blended fruit, yoghurt &amp; sorbet — order in store or message us on WhatsApp.
           </p>
+          <div style={{ display: "inline-flex", alignItems: "baseline", gap: 8, marginTop: 16, background: "#fff", color: COLORS.blue, borderRadius: 999, padding: "9px 20px" }}>
+            <span style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: "0.04em" }}>ALL BLENDS</span>
+            <span style={{ fontSize: 22, fontWeight: 950 }}>{formatIDR(SMOOTHIE_PRICE)}</span>
+          </div>
         </div>
       </section>
 
@@ -55,7 +58,7 @@ export default function SmoothiesPage() {
               {CATEGORY_TAGLINES[g.category]}
             </p>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
               {g.items.map((item) => (
                 <SmoothieCard key={item.id} item={item} />
               ))}

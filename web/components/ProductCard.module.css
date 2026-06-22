@@ -338,35 +338,43 @@
 
 .plus { font-weight: 950; }
 
-@media (max-width: 380px) {
+@media (max-width: 480px) {
   .body {
-    padding: 10px 10px 12px;
-    gap: 8px;
+    padding: 9px 10px 11px;
+    gap: 6px;
   }
 
   .title {
-    font-size: 16.5px;
-    min-height: 39px;
+    font-size: 15px;
+    min-height: 36px;
   }
 
   .tagline {
-    font-size: 12.8px;
-    min-height: 52px;
+    font-size: 12px;
+    -webkit-line-clamp: 2;
+    min-height: 34px;
   }
 
   .ingredients {
-    font-size: 11.8px;
-    min-height: 49px;
+    font-size: 11px;
+    -webkit-line-clamp: 2;
+    min-height: 30px;
+  }
+
+  .textureRow {
+    min-height: 26px;
+    gap: 5px;
   }
 
   .texturePill {
-    font-size: 10.8px;
-    padding: 4px 8px;
+    font-size: 10.5px;
+    padding: 3px 7px;
   }
 
   .ctaRow {
-    grid-template-columns: 36px minmax(0, 1fr);
-    gap: 7px;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 6px;
+    padding-top: 2px;
   }
 
   .minusBtn,
@@ -375,8 +383,8 @@
   }
 
   .addBtn {
-    font-size: 11.5px;
-    padding: 0 7px;
+    font-size: 12px;
+    padding: 0 8px;
   }
 
   .qtyPillNew {

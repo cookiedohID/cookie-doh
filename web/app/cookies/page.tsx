@@ -42,7 +42,7 @@ export default function CookiesPage() {
           </p>
         </header>
 
-        <section className="grid grid-cols-2 gap-4">
+        <section className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-3">
           {cardFlavors.map((f) => (
             <ProductCard
               key={f.id}
