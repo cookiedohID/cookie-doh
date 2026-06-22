@@ -23,6 +23,10 @@ export default function BundlesPage() {
   const [cookieQty, setCookieQty] = useState<Record<string, number>>({});
   const [drinkQty, setDrinkQty] = useState<Record<string, number>>({});
   const [detail, setDetail] = useState<{ item: PickItem; kind: "cookie" | "drink" } | null>(null);
+  const [infoBundle, setInfoBundle] = useState<Bundle | null>(null);
+
+  const bundleSavings = (b: Bundle) => b.cookies * COOKIE_PRICE + b.drinks * SMOOTHIE_PRICE - b.price;
+  const compositionText = (b: Bundle) => `${b.cookies} cookie${b.cookies > 1 ? "s" : ""} + ${b.drinks} drink${b.drinks > 1 ? "s" : ""}`;
 
   const cookies: PickItem[] = useMemo(
     () => FLAVORS.map((f: any) => ({ id: String(f.id), name: String(f.name), image: f.image, price: COOKIE_PRICE, description: f.description, ingredients: f.ingredients, allergens: COOKIE_ALLERGENS, badge: Array.isArray(f.badges) ? f.badges[0] : undefined, soldOut: f.soldOut })),
@@ -162,12 +166,37 @@ export default function BundlesPage() {
               <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>{b.name}</div>
               {b.badge ? <span style={{ background: COLORS.orange, color: "#fff", fontSize: 11, fontWeight: 800, padding: "4px 9px", borderRadius: 999, whiteSpace: "nowrap" }}>{b.badge}</span> : null}
             </div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.black }}>{compositionText(b)}</div>
             <p className="hidden sm:block" style={{ margin: 0, color: COLORS.muted, fontSize: 13.5, lineHeight: 1.45, flex: 1 }}>{b.description}</p>
             <div style={{ fontWeight: 900, color: COLORS.blue, fontSize: 18 }}>{formatIDR(b.price)}</div>
             <button type="button" onClick={() => choose(b)} style={{ marginTop: 4, height: 46, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 800, cursor: "pointer" }}>Choose this bundle</button>
+            <button type="button" onClick={() => setInfoBundle(b)} style={{ border: "none", background: "none", color: COLORS.blue, fontWeight: 700, fontSize: 13, cursor: "pointer", padding: "2px 0" }}>View details</button>
           </div>
         ))}
       </div>
+
+      {infoBundle ? (
+        <div onClick={() => setInfoBundle(null)} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, maxWidth: 420, width: "100%", maxHeight: "88vh", overflow: "auto", padding: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: 10 }}>
+              <div>
+                {infoBundle.badge ? <span style={{ fontSize: 11, fontWeight: 800, color: COLORS.blue, textTransform: "uppercase", letterSpacing: "0.04em" }}>{infoBundle.badge}</span> : null}
+                <h3 style={{ margin: "2px 0 0", fontSize: 22, fontWeight: 800, color: COLORS.black }}>{infoBundle.name}</h3>
+              </div>
+              <button onClick={() => setInfoBundle(null)} aria-label="Close" style={{ width: 32, height: 32, borderRadius: 999, border: "none", background: COLORS.sand, fontWeight: 900, cursor: "pointer", fontSize: 16, flex: "0 0 auto" }}>×</button>
+            </div>
+            <div style={{ marginTop: 12, display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(0,20,167,0.06)", border: `1px solid ${COLORS.blue}`, borderRadius: 999, padding: "8px 16px" }}>
+              <span style={{ fontWeight: 800, color: COLORS.blue, fontSize: 14 }}>{compositionText(infoBundle)}</span>
+            </div>
+            <p style={{ color: "#444", fontSize: 14, marginTop: 12, lineHeight: 1.55 }}>{infoBundle.description}</p>
+            <div style={{ marginTop: 14, display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 900, color: COLORS.blue, fontSize: 22 }}>{formatIDR(infoBundle.price)}</span>
+              {bundleSavings(infoBundle) > 0 ? <span style={{ fontSize: 13, fontWeight: 700, color: "#0f6e56" }}>save {formatIDR(bundleSavings(infoBundle))} vs singles</span> : null}
+            </div>
+            <button type="button" onClick={() => { const b = infoBundle; setInfoBundle(null); choose(b); }} style={{ marginTop: 16, width: "100%", height: 48, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 15, cursor: "pointer" }}>Choose this bundle →</button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
