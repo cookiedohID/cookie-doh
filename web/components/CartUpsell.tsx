@@ -3,6 +3,7 @@
 // web/components/CartUpsell.tsx — "Complete your order" quick-add strip for the
 // cart. Suggests a drink (the natural pairing) plus popular single cookies; one
 // tap adds them (drinks earn a drink stamp, cookies a cookie stamp).
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { FLAVORS } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
@@ -60,7 +61,7 @@ export default function CartUpsell({ onAdded }: { onAdded: () => void }) {
               style={{ flex: "0 0 auto", width: 132, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 14, background: "#fff", overflow: "hidden", boxShadow: "0 8px 20px rgba(0,0,0,0.04)" }}
             >
               <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#F1EFE8", position: "relative" }}>
-                {p.image ? <img src={p.image} alt={p.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : null}
+                {p.image ? <Image src={p.image} alt={p.name} fill sizes="132px" style={{ objectFit: "cover" }} /> : null}
                 {p.kind === "drink" ? <span style={{ position: "absolute", top: 6, left: 6, fontSize: 11, fontWeight: 800, background: "rgba(0,0,0,0.6)", color: "#fff", borderRadius: 999, padding: "2px 8px" }}>🥤 Drink</span> : null}
               </div>
               <div style={{ padding: 10 }}>
