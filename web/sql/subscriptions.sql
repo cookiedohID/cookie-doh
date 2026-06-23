@@ -91,3 +91,6 @@ create index if not exists subscription_deliveries_orphan_idx on public.subscrip
 alter table public.subscriptions enable row level security;
 alter table public.subscription_plans enable row level security;
 alter table public.subscription_deliveries enable row level security;
+
+-- D-2/D-1 reminder idempotency: the closest day-offset already reminded for a box.
+alter table public.subscription_deliveries add column if not exists last_reminder_offset smallint;

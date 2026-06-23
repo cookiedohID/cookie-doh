@@ -1,0 +1,27 @@
+name: Subscriptions autopilot (07:00 WIB)
+
+# One scheduler does three things in order (the endpoint runs them sequentially):
+#   1. materialize boxes due today into normal paid orders (+ bonus cookie)
+#   2. send D-2 / D-1 "still in town?" reminders
+#   3. sweep stale pending plans
+# 00:00 UTC = 07:00 Asia/Jakarta — before the 08:00 WIB owner digest so today's
+# subscription orders are already counted. Kept as a SINGLE workflow on purpose:
+# GitHub does not guarantee ordering between workflows scheduled at the same time.
+on:
+  schedule:
+    - cron: "0 0 * * *" # 07:00 WIB (GitHub may delay a few minutes)
+  workflow_dispatch: {}
+
+jobs:
+  subscriptions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run subscription autopilot
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            "https://www.cookiedoh.co.id/api/cron/subscriptions")
+          echo "HTTP $code"
+          cat /tmp/resp.txt
+          echo
+          test "$code" = "200"
