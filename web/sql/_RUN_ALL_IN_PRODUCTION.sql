@@ -203,3 +203,8 @@ create table if not exists public.referrals (
 );
 create index if not exists referrals_referrer_idx on public.referrals (referrer_phone);
 alter table public.referrals enable row level security;
+
+
+-- ============================================================
+-- Subscriptions (prepaid cookie-box plans) — see sql/subscriptions.sql
+-- ============================================================
