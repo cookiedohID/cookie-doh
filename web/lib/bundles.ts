@@ -14,6 +14,7 @@ export type Bundle = {
   badge?: string;
   badgeColor?: string; // hex for the badge (defaults to orange where rendered)
   image?: string;
+  wide?: boolean; // image is a wide 2:1 banner → render the card full-width on its own row
 };
 
 export const BUNDLES: Bundle[] = [
@@ -37,6 +38,7 @@ export const BUNDLES: Bundle[] = [
     price: 159000, // vs ~175.5k separately
     badge: "Most Popular",
     badgeColor: "#1F9D57",
+    image: "/bundles/sweet-sharer.jpg",
   },
   {
     id: "party-pack",
@@ -47,6 +49,8 @@ export const BUNDLES: Bundle[] = [
     price: 299000, // vs ~351k separately
     badge: "Best Value",
     badgeColor: "#0014A7",
+    image: "/bundles/party-pack.jpg",
+    wide: true,
   },
 ];
 

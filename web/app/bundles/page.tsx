@@ -160,12 +160,12 @@ export default function BundlesPage() {
         </div>
       </section>
 
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "28px 16px 64px", display: "grid", gap: 16, gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", alignItems: "start" }}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start" style={{ maxWidth: 980, margin: "0 auto", padding: "28px 16px 64px" }}>
         {BUNDLES.map((b) => (
-          <div key={b.id} style={{ border: "1px solid rgba(0,0,0,0.10)", borderRadius: 18, background: "#fff", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div key={b.id} style={{ border: "1px solid rgba(0,0,0,0.10)", borderRadius: 18, background: "#fff", overflow: "hidden", display: "flex", flexDirection: "column", ...(b.wide ? { gridColumn: "1 / -1" } : {}) }}>
             {b.image ? (
-              <div onClick={() => setInfoBundle(b)} role="button" aria-label={`${b.name} — details`} style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand, cursor: "pointer" }}>
-                <Image src={b.image} alt={b.name} fill style={{ objectFit: "cover" }} sizes="(max-width:640px) 50vw, 320px" />
+              <div onClick={() => setInfoBundle(b)} role="button" aria-label={`${b.name} — details`} style={{ position: "relative", width: "100%", aspectRatio: b.wide ? "2 / 1" : "1 / 1", background: COLORS.sand, cursor: "pointer" }}>
+                <Image src={b.image} alt={b.name} fill style={{ objectFit: "cover" }} sizes={b.wide ? "(max-width:980px) 100vw, 960px" : "(max-width:640px) 100vw, 480px"} />
               </div>
             ) : null}
             <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
@@ -187,7 +187,7 @@ export default function BundlesPage() {
         <div onClick={() => setInfoBundle(null)} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, maxWidth: 420, width: "100%", maxHeight: "88vh", overflow: "auto" }}>
             {infoBundle.image ? (
-              <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: COLORS.sand }}>
+              <div style={{ position: "relative", width: "100%", aspectRatio: infoBundle.wide ? "2 / 1" : "1 / 1", background: COLORS.sand }}>
                 <Image src={infoBundle.image} alt={infoBundle.name} fill style={{ objectFit: "cover" }} sizes="420px" />
                 <button onClick={() => setInfoBundle(null)} aria-label="Close" style={{ position: "absolute", top: 10, right: 10, width: 32, height: 32, borderRadius: 999, border: "none", background: "rgba(255,255,255,0.95)", fontWeight: 900, cursor: "pointer", fontSize: 16 }}>×</button>
               </div>
