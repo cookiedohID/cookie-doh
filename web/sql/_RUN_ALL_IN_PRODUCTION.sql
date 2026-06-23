@@ -291,3 +291,8 @@ alter table public.subscription_plans enable row level security;
 alter table public.subscription_deliveries enable row level security;
 
 alter table public.subscription_deliveries add column if not exists last_reminder_offset smallint;
+
+
+-- Order acceptance + comms (see sql/order_comms.sql)
+alter table public.orders add column if not exists accepted_at timestamptz;
+create index if not exists orders_unaccepted_idx on public.orders (created_at) where payment_status = 'PAID' and accepted_at is null;

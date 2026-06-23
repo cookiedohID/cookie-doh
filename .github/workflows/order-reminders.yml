@@ -1,0 +1,23 @@
+name: Order-acceptance reminder (hourly)
+
+# Every hour, WhatsApp the owner a list of PAID orders not yet accepted (created in
+# the last 24h). Stops nagging about each order the moment it's accepted in admin.
+# GitHub Actions (free) — the Vercel Hobby plan only allows daily crons.
+on:
+  schedule:
+    - cron: "0 * * * *" # top of every hour (UTC); GitHub may delay a few minutes
+  workflow_dispatch: {}
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger order-acceptance reminder
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            "https://www.cookiedoh.co.id/api/cron/order-reminders")
+          echo "HTTP $code"
+          cat /tmp/resp.txt
+          echo
+          test "$code" = "200"

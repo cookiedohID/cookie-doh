@@ -84,6 +84,12 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const ff = body.fulfilment_status ?? body.fulfillment_status ?? body.fullfillment_status;
     if (ff) update.fulfilment_status = ff;
 
+    // Advancing fulfilment counts as accepting the order — stamp accepted_at so the
+    // hourly "please accept" reminder stops. (Only sets it the first time below.)
+    if (ff && ["baking", "sent", "completed"].includes(String(ff))) {
+      update.accepted_at = new Date().toISOString();
+    }
+
     if (typeof body.shipment_status === "string") update.shipment_status = body.shipment_status;
     if (typeof body.tracking_url === "string") update.tracking_url = body.tracking_url;
     if (typeof body.waybill === "string") update.waybill = body.waybill;

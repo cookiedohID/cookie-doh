@@ -7,6 +7,7 @@ import { createBiteshipOrder as createIntercityShipment } from "@/lib/biteship";
 import { tryQualifyReferral } from "@/lib/referrals";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { settleSubscriptionPayment } from "@/lib/subscriptionPay";
+import { notifyCustomerOrderConfirmed } from "@/lib/orderComms";
 
 export const runtime = "nodejs";
 
@@ -309,6 +310,8 @@ export async function POST(req: Request) {
         items: order.items_json,
         adminUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/orders/${order.id}`,
       });
+      // Auto-reply the customer their order details.
+      await notifyCustomerOrderConfirmed(order);
       return NextResponse.json({ ok: true, txStatus, fraud, paid, cafe: true });
     }
 
@@ -423,6 +426,8 @@ export async function POST(req: Request) {
         boxesText: order?.meta?.boxes_text ?? null,
         adminUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/admin/orders/${order.id}`,
       });
+      // Auto-reply the customer their order details (online order paid).
+      await notifyCustomerOrderConfirmed(order);
     }
 
     return NextResponse.json({ ok: true, txStatus, fraud, paid });

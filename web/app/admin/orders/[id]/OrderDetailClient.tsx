@@ -29,6 +29,11 @@ export default function OrderDetailClient({ id }: { id: string }) {
   const [trackingUrl, setTrackingUrl] = useState<string>("");
   const [waybill, setWaybill] = useState<string>("");
 
+  const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
+  const [acceptBusy, setAcceptBusy] = useState(false);
+  const [notifyBusy, setNotifyBusy] = useState<string | null>(null);
+  const [notifyMsg, setNotifyMsg] = useState<string | null>(null);
+
   // Always patch using UUID once loaded
   const patchId = useMemo(() => {
     const oid = order?.id;
@@ -56,6 +61,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
 
     setTrackingUrl(j.order?.tracking_url || "");
     setWaybill(j.order?.waybill || "");
+    setAcceptedAt(j.order?.accepted_at || null);
   }
 
   useEffect(() => {
@@ -101,6 +107,44 @@ export default function OrderDetailClient({ id }: { id: string }) {
       setErr(e?.message || "Save failed");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const acceptOrder = async () => {
+    try {
+      if (!patchId) throw new Error("Order UUID not ready yet");
+      setAcceptBusy(true);
+      setErr(null);
+      const res = await fetch(`/api/admin/orders/${patchId}/accept`, { method: "POST" });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j?.error || "Accept failed");
+      await load();
+    } catch (e: any) {
+      setErr(e?.message || "Accept failed");
+    } finally {
+      setAcceptBusy(false);
+    }
+  };
+
+  const notifyCustomer = async (kind: "confirm" | "on_the_way") => {
+    try {
+      if (!patchId) throw new Error("Order UUID not ready yet");
+      setNotifyBusy(kind);
+      setNotifyMsg(null);
+      setErr(null);
+      const res = await fetch(`/api/admin/orders/${patchId}/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind }),
+      });
+      const j = await res.json();
+      if (!res.ok || !j.ok) throw new Error(j?.error || "Could not send the WhatsApp");
+      setNotifyMsg(kind === "on_the_way" ? "Sent “on its way” + track link to the customer ✅" : "Sent order details to the customer ✅");
+      await load();
+    } catch (e: any) {
+      setErr(e?.message || "Could not send the WhatsApp");
+    } finally {
+      setNotifyBusy(null);
     }
   };
 
@@ -158,6 +202,49 @@ export default function OrderDetailClient({ id }: { id: string }) {
       <div style={{ marginTop: 6, color: "rgba(0,0,0,0.7)" }}>
         {order.created_at ? new Date(order.created_at).toLocaleString() : ""}
       </div>
+
+      {/* Acceptance + customer messages */}
+      <section style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, padding: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontWeight: 900 }}>Acceptance</div>
+            <div style={{ marginTop: 4, color: acceptedAt ? "#1F9D57" : "#B26A00", fontWeight: 700 }}>
+              {acceptedAt ? `✅ Accepted ${new Date(acceptedAt).toLocaleString()}` : "⏳ Not accepted yet — you’ll be reminded hourly"}
+            </div>
+          </div>
+          {!acceptedAt && (
+            <button
+              onClick={acceptOrder}
+              disabled={acceptBusy}
+              style={{ height: 44, padding: "0 22px", borderRadius: 999, border: "none", background: acceptBusy ? "rgba(31,157,87,0.55)" : "#1F9D57", color: "#fff", fontWeight: 900, cursor: acceptBusy ? "not-allowed" : "pointer" }}
+            >
+              {acceptBusy ? "Accepting…" : "Accept order"}
+            </button>
+          )}
+        </div>
+
+        <div style={{ marginTop: 14, fontWeight: 900 }}>Message the customer</div>
+        <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={() => notifyCustomer("on_the_way")}
+            disabled={notifyBusy !== null}
+            style={{ height: 44, padding: "0 18px", borderRadius: 999, border: "none", background: notifyBusy ? "rgba(0,20,167,0.55)" : "#0014a7", color: "#fff", fontWeight: 900, cursor: notifyBusy ? "not-allowed" : "pointer" }}
+          >
+            {notifyBusy === "on_the_way" ? "Sending…" : "🚚 On its way + track link"}
+          </button>
+          <button
+            onClick={() => notifyCustomer("confirm")}
+            disabled={notifyBusy !== null}
+            style={{ height: 44, padding: "0 18px", borderRadius: 999, border: "1px solid rgba(0,0,0,0.15)", background: "#fff", fontWeight: 900, cursor: notifyBusy ? "not-allowed" : "pointer" }}
+          >
+            {notifyBusy === "confirm" ? "Sending…" : "Re-send order details"}
+          </button>
+        </div>
+        {!order.customer_phone && (
+          <div style={{ marginTop: 8, color: "#B26A00", fontSize: 13 }}>No customer phone on this order — messages can’t be sent.</div>
+        )}
+        {notifyMsg && <div style={{ marginTop: 8, color: "#1F9D57", fontWeight: 700 }}>{notifyMsg}</div>}
+      </section>
 
       {order.meta?.gift && (order.meta.gift.message || order.meta.gift.to || order.meta.gift.from) ? (
         <section style={{ marginTop: 14, border: "2px solid #0014A7", borderRadius: 16, padding: 14, background: "#EAF2FF" }}>
