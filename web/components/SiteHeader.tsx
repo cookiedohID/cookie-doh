@@ -55,7 +55,6 @@ export default function SiteHeader() {
 
   const nav: NavItem[] = useMemo(
     () => [
-      { href: "/", label: "All" },
       { href: "/assortments", label: "Assortments" },
       { href: "/cookies", label: "Cookies" },
       { href: "/smoothies", label: "Smoothies" },
@@ -159,11 +158,13 @@ export default function SiteHeader() {
           .cd-desktop-nav { display: flex; }
           .cd-mobile-actions { display: none; }
         }
+        .cd-logo { width: 205px; }
+        @media (max-width: 600px) { .cd-logo { width: 158px; } }
       `}</style>
 
       <div
         style={{
-          maxWidth: 1060,
+          maxWidth: 980,
           margin: "0 auto",
           padding: "12px 16px",
           display: "flex",
@@ -196,7 +197,8 @@ export default function SiteHeader() {
             width={205}
             height={41}
             priority
-            style={{ height: "auto", width: "205px", flex: "0 0 auto", maxWidth: "100%" }}
+            className="cd-logo"
+            style={{ height: "auto", flex: "0 0 auto", maxWidth: "100%" }}
           />
         </Link>
 
@@ -253,21 +255,27 @@ export default function SiteHeader() {
 
           <Link
             href="/cart"
+            aria-label={count > 0 ? `Cart, ${count} items` : "Cart"}
+            title="Cart"
             style={{
               textDecoration: "none",
               color: "rgba(255,255,255,0.92)",
-              fontWeight: isActive("/cart") ? 950 : 800,
-              padding: "8px 10px",
+              padding: "8px 9px",
               borderRadius: 999,
               whiteSpace: "nowrap",
               border: isActive("/cart") ? "1px solid rgba(255,255,255,0.35)" : "1px solid transparent",
               background: isActive("/cart") ? "rgba(255,255,255,0.12)" : "transparent",
               display: "inline-flex",
               alignItems: "center",
-              gap: 8,
+              gap: 6,
             }}
           >
-            Cart <Badge n={count} />
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="9" cy="21" r="1" />
+              <circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            </svg>
+            <Badge n={count} />
           </Link>
         </nav>
 
