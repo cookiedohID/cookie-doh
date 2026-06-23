@@ -67,6 +67,27 @@ export default function HelpPage() {
         </section>
 
         <section style={card}>
+          <h2 style={h2}>🔁 Subscriptions</h2>
+          <QA q="What is a Cookie Doh subscription?">
+            Cookies on repeat. Pick a box of 3 or 6, choose <b>fixed favourites</b> or a <b>curated surprise</b>, and how
+            often you want it (weekly, every 2 weeks, or monthly). Prepay a plan of <b>4, 8 or 12 boxes</b> in one payment and
+            you get a <b>free bonus cookie in every box</b>. Start at{" "}
+            <Link href="/subscribe" style={{ color: COLORS.blue, fontWeight: 700 }}>/subscribe</Link>.
+          </QA>
+          <QA q="Can I skip, pause or change it?">
+            Anytime, from <Link href="/account/subscription" style={{ color: COLORS.blue, fontWeight: 700 }}>My Subscription</Link>:
+            skip the next box, pause/resume, edit your cookies, frequency or address, add more boxes, or cancel.
+          </QA>
+          <QA q="What if I'm away on a delivery day?">
+            We WhatsApp you <b>2 days and 1 day before</b> every box to confirm you're in town. If anything's changed, just skip
+            or reschedule that box from My Subscription.
+          </QA>
+          <QA q="What happens if I cancel?">
+            Your subscription ends and any <b>unused prepaid boxes are refunded</b>. Boxes already made aren't refundable.
+          </QA>
+        </section>
+
+        <section style={card}>
           <h2 style={h2}>🎁 Referrals, birthdays &amp; codes</h2>
           <QA q="How do referrals work?">
             Share your personal link from your account. When a friend places their <b>first</b> order (a box of 6 or more) using

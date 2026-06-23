@@ -67,7 +67,19 @@ export default function AdminHelpPage() {
           <ul style={{ paddingLeft: 18 }}>
             <li style={li}>See every order (cafe + online). Click a row to open the full detail (customer name, phone, address, items, gift card).</li>
             <li style={li}>Mark <b>Paid / Sending / Sent</b>, book Lalamove, send a WhatsApp update, view tracking.</li>
+            <li style={li}><b>Accept new orders:</b> each paid order shows ✅ Accepted or ⏳ Not accepted. While unaccepted you get a <b>WhatsApp reminder every hour</b> (up to 24h). Press <b>Accept order</b> to stop them (advancing fulfilment also accepts).</li>
+            <li style={li}><b>🚚 On its way + track link</b> WhatsApps the customer their tracking link and marks the order accepted + sent. <b>Re-send order details</b> resends the confirmation. Customers also get an automatic confirmation when they pay.</li>
             <li style={li}><b>🗑 Delete</b> a single order, or <b>Delete all unpaid</b> to clear test/abandoned orders (paid orders are never touched).</li>
+          </ul>
+        </Section>
+
+        <Section title="🔁 Admin — Subscriptions">
+          <p style={p}>At <span style={code}>/admin/subscriptions</span> — prepaid repeating cookie boxes.</p>
+          <ul style={{ paddingLeft: 18 }}>
+            <li style={li}>KPIs: active, <b>due in ≤3 days</b>, <b>refunds owed</b>, needs attention.</li>
+            <li style={li}>The <b>autopilot</b> runs at 07:00 WIB: each box due today becomes a normal paid order (+ a free bonus cookie), and customers get D-2/D-1 "still in town?" reminders. Use <b>Run autopilot now</b> to trigger it manually.</li>
+            <li style={li}>When a customer cancels, any <b>unused prepaid boxes are refunded</b> — pay it out and press <b>Mark refunded</b>.</li>
+            <li style={li}>The <b>reconcile</b> list shows the rare "made but no order" case to fix by hand.</li>
           </ul>
         </Section>
 

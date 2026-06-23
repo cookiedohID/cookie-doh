@@ -340,6 +340,7 @@ export default function AccountPage() {
         <div style={{ marginTop: 18, display: "grid", gap: 10 }}>
           {[
             { href: "/account/orders", label: "🧾 My Orders", hint: "Your cafe & online purchases" },
+            { href: "/account/subscription", label: "🔁 My Subscription", hint: "Skip, pause, edit or renew your boxes" },
             { href: "/account/addresses", label: "📍 Saved Addresses", hint: "For faster checkout" },
           ].map((l) => (
             <Link key={l.href} href={l.href} style={{ textDecoration: "none" }}>

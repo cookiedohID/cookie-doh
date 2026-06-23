@@ -420,6 +420,29 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* SUBSCRIBE CTA */}
+      <section style={{ background: COLORS.orange, color: COLORS.white, padding: "44px 16px" }}>
+        <div style={{ maxWidth: 980, margin: "0 auto", display: "flex", gap: 18, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+          <div style={{ maxWidth: 600 }}>
+            <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>Cookies on repeat 🔁</h2>
+            <p style={{ margin: "8px 0 0", fontSize: 16, lineHeight: 1.5, opacity: 0.95 }}>
+              Subscribe to a box of 3 or 6 — fixed favourites or a curated surprise, delivered weekly,
+              fortnightly or monthly. Prepay a plan and get a <b>free bonus cookie in every box</b>. Skip,
+              pause or cancel anytime.
+            </p>
+          </div>
+          <Link
+            href="/subscribe"
+            style={{
+              textDecoration: "none", background: COLORS.white, color: COLORS.orange,
+              fontWeight: 800, fontSize: 16, padding: "14px 28px", borderRadius: 999, whiteSpace: "nowrap",
+            }}
+          >
+            Start a subscription →
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }

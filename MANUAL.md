@@ -20,6 +20,7 @@ A complete guide to every function of the Cookie Doh platform: the **website**, 
 9. [Notifications](#9-notifications)
 10. [Behind the scenes (services)](#10-behind-the-scenes-services)
 11. [Setup & maintenance](#11-setup--maintenance)
+12. [Subscriptions](#12-subscriptions)
 
 ---
 
@@ -124,6 +125,12 @@ Go to **`/admin`** and sign in with the **admin password**. Everything is behind
   the **🎁 gift card** block, and any **🎟️ promo / discount** applied.
 - **Actions:** mark Paid / Sending / Sent, Book Lalamove, WhatsApp the customer, open Track.
 - **🗑 Delete** one order, or **🗑 Delete all unpaid** to clear test/abandoned orders (paid are safe).
+- **Acceptance (new orders):** every paid order shows ✅ *Accepted* or ⏳ *Not accepted yet*. While
+  it's unaccepted you get a **WhatsApp reminder every hour** (up to 24h). Press **Accept order** to
+  stop the reminders (advancing fulfilment to baking/sent/completed also accepts it automatically).
+- **Message the customer:** **🚚 On its way + track link** WhatsApps the customer their tracking link
+  and marks the order accepted + sent. **Re-send order details** sends the order confirmation again.
+- Customers also get an **automatic confirmation WhatsApp** the moment their payment succeeds.
 
 ### Inventory (`/admin/flavors`)
 - Set **stock per location**, or mark an item **sold out** at a location. **No number = unlimited.**
@@ -203,6 +210,8 @@ These run on their own (scheduled via **GitHub Actions**, hourly/daily):
 | Job | When | What it does |
 |-----|------|--------------|
 | **Abandoned-cart nudge** | Hourly | WhatsApps unpaid carts 1–12h old a "finish your order" link |
+| **Order-acceptance reminder** | Hourly | WhatsApps **you** the list of paid orders you haven't accepted yet (<24h old) until you accept them |
+| **Subscriptions autopilot** | 07:00 WIB | Turns each subscription box due today into a normal paid order (+ bonus cookie), sends **D-2 / D-1 "still in town?"** reminders, and clears stale unpaid plans |
 | **Daily owner digest** | 08:00 WIB | WhatsApps **you** yesterday's sales, top sellers, per-store split, rewards redeemed, **low-stock list**, and referral activity |
 | **Birthday rewards** | 09:00 WIB | Grants the birthday cookie + sends the birthday message |
 
@@ -220,9 +229,13 @@ The **back-in-stock** alert isn't scheduled — it fires the instant you mark a 
 ---
 
 ## 9. Notifications
-- **On a paid order:** you get a **WhatsApp** (Fonnte) **and** an **email** (Resend).
-- **Customers** get order confirmations, WhatsApp codes for phone verification + reward redemption,
-  and the marketing/retention messages above.
+- **On a paid order:** you get a **WhatsApp** (Fonnte) **and** an **email** (Resend), plus an **hourly
+  reminder** until you **accept** the order in `/admin/orders`.
+- **Customers** get an **automatic order-confirmation WhatsApp** when payment succeeds, an optional
+  **"on its way + track link"** message you send from the order page, WhatsApp codes for phone
+  verification + reward redemption, and the marketing/retention messages above.
+- **Subscribers** get an activation confirmation, **D-2 and D-1 reminders** before each box, and a
+  confirmation each time a box is made.
 
 ---
 
@@ -247,8 +260,50 @@ The **back-in-stock** alert isn't scheduled — it fires the instant you mark a 
   `ADMIN_RETRY_SECRET`) lets the GitHub jobs call the cron endpoints. No Vercel cron is used
   (the Hobby plan only allows daily crons).
 - **Database migrations** — SQL files in `web/sql/` are run once in Supabase. All current feature
-  migrations have been applied (loyalty, referrals, promos, birthday, back-in-stock, etc.).
+  migrations have been applied (loyalty, referrals, promos, birthday, back-in-stock, subscriptions,
+  order-acceptance, etc.).
 - **Reset/verification emails** — for reliable delivery, point Supabase Auth SMTP at Resend.
+
+---
+
+## 12. Subscriptions
+
+Prepaid, repeating cookie boxes. A customer sets it up once, pays for a block of boxes with **one
+QRIS payment**, and each box is automatically turned into a normal order on its delivery day — with a
+**free bonus cookie in every box**.
+
+### For the customer (`/subscribe`)
+A short wizard:
+1. **Box size** — box of 3 or 6.
+2. **What's inside** — *fixed favourites* (pick exactly that many cookies) or *curated surprise*
+   (we choose a fresh mix each box).
+3. **How often** — weekly, every 2 weeks, or monthly.
+4. **Plan length** — prepay **4, 8 or 12 boxes** (one QRIS payment).
+5. **Delivery or pickup** — address or pickup point.
+
+They must be **signed in** (so the boxes link to their membership & loyalty). Price is always the
+normal box price × number of boxes — there's no separate subscriber discount; the perk is the bonus
+cookie. After paying they get an activation WhatsApp.
+
+### Managing it (`/account` → 🔁 My Subscription)
+- **Skip next box** — pushes the next box to the following cycle (no box is lost).
+- **Pause / Resume** — stops/restarts deliveries; prepaid boxes are kept.
+- **Edit** — change favourites, contents mode, frequency, or delivery address.
+- **Add boxes (renew)** — prepay more boxes (4/8/12) with another QRIS.
+- **Cancel** — ends it and **refunds unused prepaid boxes** (you settle the refund from admin).
+
+### What happens automatically
+- Each morning the **Subscriptions autopilot** (07:00 WIB) makes every box due that day into a normal
+  paid order (so it prints, ships, decrements stock and earns loyalty like any order — the bonus
+  cookie is free, so it earns nothing), then schedules the next box. When the prepaid boxes run out
+  the subscription is marked **completed** (the customer can renew).
+- **D-2 and D-1 reminders** WhatsApp the customer to confirm they're in town and details are unchanged.
+
+### For you (`/admin/subscriptions`)
+- KPIs (active / due in ≤3 days / **refunds owed** / needs attention).
+- **Boxes due in the next 3 days** worklist, and a **reconcile** list (rare "made but no order" cases).
+- The full subscription table with prepaid boxes left, next box, and a **Mark refunded** button.
+- **Run autopilot now** triggers today's run on demand (otherwise it's the 07:00 job).
 
 ---
 
