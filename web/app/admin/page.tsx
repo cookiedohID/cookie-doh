@@ -6,6 +6,7 @@ import { COLORS } from "@/lib/theme";
 
 const SECTIONS = [
   { href: "/admin/orders", title: "Orders", desc: "All transactions, fulfilment & tracking", emoji: "🧾" },
+  { href: "/admin/subscriptions", title: "Subscriptions", desc: "Plans, upcoming boxes & refunds", emoji: "🔁" },
   { href: "/admin/reports", title: "Reports", desc: "Daily sales, by item, per location, redeemed", emoji: "📊" },
   { href: "/admin/customers", title: "Customers", desc: "Members, purchase history & loyalty", emoji: "👥" },
   { href: "/admin/flavors", title: "Inventory", desc: "Per-location stock & sold-out", emoji: "📦" },
