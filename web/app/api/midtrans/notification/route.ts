@@ -6,6 +6,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { createBiteshipOrder as createIntercityShipment } from "@/lib/biteship";
 import { tryQualifyReferral } from "@/lib/referrals";
 import { sendWhatsApp } from "@/lib/whatsapp";
+import { settleSubscriptionPayment } from "@/lib/subscriptionPay";
 
 export const runtime = "nodejs";
 
@@ -178,6 +179,15 @@ export async function POST(req: Request) {
       (txStatus === "capture" && (fraud ?? "accept") === "accept");
 
     const supabase = supabaseServer();
+
+    // ── Subscription prepaid-plan payment ────────────────────────────────────
+    // A "CD-SUB-" order id funds a subscription plan, NOT an order — it has no
+    // orders row, so handle and return BEFORE the orders lookup below (which uses
+    // .single() and would 500 on a missing row). Verifies amount + is idempotent.
+    if (midtrans_order_id.startsWith("CD-SUB-")) {
+      const r = await settleSubscriptionPayment(supabase, midtrans_order_id, statusResponse, paid);
+      return NextResponse.json({ ok: true, txStatus, fraud, paid, subscription: r });
+    }
 
     const { data: order, error: fetchErr } = await supabase
       .from("orders")
