@@ -76,86 +76,94 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
 
-    // ---- Validate config (all server-checked) ----
-    const boxSize = Number(body?.box_size);
     const boxes = Number(body?.boxes);
-    const frequency = String(body?.frequency || "");
-    const mode = String(body?.mode || "");
-    const fulfilment: SubFulfilment = body?.fulfilment === "pickup" ? "pickup" : "delivery";
-
-    if (!isValidBoxSize(boxSize)) return NextResponse.json({ ok: false, error: "Choose a box of 3 or 6." }, { status: 400 });
     if (!isValidPlanBoxes(boxes)) return NextResponse.json({ ok: false, error: "Choose a 4, 8 or 12-box plan." }, { status: 400 });
-    if (!isValidFrequency(frequency)) return NextResponse.json({ ok: false, error: "Choose a delivery frequency." }, { status: 400 });
-    if (!isValidMode(mode)) return NextResponse.json({ ok: false, error: "Choose fixed favourites or curated surprise." }, { status: 400 });
-
-    const fixedFlavours = mode === "fixed" ? normalizeFixedFlavours(body?.fixed_flavours) : [];
-    if (mode === "fixed" && !fixedFlavoursValid(fixedFlavours, boxSize)) {
-      return NextResponse.json({ ok: false, error: `Pick exactly ${boxSize} cookies for your fixed box.` }, { status: 400 });
-    }
-
-    // Delivery needs an address; pickup needs a point. Snapshot is read live at fulfilment.
-    const shipSnapshot: any = {};
-    if (fulfilment === "delivery") {
-      const address = String(body?.delivery?.address || "").trim();
-      if (!address) return NextResponse.json({ ok: false, error: "Add a delivery address." }, { status: 400 });
-      shipSnapshot.address = address;
-      shipSnapshot.building_name = String(body?.delivery?.buildingName || "").trim() || null;
-      shipSnapshot.postal = String(body?.delivery?.postal || "").trim() || null;
-      shipSnapshot.destination_area_id = String(body?.delivery?.destination_area_id || "").trim() || null;
-      shipSnapshot.destination_area_label = String(body?.delivery?.destination_area_label || "").trim() || null;
-      shipSnapshot.notes = String(body?.notes || "").trim() || null;
-    } else {
-      const pointName = String(body?.pickup?.pointName || "").trim();
-      if (!pointName) return NextResponse.json({ ok: false, error: "Choose a pickup point." }, { status: 400 });
-      shipSnapshot.pickup_point = pointName;
-    }
-
-    const anchorDom =
-      frequency === "monthly" && Number(body?.anchor_dom) >= 1 && Number(body?.anchor_dom) <= 31
-        ? Math.floor(Number(body.anchor_dom))
-        : null;
 
     const name = String(body?.name || user.user_metadata?.name || "").trim() || null;
     const email = String(body?.email || user.email || "").trim() || null;
 
-    // ---- Server-authoritative amount ----
-    const amount = subPlanAmount(boxSize, boxes);
-    if (amount < 1) return NextResponse.json({ ok: false, error: "Invalid plan." }, { status: 400 });
-
-    // ---- Renewal vs new ----
-    // A renewal adds a plan to an existing subscription the caller OWNS. Otherwise
-    // create a fresh subscription (pending_payment). Ownership is by auth user id
-    // OR the server-derived phone — never a client-claimed id alone.
-    let subscriptionId: string | null = null;
+    // A renewal adds capacity to an existing subscription the caller OWNS (box size
+    // + config come from that subscription). Otherwise we create a fresh one. Either
+    // way the amount and order id are server-made; the client never sends a price.
+    let subscriptionId: string;
+    let boxSize: number;
+    let descMode = "";
+    let descFreq = "";
     const renewId = String(body?.renew_subscription_id || "").trim();
+
     if (renewId) {
       const { data: existing } = await supabase
-        .from("subscriptions").select("id, owner_phone, auth_user_id").eq("id", renewId).maybeSingle();
+        .from("subscriptions")
+        .select("id, owner_phone, auth_user_id, box_size, mode, frequency, status")
+        .eq("id", renewId)
+        .maybeSingle();
       if (!existing) return NextResponse.json({ ok: false, error: "Subscription not found." }, { status: 404 });
       const owns = existing.auth_user_id === user.id || existing.owner_phone === ownerPhone;
       if (!owns) return NextResponse.json({ ok: false, error: "Not your subscription." }, { status: 403 });
+      if (existing.status === "cancelled") {
+        return NextResponse.json({ ok: false, error: "This subscription was cancelled — please start a new one." }, { status: 400 });
+      }
       subscriptionId = existing.id;
+      boxSize = Number(existing.box_size);
+      descMode = existing.mode;
+      descFreq = existing.frequency;
     } else {
+      boxSize = Number(body?.box_size);
+      const frequency = String(body?.frequency || "");
+      const mode = String(body?.mode || "");
+      const fulfilment: SubFulfilment = body?.fulfilment === "pickup" ? "pickup" : "delivery";
+
+      if (!isValidBoxSize(boxSize)) return NextResponse.json({ ok: false, error: "Choose a box of 3 or 6." }, { status: 400 });
+      if (!isValidFrequency(frequency)) return NextResponse.json({ ok: false, error: "Choose a delivery frequency." }, { status: 400 });
+      if (!isValidMode(mode)) return NextResponse.json({ ok: false, error: "Choose fixed favourites or curated surprise." }, { status: 400 });
+
+      const fixedFlavours = mode === "fixed" ? normalizeFixedFlavours(body?.fixed_flavours) : [];
+      if (mode === "fixed" && !fixedFlavoursValid(fixedFlavours, boxSize)) {
+        return NextResponse.json({ ok: false, error: `Pick exactly ${boxSize} cookies for your fixed box.` }, { status: 400 });
+      }
+
+      // Delivery needs an address; pickup needs a point. Snapshot is read live at fulfilment.
+      const shipSnapshot: any = {};
+      if (fulfilment === "delivery") {
+        const address = String(body?.delivery?.address || "").trim();
+        if (!address) return NextResponse.json({ ok: false, error: "Add a delivery address." }, { status: 400 });
+        shipSnapshot.address = address;
+        shipSnapshot.building_name = String(body?.delivery?.buildingName || "").trim() || null;
+        shipSnapshot.postal = String(body?.delivery?.postal || "").trim() || null;
+        shipSnapshot.destination_area_id = String(body?.delivery?.destination_area_id || "").trim() || null;
+        shipSnapshot.destination_area_label = String(body?.delivery?.destination_area_label || "").trim() || null;
+        shipSnapshot.notes = String(body?.notes || "").trim() || null;
+      } else {
+        const pointName = String(body?.pickup?.pointName || "").trim();
+        if (!pointName) return NextResponse.json({ ok: false, error: "Choose a pickup point." }, { status: 400 });
+        shipSnapshot.pickup_point = pointName;
+      }
+
+      const anchorDom =
+        frequency === "monthly" && Number(body?.anchor_dom) >= 1 && Number(body?.anchor_dom) <= 31
+          ? Math.floor(Number(body.anchor_dom))
+          : null;
+
       const { data: subRow, error: subErr } = await supabase
         .from("subscriptions")
         .insert({
-          owner_phone: ownerPhone,
-          auth_user_id: user.id,
-          name, email,
-          box_size: boxSize,
-          mode,
-          frequency,
-          fixed_flavours: fixedFlavours,
-          anchor_dom: anchorDom,
-          fulfilment,
-          ship_snapshot: shipSnapshot,
-          status: "pending_payment",
+          owner_phone: ownerPhone, auth_user_id: user.id, name, email,
+          box_size: boxSize, mode, frequency, fixed_flavours: fixedFlavours,
+          anchor_dom: anchorDom, fulfilment, ship_snapshot: shipSnapshot, status: "pending_payment",
         })
         .select("id")
         .maybeSingle();
       if (subErr || !subRow?.id) throw subErr || new Error("Subscription insert failed");
       subscriptionId = subRow.id;
+      descMode = mode;
+      descFreq = frequency;
     }
+
+    if (!isValidBoxSize(boxSize)) return NextResponse.json({ ok: false, error: "Invalid box size." }, { status: 400 });
+
+    // ---- Server-authoritative amount ----
+    const amount = subPlanAmount(boxSize, boxes);
+    if (amount < 1) return NextResponse.json({ ok: false, error: "Invalid plan." }, { status: 400 });
 
     // ---- Plan row (server-generated order id; PENDING until webhook) ----
     const midtransOrderId = makeSubOrderId();
@@ -176,7 +184,7 @@ export async function POST(req: Request) {
     // ---- Midtrans Snap token (QRIS popup) ----
     const itemsText =
       `Cookie Doh subscription — ${boxes} × box of ${boxSize} ` +
-      `(${mode === "fixed" ? "fixed favourites" : "curated surprise"}, ${frequency})`;
+      `(${descMode === "fixed" ? "fixed favourites" : "curated surprise"}, ${descFreq})`;
     const token = await createSnapToken({
       order_id: midtransOrderId,
       gross_amount: amount,
