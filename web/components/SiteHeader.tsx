@@ -163,9 +163,9 @@ export default function SiteHeader() {
 
       <div
         style={{
-          maxWidth: 980,
+          maxWidth: 1060,
           margin: "0 auto",
-          padding: "12px 14px",
+          padding: "12px 16px",
           display: "flex",
           alignItems: "center",
           gap: 12,
@@ -193,10 +193,10 @@ export default function SiteHeader() {
           <Image
             src="/logo.png"
             alt="Cookie Doh"
-            width={170}
-            height={34}
+            width={205}
+            height={41}
             priority
-            style={{ height: "auto", width: "170px", flex: "0 0 auto", maxWidth: "100%" }}
+            style={{ height: "auto", width: "205px", flex: "0 0 auto", maxWidth: "100%" }}
           />
         </Link>
 
