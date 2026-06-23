@@ -186,17 +186,17 @@ export default function SiteHeader() {
             display: "flex",
             alignItems: "center",
             gap: 10,
-            minWidth: 0,
+            flex: "0 0 auto",
           }}
           aria-label="Cookie Doh home"
         >
           <Image
             src="/logo.png"
             alt="Cookie Doh"
-            width={140}
-            height={28}
+            width={170}
+            height={34}
             priority
-            style={{ height: "auto", width: "140px", maxWidth: "100%" }}
+            style={{ height: "auto", width: "170px", flex: "0 0 auto", maxWidth: "100%" }}
           />
         </Link>
 
@@ -206,9 +206,10 @@ export default function SiteHeader() {
           aria-label="Primary"
           style={{
             marginLeft: "auto",
-            gap: 10,
+            gap: 7,
             alignItems: "center",
             flexWrap: "wrap",
+            justifyContent: "flex-end",
           }}
         >
           {nav.map((item) => {
@@ -221,7 +222,7 @@ export default function SiteHeader() {
                   textDecoration: "none",
                   color: "rgba(255,255,255,0.92)",
                   fontWeight: active ? 950 : 800,
-                  padding: "8px 10px",
+                  padding: "8px 8px",
                   borderRadius: 999,
                   whiteSpace: "nowrap",
                   border: active ? "1px solid rgba(255,255,255,0.35)" : "1px solid transparent",
