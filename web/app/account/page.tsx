@@ -38,6 +38,7 @@ export default function AccountPage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [loadErr, setLoadErr] = useState("");
+  const [email, setEmail] = useState("");
 
   async function token() {
     const { data } = await getSupabaseBrowser().auth.getSession();
@@ -50,6 +51,8 @@ export default function AccountPage() {
     try {
       const t = await token().catch(() => null);
       if (!t) { router.replace("/account/login"); return; }
+      // Capture the signed-in identity so the UI can always show WHICH account.
+      try { const { data } = await getSupabaseBrowser().auth.getSession(); setEmail(data.session?.user?.email || ""); } catch {}
       const timeoutSignal = typeof AbortSignal !== "undefined" && (AbortSignal as any).timeout ? (AbortSignal as any).timeout(12000) : undefined;
       const res = await fetch("/api/account/me", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store", signal: timeoutSignal });
       const j = await res.json().catch(() => ({}));
@@ -181,10 +184,15 @@ export default function AccountPage() {
       <main style={{ minHeight: "100vh", background: COLORS.bg }}>
         <div style={{ maxWidth: 420, margin: "0 auto", padding: "40px 16px" }}>
           <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.black }}>{otpStep === "code" ? "Verify your number" : "Link your WhatsApp"}</h1>
+          {email ? (
+            <div style={{ marginTop: 6, marginBottom: 4, fontSize: 13, color: COLORS.muted }}>
+              Signed in as <b style={{ color: COLORS.black }}>{email}</b>
+            </div>
+          ) : null}
           <p style={{ color: COLORS.muted, fontSize: 14, lineHeight: 1.55 }}>
             {otpStep === "code"
               ? (note || "Enter the code from WhatsApp.")
-              : "Your loyalty stamps and member QR are tied to your WhatsApp number — add it once to activate. Signed in with Google? Your number isn’t collected at sign-in, so this is the only step left."}
+              : "This account doesn’t have a WhatsApp number linked yet — add it once to switch on your loyalty stamps & member QR. (Signing in with Google doesn’t collect a number, so this is the last step.)"}
           </p>
           {otpStep === "phone" ? (
             <form onSubmit={sendPhoneCode} style={{ marginTop: 16, display: "grid", gap: 10 }}>
@@ -252,6 +260,7 @@ export default function AccountPage() {
           <div>
             <span className="font-dearjoe" style={{ fontSize: 20, color: COLORS.blue }}>member</span>
             <h1 style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 800, color: COLORS.black }}>Hi {member.name || "there"} 👋</h1>
+            {email ? <div style={{ marginTop: 2, fontSize: 12.5, color: COLORS.muted }}>Signed in as {email}</div> : null}
           </div>
           <button onClick={logout} style={{ border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Log out</button>
         </div>
