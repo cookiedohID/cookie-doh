@@ -47,11 +47,13 @@ export function resolveBoxItems(sub: any, seq: number, inStock?: Set<string>) {
     for (const [id, v] of Object.entries(chosen)) items.push({ id, name: v.name, price, quantity: v.qty, kind: "cookie" });
   }
 
-  // +1 bonus free cookie — free:true earns no loyalty (the bonus IS the perk).
+  // +1 bonus free cookie — a GIFT on top. bonus:true makes the loyalty engine
+  // ignore it entirely (earns no stamp AND is not a redemption), so it never
+  // touches the customer's buy-10-get-1 balance.
   const bonusPool = inStock ? AVAILABLE_COOKIES.filter((c) => inStock.has(c.id)) : AVAILABLE_COOKIES;
   const bsrc = bonusPool.length ? bonusPool : AVAILABLE_COOKIES;
   const bonus = bsrc[seq % bsrc.length];
-  items.push({ id: bonus.id, name: `${bonus.name} (bonus)`, price: 0, quantity: 1, kind: "cookie", free: true });
+  items.push({ id: bonus.id, name: `${bonus.name} (bonus)`, price: 0, quantity: 1, kind: "cookie", free: true, bonus: true });
 
   const boxesText = items.map((it) => `• ${it.name} ×${it.quantity}${it.free ? " (free)" : ""}`).join("\n");
   return { items, boxesText, total: price * boxSize };

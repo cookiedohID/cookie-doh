@@ -66,6 +66,10 @@ export function loyaltyFromOrders(
       const qty = Math.max(0, Math.floor(Number(it?.quantity ?? 0)));
       if (!qty) continue;
 
+      // A subscription BONUS cookie is a gift on top — it neither earns a stamp nor
+      // counts as a loyalty redemption, so it must never touch the buy-10 balance.
+      if (it?.bonus === true) continue;
+
       // Bundles and spend-reward items DO earn now (every purchased cookie/drink
       // earns). Only an explicitly-flagged `free:true` line (a redeemed reward) is
       // a redemption; a price of 0 alone is not (box/assortment cookies are priced

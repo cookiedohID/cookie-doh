@@ -41,10 +41,13 @@ export async function notifyCustomerOnTheWay(order: any): Promise<{ ok: boolean;
   const ref = order?.order_no ? ` #${order.order_no}` : "";
   const track = order?.tracking_url || order?.meta?.tracking_url || "";
   const lines = [
-    `🚚 Good news${order?.customer_name ? ", " + order.customer_name : ""}! Your Cookie Doh order${ref} is on its way.`,
-    track ? `Track it here: ${track}` : "",
+    `🎉 Yay${order?.customer_name ? ", " + order.customer_name : ""}! Your Cookie Doh order${ref} is freshly baked, packed with love, and on its way to you 🍪🚚`,
     "",
-    "Enjoy every bite — where the cookie magic happens 🍪💛",
+    "Keep an eye out — something delicious is about to land at your door 🥰",
+    track ? `📍 Track your delivery here: ${track}` : "",
+    "",
+    "Thank you for ordering with us — we hope every bite makes your day a little sweeter 💛",
+    "where the cookie magic happens ✨",
   ].filter(Boolean);
   const res = await sendWhatsApp({ to, message: lines.join("\n") });
   return { ok: !!res.ok, error: res.ok ? undefined : "WhatsApp send failed (check Fonnte settings)." };

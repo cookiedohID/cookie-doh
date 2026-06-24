@@ -34,6 +34,10 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     }
 
     if (kind === "on_the_way") {
+      // The owner can paste/confirm the tracking link right here — we save it AND
+      // send it in this one action (no separate "save status" step).
+      const trackingUrl = String(body?.tracking_url || "").trim();
+      if (trackingUrl) order.tracking_url = trackingUrl; // use it in the message
       const r = await notifyCustomerOnTheWay(order);
       if (!r.ok) return NextResponse.json({ ok: false, error: r.error }, { status: 400 });
       // Sending "on its way" implies the owner has accepted + dispatched.
@@ -42,6 +46,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
         .update({
           accepted_at: order.accepted_at || new Date().toISOString(),
           fulfilment_status: order.fulfilment_status === "completed" ? "completed" : "sent",
+          ...(trackingUrl ? { tracking_url: trackingUrl } : {}),
         })
         .eq("id", id);
       return NextResponse.json({ ok: true, sent: "on_the_way" });

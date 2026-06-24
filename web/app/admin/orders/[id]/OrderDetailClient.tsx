@@ -135,7 +135,9 @@ export default function OrderDetailClient({ id }: { id: string }) {
       const res = await fetch(`/api/admin/orders/${patchId}/notify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind }),
+        // For "on its way" we send the tracking link in the SAME request, so it's
+        // saved + sent in one click (no separate "Save status" step).
+        body: JSON.stringify({ kind, tracking_url: kind === "on_the_way" ? trackingUrl : undefined }),
       });
       const j = await res.json();
       if (!res.ok || !j.ok) throw new Error(j?.error || "Could not send the WhatsApp");
@@ -224,13 +226,25 @@ export default function OrderDetailClient({ id }: { id: string }) {
         </div>
 
         <div style={{ marginTop: 14, fontWeight: 900 }}>Message the customer</div>
-        <div style={{ marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
+
+        {/* Paste the tracking link here, then tap "On its way" — it's saved + sent in one go. */}
+        <label style={{ display: "grid", gap: 6, marginTop: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 800 }}>Tracking link</span>
+          <input
+            value={trackingUrl}
+            onChange={(e) => setTrackingUrl(e.target.value)}
+            placeholder="Paste the delivery tracking link (e.g. Lalamove / Biteship)…"
+            style={{ height: 44, borderRadius: 12, padding: "0 12px", border: "1px solid rgba(0,0,0,0.15)" }}
+          />
+        </label>
+
+        <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button
             onClick={() => notifyCustomer("on_the_way")}
             disabled={notifyBusy !== null}
             style={{ height: 44, padding: "0 18px", borderRadius: 999, border: "none", background: notifyBusy ? "rgba(0,20,167,0.55)" : "#0014a7", color: "#fff", fontWeight: 900, cursor: notifyBusy ? "not-allowed" : "pointer" }}
           >
-            {notifyBusy === "on_the_way" ? "Sending…" : "🚚 On its way + track link"}
+            {notifyBusy === "on_the_way" ? "Sending…" : "🚚 Send “on its way” + link"}
           </button>
           <button
             onClick={() => notifyCustomer("confirm")}
@@ -239,6 +253,9 @@ export default function OrderDetailClient({ id }: { id: string }) {
           >
             {notifyBusy === "confirm" ? "Sending…" : "Re-send order details"}
           </button>
+        </div>
+        <div style={{ marginTop: 6, fontSize: 12, color: "rgba(0,0,0,0.55)" }}>
+          Tip: paste the link above and tap “On its way” — it’s saved to the order and sent in one step.
         </div>
         {!order.customer_phone && (
           <div style={{ marginTop: 8, color: "#B26A00", fontSize: 13 }}>No customer phone on this order — messages can’t be sent.</div>
