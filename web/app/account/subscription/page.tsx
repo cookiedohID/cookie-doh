@@ -13,7 +13,7 @@ import { FLAVORS } from "@/lib/catalog";
 import { COLORS, RADIUS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import {
-  SUB_PLAN_BOX_OPTIONS, SUB_FREQUENCIES, FREQUENCY_LABEL, subPlanAmount, subBoxPrice, subFreeCookies,
+  SUB_PLAN_BOX_OPTIONS, SUB_FREQUENCIES, FREQUENCY_LABEL, subPlanAmount, subBoxPrice,
   type SubFrequency, type SubMode,
 } from "@/lib/subscriptions";
 
@@ -178,7 +178,17 @@ export default function MySubscriptionPage() {
                 <div style={{ display: "flex", gap: 22, marginTop: 14, flexWrap: "wrap" }}>
                   <Stat label="Next box" value={sub.status === "active" ? fmtDate(nextScheduled?.scheduled_for || sub.next_delivery_on) : "—"} />
                   <Stat label="Boxes left" value={String(sub.remaining ?? 0)} />
-                  <Stat label="Free cookies left" value={`+${subFreeCookies(sub.box_size, sub.remaining ?? 0)}`} accent={COLORS.orange} />
+                </div>
+
+                {/* Subscription rewards — separate from the regular buy-10-get-1 loyalty */}
+                <div style={{ marginTop: 12, background: "#FFF6EC", borderRadius: 12, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: COLORS.muted, textTransform: "uppercase" }}>Subscription rewards</div>
+                    <div style={{ fontSize: 14, color: COLORS.black, marginTop: 2 }}>
+                      <b>{sub.cookiesPurchased ?? 0}</b> cookies purchased · <b style={{ color: COLORS.orange }}>{sub.rewardCookies ?? 0}</b> free earned
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.orange, textAlign: "right", whiteSpace: "nowrap" }}>buy 6,<br />get 1 free</div>
                 </div>
 
                 {/* refund note */}

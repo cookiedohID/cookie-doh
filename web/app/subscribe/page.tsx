@@ -113,6 +113,10 @@ export default function SubscribePage() {
 
   const planTotal = subPlanAmount(boxSize, planBoxes);
   const perBox = subBoxPrice(boxSize);
+  // Plain-language cadence so the summary can't be read as "N boxes per delivery".
+  const freqAdverb = frequency === "weekly" ? "every week" : frequency === "biweekly" ? "every 2 weeks" : "every month";
+  const spanWeeks = frequency === "weekly" ? planBoxes : planBoxes * 2;
+  const durationText = frequency === "monthly" ? `${planBoxes} month${planBoxes > 1 ? "s" : ""}` : `${spanWeeks} weeks`;
 
   const valid =
     fixedComplete &&
@@ -384,9 +388,9 @@ export default function SubscribePage() {
       >
         <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>{rp(planTotal)}</div>
+            <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>{rp(planTotal)} · {planBoxes} boxes</div>
             <div style={{ color: COLORS.muted, fontSize: 12 }}>
-              {planBoxes} × box of {boxSize} · {FREQUENCY_LABEL[frequency].toLowerCase()} · {rp(perBox)}/box
+              1 box of {boxSize} {freqAdverb} · {planBoxes} deliveries over ~{durationText} · {rp(perBox)}/box
             </div>
           </div>
           <button

@@ -50,11 +50,23 @@ export async function GET(req: Request) {
         .order("scheduled_for", { ascending: true })
         .limit(8);
 
+      // Subscription reward tracker (separate from the buy-10-get-1 loyalty):
+      // cookies actually received so far + free cookies earned at 1-per-6.
+      const { count: madeCount } = await supabase
+        .from("subscription_deliveries")
+        .select("id", { count: "exact", head: true })
+        .eq("subscription_id", sub.id)
+        .in("status", ["made", "delivered"]);
+      const cookiesPurchased = (madeCount || 0) * Number(sub.box_size);
+      const rewardCookies = Math.floor(cookiesPurchased / 6);
+
       out.push({
         ...sub,
         plans: plans || [],
         upcoming: upcoming || [],
         remaining: await remainingCapacity(supabase, sub.id),
+        cookiesPurchased,
+        rewardCookies,
       });
     }
 
