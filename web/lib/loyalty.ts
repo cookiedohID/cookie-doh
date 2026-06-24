@@ -66,11 +66,11 @@ export function loyaltyFromOrders(
       const qty = Math.max(0, Math.floor(Number(it?.quantity ?? 0)));
       if (!qty) continue;
 
-      // Subscription cookies are outside the regular points system (they have their
-      // own "buy 6, get 1 free" reward): `noLoyalty` lines earn nothing, and the
-      // subscription BONUS line is a gift that's also not a redemption. Either way,
-      // skip — never touch the buy-10-get-1 balance.
-      if (it?.bonus === true || it?.noLoyalty === true) continue;
+      // Subscription cookies + their reward redemptions live in a SEPARATE pool
+      // (see lib/subscriptionRewards): `noLoyalty` paid lines earn nothing, `bonus`
+      // is a gift, and `subReward` is a subscription-reward redemption. None of them
+      // ever touch the regular buy-10-get-1 balance — skip.
+      if (it?.bonus === true || it?.noLoyalty === true || it?.subReward === true) continue;
 
       // Bundles and spend-reward items DO earn now (every purchased cookie/drink
       // earns). Only an explicitly-flagged `free:true` line (a redeemed reward) is

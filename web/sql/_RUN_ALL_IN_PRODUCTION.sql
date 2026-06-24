@@ -296,3 +296,5 @@ alter table public.subscription_deliveries add column if not exists last_reminde
 -- Order acceptance + comms (see sql/order_comms.sql)
 alter table public.orders add column if not exists accepted_at timestamptz;
 create index if not exists orders_unaccepted_idx on public.orders (created_at) where payment_status = 'PAID' and accepted_at is null;
+
+alter table public.subscriptions add column if not exists pending_rewards jsonb not null default '[]'::jsonb;

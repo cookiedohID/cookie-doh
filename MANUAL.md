@@ -273,10 +273,10 @@ The **back-in-stock** alert isn't scheduled — it fires the instant you mark a 
 Prepaid, repeating cookie boxes. A customer sets it up once, pays for a block of boxes with **one
 QRIS payment**, and each box is automatically turned into a normal order on its delivery day.
 
-**Reward — "buy 6, get 1 free":** one free cookie for every 6 cookies received. A **box of 6** gets
-1 free in **every** box; a **box of 3** gets 1 free **every 2nd** box (same 1-per-6 rate, fair across
-sizes). Subscription cookies have their **own** reward and are **not** counted in the regular
-buy-10-get-1 loyalty points (no double-dipping).
+**Reward — "buy 6, get 1 free":** every 6 cookies received earns 1 free cookie, kept as a **separate
+redeemable balance** (NOT the regular buy-10-get-1 loyalty — no double-dipping). The customer
+**chooses the flavour** and redeems it either **to their next box** (My Subscription → Redeem 🍪) or
+**at checkout / the cafe**. Both paths draw the same balance, so a cookie can never be spent twice.
 
 ### For the customer (`/subscribe`)
 A short wizard:

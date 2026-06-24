@@ -252,6 +252,39 @@ export async function POST(req: Request) {
       }
     }
 
+    // ---- Subscription reward redemption (separate "buy 6, get 1 free" pool) ----
+    // Free cookies the member redeems from their subscription reward balance,
+    // choosing the flavour. Validated against the server-computed available pool
+    // (which already nets out next-box reservations), then added at Rp0 as
+    // subReward lines so they never touch the regular buy-10-get-1 loyalty.
+    const subRewardReq = Array.isArray(payload?.subReward) ? payload.subReward : [];
+    if (subRewardReq.length) {
+      const phone = canonicalPhone(customerPhone);
+      if (!phone) {
+        return NextResponse.json({ ok: false, error: "Sign in (or add your member phone) to use subscription rewards." }, { status: 400 });
+      }
+      const lines = subRewardReq
+        .map((r: any) => ({
+          id: String(r?.id || "").trim(),
+          name: String(r?.name || "").trim() || "Cookie",
+          kind: "cookie" as const,
+          price: 0,
+          quantity: Math.max(0, Math.floor(Number(r?.quantity ?? 1))),
+          free: true,
+          subReward: true,
+        }))
+        .filter((l: any) => l.id && l.quantity > 0);
+      const want = lines.reduce((s: number, l: any) => s + l.quantity, 0);
+      if (want > 0) {
+        const { subscriptionRewardBalance } = await import("@/lib/subscriptionRewards");
+        const bal = await subscriptionRewardBalance(supabase, phone);
+        if (want > bal.available) {
+          return NextResponse.json({ ok: false, error: "Not enough subscription reward cookies available." }, { status: 400 });
+        }
+        items.push(...lines);
+      }
+    }
+
     // scheduling & pickup & quote meta
     const fulfillment = payload?.fulfillment || null;
     const pickup = payload?.pickup || null;

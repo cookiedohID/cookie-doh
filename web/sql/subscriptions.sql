@@ -94,3 +94,6 @@ alter table public.subscription_deliveries enable row level security;
 
 -- D-2/D-1 reminder idempotency: the closest day-offset already reminded for a box.
 alter table public.subscription_deliveries add column if not exists last_reminder_offset smallint;
+
+-- Redeemable subscription reward cookies queued for the next box (flavour chosen by member).
+alter table public.subscriptions add column if not exists pending_rewards jsonb not null default '[]'::jsonb;

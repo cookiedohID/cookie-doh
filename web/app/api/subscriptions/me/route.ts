@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getMember } from "@/lib/memberServer";
 import { remainingCapacity } from "@/lib/subscriptionManage";
+import { subscriptionRewardBalance } from "@/lib/subscriptionRewards";
 
 export const runtime = "nodejs";
 
@@ -70,7 +71,10 @@ export async function GET(req: Request) {
       });
     }
 
-    return NextResponse.json({ ok: true, subscriptions: out, needsPhone: !member.ownerPhone });
+    // The member's redeemable reward pool (shared across their subscriptions).
+    const reward = await subscriptionRewardBalance(supabase, member.ownerPhone);
+
+    return NextResponse.json({ ok: true, subscriptions: out, reward, needsPhone: !member.ownerPhone });
   } catch (e: any) {
     console.error("[subscriptions/me] error:", e);
     return NextResponse.json({ ok: false, error: e?.message || "Failed to load" }, { status: 500 });

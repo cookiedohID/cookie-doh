@@ -276,6 +276,10 @@ export default function CheckoutPage() {
   const [availFreeDrinks, setAvailFreeDrinks] = useState(0);
   const [redeemCookieId, setRedeemCookieId] = useState("");
   const [redeemCookieQty, setRedeemCookieQty] = useState(0);
+  // Subscription reward pool (separate "buy 6, get 1 free")
+  const [subRewardAvail, setSubRewardAvail] = useState(0);
+  const [subRewardId, setSubRewardId] = useState("");
+  const [subRewardQty, setSubRewardQty] = useState(0);
   const [redeemDrinkId, setRedeemDrinkId] = useState("");
   const [redeemDrinkQty, setRedeemDrinkQty] = useState(0);
 
@@ -330,6 +334,7 @@ export default function CheckoutPage() {
             setAvailFreeCookies(Math.max(0, Number(meJ.member.loyalty.freeCookies || 0)));
             setAvailFreeDrinks(Math.max(0, Number(meJ.member.loyalty.freeDrinks || 0)));
           }
+          setSubRewardAvail(Math.max(0, Number(meJ.member.subReward?.available || 0)));
         }
       } catch { /* ignore */ }
 
@@ -732,6 +737,9 @@ export default function CheckoutPage() {
           redeemCookieId && redeemCookieQty > 0 ? { id: redeemCookieId, name: FLAVORS.find((f: any) => f.id === redeemCookieId)?.name || "Cookie", kind: "cookie", quantity: Math.min(redeemCookieQty, availFreeCookies) } : null,
           redeemDrinkId && redeemDrinkQty > 0 ? { id: redeemDrinkId, name: SMOOTHIES.find((s: any) => s.id === redeemDrinkId)?.name || "Drink", kind: "drink", quantity: Math.min(redeemDrinkQty, availFreeDrinks) } : null,
         ].filter(Boolean),
+        subReward: [
+          subRewardId && subRewardQty > 0 ? { id: subRewardId, name: FLAVORS.find((f: any) => f.id === subRewardId)?.name || "Cookie", quantity: Math.min(subRewardQty, subRewardAvail) } : null,
+        ].filter(Boolean),
         cart,
         promo_code: appliedPromo?.code || null,
         shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
@@ -968,6 +976,38 @@ export default function CheckoutPage() {
                   </label>
                 </div>
               ) : null}
+            </section>
+          ) : null}
+
+          {/* Subscription reward (separate "buy 6, get 1 free" pool) */}
+          {subRewardAvail > 0 ? (
+            <section
+              style={{
+                borderRadius: 18,
+                border: subRewardQty > 0 ? `2px solid ${COLORS.orange}` : "1px solid rgba(0,0,0,0.10)",
+                padding: 14,
+                background: "#fff",
+                boxShadow: "0 10px 26px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div style={{ fontWeight: 950, color: COLORS.black }}>🔁 Subscription reward</div>
+              <div style={{ marginTop: 6, color: "#6B6B6B", fontSize: 13 }}>
+                You have {subRewardAvail} free subscription cookie{subRewardAvail !== 1 ? "s" : ""} (buy 6, get 1 free). Add to this order at no charge.
+              </div>
+              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 110px", gap: 10, alignItems: "end" }}>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Free cookie flavour</span>
+                  <select value={subRewardId} onChange={(e) => { setSubRewardId(e.target.value); if (e.target.value && subRewardQty === 0) setSubRewardQty(1); if (!e.target.value) setSubRewardQty(0); }} style={sameStyle}>
+                    <option value="">Don&apos;t use</option>
+                    {FLAVORS.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </label>
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Qty (max {subRewardAvail})</span>
+                  <input type="number" min={0} max={subRewardAvail} value={subRewardQty} disabled={!subRewardId}
+                    onChange={(e) => setSubRewardQty(Math.max(0, Math.min(subRewardAvail, Math.floor(Number(e.target.value) || 0))))} style={sameStyle} />
+                </label>
+              </div>
             </section>
           ) : null}
 

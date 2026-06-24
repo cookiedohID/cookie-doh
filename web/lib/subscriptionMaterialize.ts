@@ -49,17 +49,18 @@ export function resolveBoxItems(sub: any, seq: number, inStock?: Set<string>) {
     for (const [id, v] of Object.entries(chosen)) items.push({ id, name: v.name, price, quantity: v.qty, kind: "cookie", noLoyalty: true });
   }
 
-  // "Buy 6, get 1 free" — one free cookie for every 6 cookies received, proportional
-  // across box sizes. Box of 6 → 1 free every box; box of 3 → 1 free every 2nd box.
-  // (seq is 1-based, box size is fixed, so cumulative cookies = seq × size.)
-  const bonusCount = Math.floor((seq * boxSize) / 6) - Math.floor(((seq - 1) * boxSize) / 6);
-  if (bonusCount > 0) {
-    const bonusPool = inStock ? AVAILABLE_COOKIES.filter((c) => inStock.has(c.id)) : AVAILABLE_COOKIES;
-    const bsrc = bonusPool.length ? bonusPool : AVAILABLE_COOKIES;
-    const bonus = bsrc[seq % bsrc.length];
-    // free:true + bonus:true + noLoyalty:true → a pure gift; the loyalty engine
-    // ignores it (no stamp earned, not a redemption).
-    items.push({ id: bonus.id, name: `${bonus.name} (free)`, price: 0, quantity: bonusCount, kind: "cookie", free: true, bonus: true, noLoyalty: true });
+  // Reward cookies ("buy 6, get 1 free") are now REDEEMABLE, not auto-included —
+  // the member chooses the flavour. Any rewards they queued for this box (via
+  // subscriptions.pending_rewards) ride along here as free subReward lines; the
+  // caller clears pending_rewards after the box is made.
+  const pending = Array.isArray(sub.pending_rewards) ? sub.pending_rewards : [];
+  for (const r of pending) {
+    const id = String(r?.id || r?.flavour_id || "").trim();
+    if (!id) continue;
+    const name = String(r?.name || r?.flavour_name || NAME_BY_ID.get(id) || "Cookie");
+    // free + subReward → a redeemed subscription reward; the loyalty engine ignores
+    // it and the reward-balance helper counts it as spent.
+    items.push({ id, name: `${name} (reward)`, price: 0, quantity: 1, kind: "cookie", free: true, subReward: true });
   }
 
   const boxesText = items.map((it) => `• ${it.name} ×${it.quantity}${it.free ? " (free)" : ""}`).join("\n");
@@ -230,7 +231,8 @@ async function materializeDue(supa: any, siteUrl: string, dry: boolean) {
     // Advance: schedule the next box, or complete when capacity is exhausted.
     const nextDate = nextDeliveryDate(claimed.scheduled_for, sub.frequency as SubFrequency, sub.anchor_dom);
     const cap = await remainingCapacity(supa, sub.id);
-    await supa.from("subscriptions").update({ delivery_seq: seq, updated_at: new Date().toISOString() }).eq("id", sub.id);
+    // Clear the reward queue — any pending rewards were just baked into this box.
+    await supa.from("subscriptions").update({ delivery_seq: seq, pending_rewards: [], updated_at: new Date().toISOString() }).eq("id", sub.id);
     if (cap > 0) {
       const nextSeq = (await maxSeq(supa, sub.id)) + 1;
       await supa.from("subscription_deliveries").upsert(

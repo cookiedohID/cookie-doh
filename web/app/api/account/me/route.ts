@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { canonicalPhone, phoneSignificant } from "@/lib/phone";
 import { loyaltyFromOrders } from "@/lib/loyalty";
 import { grantsForPhone } from "@/lib/loyaltyGrants";
+import { subscriptionRewardBalance } from "@/lib/subscriptionRewards";
 
 export const runtime = "nodejs";
 
@@ -67,7 +68,7 @@ function phoneFromUser(user: any): string | null {
 }
 
 type MemberResult =
-  | { kind: "member"; member: { name: string | null; phone: string; memberCode: string; birthday: string | null; loyalty: ReturnType<typeof loyaltyFromOrders> } }
+  | { kind: "member"; member: { name: string | null; phone: string; memberCode: string; birthday: string | null; loyalty: ReturnType<typeof loyaltyFromOrders>; subReward: Awaited<ReturnType<typeof subscriptionRewardBalance>> } }
   | { kind: "ownedByOther" }
   | { kind: "needsVerify"; phone: string };
 
@@ -147,6 +148,8 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
   const orders = sig ? (ordersRes.data || []).filter((o: any) => phoneSignificant(o?.customer_phone) === sig) : [];
   const grant = await grantsForPhone(supa, phone);
   const loyalty = loyaltyFromOrders(orders, grant);
+  // Separate redeemable subscription reward pool (buy 6, get 1 free).
+  const subReward = await subscriptionRewardBalance(supa, phone);
 
   return {
     kind: "member",
@@ -156,6 +159,7 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
       memberCode: cust?.member_code || memberCodeFor(phone),
       birthday: cust?.birthday ?? null,
       loyalty,
+      subReward,
     },
   };
 }

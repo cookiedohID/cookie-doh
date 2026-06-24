@@ -43,6 +43,8 @@ export default function MySubscriptionPage() {
 
   const [subs, setSubs] = useState<Sub[]>([]);
   const [favourites, setFavourites] = useState<{ id: string; name: string; count: number }[]>([]);
+  const [reward, setReward] = useState<any>({ available: 0, purchased: 0, earned: 0 });
+  const [redeemFor, setRedeemFor] = useState<Sub | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -64,6 +66,7 @@ export default function MySubscriptionPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.ok) throw new Error(json?.error || "Could not load subscriptions.");
       setSubs(json.subscriptions || []);
+      setReward(json.reward || { available: 0, purchased: 0, earned: 0 });
       // Most-ordered cookies, for the edit-modal quick-fill.
       try {
         const fr = await fetch("/api/account/favourites", { headers: { Authorization: `Bearer ${t}` } });
@@ -95,6 +98,27 @@ export default function MySubscriptionPage() {
       await load();
     } catch (e: any) {
       setErr(e?.message || "Action failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function rewardAction(subId: string, payload: any) {
+    setBusyId(subId);
+    setErr(null);
+    try {
+      const t = await token();
+      const res = await fetch("/api/subscriptions/reward", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+        body: JSON.stringify({ subscription_id: subId, ...payload }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.ok) throw new Error(json?.error || "Couldn't update your reward.");
+      setRedeemFor(null);
+      await load();
+    } catch (e: any) {
+      setErr(e?.message || "Couldn't update your reward.");
     } finally {
       setBusyId(null);
     }
@@ -180,15 +204,38 @@ export default function MySubscriptionPage() {
                   <Stat label="Boxes left" value={String(sub.remaining ?? 0)} />
                 </div>
 
-                {/* Subscription rewards — separate from the regular buy-10-get-1 loyalty */}
-                <div style={{ marginTop: 12, background: "#FFF6EC", borderRadius: 12, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 800, color: COLORS.muted, textTransform: "uppercase" }}>Subscription rewards</div>
-                    <div style={{ fontSize: 14, color: COLORS.black, marginTop: 2 }}>
-                      <b>{sub.cookiesPurchased ?? 0}</b> cookies purchased · <b style={{ color: COLORS.orange }}>{sub.rewardCookies ?? 0}</b> free earned
+                {/* Subscription rewards — a separate redeemable pool (buy 6, get 1 free) */}
+                <div style={{ marginTop: 12, background: "#FFF6EC", borderRadius: 12, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: COLORS.muted, textTransform: "uppercase" }}>Subscription rewards · buy 6, get 1 free</div>
+                      <div style={{ fontSize: 14, color: COLORS.black, marginTop: 2 }}>
+                        <b>{reward.purchased ?? 0}</b> cookies purchased · <b style={{ color: COLORS.orange }}>{reward.available ?? 0}</b> free available
+                      </div>
                     </div>
+                    {sub.status === "active" && (reward.available ?? 0) > 0 && (
+                      <button onClick={() => setRedeemFor(sub)} disabled={busy}
+                        style={{ background: COLORS.orange, color: "#fff", border: "none", borderRadius: 999, padding: "8px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        Redeem 🍪
+                      </button>
+                    )}
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.orange, textAlign: "right", whiteSpace: "nowrap" }}>buy 6,<br />get 1 free</div>
+                  {/* Queued for the next box */}
+                  {Array.isArray(sub.pending_rewards) && sub.pending_rewards.length > 0 && (
+                    <div style={{ marginTop: 10, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 700 }}>In your next box:</span>
+                      {sub.pending_rewards.map((p: any, i: number) => (
+                        <span key={i} style={{ background: "#fff", border: `1px solid ${COLORS.orange}`, borderRadius: 999, padding: "3px 6px 3px 10px", fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          {p.name} (free)
+                          <button onClick={() => rewardAction(sub.id, { action: "release", index: i })} disabled={busy} aria-label="remove"
+                            style={{ border: "none", background: "transparent", color: COLORS.muted, cursor: "pointer", fontSize: 15, lineHeight: 1 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ marginTop: 8, fontSize: 11, color: COLORS.muted }}>
+                    Redeem a free cookie to your next box (pick the flavour), or use it at checkout / the cafe.
+                  </div>
                 </div>
 
                 {/* refund note */}
@@ -268,7 +315,42 @@ export default function MySubscriptionPage() {
           onSave={(payload: any) => act(editing.id, "edit", payload)}
         />
       )}
+
+      {redeemFor && (
+        <RedeemModal
+          cookies={cookies}
+          busy={busyId === redeemFor.id}
+          onClose={() => setRedeemFor(null)}
+          onPick={(id: string) => rewardAction(redeemFor.id, { action: "reserve", flavour_id: id })}
+        />
+      )}
     </main>
+  );
+}
+
+/* ---------- Redeem reward → pick a flavour for the next box ---------- */
+function RedeemModal({ cookies, busy, onClose, onPick }: any) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 60, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: COLORS.bg, width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto", borderRadius: "20px 20px 0 0", padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Redeem a free cookie 🍪</h2>
+          <button onClick={onClose} style={{ border: "none", background: "transparent", fontSize: 24, cursor: "pointer", lineHeight: 1 }}>×</button>
+        </div>
+        <p style={{ color: COLORS.muted, fontSize: 13, margin: "6px 0 12px" }}>Pick the flavour — it'll be added free to your next box.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8 }}>
+          {cookies.map((c: any) => (
+            <button key={c.id} onClick={() => onPick(c.id)} disabled={busy}
+              style={{ border: `2px solid #eee`, borderRadius: 12, background: "#fff", overflow: "hidden", cursor: busy ? "default" : "pointer", padding: 0, textAlign: "left", opacity: busy ? 0.6 : 1 }}>
+              <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: "#f3f0ea" }}>
+                {c.image ? <Image src={c.image} alt={c.name} fill sizes="140px" style={{ objectFit: "cover" }} /> : null}
+              </div>
+              <div style={{ padding: "8px 10px", fontWeight: 700, fontSize: 13 }}>{c.name}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
