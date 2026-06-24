@@ -9,6 +9,7 @@ import { BOX_PRICES, FLAVORS } from "@/lib/catalog";
 import { addBoxToCart, type CartBox } from "@/lib/cart";
 import ProductCard, { type FlavorUI as CardFlavorUI } from "@/components/ProductCard";
 import SmoothieCard from "@/components/SmoothieCard";
+import YourUsuals from "@/components/YourUsuals";
 import { SMOOTHIES } from "@/lib/smoothies";
 import { COLORS } from "@/lib/theme";
 
@@ -173,6 +174,9 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* YOUR USUALS — personalised quick-order strip (signed-in members only) */}
+      <YourUsuals />
 
       {/* CROWD FAVORITES + QUICK PICKS */}
       <section style={{ background: COLORS.white, padding: "48px 16px 56px" }}>

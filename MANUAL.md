@@ -44,7 +44,9 @@ FAQ lives at **`/help`** (linked in the website footer).
 ## 2. Website (storefront) functions
 
 ### Browse & build
-- **Home (`/`)** — hero, featured flavours, quick links.
+- **Home (`/`)** — hero, featured flavours, quick links. Signed-in members also see a
+  **👋 Your usuals** strip — their most-ordered cookies & drinks with one-tap **+ Add**, plus
+  shortcuts to their usual box size and go-to bundle. (Invisible to guests / members with no history.)
 - **Build Your Box (`/build`)** — choose a **Box of 3** or **Box of 6**, then mix-and-match
   flavours. Box price is **Rp30,000 per cookie** (Box of 3 = Rp90,000, Box of 6 = Rp180,000).
 - **Flavours (`/flavors`)** — browse all cookie flavours. Sold-out flavours show a **Sold out**
