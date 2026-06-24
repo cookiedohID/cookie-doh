@@ -14,7 +14,8 @@ import { COLORS, RADIUS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import {
   SUB_PLAN_BOX_OPTIONS, SUB_BOX_SIZES, SUB_FREQUENCIES, FREQUENCY_LABEL,
-  subBoxPrice, subPlanAmount, subFreeCookies, type SubFrequency, type SubMode, type SubFulfilment,
+  subBoxPrice, subPlanAmount, subFreeCookies, subDeliveryFeePerBox,
+  type SubFrequency, type SubMode, type SubFulfilment,
 } from "@/lib/subscriptions";
 
 type PickupPoint = { id: string; name: string; address: string };
@@ -113,6 +114,8 @@ export default function SubscribePage() {
 
   const planTotal = subPlanAmount(boxSize, planBoxes);
   const perBox = subBoxPrice(boxSize);
+  const deliveryFeePerBox = fulfilment === "delivery" ? subDeliveryFeePerBox(boxSize) : 0;
+  const grandTotal = planTotal + deliveryFeePerBox * planBoxes;
   // Plain-language cadence so the summary can't be read as "N boxes per delivery".
   const freqAdverb = frequency === "weekly" ? "every week" : frequency === "biweekly" ? "every 2 weeks" : "every month";
   const spanWeeks = frequency === "weekly" ? planBoxes : planBoxes * 2;
@@ -345,6 +348,11 @@ export default function SubscribePage() {
             <button onClick={() => setFulfilment("delivery")} style={tabStyle(fulfilment === "delivery")}>Delivery</button>
             <button onClick={() => setFulfilment("pickup")} style={tabStyle(fulfilment === "pickup")}>Pickup</button>
           </div>
+          <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 700, color: fulfilment === "pickup" ? "#1F9D57" : COLORS.blue }}>
+            {fulfilment === "pickup"
+              ? "✓ Free pickup"
+              : `Same-day delivery · ${rp(subDeliveryFeePerBox(boxSize))}/box (prepaid with your plan)`}
+          </div>
           {fulfilment === "delivery" ? (
             <div style={{ display: "grid", gap: 10 }}>
               <textarea
@@ -388,9 +396,10 @@ export default function SubscribePage() {
       >
         <div style={{ maxWidth: 760, margin: "0 auto", display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>{rp(planTotal)} · {planBoxes} boxes</div>
+            <div style={{ fontWeight: 800, fontSize: 18, color: COLORS.black }}>{rp(grandTotal)} · {planBoxes} boxes</div>
             <div style={{ color: COLORS.muted, fontSize: 12 }}>
               1 box of {boxSize} {freqAdverb} · {planBoxes} deliveries over ~{durationText} · {rp(perBox)}/box
+              {deliveryFeePerBox > 0 ? ` + ${rp(deliveryFeePerBox)} delivery` : fulfilment === "pickup" ? " · free pickup" : ""}
             </div>
           </div>
           <button

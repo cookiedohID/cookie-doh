@@ -286,11 +286,13 @@ A short wizard:
    one-tap that builds the box from the cookies they order most.
 3. **How often** — weekly, every 2 weeks, or monthly.
 4. **Plan length** — prepay **4, 8 or 12 boxes** (one QRIS payment).
-5. **Delivery or pickup** — address or pickup point.
+5. **Delivery or pickup** — **pickup is free**; **same-day delivery is a flat Rp15.000/box**, prepaid
+   with the plan (waived for any box at/above the Rp300.000 free-delivery threshold — today's boxes
+   are always under it, so delivery boxes always pay the flat fee).
 
-They must be **signed in** (so the boxes link to their membership & loyalty). Price is always the
-normal box price × number of boxes — there's no separate subscriber discount; the perk is the bonus
-cookie. After paying they get an activation WhatsApp.
+They must be **signed in** (so the boxes link to their membership & loyalty). The prepaid total is the
+normal box price × number of boxes **+ delivery** (no separate subscriber discount; the perk is the
+"buy 6, get 1 free" cookies). After paying they get an activation WhatsApp.
 
 ### Managing it (`/account` → 🔁 My Subscription)
 - **Skip next box** — pushes the next box to the following cycle (no box is lost).

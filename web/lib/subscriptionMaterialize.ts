@@ -13,7 +13,7 @@ import { sendWhatsApp } from "@/lib/whatsapp";
 import { notifyNewOrder } from "@/lib/notify";
 import { decrementStockForOrder } from "@/lib/stock";
 import { remainingCapacity } from "@/lib/subscriptionManage";
-import { subBoxPrice, nextDeliveryDate, todayIso, addDays, type SubFrequency } from "@/lib/subscriptions";
+import { subBoxPrice, subDeliveryFeePerBox, nextDeliveryDate, todayIso, addDays, type SubFrequency } from "@/lib/subscriptions";
 
 const AVAILABLE_COOKIES = FLAVORS.filter((f: any) => !f.soldOut).map((f: any) => ({ id: f.id, name: f.name }));
 const NAME_BY_ID = new Map(FLAVORS.map((f: any) => [f.id, f.name]));
@@ -153,6 +153,8 @@ async function materializeDue(supa: any, siteUrl: string, dry: boolean) {
     if (!orderId) {
       const isDelivery = sub.fulfilment === "delivery";
       const snap = sub.ship_snapshot || {};
+      // Flat per-box delivery fee (prepaid); pickup is free.
+      const deliveryFee = isDelivery ? subDeliveryFeePerBox(Number(sub.box_size)) : 0;
       const { data: orderRow, error: oErr } = await supa
         .from("orders")
         .insert({
@@ -166,8 +168,8 @@ async function materializeDue(supa: any, siteUrl: string, dry: boolean) {
           notes: snap.notes || null,
           destination_area_id: snap.destination_area_id || null,
           subtotal_idr: total,
-          shipping_cost_idr: 0,
-          total_idr: total,
+          shipping_cost_idr: deliveryFee,
+          total_idr: total + deliveryFee,
           midtrans_order_id: midOrderId,
           payment_status: "PAID",
           paid_at: new Date().toISOString(),

@@ -82,6 +82,10 @@ export default function HelpPage() {
             Anytime, from <Link href="/account/subscription" style={{ color: COLORS.blue, fontWeight: 700 }}>My Subscription</Link>:
             skip the next box, pause/resume, edit your cookies, frequency or address, add more boxes, or cancel.
           </QA>
+          <QA q="Is delivery free?">
+            <b>Pickup is free.</b> <b>Same-day delivery is a flat Rp15.000 per box</b>, prepaid with your plan — so the
+            price never changes between boxes. (Your plan total already includes it.)
+          </QA>
           <QA q="What if I'm away on a delivery day?">
             We WhatsApp you <b>2 days and 1 day before</b> every box to confirm you're in town. If anything's changed, just skip
             or reschedule that box from My Subscription.

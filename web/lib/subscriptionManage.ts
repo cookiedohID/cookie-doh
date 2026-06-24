@@ -5,7 +5,7 @@
 // — remaining = sum(boxes_total - boxes_used) over PAID plans. Refund on cancel is
 // that remaining × the box price.
 import {
-  nextDeliveryDate, subBoxPrice, todayIso, addDays, FIRST_BOX_LEAD_DAYS,
+  nextDeliveryDate, subBoxPrice, subDeliveryFeePerBox, todayIso, addDays, FIRST_BOX_LEAD_DAYS,
   normalizeFixedFlavours, fixedFlavoursValid, isValidFrequency, isValidMode,
   type SubFrequency,
 } from "@/lib/subscriptions";
@@ -112,7 +112,10 @@ export async function resume(supabase: any, sub: any): Promise<Result> {
 export async function cancel(supabase: any, sub: any): Promise<Result> {
   if (sub.status === "cancelled") return { ok: false, error: "Already cancelled.", status: 400 };
   const cap = await remainingCapacity(supabase, sub.id);
-  const refund = cap * subBoxPrice(sub.box_size);
+  // Refund the unused boxes at what they actually prepaid: cookies + (delivery fee
+  // for delivery subscriptions). Pickup subs prepaid no delivery.
+  const perBox = subBoxPrice(sub.box_size) + (sub.fulfilment === "delivery" ? subDeliveryFeePerBox(sub.box_size) : 0);
+  const refund = cap * perBox;
   await cancelScheduled(supabase, sub.id);
   await supabase.from("subscriptions")
     .update({

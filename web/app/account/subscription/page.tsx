@@ -13,7 +13,7 @@ import { FLAVORS } from "@/lib/catalog";
 import { COLORS, RADIUS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import {
-  SUB_PLAN_BOX_OPTIONS, SUB_FREQUENCIES, FREQUENCY_LABEL, subPlanAmount, subBoxPrice,
+  SUB_PLAN_BOX_OPTIONS, SUB_FREQUENCIES, FREQUENCY_LABEL, subPlanGrandTotal, subBoxPrice,
   type SubFrequency, type SubMode,
 } from "@/lib/subscriptions";
 
@@ -245,7 +245,7 @@ export default function MySubscriptionPage() {
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {SUB_PLAN_BOX_OPTIONS.map((n) => (
                         <button key={n} onClick={() => renew(sub, n)} disabled={busy} style={btnBase(true, false, false)}>
-                          {n} boxes · {rp(subPlanAmount(sub.box_size, n))}
+                          {n} boxes · {rp(subPlanGrandTotal(sub.box_size, n, sub.fulfilment))}
                         </button>
                       ))}
                       <button onClick={() => setRenewing(null)} style={btnBase(false, false, false)}>Cancel</button>

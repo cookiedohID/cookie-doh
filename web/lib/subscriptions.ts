@@ -31,11 +31,27 @@ export function subBoxPrice(boxSize: number): number {
   return (BOX_PRICES as Record<number, number>)[boxSize] ?? 0;
 }
 
-// What one prepaid plan costs: N boxes × the normal box price. Server-authoritative;
-// the client never sends a price. (No subscription discount — the perk is the
-// "buy 6, get 1 free" bonus cookies, applied at fulfilment.)
+// What N boxes of cookies cost (no delivery). Server-authoritative; the client
+// never sends a price. (No subscription discount — the perk is "buy 6, get 1 free".)
 export function subPlanAmount(boxSize: number, boxes: number): number {
   return subBoxPrice(boxSize) * boxes;
+}
+
+// Delivery: flat Rp15.000 per box for same-day delivery, waived for any box at/above
+// the Rp300.000 free-delivery threshold (today's 90k/180k boxes are always under it,
+// so delivery boxes always pay the flat fee). Pickup is always free.
+export const SUB_DELIVERY_FEE = 15000;
+export const SUB_FREE_DELIVERY_THRESHOLD = 300000;
+export function subDeliveryFeePerBox(boxSize: number): number {
+  return subBoxPrice(boxSize) >= SUB_FREE_DELIVERY_THRESHOLD ? 0 : SUB_DELIVERY_FEE;
+}
+// Total delivery charged for a plan (0 for pickup).
+export function subPlanDelivery(boxSize: number, boxes: number, fulfilment: SubFulfilment): number {
+  return fulfilment === "delivery" ? subDeliveryFeePerBox(boxSize) * boxes : 0;
+}
+// Grand total the customer prepays: cookies + delivery.
+export function subPlanGrandTotal(boxSize: number, boxes: number, fulfilment: SubFulfilment): number {
+  return subPlanAmount(boxSize, boxes) + subPlanDelivery(boxSize, boxes, fulfilment);
 }
 
 // Subscription reward = "buy 6, get 1 free": one free cookie for every 6 cookies

@@ -14,7 +14,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createSnapToken, midtransEnv } from "@/lib/midtrans";
 import { canonicalPhone } from "@/lib/phone";
 import {
-  subPlanAmount, makeSubOrderId, isValidBoxSize, isValidPlanBoxes, isValidFrequency, isValidMode,
+  subPlanGrandTotal, makeSubOrderId, isValidBoxSize, isValidPlanBoxes, isValidFrequency, isValidMode,
   normalizeFixedFlavours, fixedFlavoursValid, type SubFulfilment,
 } from "@/lib/subscriptions";
 
@@ -89,12 +89,13 @@ export async function POST(req: Request) {
     let boxSize: number;
     let descMode = "";
     let descFreq = "";
+    let fulfilmentForFee: SubFulfilment = "delivery";
     const renewId = String(body?.renew_subscription_id || "").trim();
 
     if (renewId) {
       const { data: existing } = await supabase
         .from("subscriptions")
-        .select("id, owner_phone, auth_user_id, box_size, mode, frequency, status")
+        .select("id, owner_phone, auth_user_id, box_size, mode, frequency, status, fulfilment")
         .eq("id", renewId)
         .maybeSingle();
       if (!existing) return NextResponse.json({ ok: false, error: "Subscription not found." }, { status: 404 });
@@ -107,11 +108,13 @@ export async function POST(req: Request) {
       boxSize = Number(existing.box_size);
       descMode = existing.mode;
       descFreq = existing.frequency;
+      fulfilmentForFee = existing.fulfilment === "pickup" ? "pickup" : "delivery";
     } else {
       boxSize = Number(body?.box_size);
       const frequency = String(body?.frequency || "");
       const mode = String(body?.mode || "");
       const fulfilment: SubFulfilment = body?.fulfilment === "pickup" ? "pickup" : "delivery";
+      fulfilmentForFee = fulfilment;
 
       if (!isValidBoxSize(boxSize)) return NextResponse.json({ ok: false, error: "Choose a box of 3 or 6." }, { status: 400 });
       if (!isValidFrequency(frequency)) return NextResponse.json({ ok: false, error: "Choose a delivery frequency." }, { status: 400 });
@@ -161,8 +164,8 @@ export async function POST(req: Request) {
 
     if (!isValidBoxSize(boxSize)) return NextResponse.json({ ok: false, error: "Invalid box size." }, { status: 400 });
 
-    // ---- Server-authoritative amount ----
-    const amount = subPlanAmount(boxSize, boxes);
+    // ---- Server-authoritative amount (cookies + delivery; pickup = no delivery) ----
+    const amount = subPlanGrandTotal(boxSize, boxes, fulfilmentForFee);
     if (amount < 1) return NextResponse.json({ ok: false, error: "Invalid plan." }, { status: 400 });
 
     // ---- Plan row (server-generated order id; PENDING until webhook) ----
