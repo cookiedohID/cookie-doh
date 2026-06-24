@@ -104,6 +104,7 @@ export default function HelpPage() {
           </QA>
           <QA q="Do I get anything on my birthday?">
             Yes! Add your birthday (month + day) in your account and we'll surprise you with a free cookie every year.
+            You can only <b>set it once</b> (it locks after saving), so double-check the date — message us if it needs fixing.
           </QA>
           <QA q="How do I use a promo code?">Enter it in the “Promo code” box at checkout and tap Apply — the discount shows before you pay.</QA>
           <QA q="A flavour I want is sold out.">

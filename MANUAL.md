@@ -112,6 +112,9 @@ Open **`/cafe`** on the in-store tablet/register — a **full-screen kiosk** (st
   they read it to staff to confirm — so rewards can't be redeemed without the member present.
   A **free-reward picker** limits choices to what they actually have. **Free-only redemptions are
   allowed** (no purchase required).
+- **Subscription rewards in-store:** if the member has a **🔁 subscription reward** (buy 6, get 1
+  free), staff tap **Use subscription reward** (same WhatsApp-OTP confirmation) and pick the flavour —
+  it's added free. This draws the **separate** subscription pool, not the buy-10 loyalty.
 - **Checkout** — review, charge by **QRIS**, prints, returns to start (also after ~5 min idle).
 
 ---

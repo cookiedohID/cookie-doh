@@ -77,8 +77,10 @@ export default function AdminHelpPage() {
           <p style={p}>At <span style={code}>/admin/subscriptions</span> — prepaid repeating cookie boxes.</p>
           <ul style={{ paddingLeft: 18 }}>
             <li style={li}>KPIs: active, <b>due in ≤3 days</b>, <b>refunds owed</b>, needs attention.</li>
-            <li style={li}>The <b>autopilot</b> runs at 07:00 WIB: each box due today becomes a normal paid order (+ a free bonus cookie), and customers get D-2/D-1 "still in town?" reminders. Use <b>Run autopilot now</b> to trigger it manually.</li>
-            <li style={li}>When a customer cancels, any <b>unused prepaid boxes are refunded</b> — pay it out and press <b>Mark refunded</b>.</li>
+            <li style={li}>The <b>autopilot</b> runs at 07:00 WIB: each box due today becomes a normal paid order, and customers get D-2/D-1 "still in town?" reminders. Use <b>Run autopilot now</b> to trigger it manually.</li>
+            <li style={li}><b>Reward — "buy 6, get 1 free":</b> every 6 cookies a subscriber receives earns 1 free cookie, kept as a <b>separate redeemable balance</b> (NOT the regular buy-10 loyalty). The member picks the flavour and redeems it to their next box <i>or</i> at checkout / the <b>cafe</b>. In the cafe, look up the member — if they have a 🔁 subscription reward, tap <b>Use subscription reward</b> (member OTP required, like any reward), then pick the flavour.</li>
+            <li style={li}><b>Delivery:</b> subscriptions charge a flat <b>Rp15.000/box</b> for same-day delivery, prepaid in the plan; <b>pickup is free</b>. Each box ships like a normal paid order.</li>
+            <li style={li}>When a customer cancels, any <b>unused prepaid boxes are refunded</b> (cookies + delivery) — pay it out and press <b>Mark refunded</b>.</li>
             <li style={li}>The <b>reconcile</b> list shows the rare "made but no order" case to fix by hand.</li>
           </ul>
         </Section>
@@ -134,7 +136,7 @@ export default function AdminHelpPage() {
           <h3 style={h3}>Referrals — give a cookie, get a cookie</h3>
           <p style={p}>Members have a "Refer a friend" link in their account. When a <b>new</b> customer orders their <b>first box of 6+</b> with that link, <b>both</b> get a free cookie (a refund of that order reverses it). The daily digest flags unusual referral activity.</p>
           <h3 style={h3}>Birthday rewards</h3>
-          <p style={p}>Members set a month + day in their account; each morning the system grants a free birthday cookie and sends a birthday WhatsApp.</p>
+          <p style={p}>Members set a month + day in their account; each morning the system grants a free birthday cookie and sends a birthday WhatsApp. The birthday is <b>set-once and locked</b> after saving (so it can't be edited each month to farm the reward) — a genuine mistake can be corrected in the customer record.</p>
           <h3 style={h3}>Back-in-stock alerts</h3>
           <p style={p}>On a sold-out flavour, customers tap "Notify me when back". When you mark that flavour available again in <b>Inventory</b>, everyone subscribed gets a WhatsApp.</p>
         </Section>

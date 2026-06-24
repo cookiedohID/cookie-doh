@@ -21,7 +21,7 @@ type MenuItem = {
   id: string; name: string; image?: string; price: number; kind: Kind;
   description?: string; ingredients?: string[]; allergens?: string;
 };
-type Line = { item: MenuItem; qty: number; free?: boolean };
+type Line = { item: MenuItem; qty: number; free?: boolean; subReward?: boolean };
 
 export default function CafePOS() {
   const router = useRouter();
@@ -29,15 +29,16 @@ export default function CafePOS() {
   const [memberPhone, setMemberPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [rewards, setRewards] = useState<{ name: string | null; freeCookies: number; freeDrinks: number; cookieStamps: number; drinkStamps: number } | null>(null);
+  const [rewards, setRewards] = useState<{ name: string | null; freeCookies: number; freeDrinks: number; cookieStamps: number; drinkStamps: number; subRewardAvailable: number } | null>(null);
   const [redeemKind, setRedeemKind] = useState<Kind | null>(null);
+  const [pendingSubRedeem, setPendingSubRedeem] = useState(false);
   // Redemption requires an OTP the MEMBER receives on WhatsApp — so staff can't
   // redeem someone's rewards without the member approving. Verified per order.
   const [redeemVerified, setRedeemVerified] = useState(false);
   const [otp, setOtp] = useState<{ open: boolean; code: string; busy: boolean; note: string; sent: boolean }>({ open: false, code: "", busy: false, note: "", sent: false });
   // Free-reward picker: a focused popup showing only single cookies/drinks,
   // capped at the member's free quantity (no hunting through the full menu).
-  const [freePicker, setFreePicker] = useState<{ open: boolean; kind: Kind | null }>({ open: false, kind: null });
+  const [freePicker, setFreePicker] = useState<{ open: boolean; kind: Kind | null; mode?: "loyalty" | "sub" }>({ open: false, kind: null });
   const [pendingRedeemKind, setPendingRedeemKind] = useState<Kind | null>(null);
   const [detail, setDetail] = useState<MenuItem | null>(null);
   // Boxes: pick any N cookies at the box price.
@@ -142,9 +143,12 @@ export default function CafePOS() {
   const bundleCookieCount = bundleBuild ? Object.values(bundleBuild.cookiePicks).reduce((s, v) => s + v.qty, 0) : 0;
   const bundleDrinkCount = bundleBuild ? Object.values(bundleBuild.drinkPicks).reduce((s, v) => s + v.qty, 0) : 0;
 
-  const usedFree = (kind: Kind) => lines.filter((l) => l.free && l.item.kind === kind).reduce((s, l) => s + l.qty, 0);
+  const usedFree = (kind: Kind) => lines.filter((l) => l.free && !l.subReward && l.item.kind === kind).reduce((s, l) => s + l.qty, 0);
   const remainingFree = (kind: Kind) =>
     Math.max(0, (kind === "cookie" ? rewards?.freeCookies || 0 : rewards?.freeDrinks || 0) - usedFree(kind));
+  // Subscription reward pool (separate, cookies only).
+  const usedSubReward = lines.filter((l) => l.subReward).reduce((s, l) => s + l.qty, 0);
+  const remainingSubReward = Math.max(0, (rewards?.subRewardAvailable || 0) - usedSubReward);
 
   // Printer calibration / print preview: ?calibrate=1 shows the 3 docs (no payment).
   useEffect(() => {
@@ -258,7 +262,7 @@ export default function CafePOS() {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: memberPhone }),
     }).then((x) => x.json()).catch(() => null);
     if (r?.ok) {
-      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0 });
+      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0, subRewardAvailable: r.subRewardAvailable ?? 0 });
       setErr("");
     } else {
       setRewards(null);
@@ -282,7 +286,7 @@ export default function CafePOS() {
     }).then((x) => x.json()).catch(() => null);
     if (r?.ok) {
       if (r.phone) setMemberPhone(r.phone);
-      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0 });
+      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0, subRewardAvailable: r.subRewardAvailable ?? 0 });
       setErr("");
     } else {
       setErr(r?.error || "Member not found for that QR.");
@@ -293,11 +297,11 @@ export default function CafePOS() {
   function clearMember() {
     setMemberPhone(""); setRewards(null); setRedeemKind(null); setRedeemVerified(false);
     setOtp({ open: false, code: "", busy: false, note: "", sent: false });
-    setFreePicker({ open: false, kind: null }); setPendingRedeemKind(null);
+    setFreePicker({ open: false, kind: null }); setPendingRedeemKind(null); setPendingSubRedeem(false);
     setCart((c) => Object.fromEntries(Object.entries(c).filter(([, l]) => !l.free)));
   }
 
-  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setRedeemVerified(false); setOtp({ open: false, code: "", busy: false, note: "", sent: false }); setFreePicker({ open: false, kind: null }); setPendingRedeemKind(null); setBoxes([]); setBundles([]); setBundleBuild(null); setReview(false); }
+  function reset() { setCart({}); setMemberPhone(""); setRewards(null); setRedeemKind(null); setRedeemVerified(false); setOtp({ open: false, code: "", busy: false, note: "", sent: false }); setFreePicker({ open: false, kind: null }); setPendingRedeemKind(null); setPendingSubRedeem(false); setBoxes([]); setBundles([]); setBundleBuild(null); setReview(false); }
 
   // Redemption OTP: send a code to the member's WhatsApp, then verify it before
   // any free reward can be applied.
@@ -318,27 +322,37 @@ export default function CafePOS() {
     if (r?.ok) {
       setRedeemVerified(true);
       setOtp({ open: false, code: "", busy: false, note: "", sent: false });
-      if (pendingRedeemKind) { setFreePicker({ open: true, kind: pendingRedeemKind }); setPendingRedeemKind(null); }
+      if (pendingRedeemKind) { setFreePicker({ open: true, kind: pendingRedeemKind, mode: "loyalty" }); setPendingRedeemKind(null); }
+      else if (pendingSubRedeem) { setFreePicker({ open: true, kind: "cookie", mode: "sub" }); setPendingSubRedeem(false); }
     } else setOtp((o) => ({ ...o, busy: false, note: r?.error || "Incorrect code." }));
   }
   // Staff taps "Use free X" — require the member's WhatsApp OTP first, then open
   // a focused picker (capped at the free quantity).
   function requestRedeem(kind: Kind) {
     if (!redeemVerified) { setPendingRedeemKind(kind); setOtp({ open: true, code: "", busy: false, note: "", sent: false }); return; }
-    setFreePicker({ open: true, kind });
+    setFreePicker({ open: true, kind, mode: "loyalty" });
+  }
+  // Staff taps "Use subscription reward" — same OTP gate, then a cookie picker.
+  function requestSubRedeem() {
+    if (!redeemVerified) { setPendingSubRedeem(true); setOtp({ open: true, code: "", busy: false, note: "", sent: false }); return; }
+    setFreePicker({ open: true, kind: "cookie", mode: "sub" });
   }
 
   // Add/remove a free item from the picker, capped at the member's available count.
+  // mode "sub" draws the separate subscription reward pool (cookies only).
   function bumpFree(item: MenuItem, d: number) {
-    const key = `free:${item.kind}:${item.id}`;
+    const sub = freePicker.mode === "sub";
+    const key = sub ? `subreward:${item.id}` : `free:${item.kind}:${item.id}`;
     setCart((c) => {
-      const available = item.kind === "cookie" ? (rewards?.freeCookies || 0) : (rewards?.freeDrinks || 0);
-      const usedNow = Object.values(c).filter((l: any) => l.free && l.item.kind === item.kind).reduce((s: number, l: any) => s + l.qty, 0);
+      const available = sub
+        ? (rewards?.subRewardAvailable || 0)
+        : (item.kind === "cookie" ? (rewards?.freeCookies || 0) : (rewards?.freeDrinks || 0));
+      const usedNow = Object.values(c).filter((l: any) => sub ? l.subReward : (l.free && !l.subReward && l.item.kind === item.kind)).reduce((s: number, l: any) => s + l.qty, 0);
       if (d > 0 && usedNow >= available) return c; // at the free limit
       const next = Math.max(0, (c[key]?.qty || 0) + d);
       const out: any = { ...c };
       if (next <= 0) delete out[key];
-      else out[key] = { item, qty: next, free: true };
+      else out[key] = sub ? { item, qty: next, free: true, subReward: true } : { item, qty: next, free: true };
       return out;
     });
   }
@@ -570,7 +584,7 @@ export default function CafePOS() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: lines.map((l) => ({ id: l.item.id, name: l.item.name, kind: l.item.kind, price: l.free ? 0 : l.item.price, quantity: l.qty, free: !!l.free })),
+          items: lines.map((l) => ({ id: l.item.id, name: l.item.name, kind: l.item.kind, price: l.free ? 0 : l.item.price, quantity: l.qty, free: !!l.free, subReward: !!l.subReward })),
           boxes: boxes.map((b) => ({ size: b.size, items: b.items.map((it) => ({ id: it.id, name: it.name, qty: it.qty })) })),
           bundles: bundles.map((b) => ({ id: b.bundleId, cookies: b.cookies.map((c) => ({ id: c.id, name: c.name, qty: c.qty })), drinks: b.drinks.map((d) => ({ id: d.id, name: d.name, qty: d.qty })) })),
           memberPhone: memberPhone || undefined,
@@ -726,6 +740,7 @@ export default function CafePOS() {
                 <span style={welcomeChip}>🥤 {rewards.drinkStamps}/10</span>
                 {rewards.freeCookies > 0 ? <span style={welcomeFree}>🎁 {rewards.freeCookies} free cookie ready</span> : null}
                 {rewards.freeDrinks > 0 ? <span style={welcomeFree}>🎁 {rewards.freeDrinks} free drink ready</span> : null}
+                {rewards.subRewardAvailable > 0 ? <span style={{ ...welcomeFree, background: "#FFF0E0", color: COLORS.orange }}>🔁 {rewards.subRewardAvailable} subscription reward</span> : null}
               </span>
               <button onClick={clearMember} style={{ marginLeft: "auto", border: "1px solid rgba(0,0,0,0.18)", background: "#fff", color: COLORS.muted, fontWeight: 800, fontSize: 13, padding: "7px 14px", borderRadius: 999, cursor: "pointer" }}>Not you? ✕</button>
             </div>
@@ -1144,6 +1159,17 @@ export default function CafePOS() {
             </div>
           ) : null}
 
+          {rewards && remainingSubReward > 0 ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.orange }}>
+                🔁 {remainingSubReward} subscription reward cookie{remainingSubReward !== 1 ? "s" : ""} (buy 6, get 1 free)
+              </span>
+              <button onClick={requestSubRedeem} style={{ ...rewardBtn(false), borderColor: COLORS.orange, color: COLORS.orange }}>
+                {redeemVerified ? "Use subscription reward" : "🔒 Use subscription reward"}
+              </button>
+            </div>
+          ) : null}
+
           <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: lines.length ? 4 : 0 }}>
             {rewards ? (
               // Member locked in — show who it is + a Cancel to clear (no editable
@@ -1200,22 +1226,23 @@ export default function CafePOS() {
 
       {/* Free-reward picker — only the relevant single items, capped at the free quantity */}
       {freePicker.open && freePicker.kind ? (() => {
+        const sub = freePicker.mode === "sub";
         const kind = freePicker.kind as Kind;
         const itemsForKind = kind === "cookie" ? cookies : drinks;
-        const available = kind === "cookie" ? (rewards?.freeCookies || 0) : (rewards?.freeDrinks || 0);
-        const used = usedFree(kind);
+        const available = sub ? (rewards?.subRewardAvailable || 0) : (kind === "cookie" ? (rewards?.freeCookies || 0) : (rewards?.freeDrinks || 0));
+        const used = sub ? usedSubReward : usedFree(kind);
         const atLimit = used >= available;
         return (
           <div onClick={() => setFreePicker({ open: false, kind: null })} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 55, display: "grid", placeItems: "center", padding: 16 }}>
             <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 600, maxHeight: "86vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
               <div style={{ padding: 18, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
-                <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.black }}>🎁 Choose your free {kind === "cookie" ? "cookies" : "drinks"}</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.black }}>{sub ? "🔁 Choose your subscription reward cookie" : `🎁 Choose your free ${kind === "cookie" ? "cookies" : "drinks"}`}</div>
                 <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted }}>{used}/{available} chosen — pick your flavour{available > 1 ? "s" : ""}.</div>
               </div>
               <div style={{ padding: 14, overflowY: "auto", flex: 1 }}>
                 <div className="cd-picker" style={{ alignItems: "start" }}>
                   {itemsForKind.map((it) => {
-                    const qty = cart[`free:${kind}:${it.id}`]?.qty || 0;
+                    const qty = cart[sub ? `subreward:${it.id}` : `free:${kind}:${it.id}`]?.qty || 0;
                     return (
                       <div key={it.id} style={{ border: qty > 0 ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", borderRadius: 14, overflow: "hidden", background: "#fff" }}>
                         <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: "#f3f0ea" }}>
@@ -1236,7 +1263,7 @@ export default function CafePOS() {
                 </div>
               </div>
               <div style={{ padding: 14, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
-                <button onClick={() => setFreePicker({ open: false, kind: null })} style={{ width: "100%", height: 50, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 16, cursor: "pointer" }}>Done · {used} free {kind === "cookie" ? "cookie" : "drink"}{used !== 1 ? "s" : ""} added</button>
+                <button onClick={() => setFreePicker({ open: false, kind: null })} style={{ width: "100%", height: 50, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, fontSize: 16, cursor: "pointer" }}>Done · {used} {sub ? "reward cookie" : kind === "cookie" ? "free cookie" : "free drink"}{used !== 1 ? "s" : ""} added</button>
               </div>
             </div>
           </div>

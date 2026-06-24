@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { canonicalPhone, phoneSignificant } from "@/lib/phone";
 import { loyaltyFromOrders } from "@/lib/loyalty";
 import { grantsForPhone } from "@/lib/loyaltyGrants";
+import { subscriptionRewardBalance } from "@/lib/subscriptionRewards";
 
 export const runtime = "nodejs";
 
@@ -56,6 +57,9 @@ export async function POST(req: Request) {
     const loyalty = await loyaltyForPhone(supa, phone);
     if (!loyalty) return NextResponse.json({ ok: false, error: "No history" }, { status: 200 });
 
+    // Separate, redeemable subscription reward pool ("buy 6, get 1 free").
+    const subReward = await subscriptionRewardBalance(supa, phone);
+
     return NextResponse.json({
       ok: true,
       phone, // returned so the POS can use it for redemption + checkout after a scan
@@ -64,6 +68,7 @@ export async function POST(req: Request) {
       freeDrinks: loyalty.freeDrinks,
       cookieStamps: loyalty.cookieStamps,
       drinkStamps: loyalty.drinkStamps,
+      subRewardAvailable: subReward.available,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });

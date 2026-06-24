@@ -6,6 +6,7 @@ import { notifyNewOrder } from "@/lib/notify";
 import { decrementStockForOrder } from "@/lib/stock";
 import { canonicalPhone } from "@/lib/phone";
 import { loyaltyForPhone } from "@/app/api/loyalty/lookup/route";
+import { subscriptionRewardBalance } from "@/lib/subscriptionRewards";
 import { FLAVORS, BOX_PRICES } from "@/lib/catalog";
 import { SMOOTHIES, SMOOTHIE_PRICE } from "@/lib/smoothies";
 import { getBundle } from "@/lib/bundles";
@@ -43,7 +44,8 @@ export async function POST(req: Request) {
         let kind: "cookie" | "drink" | null =
           inCookie && !inDrink ? "cookie" : inDrink && !inCookie ? "drink" : null;
         if (!kind && inCookie && inDrink) kind = it?.kind === "drink" ? "drink" : "cookie";
-        const free = it?.free === true;
+        const subReward = it?.subReward === true;
+        const free = it?.free === true || subReward; // a subscription reward is free
         const unit = kind === "drink" ? SMOOTHIE_PRICE : CAFE_COOKIE_PRICE;
         return {
           id,
@@ -52,6 +54,7 @@ export async function POST(req: Request) {
           price: free ? 0 : unit, // never trust client price
           quantity: Math.max(1, Math.round(Number(it?.quantity) || 1)),
           free,
+          ...(subReward ? { subReward: true } : {}),
         };
       })
       .filter((it: any) => it.id && it.kind); // drop unknown ids
@@ -115,14 +118,26 @@ export async function POST(req: Request) {
     const midtransOrderId = `CDC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // Server-side reward check: free lines must be backed by real available rewards.
+    // Regular loyalty rewards and subscription rewards are SEPARATE pools — subReward
+    // lines (also free+cookie) are excluded here and validated against the sub pool.
     const supaCheck = supaAdmin();
-    const freeCookies = allItems.filter((i: any) => i.free && i.kind === "cookie").reduce((s: number, i: any) => s + i.quantity, 0);
-    const freeDrinks = allItems.filter((i: any) => i.free && i.kind === "drink").reduce((s: number, i: any) => s + i.quantity, 0);
+    const freeCookies = allItems.filter((i: any) => i.free && i.kind === "cookie" && !i.subReward).reduce((s: number, i: any) => s + i.quantity, 0);
+    const freeDrinks = allItems.filter((i: any) => i.free && i.kind === "drink" && !i.subReward).reduce((s: number, i: any) => s + i.quantity, 0);
+    const subRewardCookies = allItems.filter((i: any) => i.subReward && i.kind === "cookie").reduce((s: number, i: any) => s + i.quantity, 0);
 
     // A Rp0 cart is allowed only if it's a pure free-reward redemption.
     const isFreeOnly = total <= 0;
-    if (isFreeOnly && freeCookies === 0 && freeDrinks === 0) {
+    if (isFreeOnly && freeCookies === 0 && freeDrinks === 0 && subRewardCookies === 0) {
       return NextResponse.json({ ok: false, error: "Add at least one item." }, { status: 400 });
+    }
+
+    // Subscription reward redemption (separate "buy 6, get 1 free" pool).
+    if (subRewardCookies > 0) {
+      if (!memberPhone) return NextResponse.json({ ok: false, error: "Member phone required to use rewards." }, { status: 400 });
+      const bal = await subscriptionRewardBalance(supaCheck, memberPhone);
+      if (subRewardCookies > bal.available) {
+        return NextResponse.json({ ok: false, error: "Not enough subscription reward cookies for this member." }, { status: 400 });
+      }
     }
 
     if (freeCookies || freeDrinks) {
