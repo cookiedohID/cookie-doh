@@ -29,6 +29,7 @@ export default function AccountPage() {
   const [bdayDay, setBdayDay] = useState("");
   const [bdaySaved, setBdaySaved] = useState(false);
   const [bdayBusy, setBdayBusy] = useState(false);
+  const [bdayErr, setBdayErr] = useState("");
   const [needsPhone, setNeedsPhone] = useState(false);
   const [phone, setPhone] = useState("");
   const [otpStep, setOtpStep] = useState<"phone" | "code">("phone");
@@ -98,6 +99,7 @@ export default function AccountPage() {
     if (!bdayMonth || !bdayDay) return;
     setBdayBusy(true);
     setBdaySaved(false);
+    setBdayErr("");
     try {
       const t = await token();
       const res = await fetch("/api/account/birthday", {
@@ -106,7 +108,14 @@ export default function AccountPage() {
         body: JSON.stringify({ birthday: `${bdayMonth}-${bdayDay}` }),
       });
       const j = await res.json().catch(() => ({}));
-      if (j?.ok) setBdaySaved(true);
+      if (j?.ok) {
+        setBdaySaved(true);
+        await load(); // refresh so the section flips to the locked view
+      } else {
+        setBdayErr(j?.error || "Couldn't save your birthday. Please try again.");
+      }
+    } catch {
+      setBdayErr("Couldn't save your birthday. Please check your connection.");
     } finally {
       setBdayBusy(false);
     }
@@ -304,23 +313,41 @@ export default function AccountPage() {
           Every cookie &amp; drink you buy earns a stamp — singles, boxes, assortments &amp; bundles. Only redeemed free rewards don&apos;t.
         </p>
 
-        {/* Birthday */}
+        {/* Birthday — set once, then locked (so it can't be edited to farm the reward) */}
         <div style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
           <div style={{ fontWeight: 800, color: COLORS.black, fontSize: 16 }}>🎂 Your birthday</div>
-          <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>Add it once and we'll surprise you with a free cookie every year 🍪</div>
-          <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
-            <select value={bdayMonth} onChange={(e) => { setBdayMonth(e.target.value); setBdaySaved(false); }} style={{ flex: 1, minWidth: 0, padding: "10px 11px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.18)", fontSize: 14, background: "#fff" }}>
-              <option value="">Month</option>
-              {MONTHS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, "0")}>{m}</option>)}
-            </select>
-            <select value={bdayDay} onChange={(e) => { setBdayDay(e.target.value); setBdaySaved(false); }} style={{ flex: 1, minWidth: 0, padding: "10px 11px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.18)", fontSize: 14, background: "#fff" }}>
-              <option value="">Day</option>
-              {Array.from({ length: 31 }).map((_, i) => <option key={i} value={String(i + 1).padStart(2, "0")}>{i + 1}</option>)}
-            </select>
-            <button onClick={saveBirthday} disabled={bdayBusy || !bdayMonth || !bdayDay} style={{ border: "none", background: bdaySaved ? "#1d9e75" : COLORS.blue, color: "#fff", borderRadius: 10, padding: "0 16px", fontWeight: 800, fontSize: 13, cursor: bdayBusy || !bdayMonth || !bdayDay ? "not-allowed" : "pointer", height: 40, flex: "0 0 auto" }}>
-              {bdayBusy ? "…" : bdaySaved ? "Saved ✓" : "Save"}
-            </button>
-          </div>
+          {member.birthday ? (
+            <>
+              <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>
+                Saved — we'll surprise you with a free cookie every year 🍪
+              </div>
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ flex: 1, padding: "10px 12px", borderRadius: 10, background: "#F4F2EE", fontWeight: 800, color: COLORS.black }}>
+                  {(() => { const [m, d] = member.birthday!.split("-"); return `${MONTHS[Number(m) - 1] || m} ${Number(d)}`; })()}
+                </div>
+                <span style={{ fontSize: 12, color: COLORS.muted, fontWeight: 700, whiteSpace: "nowrap" }}>🔒 Locked</span>
+              </div>
+              <div style={{ marginTop: 8, fontSize: 12, color: COLORS.muted }}>Set once and can't be changed. Message us if it needs fixing.</div>
+            </>
+          ) : (
+            <>
+              <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>Add it once and we'll surprise you with a free cookie every year 🍪 <b>You can only set this once</b>, so double-check the date.</div>
+              <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
+                <select value={bdayMonth} onChange={(e) => { setBdayMonth(e.target.value); setBdaySaved(false); }} style={{ flex: 1, minWidth: 0, padding: "10px 11px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.18)", fontSize: 14, background: "#fff" }}>
+                  <option value="">Month</option>
+                  {MONTHS.map((m, i) => <option key={m} value={String(i + 1).padStart(2, "0")}>{m}</option>)}
+                </select>
+                <select value={bdayDay} onChange={(e) => { setBdayDay(e.target.value); setBdaySaved(false); }} style={{ flex: 1, minWidth: 0, padding: "10px 11px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.18)", fontSize: 14, background: "#fff" }}>
+                  <option value="">Day</option>
+                  {Array.from({ length: 31 }).map((_, i) => <option key={i} value={String(i + 1).padStart(2, "0")}>{i + 1}</option>)}
+                </select>
+                <button onClick={saveBirthday} disabled={bdayBusy || !bdayMonth || !bdayDay} style={{ border: "none", background: bdaySaved ? "#1d9e75" : COLORS.blue, color: "#fff", borderRadius: 10, padding: "0 16px", fontWeight: 800, fontSize: 13, cursor: bdayBusy || !bdayMonth || !bdayDay ? "not-allowed" : "pointer", height: 40, flex: "0 0 auto" }}>
+                  {bdayBusy ? "…" : bdaySaved ? "Saved ✓" : "Save"}
+                </button>
+              </div>
+              {bdayErr ? <div style={{ marginTop: 8, fontSize: 13, color: "crimson", fontWeight: 700 }}>{bdayErr}</div> : null}
+            </>
+          )}
         </div>
 
         {/* Refer a friend */}
