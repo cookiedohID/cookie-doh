@@ -432,7 +432,7 @@ export default function HomePage() {
             <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>Cookies on repeat 🔁</h2>
             <p style={{ margin: "8px 0 0", fontSize: 16, lineHeight: 1.5, opacity: 0.95 }}>
               Subscribe to a box of 3 or 6 — fixed favourites or a curated surprise, delivered weekly,
-              fortnightly or monthly. Prepay a plan and get a <b>free bonus cookie in every box</b>. Skip,
+              fortnightly or monthly. Prepay a plan and earn <b>free cookies — buy 6, get 1 free</b>. Skip,
               pause or cancel anytime.
             </p>
           </div>

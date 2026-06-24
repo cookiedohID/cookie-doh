@@ -32,10 +32,17 @@ export function subBoxPrice(boxSize: number): number {
 }
 
 // What one prepaid plan costs: N boxes × the normal box price. Server-authoritative;
-// the client never sends a price. (No subscription discount today — the perk is the
-// bonus free cookie in every box, applied at fulfilment.)
+// the client never sends a price. (No subscription discount — the perk is the
+// "buy 6, get 1 free" bonus cookies, applied at fulfilment.)
 export function subPlanAmount(boxSize: number, boxes: number): number {
   return subBoxPrice(boxSize) * boxes;
+}
+
+// Subscription reward = "buy 6, get 1 free": one free cookie for every 6 cookies
+// received. Total free cookies over a plan of N boxes of `boxSize`.
+// Box of 6 → 1 per box; box of 3 → 1 per 2 boxes.
+export function subFreeCookies(boxSize: number, boxes: number): number {
+  return Math.floor((boxes * boxSize) / 6);
 }
 
 export function isValidBoxSize(n: unknown): n is 3 | 6 {

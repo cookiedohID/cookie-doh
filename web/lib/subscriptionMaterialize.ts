@@ -29,11 +29,13 @@ export function resolveBoxItems(sub: any, seq: number, inStock?: Set<string>) {
   const price = perCookiePrice(boxSize);
   const items: any[] = [];
 
+  // Subscription cookies are OUTSIDE the regular buy-10-get-1 points system
+  // (noLoyalty:true) — the subscription has its own "buy 6, get 1 free" reward.
   if (sub.mode === "fixed" && Array.isArray(sub.fixed_flavours) && sub.fixed_flavours.length) {
     for (const f of sub.fixed_flavours) {
       const qty = Math.max(0, Math.floor(Number(f.quantity || 0)));
       if (!qty) continue;
-      items.push({ id: String(f.id), name: String(f.name || NAME_BY_ID.get(f.id) || "Cookie"), price, quantity: qty, kind: "cookie" });
+      items.push({ id: String(f.id), name: String(f.name || NAME_BY_ID.get(f.id) || "Cookie"), price, quantity: qty, kind: "cookie", noLoyalty: true });
     }
   } else {
     const pool = inStock ? AVAILABLE_COOKIES.filter((c) => inStock.has(c.id)) : AVAILABLE_COOKIES;
@@ -44,16 +46,21 @@ export function resolveBoxItems(sub: any, seq: number, inStock?: Set<string>) {
       chosen[c.id] = chosen[c.id] || { name: c.name, qty: 0 };
       chosen[c.id].qty++;
     }
-    for (const [id, v] of Object.entries(chosen)) items.push({ id, name: v.name, price, quantity: v.qty, kind: "cookie" });
+    for (const [id, v] of Object.entries(chosen)) items.push({ id, name: v.name, price, quantity: v.qty, kind: "cookie", noLoyalty: true });
   }
 
-  // +1 bonus free cookie — a GIFT on top. bonus:true makes the loyalty engine
-  // ignore it entirely (earns no stamp AND is not a redemption), so it never
-  // touches the customer's buy-10-get-1 balance.
-  const bonusPool = inStock ? AVAILABLE_COOKIES.filter((c) => inStock.has(c.id)) : AVAILABLE_COOKIES;
-  const bsrc = bonusPool.length ? bonusPool : AVAILABLE_COOKIES;
-  const bonus = bsrc[seq % bsrc.length];
-  items.push({ id: bonus.id, name: `${bonus.name} (bonus)`, price: 0, quantity: 1, kind: "cookie", free: true, bonus: true });
+  // "Buy 6, get 1 free" — one free cookie for every 6 cookies received, proportional
+  // across box sizes. Box of 6 → 1 free every box; box of 3 → 1 free every 2nd box.
+  // (seq is 1-based, box size is fixed, so cumulative cookies = seq × size.)
+  const bonusCount = Math.floor((seq * boxSize) / 6) - Math.floor(((seq - 1) * boxSize) / 6);
+  if (bonusCount > 0) {
+    const bonusPool = inStock ? AVAILABLE_COOKIES.filter((c) => inStock.has(c.id)) : AVAILABLE_COOKIES;
+    const bsrc = bonusPool.length ? bonusPool : AVAILABLE_COOKIES;
+    const bonus = bsrc[seq % bsrc.length];
+    // free:true + bonus:true + noLoyalty:true → a pure gift; the loyalty engine
+    // ignores it (no stamp earned, not a redemption).
+    items.push({ id: bonus.id, name: `${bonus.name} (free)`, price: 0, quantity: bonusCount, kind: "cookie", free: true, bonus: true, noLoyalty: true });
+  }
 
   const boxesText = items.map((it) => `• ${it.name} ×${it.quantity}${it.free ? " (free)" : ""}`).join("\n");
   return { items, boxesText, total: price * boxSize };

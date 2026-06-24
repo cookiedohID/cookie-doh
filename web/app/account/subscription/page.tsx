@@ -13,7 +13,7 @@ import { FLAVORS } from "@/lib/catalog";
 import { COLORS, RADIUS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import {
-  SUB_PLAN_BOX_OPTIONS, SUB_FREQUENCIES, FREQUENCY_LABEL, subPlanAmount, subBoxPrice,
+  SUB_PLAN_BOX_OPTIONS, SUB_FREQUENCIES, FREQUENCY_LABEL, subPlanAmount, subBoxPrice, subFreeCookies,
   type SubFrequency, type SubMode,
 } from "@/lib/subscriptions";
 
@@ -146,7 +146,7 @@ export default function MySubscriptionPage() {
         ) : subs.length === 0 ? (
           <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: 18, padding: 24, marginTop: 18, textAlign: "center" }}>
             <p style={{ fontWeight: 700, fontSize: 17, margin: "0 0 6px" }}>You don’t have a subscription yet</p>
-            <p style={{ color: COLORS.muted, margin: "0 0 16px" }}>Prepay a plan and get a free bonus cookie in every box.</p>
+            <p style={{ color: COLORS.muted, margin: "0 0 16px" }}>Prepay a plan — buy 6 cookies, get 1 free.</p>
             <a href="/subscribe" style={{ display: "inline-block", background: COLORS.orange, color: "#fff", fontWeight: 800, padding: "12px 24px", borderRadius: 999, textDecoration: "none" }}>
               Start a subscription
             </a>
@@ -178,7 +178,7 @@ export default function MySubscriptionPage() {
                 <div style={{ display: "flex", gap: 22, marginTop: 14, flexWrap: "wrap" }}>
                   <Stat label="Next box" value={sub.status === "active" ? fmtDate(nextScheduled?.scheduled_for || sub.next_delivery_on) : "—"} />
                   <Stat label="Boxes left" value={String(sub.remaining ?? 0)} />
-                  <Stat label="Free cookies" value={`+${sub.remaining ?? 0}`} accent={COLORS.orange} />
+                  <Stat label="Free cookies left" value={`+${subFreeCookies(sub.box_size, sub.remaining ?? 0)}`} accent={COLORS.orange} />
                 </div>
 
                 {/* refund note */}

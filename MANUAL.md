@@ -213,7 +213,7 @@ These run on their own (scheduled via **GitHub Actions**, hourly/daily):
 |-----|------|--------------|
 | **Abandoned-cart nudge** | Hourly | WhatsApps unpaid carts 1–12h old a "finish your order" link |
 | **Order-acceptance reminder** | Hourly | WhatsApps **you** the list of paid orders you haven't accepted yet (<24h old) until you accept them |
-| **Subscriptions autopilot** | 07:00 WIB | Turns each subscription box due today into a normal paid order (+ bonus cookie), sends **D-2 / D-1 "still in town?"** reminders, and clears stale unpaid plans |
+| **Subscriptions autopilot** | 07:00 WIB | Turns each subscription box due today into a normal paid order (adding any "buy 6, get 1 free" cookies), sends **D-2 / D-1 "still in town?"** reminders, and clears stale unpaid plans |
 | **Daily owner digest** | 08:00 WIB | WhatsApps **you** yesterday's sales, top sellers, per-store split, rewards redeemed, **low-stock list**, and referral activity |
 | **Birthday rewards** | 09:00 WIB | Grants the birthday cookie + sends the birthday message |
 
@@ -271,8 +271,12 @@ The **back-in-stock** alert isn't scheduled — it fires the instant you mark a 
 ## 12. Subscriptions
 
 Prepaid, repeating cookie boxes. A customer sets it up once, pays for a block of boxes with **one
-QRIS payment**, and each box is automatically turned into a normal order on its delivery day — with a
-**free bonus cookie in every box**.
+QRIS payment**, and each box is automatically turned into a normal order on its delivery day.
+
+**Reward — "buy 6, get 1 free":** one free cookie for every 6 cookies received. A **box of 6** gets
+1 free in **every** box; a **box of 3** gets 1 free **every 2nd** box (same 1-per-6 rate, fair across
+sizes). Subscription cookies have their **own** reward and are **not** counted in the regular
+buy-10-get-1 loyalty points (no double-dipping).
 
 ### For the customer (`/subscribe`)
 A short wizard:

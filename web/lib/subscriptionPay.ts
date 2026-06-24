@@ -155,7 +155,7 @@ export async function settleSubscriptionPayment(
       to: sub.owner_phone,
       message:
         `🍪 Your Cookie Doh subscription is active!\n` +
-        `${plan.boxes_total} box${plan.boxes_total > 1 ? "es" : ""} prepaid — plus a FREE bonus cookie in every box 💛.${when}\n` +
+        `${plan.boxes_total} box${plan.boxes_total > 1 ? "es" : ""} prepaid — plus FREE cookies (buy 6, get 1 free) 💛.${when}\n` +
         `Edit, skip or pause anytime: ${siteUrl()}/account/subscription`,
     });
   } catch (e) {

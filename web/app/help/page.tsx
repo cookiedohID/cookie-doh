@@ -71,7 +71,7 @@ export default function HelpPage() {
           <QA q="What is a Cookie Doh subscription?">
             Cookies on repeat. Pick a box of 3 or 6, choose <b>fixed favourites</b> or a <b>curated surprise</b>, and how
             often you want it (weekly, every 2 weeks, or monthly). Prepay a plan of <b>4, 8 or 12 boxes</b> in one payment and
-            you get a <b>free bonus cookie in every box</b>. Start at{" "}
+            you earn <b>free cookies — buy 6, get 1 free</b> (a box of 6 gets 1 free every box; a box of 3, every 2nd box). Start at{" "}
             <Link href="/subscribe" style={{ color: COLORS.blue, fontWeight: 700 }}>/subscribe</Link>.
           </QA>
           <QA q="Do I have to pick my cookies one by one?">

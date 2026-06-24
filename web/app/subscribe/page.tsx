@@ -14,7 +14,7 @@ import { COLORS, RADIUS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import {
   SUB_PLAN_BOX_OPTIONS, SUB_BOX_SIZES, SUB_FREQUENCIES, FREQUENCY_LABEL,
-  subBoxPrice, subPlanAmount, type SubFrequency, type SubMode, type SubFulfilment,
+  subBoxPrice, subPlanAmount, subFreeCookies, type SubFrequency, type SubMode, type SubFulfilment,
 } from "@/lib/subscriptions";
 
 type PickupPoint = { id: string; name: string; address: string };
@@ -195,7 +195,7 @@ export default function SubscribePage() {
         </h1>
         <p style={{ color: COLORS.muted, margin: "0 0 8px", fontSize: 15 }}>
           Fresh cookies on repeat — prepay a plan, save the hassle, and get a{" "}
-          <b style={{ color: COLORS.orange }}>free bonus cookie in every box</b> 🍪
+          <b style={{ color: COLORS.orange }}>free cookies — buy 6, get 1 free</b> 🍪
         </p>
 
         {signedIn === false && (
@@ -329,7 +329,7 @@ export default function SubscribePage() {
                 <div style={{ fontSize: 20, fontWeight: 800 }}>{n}</div>
                 <div style={{ color: COLORS.muted, fontSize: 12 }}>boxes</div>
                 <div style={{ marginTop: 6, fontWeight: 700, fontSize: 13 }}>{rp(subPlanAmount(boxSize, n))}</div>
-                <div style={{ color: COLORS.orange, fontSize: 11, fontWeight: 700 }}>+{n} bonus cookies</div>
+                <div style={{ color: COLORS.orange, fontSize: 11, fontWeight: 700 }}>+{subFreeCookies(boxSize, n)} free 🍪</div>
               </Choice>
             ))}
           </div>
