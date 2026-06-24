@@ -276,7 +276,8 @@ QRIS payment**, and each box is automatically turned into a normal order on its 
 A short wizard:
 1. **Box size** — box of 3 or 6.
 2. **What's inside** — *fixed favourites* (pick exactly that many cookies) or *curated surprise*
-   (we choose a fresh mix each box).
+   (we choose a fresh mix each box). Signed-in members get a **⚡ "Fill my box with favourites"**
+   one-tap that builds the box from the cookies they order most.
 3. **How often** — weekly, every 2 weeks, or monthly.
 4. **Plan length** — prepay **4, 8 or 12 boxes** (one QRIS payment).
 5. **Delivery or pickup** — address or pickup point.

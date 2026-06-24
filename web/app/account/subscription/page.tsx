@@ -42,6 +42,7 @@ export default function MySubscriptionPage() {
   const cookies = useMemo(() => FLAVORS.filter((f: any) => !f.soldOut), []);
 
   const [subs, setSubs] = useState<Sub[]>([]);
+  const [favourites, setFavourites] = useState<{ id: string; name: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -63,6 +64,12 @@ export default function MySubscriptionPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json?.ok) throw new Error(json?.error || "Could not load subscriptions.");
       setSubs(json.subscriptions || []);
+      // Most-ordered cookies, for the edit-modal quick-fill.
+      try {
+        const fr = await fetch("/api/account/favourites", { headers: { Authorization: `Bearer ${t}` } });
+        const fj = await fr.json();
+        if (fj?.ok && Array.isArray(fj.favourites)) setFavourites(fj.favourites);
+      } catch { /* nicety — ignore */ }
     } catch (e: any) {
       setErr(e?.message || "Could not load subscriptions.");
     } finally {
@@ -245,6 +252,7 @@ export default function MySubscriptionPage() {
         <EditModal
           sub={editing}
           cookies={cookies}
+          favourites={favourites}
           busy={busyId === editing.id}
           onClose={() => setEditing(null)}
           onSave={(payload: any) => act(editing.id, "edit", payload)}
@@ -255,7 +263,7 @@ export default function MySubscriptionPage() {
 }
 
 /* ---------- Edit modal ---------- */
-function EditModal({ sub, cookies, busy, onClose, onSave }: any) {
+function EditModal({ sub, cookies, favourites, busy, onClose, onSave }: any) {
   const [mode, setMode] = useState<SubMode>(sub.mode);
   const [frequency, setFrequency] = useState<SubFrequency>(sub.frequency);
   const [address, setAddress] = useState<string>(sub.ship_snapshot?.address || "");
@@ -278,6 +286,19 @@ function EditModal({ sub, cookies, busy, onClose, onSave }: any) {
       if (next === 0) delete out[id];
       return out;
     });
+  }
+
+  const favs = (favourites || []).filter((f: any) => cookies.some((c: any) => c.id === f.id));
+  function useMyFavourites() {
+    if (!favs.length) return;
+    const next: Record<string, number> = {};
+    let total = 0, i = 0;
+    while (total < sub.box_size && i < sub.box_size * favs.length + sub.box_size) {
+      const f = favs[i % favs.length];
+      next[f.id] = (next[f.id] || 0) + 1;
+      total++; i++;
+    }
+    setPicks(next);
   }
 
   function save() {
@@ -309,6 +330,14 @@ function EditModal({ sub, cookies, busy, onClose, onSave }: any) {
 
         {mode === "fixed" && (
           <>
+            {favs.length > 0 && (
+              <button
+                onClick={useMyFavourites}
+                style={{ marginTop: 12, background: COLORS.blue, color: "#fff", border: "none", borderRadius: 999, padding: "9px 16px", fontWeight: 800, cursor: "pointer", fontSize: 13 }}
+              >
+                ⚡ Fill with my favourites
+              </button>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12 }}>
               <Label>Pick {sub.box_size} cookies</Label>
               <span style={{ fontWeight: 800, color: fixedOk ? COLORS.blue : COLORS.orange }}>{picksTotal}/{sub.box_size}</span>

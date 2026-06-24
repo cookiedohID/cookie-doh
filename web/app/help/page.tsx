@@ -74,6 +74,10 @@ export default function HelpPage() {
             you get a <b>free bonus cookie in every box</b>. Start at{" "}
             <Link href="/subscribe" style={{ color: COLORS.blue, fontWeight: 700 }}>/subscribe</Link>.
           </QA>
+          <QA q="Do I have to pick my cookies one by one?">
+            If you're signed in, the “fixed favourites” step shows <b>⚡ Your usuals</b> — tap <b>Fill my box with
+            favourites</b> and we'll build the box from the cookies you order most. You can still tweak it after.
+          </QA>
           <QA q="Can I skip, pause or change it?">
             Anytime, from <Link href="/account/subscription" style={{ color: COLORS.blue, fontWeight: 700 }}>My Subscription</Link>:
             skip the next box, pause/resume, edit your cookies, frequency or address, add more boxes, or cancel.

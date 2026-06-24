@@ -52,12 +52,42 @@ export default function SubscribePage() {
   const [pickupPointId, setPickupPointId] = useState<string>(pickupPoints[0]?.id || "");
 
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [favourites, setFavourites] = useState<{ id: string; name: string; count: number }[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    getSupabaseBrowser().auth.getSession().then(({ data }) => setSignedIn(!!data.session?.access_token));
+    getSupabaseBrowser().auth.getSession().then(async ({ data }) => {
+      const t = data.session?.access_token;
+      setSignedIn(!!t);
+      if (!t) return;
+      // Pull the member's most-ordered cookies for the "use my favourites" quick-fill.
+      try {
+        const res = await fetch("/api/account/favourites", { headers: { Authorization: `Bearer ${t}` } });
+        const j = await res.json();
+        if (j?.ok && Array.isArray(j.favourites)) {
+          setFavourites(j.favourites.filter((f: any) => cookies.some((c: any) => c.id === f.id)));
+        }
+      } catch {
+        /* favourites are a nicety — ignore failures */
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Round-robin the member's top favourites until the box is full (top picks fill
+  // first, so a box smaller than their list still uses the most-loved cookies).
+  function useMyFavourites() {
+    if (!favourites.length) return;
+    const next: Record<string, number> = {};
+    let total = 0, i = 0;
+    while (total < boxSize && i < boxSize * favourites.length + boxSize) {
+      const f = favourites[i % favourites.length];
+      next[f.id] = (next[f.id] || 0) + 1;
+      total++; i++;
+    }
+    setPicks(next);
+  }
 
   const picksTotal = useMemo(() => Object.values(picks).reduce((s, n) => s + n, 0), [picks]);
   const fixedComplete = mode === "curated" || picksTotal === boxSize;
@@ -202,6 +232,22 @@ export default function SubscribePage() {
 
           {mode === "fixed" && (
             <>
+              {signedIn && favourites.length > 0 && (
+                <div style={{ background: "#EAF0FF", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: COLORS.blue }}>⚡ Your usuals</div>
+                  <div style={{ fontSize: 13, color: COLORS.muted, margin: "2px 0 10px" }}>
+                    Based on what you’ve ordered: {favourites.slice(0, 4).map((f) => f.name).join(", ")}
+                    {favourites.length > 4 ? "…" : ""}
+                  </div>
+                  <button
+                    onClick={useMyFavourites}
+                    style={{ background: COLORS.blue, color: "#fff", border: "none", borderRadius: 999, padding: "9px 18px", fontWeight: 800, cursor: "pointer", fontSize: 14 }}
+                  >
+                    Fill my box with favourites
+                  </button>
+                </div>
+              )}
+
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <span style={{ fontWeight: 700, fontSize: 14 }}>Pick your cookies</span>
                 <span style={{ fontWeight: 800, color: picksTotal === boxSize ? COLORS.blue : COLORS.orange }}>
