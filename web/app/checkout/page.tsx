@@ -288,6 +288,11 @@ export default function CheckoutPage() {
   const [giftMessage, setGiftMessage] = useState("");
   const [giftTo, setGiftTo] = useState("");
   const [giftFrom, setGiftFrom] = useState("");
+  // "Deliver to someone else" — the recipient's own contact (delivery only).
+  const [sendToOther, setSendToOther] = useState(false);
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [inviteRecipient, setInviteRecipient] = useState(true);
 
   // touched states for inline errors
   const [phoneTouched, setPhoneTouched] = useState(false);
@@ -733,6 +738,8 @@ export default function CheckoutPage() {
 
         notes,
         gift: isGift ? { message: giftMessage.trim(), to: giftTo.trim(), from: giftFrom.trim() } : null,
+        recipient: sendToOther && fulfillment === "delivery" && recipientPhone.trim() ? { name: recipientName.trim(), phone: recipientPhone.trim() } : null,
+        invite_recipient: sendToOther && fulfillment === "delivery" && recipientPhone.trim() ? inviteRecipient : false,
         redeem: [
           redeemCookieId && redeemCookieQty > 0 ? { id: redeemCookieId, name: FLAVORS.find((f: any) => f.id === redeemCookieId)?.name || "Cookie", kind: "cookie", quantity: Math.min(redeemCookieQty, availFreeCookies) } : null,
           redeemDrinkId && redeemDrinkQty > 0 ? { id: redeemDrinkId, name: SMOOTHIES.find((s: any) => s.id === redeemDrinkId)?.name || "Drink", kind: "drink", quantity: Math.min(redeemDrinkQty, availFreeDrinks) } : null,
@@ -1055,6 +1062,39 @@ export default function CheckoutPage() {
               </div>
             ) : null}
           </section>
+
+          {/* Deliver to someone else (delivery only) */}
+          {fulfillment === "delivery" ? (
+            <section style={{ borderRadius: 18, border: sendToOther ? `2px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.10)", padding: 14, background: "#fff", boxShadow: "0 10px 26px rgba(0,0,0,0.04)" }}>
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, cursor: "pointer" }}>
+                <span>
+                  <span style={{ fontWeight: 950, color: COLORS.black }}>📦 Delivering to someone else?</span>
+                  <span style={{ display: "block", marginTop: 4, color: "#6B6B6B", fontSize: 13 }}>We&apos;ll send <b>them</b> the tracking (mentioning it&apos;s from you), and the courier will contact them.</span>
+                </span>
+                <input type="checkbox" checked={sendToOther} onChange={(e) => setSendToOther(e.target.checked)} style={{ width: 22, height: 22, flex: "0 0 auto", cursor: "pointer" }} />
+              </label>
+              {sendToOther ? (
+                <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Recipient&apos;s name</span>
+                    <input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} style={sameStyle} placeholder="e.g. Albert" />
+                  </label>
+                  <label style={{ display: "grid", gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: COLORS.black }}>Recipient&apos;s WhatsApp</span>
+                    <input value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value.replace(/[^\d+]/g, ""))} inputMode="tel" style={sameStyle} placeholder="08…" />
+                  </label>
+                </div>
+              ) : null}
+              {sendToOther && recipientPhone.trim() ? (
+                <label style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: "#FFF7ED", borderRadius: 12, padding: "10px 12px" }}>
+                  <input type="checkbox" checked={inviteRecipient} onChange={(e) => setInviteRecipient(e.target.checked)} style={{ width: 20, height: 20, flex: "0 0 auto", cursor: "pointer" }} />
+                  <span style={{ fontSize: 13, color: COLORS.black }}>
+                    🎁 Invite {recipientName.trim() || "them"} with my referral link — you <b>both</b> get a free cookie when they order their first box.
+                  </span>
+                </label>
+              ) : null}
+            </section>
+          ) : null}
 
           {/* Fulfillment */}
           <section

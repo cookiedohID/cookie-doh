@@ -3,6 +3,7 @@
 //   • notifyCustomerOnTheWay        — "your order is on its way" + track link
 //   • remindUnacceptedOrders        — hourly nudge to the OWNER until they accept
 import { sendWhatsApp } from "@/lib/whatsapp";
+import { canonicalPhone, phoneSignificant } from "@/lib/phone";
 
 function idr(n: any) { return "Rp" + Math.round(Number(n || 0)).toLocaleString("id-ID"); }
 
@@ -35,22 +36,78 @@ export async function notifyCustomerOrderConfirmed(order: any): Promise<void> {
 }
 
 // "On its way" + tracking link — triggered by the owner from the order page.
+// If the order is "delivered to someone else", this goes to the RECIPIENT and
+// makes clear who sent it; otherwise it goes to the buyer.
 export async function notifyCustomerOnTheWay(order: any): Promise<{ ok: boolean; error?: string }> {
-  const to = order?.customer_phone;
-  if (!to) return { ok: false, error: "This order has no customer phone number." };
+  const recipientPhone = order?.recipient_phone;
+  const to = recipientPhone || order?.customer_phone;
+  if (!to) return { ok: false, error: "This order has no phone number to send to." };
   const ref = order?.order_no ? ` #${order.order_no}` : "";
   const track = order?.tracking_url || order?.meta?.tracking_url || "";
-  const lines = [
-    `🎉 Yay${order?.customer_name ? ", " + order.customer_name : ""}! Your Cookie Doh order${ref} is freshly baked, packed with love, and on its way to you 🍪🚚`,
-    "",
-    "Keep an eye out — something delicious is about to land at your door 🥰",
-    track ? `📍 Track your delivery here: ${track}` : "",
-    "",
-    "Thank you for ordering with us — we hope every bite makes your day a little sweeter 💛",
-    "where the cookie magic happens ✨",
-  ].filter(Boolean);
+
+  let lines: string[];
+  if (recipientPhone) {
+    const who = order?.recipient_name ? ", " + order.recipient_name : "";
+    const sender = order?.customer_name ? `${order.customer_name} sent you` : "You've got";
+    lines = [
+      `🎁 Surprise${who}! ${sender} a Cookie Doh delivery${ref}, and it's freshly baked and on its way 🍪🚚`,
+      "",
+      "Keep an eye out — something delicious is about to land at your door 🥰",
+      track ? `📍 Track it here: ${track}` : "",
+      "",
+      "Enjoy every bite — where the cookie magic happens ✨💛",
+    ].filter(Boolean);
+  } else {
+    lines = [
+      `🎉 Yay${order?.customer_name ? ", " + order.customer_name : ""}! Your Cookie Doh order${ref} is freshly baked, packed with love, and on its way to you 🍪🚚`,
+      "",
+      "Keep an eye out — something delicious is about to land at your door 🥰",
+      track ? `📍 Track your delivery here: ${track}` : "",
+      "",
+      "Thank you for ordering with us — we hope every bite makes your day a little sweeter 💛",
+      "where the cookie magic happens ✨",
+    ].filter(Boolean);
+  }
   const res = await sendWhatsApp({ to, message: lines.join("\n") });
   return { ok: !!res.ok, error: res.ok ? undefined : "WhatsApp send failed (check Fonnte settings)." };
+}
+
+// Opt-in: when a buyer chose to invite the recipient, WhatsApp the recipient the
+// buyer's referral link — so both get a free cookie when the recipient orders. Sent
+// on payment. Skipped if the recipient is already a customer (the referral only
+// rewards a NEW customer's first order) or the buyer has no referral code.
+export async function inviteRecipientReferral(supa: any, order: any, siteUrl: string): Promise<void> {
+  try {
+    if (!order?.meta?.invite_recipient) return;
+    const to = canonicalPhone(order?.recipient_phone);
+    if (!to) return;
+
+    // Skip existing customers (loose ilike prefilter + exact significant match).
+    const sig = phoneSignificant(to);
+    if (sig) {
+      const { data: existing } = await supa.from("customers").select("phone").ilike("phone", `%${sig}%`).limit(20);
+      if ((existing || []).some((c: any) => phoneSignificant(c?.phone) === sig)) return;
+    }
+
+    // The buyer's referral code = their member_code.
+    const buyerPhone = canonicalPhone(order?.customer_phone);
+    if (!buyerPhone) return;
+    const { data: buyer } = await supa.from("customers").select("member_code, name").eq("phone", buyerPhone).maybeSingle();
+    const code = buyer?.member_code;
+    if (!code) return; // buyer isn't a member / has no referral code
+
+    const link = `${siteUrl}/?ref=${code}`;
+    const sender = order?.customer_name || buyer?.name || "A friend";
+    const who = order?.recipient_name ? " " + order.recipient_name : "";
+    await sendWhatsApp({
+      to,
+      message:
+        `Hi${who}! ${sender} just sent you Cookie Doh cookies 🍪\n` +
+        `Want your own? Order your first box of 6 with their link and you BOTH get a free cookie 💛\n${link}`,
+    });
+  } catch (e) {
+    console.error("[orderComms] recipient invite failed:", e);
+  }
 }
 
 // Hourly: ONE consolidated reminder to the owner listing PAID orders that still

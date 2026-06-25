@@ -60,6 +60,11 @@ FAQ lives at **`/help`** (linked in the website footer).
 - **Contact details** — name + WhatsApp number. *Pre-fills for logged-in members (still editable).*
 - **🎁 Send as a gift** — adds a **handwritten card** (To / From / message, up to 300 chars);
   prices are left off the box.
+- **📦 Delivering to someone else?** (delivery only) — capture the **recipient's name + WhatsApp**.
+  The **buyer** stays the customer (gets the receipt/confirmation), but the **courier contacts the
+  recipient** and the **"on its way" tracking goes to the recipient** (mentioning who sent it). An
+  opt-in adds a **referral invite**: if the recipient isn't a customer yet, we WhatsApp them the
+  buyer's referral link so **both get a free cookie** when the recipient orders their first box.
 - **Fulfilment** — **Delivery** or **Pickup**, then pick a **date & time**.
 - **Delivery address** — Google address search; saved-address chips for members; live quote.
 - **🎟️ Promo code** — enter a code and tap **Apply** to see the discount before paying.

@@ -273,12 +273,23 @@ export default function OrderDetailClient({ id }: { id: string }) {
       ) : null}
 
       <section style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, padding: 14 }}>
-        <div style={{ fontWeight: 900 }}>Customer</div>
+        <div style={{ fontWeight: 900 }}>Customer{order.recipient_phone || order.recipient_name ? " (buyer)" : ""}</div>
         <div style={{ marginTop: 6 }}>
           <div><b>{order.customer_name || "-"}</b></div>
           <div style={{ color: "rgba(0,0,0,0.7)" }}>{order.customer_phone || ""}</div>
           {order.email ? <div style={{ color: "rgba(0,0,0,0.7)" }}>{order.email}</div> : null}
         </div>
+
+        {(order.recipient_name || order.recipient_phone) ? (
+          <>
+            <div style={{ marginTop: 12, fontWeight: 900, color: "#0014A7" }}>🎁 Recipient (deliver to)</div>
+            <div style={{ marginTop: 6 }}>
+              <div><b>{order.recipient_name || "-"}</b></div>
+              <div style={{ color: "rgba(0,0,0,0.7)" }}>{order.recipient_phone || ""}</div>
+              <div style={{ color: "rgba(0,0,0,0.6)", fontSize: 13, marginTop: 2 }}>Courier contacts the recipient; the “on its way” message goes to them (mentioning the buyer).</div>
+            </div>
+          </>
+        ) : null}
 
         <div style={{ marginTop: 12, fontWeight: 900 }}>Destination</div>
         <div style={{ marginTop: 6, color: "rgba(0,0,0,0.75)", lineHeight: 1.5 }}>

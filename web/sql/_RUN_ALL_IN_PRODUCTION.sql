@@ -298,3 +298,7 @@ alter table public.orders add column if not exists accepted_at timestamptz;
 create index if not exists orders_unaccepted_idx on public.orders (created_at) where payment_status = 'PAID' and accepted_at is null;
 
 alter table public.subscriptions add column if not exists pending_rewards jsonb not null default '[]'::jsonb;
+
+-- Deliver-to-someone-else recipient (see sql/order_recipient.sql)
+alter table public.orders add column if not exists recipient_name text;
+alter table public.orders add column if not exists recipient_phone text;

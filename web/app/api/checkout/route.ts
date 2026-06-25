@@ -114,6 +114,13 @@ export async function POST(req: Request) {
     const customerPhone = (payload?.customer?.phone || "").toString();
     const email = (payload?.customer?.email || payload?.email || "").toString();
 
+    // "Deliver to someone else": the recipient's own contact, distinct from the
+    // buyer. The courier reaches the recipient and the tracking WhatsApp goes to
+    // them (mentioning the sender). Only meaningful for delivery.
+    const recipientName = (payload?.recipient?.name || "").toString().trim();
+    const recipientPhoneRaw = (payload?.recipient?.phone || "").toString().trim();
+    const recipientPhone = recipientPhoneRaw ? (canonicalPhone(recipientPhoneRaw) || recipientPhoneRaw) : "";
+
     const shippingAddress = (payload?.delivery?.address || payload?.shipping_address || "").toString();
     const buildingName = (payload?.delivery?.buildingName || payload?.building_name || "").toString();
     const destinationAreaId = (payload?.delivery?.destination_area_id || payload?.destination_area_id || "").toString();
@@ -311,6 +318,9 @@ export async function POST(req: Request) {
       customer_phone: customerPhone || null,
       email: email || null,
 
+      recipient_name: recipientName || null,
+      recipient_phone: recipientPhone || null,
+
       address: shippingAddress || null,
       shipping_address: shippingAddress || null,
       building_name: buildingName || null,
@@ -353,6 +363,7 @@ export async function POST(req: Request) {
         gift: payload?.gift || null,
         ref: refCode,
         promo: promoApplied,
+        invite_recipient: !!(payload?.invite_recipient && recipientPhone),
       },
     };
 

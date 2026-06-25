@@ -86,8 +86,8 @@ export async function POST(
     }
 
     const destination_address = String(order.shipping_address ?? order.address ?? "").trim();
-    const recipientName = String(order.customer_name ?? "").trim();
-    const recipientPhone = toE164ID(String(order.customer_phone ?? ""));
+    const recipientName = String(order.recipient_name || order.customer_name || "").trim();
+    const recipientPhone = toE164ID(String(order.recipient_phone || order.customer_phone || ""));
 
     const { lat, lng } = parseLatLngFromShippingJson(order.shipping_json);
     if (!destination_address || !recipientName || !recipientPhone) {
@@ -253,8 +253,8 @@ export async function POST(
     const pickup = getPickupFromEnv();
 
     const destination_address = String(order.shipping_address ?? order.address ?? "").trim();
-    const recipientName = String(order.customer_name ?? "").trim();
-    const recipientPhone = toE164ID(String(order.customer_phone ?? ""));
+    const recipientName = String(order.recipient_name || order.customer_name || "").trim();
+    const recipientPhone = toE164ID(String(order.recipient_phone || order.customer_phone || ""));
 
     const { lat, lng } = parseLatLngFromShippingJson(order.shipping_json);
 

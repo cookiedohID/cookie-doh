@@ -7,7 +7,7 @@ import { createBiteshipOrder as createIntercityShipment } from "@/lib/biteship";
 import { tryQualifyReferral } from "@/lib/referrals";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { settleSubscriptionPayment } from "@/lib/subscriptionPay";
-import { notifyCustomerOrderConfirmed } from "@/lib/orderComms";
+import { notifyCustomerOrderConfirmed, inviteRecipientReferral } from "@/lib/orderComms";
 
 export const runtime = "nodejs";
 
@@ -76,12 +76,13 @@ async function createBiteshipOrder(order: any) {
 
   const origin = originForOrder(order);
 
+  // Deliver-to-someone-else: the courier should reach the RECIPIENT when set.
   const destination_contact_name =
-    customer.first_name
-      ? `${customer.first_name} ${customer.last_name ?? ""}`.trim()
-      : customer.name ?? "Customer";
+    order.recipient_name ||
+    (customer.first_name ? `${customer.first_name} ${customer.last_name ?? ""}`.trim() : customer.name) ||
+    "Customer";
 
-  const destination_contact_phone = customer.phone ?? "";
+  const destination_contact_phone = order.recipient_phone || customer.phone || "";
   const destination_address = shipping.address ?? shipping.destination_address ?? "";
   const destination_area_id = shipping.destination_area_id ?? "";
 
@@ -358,8 +359,8 @@ export async function POST(req: Request) {
             ? await createIntercityShipment({
                 external_id: order.midtrans_order_id,
                 destination_address: order.shipping_address || order.address || "",
-                destination_contact_name: order.customer_name || order?.customer_json?.name || "Customer",
-                destination_contact_phone: order.customer_phone || order?.customer_json?.phone || "",
+                destination_contact_name: order.recipient_name || order.customer_name || order?.customer_json?.name || "Customer",
+                destination_contact_phone: order.recipient_phone || order.customer_phone || order?.customer_json?.phone || "",
                 destination_postal_code: order.postal ? Number(order.postal) : null,
                 courier_company: order.courier_company,
                 courier_type: order.courier_type,
@@ -428,6 +429,8 @@ export async function POST(req: Request) {
       });
       // Auto-reply the customer their order details (online order paid).
       await notifyCustomerOrderConfirmed(order);
+      // If the buyer opted to invite the recipient, send them the referral link.
+      await inviteRecipientReferral(supabase, order, process.env.NEXT_PUBLIC_SITE_URL || "https://www.cookiedoh.co.id");
     }
 
     return NextResponse.json({ ok: true, txStatus, fraud, paid });
