@@ -36,40 +36,58 @@ export async function notifyCustomerOrderConfirmed(order: any): Promise<void> {
 }
 
 // "On its way" + tracking link — triggered by the owner from the order page.
-// If the order is "delivered to someone else", this goes to the RECIPIENT and
-// makes clear who sent it; otherwise it goes to the buyer.
+// The BUYER always gets it. If the order is "delivered to someone else" (the
+// recipient is a DIFFERENT number than the buyer), the RECIPIENT gets a
+// surprise-framed copy too — so a self-delivery isn't messaged twice.
 export async function notifyCustomerOnTheWay(order: any): Promise<{ ok: boolean; error?: string }> {
-  const recipientPhone = order?.recipient_phone;
-  const to = recipientPhone || order?.customer_phone;
-  if (!to) return { ok: false, error: "This order has no phone number to send to." };
+  const buyerPhone = order?.customer_phone || "";
+  const recipientPhone = order?.recipient_phone || "";
   const ref = order?.order_no ? ` #${order.order_no}` : "";
   const track = order?.tracking_url || order?.meta?.tracking_url || "";
+  const trackLine = track ? `📍 Track it here: ${track}` : "";
 
-  let lines: string[];
-  if (recipientPhone) {
-    const who = order?.recipient_name ? ", " + order.recipient_name : "";
-    const sender = order?.customer_name ? `${order.customer_name} sent you` : "You've got";
-    lines = [
-      `🎁 Surprise${who}! ${sender} a Cookie Doh delivery${ref}, and it's freshly baked and on its way 🍪🚚`,
+  // Recipient is "someone else" only if their number differs from the buyer's.
+  const recipDifferent =
+    !!recipientPhone && (!buyerPhone || canonicalPhone(recipientPhone) !== canonicalPhone(buyerPhone));
+
+  if (!buyerPhone && !recipientPhone) return { ok: false, error: "This order has no phone number to send to." };
+
+  let sentAny = false;
+  let lastErr: string | undefined;
+
+  // 1) The buyer — always (the person who paid).
+  if (buyerPhone) {
+    const dest = recipDifferent ? (order?.recipient_name ? ` to ${order.recipient_name}` : " to your recipient") : " to you";
+    const msg = [
+      `🎉 Yay${order?.customer_name ? ", " + order.customer_name : ""}! Your Cookie Doh order${ref} is freshly baked and on its way${dest} 🍪🚚`,
       "",
-      "Keep an eye out — something delicious is about to land at your door 🥰",
-      track ? `📍 Track it here: ${track}` : "",
+      trackLine,
+      "",
+      "Thank you for ordering with us — where the cookie magic happens 💛✨",
+    ].filter(Boolean);
+    const r = await sendWhatsApp({ to: buyerPhone, message: msg.join("\n") });
+    sentAny = sentAny || !!r.ok;
+    if (!r.ok) lastErr = "WhatsApp send failed (check Fonnte settings).";
+  }
+
+  // 2) The recipient — only when they're a different person than the buyer.
+  if (recipDifferent) {
+    const who = order?.recipient_name ? ", " + order.recipient_name : "";
+    const sender = order?.customer_name || "Someone";
+    const msg = [
+      `🎁 Surprise${who}! ${sender} is sending you something special from Cookie Doh${ref}, and it's on its way 🍪🚚`,
+      "",
+      "Keep an eye out — it's almost at your door 🥰",
+      trackLine,
       "",
       "Enjoy every bite — where the cookie magic happens ✨💛",
     ].filter(Boolean);
-  } else {
-    lines = [
-      `🎉 Yay${order?.customer_name ? ", " + order.customer_name : ""}! Your Cookie Doh order${ref} is freshly baked, packed with love, and on its way to you 🍪🚚`,
-      "",
-      "Keep an eye out — something delicious is about to land at your door 🥰",
-      track ? `📍 Track your delivery here: ${track}` : "",
-      "",
-      "Thank you for ordering with us — we hope every bite makes your day a little sweeter 💛",
-      "where the cookie magic happens ✨",
-    ].filter(Boolean);
+    const r = await sendWhatsApp({ to: recipientPhone, message: msg.join("\n") });
+    sentAny = sentAny || !!r.ok;
+    if (!r.ok) lastErr = "WhatsApp send failed (check Fonnte settings).";
   }
-  const res = await sendWhatsApp({ to, message: lines.join("\n") });
-  return { ok: !!res.ok, error: res.ok ? undefined : "WhatsApp send failed (check Fonnte settings)." };
+
+  return { ok: sentAny, error: sentAny ? undefined : (lastErr || "WhatsApp send failed.") };
 }
 
 // Opt-in: when a buyer chose to invite the recipient, WhatsApp the recipient the

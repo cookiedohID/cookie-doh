@@ -61,8 +61,10 @@ FAQ lives at **`/help`** (linked in the website footer).
 - **🎁 Send as a gift** — adds a **handwritten card** (To / From / message, up to 300 chars);
   prices are left off the box.
 - **📦 Delivering to someone else?** (delivery only) — capture the **recipient's name + WhatsApp**.
-  The **buyer** stays the customer (gets the receipt/confirmation), but the **courier contacts the
-  recipient** and the **"on its way" tracking goes to the recipient** (mentioning who sent it). An
+  The **buyer** stays the customer (gets the receipt/confirmation), the **courier contacts the
+  recipient**, and the **"on its way" tracking goes to both the buyer and the recipient** — the
+  recipient's copy is surprise-framed ("… is sending you something special …"). (If the recipient
+  number matches the buyer's, only one message is sent.) An
   opt-in adds a **referral invite**: if the recipient isn't a customer yet, we WhatsApp them the
   buyer's referral link so **both get a free cookie** when the recipient orders their first box.
 - **Fulfilment** — **Delivery** or **Pickup**, then pick a **date & time**.

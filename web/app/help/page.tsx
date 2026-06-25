@@ -116,7 +116,7 @@ export default function HelpPage() {
           <h2 style={h2}>💌 Gifts &amp; account</h2>
           <QA q="Can I send a box to someone else?">
             Yes — at checkout (delivery), tick <b>“Delivering to someone else?”</b> and add their name + WhatsApp.
-            <b>They</b> get the tracking link (we mention it's from you) and the courier contacts them. If they're not a
+            <b>You both</b> get the tracking link (theirs says it's a surprise from you) and the courier contacts them. If they're not a
             customer yet, you can invite them with your referral link so you <b>both</b> get a free cookie on their first box.
           </QA>
           <QA q="Can I send a box as a gift?">

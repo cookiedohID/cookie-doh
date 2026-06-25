@@ -69,7 +69,7 @@ export default function AdminHelpPage() {
             <li style={li}>Mark <b>Paid / Sending / Sent</b>, book Lalamove, send a WhatsApp update, view tracking.</li>
             <li style={li}><b>Accept new orders:</b> each paid order shows ✅ Accepted or ⏳ Not accepted. While unaccepted you get a <b>WhatsApp reminder every hour</b> (up to 24h). Press <b>Accept order</b> to stop them (advancing fulfilment also accepts).</li>
             <li style={li}><b>🚚 On its way + track link</b> WhatsApps the customer their tracking link and marks the order accepted + sent. <b>Re-send order details</b> resends the confirmation. Customers also get an automatic confirmation when they pay.</li>
-            <li style={li}><b>🎁 Recipient orders:</b> if the buyer chose "deliver to someone else", the detail shows both <b>Customer (buyer)</b> and <b>Recipient</b>. The courier contacts the recipient and the "on its way" message goes to <b>them</b> (mentioning the buyer).</li>
+            <li style={li}><b>🎁 Recipient orders:</b> if the buyer chose "deliver to someone else", the detail shows both <b>Customer (buyer)</b> and <b>Recipient</b>. The courier contacts the recipient and the "on its way" tracking goes to <b>both</b> the buyer and the recipient (the recipient's copy is surprise-framed).</li>
             <li style={li}><b>🗑 Delete</b> a single order, or <b>Delete all unpaid</b> to clear test/abandoned orders (paid orders are never touched).</li>
           </ul>
         </Section>

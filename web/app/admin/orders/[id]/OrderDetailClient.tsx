@@ -286,7 +286,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
             <div style={{ marginTop: 6 }}>
               <div><b>{order.recipient_name || "-"}</b></div>
               <div style={{ color: "rgba(0,0,0,0.7)" }}>{order.recipient_phone || ""}</div>
-              <div style={{ color: "rgba(0,0,0,0.6)", fontSize: 13, marginTop: 2 }}>Courier contacts the recipient; the “on its way” message goes to them (mentioning the buyer).</div>
+              <div style={{ color: "rgba(0,0,0,0.6)", fontSize: 13, marginTop: 2 }}>Courier contacts the recipient; the “on its way” tracking goes to <b>both</b> the buyer and the recipient.</div>
             </div>
           </>
         ) : null}
