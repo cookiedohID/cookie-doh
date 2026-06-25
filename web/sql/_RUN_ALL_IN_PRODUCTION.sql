@@ -302,3 +302,10 @@ alter table public.subscriptions add column if not exists pending_rewards jsonb 
 -- Deliver-to-someone-else recipient (see sql/order_recipient.sql)
 alter table public.orders add column if not exists recipient_name text;
 alter table public.orders add column if not exists recipient_phone text;
+
+-- WhatsApp AI assistant state (see sql/whatsapp_bot.sql)
+create table if not exists public.wa_messages (id uuid primary key default gen_random_uuid(), phone text not null, role text not null check (role in ('user','assistant')), text text not null, created_at timestamptz not null default now());
+create index if not exists wa_messages_phone_idx on public.wa_messages (phone, created_at desc);
+create table if not exists public.wa_state (phone text primary key, auto_paused_until timestamptz, last_inbound_id text, updated_at timestamptz not null default now());
+alter table public.wa_messages enable row level security;
+alter table public.wa_state enable row level security;

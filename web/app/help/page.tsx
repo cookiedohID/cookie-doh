@@ -130,7 +130,9 @@ export default function HelpPage() {
 
         <section style={card}>
           <h2 style={h2}>💬 Still need help?</h2>
-          <p style={a}>Message us on WhatsApp (the button in the corner of the site) and we'll get back to you.</p>
+          <p style={a}>Message us on WhatsApp (the button in the corner of the site) — our assistant replies
+            instantly to common questions (menu, prices, your order status, rewards), and a teammate steps
+            in for anything else.</p>
         </section>
 
         <p style={{ color: COLORS.muted, fontSize: 12, marginTop: 18, textAlign: "center" }}>

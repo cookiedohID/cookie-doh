@@ -262,6 +262,8 @@ The **back-in-stock** alert isn't scheduled — it fires the instant you mark a 
   verification + reward redemption, and the marketing/retention messages above.
 - **Subscribers** get an activation confirmation, **D-2 and D-1 reminders** before each box, and a
   confirmation each time a box is made.
+- **Inbound:** customers who message your WhatsApp get an **instant AI reply** (menu, prices, their
+  order status & rewards, etc.), with **hand-off to you** for anything that needs a person — see §13.
 
 ---
 
@@ -272,7 +274,8 @@ The **back-in-stock** alert isn't scheduled — it fires the instant you mark a 
 | Database & login | **Supabase** |
 | Same-day delivery | **Lalamove** |
 | Intercity shipments & tracking | **Biteship** |
-| WhatsApp messages | **Fonnte** |
+| WhatsApp messages (in & out) | **Fonnte** |
+| WhatsApp AI replies | **Claude (Anthropic)** |
 | Email | **Resend** |
 | Hosting (auto-deploys on changes) | **Vercel** |
 | Scheduled jobs | **GitHub Actions** |
@@ -289,6 +292,8 @@ The **back-in-stock** alert isn't scheduled — it fires the instant you mark a 
   migrations have been applied (loyalty, referrals, promos, birthday, back-in-stock, subscriptions,
   order-acceptance, etc.).
 - **Reset/verification emails** — for reliable delivery, point Supabase Auth SMTP at Resend.
+- **WhatsApp assistant** — set `ANTHROPIC_API_KEY` + `WA_INBOUND_SECRET` in Vercel and point Fonnte's
+  incoming webhook at `/api/whatsapp/inbound?key=…` (see §13).
 
 ---
 
@@ -337,6 +342,38 @@ normal box price × number of boxes **+ delivery** (no separate subscriber disco
 - **Boxes due in the next 3 days** worklist, and a **reconcile** list (rare "made but no order" cases).
 - The full subscription table with prepaid boxes left, next box, and a **Mark refunded** button.
 - **Run autopilot now** triggers today's run on demand (otherwise it's the 07:00 job).
+
+---
+
+## 13. WhatsApp assistant (auto-reply)
+
+When a customer messages your WhatsApp, an **AI assistant answers instantly** — and hands off to you
+for anything it can't.
+
+**What it answers** (from the live menu + your policies): the menu and prices, delivery & pickup,
+how to order, membership/loyalty, subscriptions, referrals, birthdays, promo codes, and gifts. It can
+also look up **that customer's own order status + tracking** and their **reward balance** (only the
+number messaging in — never anyone else's).
+
+**Hand-off to you.** For complaints, refunds, changing/cancelling a paid order, wholesale/custom/event
+requests, allergy-critical questions, anything it can't answer, or when the customer asks for a person,
+it **escalates to you** (you get a WhatsApp with the customer's number, their message and the reason)
+and **pauses its own auto-replies to that number for 3 hours** so you can take over without it talking
+over you. It never takes payment or confirms an order in chat — it points customers to the website.
+
+It runs on **Claude Haiku** (chosen for low cost on high message volume) and keeps replies short.
+
+### Setup (one-time)
+1. **`ANTHROPIC_API_KEY`** in Vercel — an Anthropic API key (pay-as-you-go). Without it, every inbound
+   message is simply forwarded to you with a polite holding reply.
+2. **`WA_INBOUND_SECRET`** in Vercel — any random string (a shared secret so only Fonnte can post in).
+3. In your **Fonnte device dashboard**, set the **incoming/webhook URL** to
+   `https://www.cookiedoh.co.id/api/whatsapp/inbound?key=<WA_INBOUND_SECRET>` (needs a Fonnte plan that
+   forwards incoming messages). Fonnte's "test webhook" button should show green.
+
+### Editing what it says
+- **Menu & prices** stay in sync automatically (same catalog as the website).
+- **Opening hours / pickup wording** live at the top of `web/lib/waKnowledge.ts` (the `BUSINESS` block).
 
 ---
 
