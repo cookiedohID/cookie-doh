@@ -132,6 +132,15 @@ export default function AdminHelpPage() {
           </ul>
         </Section>
 
+        <Section title="🎯 Admin — Spend rewards">
+          <p style={p}>At <span style={code}>/admin/spend-rewards</span> — "spend Rp X, add a cookie for Rp Y" to reward bigger baskets.</p>
+          <ul style={{ paddingLeft: 18 }}>
+            <li style={li}>Create a tier: <b>Spend at least</b> (qualifying subtotal), <b>Reward name</b>, <b>Reward price</b> (or 0 for free), and the <b>cookies</b> that make up the reward.</li>
+            <li style={li}>At checkout the customer gets the <b>highest</b> tier they qualify for, plus a "spend a bit more" nudge for the next one.</li>
+            <li style={li}><b>Pause / Activate / Delete</b> any tier. Server-validated — they can't keep it below the threshold or swap pricier cookies. Reward cookies earn loyalty stamps.</li>
+          </ul>
+        </Section>
+
         <Section title="💛 Growth &amp; retention (automatic)">
           <h3 style={h3}>Referrals — give a cookie, get a cookie</h3>
           <p style={p}>Members have a "Refer a friend" link in their account. When a <b>new</b> customer orders their <b>first box of 6+</b> with that link, <b>both</b> get a free cookie (a refund of that order reverses it). The daily digest flags unusual referral activity.</p>

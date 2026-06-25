@@ -185,6 +185,20 @@ delete any code; usage is shown per code.
 - *Note:* usage limits are best-effort across many simultaneous unpaid checkouts — fine for
   marketing codes; tell us before relying on a strictly single-use, high-value code.
 
+### Spend rewards — "spend Rp X, add a cookie for Rp Y"
+`/admin/spend-rewards` — reward bigger baskets with a cheap add-on. Create a **tier**:
+- **Spend at least (Rp)** — the qualifying merchandise subtotal that unlocks it (e.g. 300.000).
+- **Reward name** — what the customer sees (e.g. "Bonus cookie").
+- **Reward price (Rp)** — the special price they pay for it (e.g. 30.000 — or 0 to make it free).
+- **Reward cookies** — pick which cookie(s) + how many make up the reward.
+- **Pause / Activate / Delete** any tier from the list (`Spend 300k → Bonus cookie for 30k`).
+
+How customers see it: at checkout, once their qualifying subtotal hits a tier, they can add that
+reward at its special price; they always get the **highest** tier they qualify for, plus a "spend a
+bit more to unlock …" nudge for the next one. Everything is **re-validated on our server** — they
+can't keep the cheap reward after dropping below the threshold, or swap in pricier cookies. (Reward
+cookies earn loyalty stamps like any purchased cookie.)
+
 ### Referrals — give a cookie, get a cookie
 - Every member gets a **referral link** in `/account` (`/?ref=THEIRCODE`) + a WhatsApp share button.
 - When a **new** customer orders their **first** box worth **at least a box of 6 (Rp180k merchandise)**
