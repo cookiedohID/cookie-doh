@@ -17,14 +17,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const b = await req.json().catch(() => ({}));
     const patch: any = {};
     if (typeof b?.name === "string") patch.name = b.name.trim().slice(0, 30);
-    if (b?.min_lifetime_idr != null) patch.min_lifetime_idr = Math.max(0, Math.floor(Number(b.min_lifetime_idr)));
+    if (b?.reach_annual_idr != null) patch.reach_annual_idr = Math.max(0, Math.floor(Number(b.reach_annual_idr)));
+    if (b?.maintain_monthly_idr != null) patch.maintain_monthly_idr = Math.max(0, Math.floor(Number(b.maintain_monthly_idr)));
     if (b?.loyalty_per_free != null) patch.loyalty_per_free = Math.min(10, Math.max(1, Math.floor(Number(b.loyalty_per_free))));
     if (typeof b?.free_delivery === "boolean") patch.free_delivery = b.free_delivery;
     if (typeof b?.free_cookie_per_order === "boolean") patch.free_cookie_per_order = b.free_cookie_per_order;
     if (typeof b?.active === "boolean") patch.active = b.active;
 
     if (patch.name === "") return NextResponse.json({ ok: false, error: "Name can't be empty." }, { status: 400 });
-    if (patch.min_lifetime_idr === 0) return NextResponse.json({ ok: false, error: "Set the lifetime-spend threshold." }, { status: 400 });
+    if (patch.reach_annual_idr === 0) return NextResponse.json({ ok: false, error: "Set the annual spend to reach this tier." }, { status: 400 });
     if (!Object.keys(patch).length) return NextResponse.json({ ok: false, error: "Nothing to update" }, { status: 400 });
 
     const supa = supaAdmin();
