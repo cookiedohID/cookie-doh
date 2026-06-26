@@ -309,3 +309,8 @@ create index if not exists wa_messages_phone_idx on public.wa_messages (phone, c
 create table if not exists public.wa_state (phone text primary key, auto_paused_until timestamptz, last_inbound_id text, updated_at timestamptz not null default now());
 alter table public.wa_messages enable row level security;
 alter table public.wa_state enable row level security;
+
+-- VIP tiers (see sql/vip_tiers.sql)
+create table if not exists public.vip_tiers (id uuid primary key default gen_random_uuid(), name text not null, min_lifetime_idr int not null, loyalty_per_free int not null default 10, free_delivery boolean not null default false, free_cookie_per_order boolean not null default false, active boolean not null default false, created_at timestamptz not null default now());
+create index if not exists vip_tiers_threshold_idx on public.vip_tiers (min_lifetime_idr asc);
+alter table public.vip_tiers enable row level security;

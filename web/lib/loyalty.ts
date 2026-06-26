@@ -53,8 +53,11 @@ export type LoyaltyProgress = {
 // rewards and are spent down by the same `free:true` redemption lines.
 export function loyaltyFromOrders(
   orders: any[],
-  grant?: { cookies?: number; drinks?: number }
+  grant?: { cookies?: number; drinks?: number },
+  stampsPerFree: number = STAMPS_PER_FREE
 ): LoyaltyProgress {
+  // VIP members earn faster (buy-9/8/7-get-1). Defaults to the standard 10.
+  const N = Math.max(1, Math.floor(Number(stampsPerFree) || STAMPS_PER_FREE));
   let cookieUnits = 0, drinkUnits = 0; // full-price, earning
   let cookieFree = 0, drinkFree = 0; // redeemed (free lines)
 
@@ -88,14 +91,14 @@ export function loyaltyFromOrders(
     }
   }
 
-  const earnedCookies = Math.floor(cookieUnits / STAMPS_PER_FREE);
-  const earnedDrinks = Math.floor(drinkUnits / STAMPS_PER_FREE);
+  const earnedCookies = Math.floor(cookieUnits / N);
+  const earnedDrinks = Math.floor(drinkUnits / N);
   const grantCookies = Math.max(0, Math.floor(Number(grant?.cookies || 0)));
   const grantDrinks = Math.max(0, Math.floor(Number(grant?.drinks || 0)));
 
   return {
-    cookieStamps: cookieUnits % STAMPS_PER_FREE,
-    drinkStamps: drinkUnits % STAMPS_PER_FREE,
+    cookieStamps: cookieUnits % N,
+    drinkStamps: drinkUnits % N,
     freeCookies: Math.max(0, earnedCookies + grantCookies - cookieFree),
     freeDrinks: Math.max(0, earnedDrinks + grantDrinks - drinkFree),
   };
