@@ -5,6 +5,7 @@ import { canonicalPhone, phoneSignificant } from "@/lib/phone";
 import { loyaltyFromOrders } from "@/lib/loyalty";
 import { grantsForPhone } from "@/lib/loyaltyGrants";
 import { subscriptionRewardBalance } from "@/lib/subscriptionRewards";
+import { vipStatusForPhone, loyaltyPerFree } from "@/lib/vip";
 
 export const runtime = "nodejs";
 
@@ -56,7 +57,9 @@ export async function POST(req: Request) {
       name = cust?.name || null;
     }
 
-    const loyalty = await loyaltyForPhone(supa, phone);
+    // 👑 VIP standing — faster loyalty (buy-9/8/7) applies to this member's balance.
+    const vip = await vipStatusForPhone(supa, phone);
+    const loyalty = await loyaltyForPhone(supa, phone, loyaltyPerFree(vip.tier));
     if (!loyalty) return NextResponse.json({ ok: false, error: "No history" }, { status: 200 });
 
     // Separate, redeemable subscription reward pool ("buy 6, get 1 free").
@@ -71,6 +74,10 @@ export async function POST(req: Request) {
       cookieStamps: loyalty.cookieStamps,
       drinkStamps: loyalty.drinkStamps,
       subRewardAvailable: subReward.available,
+      loyaltyPerFree: loyaltyPerFree(vip.tier), // 10, or the VIP rate (for "x/N" display)
+      vip: vip.tier
+        ? { name: vip.tier.name, freeDelivery: vip.tier.free_delivery, freeCookiePerOrder: vip.tier.free_cookie_per_order }
+        : null,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });

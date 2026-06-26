@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { canonicalPhone, phoneSignificant } from "@/lib/phone";
 import { loyaltyFromOrders } from "@/lib/loyalty";
 import { grantsForPhone } from "@/lib/loyaltyGrants";
+import { vipStatusForPhone, loyaltyPerFree } from "@/lib/vip";
 import { subscriptionRewardBalance } from "@/lib/subscriptionRewards";
 
 export const runtime = "nodejs";
@@ -68,7 +69,7 @@ function phoneFromUser(user: any): string | null {
 }
 
 type MemberResult =
-  | { kind: "member"; member: { name: string | null; phone: string; memberCode: string; birthday: string | null; loyalty: ReturnType<typeof loyaltyFromOrders>; subReward: Awaited<ReturnType<typeof subscriptionRewardBalance>> } }
+  | { kind: "member"; member: { name: string | null; phone: string; memberCode: string; birthday: string | null; loyalty: ReturnType<typeof loyaltyFromOrders>; subReward: Awaited<ReturnType<typeof subscriptionRewardBalance>>; vip: Awaited<ReturnType<typeof vipStatusForPhone>> } }
   | { kind: "ownedByOther" }
   | { kind: "needsVerify"; phone: string };
 
@@ -146,10 +147,13 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
   // Loyalty from the paid orders we already fetched (exact canonical match — the
   // ilike above is only a loose prefilter).
   const orders = sig ? (ordersRes.data || []).filter((o: any) => phoneSignificant(o?.customer_phone) === sig) : [];
-  const grant = await grantsForPhone(supa, phone);
-  const loyalty = loyaltyFromOrders(orders, grant);
-  // Separate redeemable subscription reward pool (buy 6, get 1 free).
-  const subReward = await subscriptionRewardBalance(supa, phone);
+  const [grant, subReward, vip] = await Promise.all([
+    grantsForPhone(supa, phone),
+    subscriptionRewardBalance(supa, phone),
+    vipStatusForPhone(supa, phone),
+  ]);
+  // VIP members earn faster (buy-9/8/7) — apply their tier's rate.
+  const loyalty = loyaltyFromOrders(orders, grant, loyaltyPerFree(vip.tier));
 
   return {
     kind: "member",
@@ -160,6 +164,7 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
       birthday: cust?.birthday ?? null,
       loyalty,
       subReward,
+      vip,
     },
   };
 }

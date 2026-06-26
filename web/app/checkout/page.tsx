@@ -272,6 +272,9 @@ export default function CheckoutPage() {
   const [promoMsg, setPromoMsg] = useState("");
   const [promoBusy, setPromoBusy] = useState(false);
   // Loyalty rewards available to a logged-in member, + their redemption picks.
+  // 👑 VIP perks for a signed-in member (from /api/account/me).
+  const [memberVip, setMemberVip] = useState<{ tier: { name: string; free_delivery: boolean; free_cookie_per_order: boolean } | null } | null>(null);
+  const [vipFreeCookieId, setVipFreeCookieId] = useState("");
   const [availFreeCookies, setAvailFreeCookies] = useState(0);
   const [availFreeDrinks, setAvailFreeDrinks] = useState(0);
   const [redeemCookieId, setRedeemCookieId] = useState("");
@@ -340,6 +343,7 @@ export default function CheckoutPage() {
             setAvailFreeDrinks(Math.max(0, Number(meJ.member.loyalty.freeDrinks || 0)));
           }
           setSubRewardAvail(Math.max(0, Number(meJ.member.subReward?.available || 0)));
+          if (meJ.member.vip) setMemberVip(meJ.member.vip);
         }
       } catch { /* ignore */ }
 
@@ -605,7 +609,11 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fulfillment, deliverySpeed, addressResolved, addressLat, addressLng, postalCode]);
 
-  const deliveryFee = fulfillment === "delivery" ? shippingCost : 0;
+  // 👑 VIP free same-day delivery: waive the fee (display + charge) for an eligible
+  // member on a same-day delivery. (Delivery pricing is already client-driven.)
+  const vipFreeDelivery = !!(memberVip?.tier?.free_delivery && fulfillment === "delivery" && deliveryMode === "sameday" && shippingCost != null);
+  const vipCanFreeCookie = !!memberVip?.tier?.free_cookie_per_order;
+  const deliveryFee = fulfillment === "delivery" ? (vipFreeDelivery ? 0 : shippingCost) : 0;
   const promoDiscount = appliedPromo ? Math.min(appliedPromo.discount, subtotal) : 0;
   const grandTotal = Math.max(0, subtotal + (deliveryFee || 0) - promoDiscount);
 
@@ -749,7 +757,9 @@ export default function CheckoutPage() {
         ].filter(Boolean),
         cart,
         promo_code: appliedPromo?.code || null,
-        shipping_cost_idr: fulfillment === "delivery" ? shippingCost : 0,
+        shipping_cost_idr: deliveryFee ?? 0, // already VIP-aware (0 on free same-day delivery)
+        // 👑 VIP free cookie — the member's chosen flavour (server validates eligibility).
+        vip_free_cookie: vipCanFreeCookie && vipFreeCookieId ? { id: vipFreeCookieId, name: FLAVORS.find((f: any) => f.id === vipFreeCookieId)?.name || "Cookie" } : null,
         total: grandTotal,
         meta: {
           quote: quoteMeta,
@@ -1025,6 +1035,20 @@ export default function CheckoutPage() {
                     onChange={(e) => setSubRewardQty(Math.max(0, Math.min(subRewardAvail, Math.floor(Number(e.target.value) || 0))))} style={sameStyle} />
                 </label>
               </div>
+            </section>
+          ) : null}
+
+          {/* 👑 VIP free cookie — pick a flavour, added free (server validates eligibility) */}
+          {vipCanFreeCookie ? (
+            <section style={{ borderRadius: 18, border: "1px solid rgba(176,141,30,0.45)", padding: 14, background: "linear-gradient(135deg,#FFF8E6,#FDEFC7)" }}>
+              <div style={{ fontWeight: 950, color: "#7a5c00" }}>👑 Your VIP free cookie</div>
+              <div style={{ fontSize: 13, color: "#6b5200", margin: "4px 0 8px" }}>
+                As a {memberVip?.tier?.name || "VIP"} member, add one cookie to this order on us — pick your flavour.
+              </div>
+              <select value={vipFreeCookieId} onChange={(e) => setVipFreeCookieId(e.target.value)} style={sameStyle}>
+                <option value="">No thanks</option>
+                {(FLAVORS as any[]).map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
             </section>
           ) : null}
 
@@ -1588,6 +1612,8 @@ export default function CheckoutPage() {
                     ? formatIDR(0)
                     : shippingLoading
                     ? "Calculating…"
+                    : vipFreeDelivery
+                    ? <span style={{ color: "#0f6e56", fontWeight: 900 }}>Free 👑</span>
                     : shippingCost != null
                     ? formatIDR(shippingCost)
                     : "—"}

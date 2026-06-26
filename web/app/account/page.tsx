@@ -10,15 +10,27 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { signOutMember } from "@/lib/memberAuth";
 import { canonicalPhone } from "@/lib/phone";
 
+type VipT = { name: string; reach_annual_idr: number; maintain_monthly_idr: number; loyalty_per_free: number; free_delivery: boolean; free_cookie_per_order: boolean } | null;
+type VipStatus = { annual_idr: number; this_month_idr: number; last_month_idr: number; tier: VipT; next: VipT; reach_remaining_idr: number; maintain_remaining_idr: number };
+
 type Member = {
   name: string | null;
   phone: string;
   memberCode: string;
   birthday: string | null;
   loyalty: { cookieStamps: number; drinkStamps: number; freeCookies: number; freeDrinks: number };
+  vip?: VipStatus | null;
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const rpFmt = (n: number) => "Rp" + Number(n || 0).toLocaleString("id-ID");
+
+function vipPerksLine(t: NonNullable<VipT>): string {
+  const parts = [`buy ${t.loyalty_per_free} get 1 free`];
+  if (t.free_delivery) parts.push("free same-day delivery");
+  if (t.free_cookie_per_order) parts.push("a free cookie every order");
+  return parts.join(" · ");
+}
 
 export default function AccountPage() {
   const router = useRouter();
@@ -243,6 +255,8 @@ export default function AccountPage() {
   if (!member) return null;
 
   const L = member.loyalty;
+  const N = member.vip?.tier?.loyalty_per_free ?? 10; // VIPs earn faster (buy-9/8/7)
+  const vip = member.vip;
   const cards = [
     { label: "🍪 Cookies", stamps: L.cookieStamps, free: L.freeCookies },
     { label: "🥤 Drinks", stamps: L.drinkStamps, free: L.freeDrinks },
@@ -287,23 +301,52 @@ export default function AccountPage() {
           </div>
         </div>
 
+        {/* 👑 VIP status — only shown when a VIP program is running (tiers active) */}
+        {vip && (vip.tier || vip.next) ? (
+          <div style={{ marginTop: 14, borderRadius: 18, padding: 16, border: "1px solid rgba(176,141,30,0.45)", background: "linear-gradient(135deg, #FFF8E6, #FDEFC7)" }}>
+            {vip.tier ? (
+              <>
+                <div style={{ fontWeight: 900, color: "#7a5c00", fontSize: 16 }}>👑 {vip.tier.name} member</div>
+                <div style={{ fontSize: 13, color: "#6b5200", marginTop: 4 }}>Your perks: {vipPerksLine(vip.tier)}.</div>
+                {vip.maintain_remaining_idr > 0 ? (
+                  <div style={{ fontSize: 13, color: "#8a5a00", marginTop: 8, fontWeight: 700 }}>Spend {rpFmt(vip.maintain_remaining_idr)} more this month to keep {vip.tier.name}.</div>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: "#6b5200", marginTop: 8 }}>You&apos;re keeping {vip.tier.name} this month — nicely done 🎉</div>
+                )}
+                {vip.next ? (
+                  <div style={{ fontSize: 12.5, color: "#6b5200", marginTop: 4 }}>Spend {rpFmt(vip.reach_remaining_idr)} more (last 12 months) to reach {vip.next.name}.</div>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: "#6b5200", marginTop: 4 }}>You&apos;re at the top tier ✨</div>
+                )}
+              </>
+            ) : vip.next ? (
+              <>
+                <div style={{ fontWeight: 900, color: "#7a5c00", fontSize: 15 }}>👑 Become a VIP</div>
+                <div style={{ fontSize: 13, color: "#6b5200", marginTop: 4 }}>
+                  Spend {rpFmt(vip.reach_remaining_idr)} more (in the last 12 months) to reach <b>{vip.next.name}</b> and unlock {vipPerksLine(vip.next)}.
+                </div>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+
         {/* Loyalty progress */}
         <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
           {cards.map((c) => (
             <div key={c.label} style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <span style={{ fontWeight: 800, color: COLORS.black }}>{c.label}</span>
-                <span style={{ fontSize: 13, color: COLORS.muted }}>{c.stamps}/10</span>
+                <span style={{ fontSize: 13, color: COLORS.muted }}>{c.stamps}/{N}</span>
               </div>
-              <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "repeat(10, 1fr)", gap: 5 }}>
-                {Array.from({ length: 10 }).map((_, i) => (
+              <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: `repeat(${N}, 1fr)`, gap: 5 }}>
+                {Array.from({ length: N }).map((_, i) => (
                   <div key={i} style={{ height: 12, borderRadius: 6, background: i < c.stamps ? COLORS.blue : "rgba(0,0,0,0.10)" }} />
                 ))}
               </div>
               {c.free > 0 ? (
                 <div style={{ marginTop: 10, fontWeight: 800, color: "#0014A7" }}>🎁 {c.free} free {c.label.includes("Cookies") ? "cookie" : "drink"}{c.free > 1 ? "s" : ""} ready!</div>
               ) : (
-                <div style={{ marginTop: 10, fontSize: 13, color: COLORS.muted }}>{10 - c.stamps} more to your next free one</div>
+                <div style={{ marginTop: 10, fontSize: 13, color: COLORS.muted }}>{N - c.stamps} more to your next free one</div>
               )}
             </div>
           ))}

@@ -29,7 +29,7 @@ export default function CafePOS() {
   const [memberPhone, setMemberPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [rewards, setRewards] = useState<{ name: string | null; freeCookies: number; freeDrinks: number; cookieStamps: number; drinkStamps: number; subRewardAvailable: number } | null>(null);
+  const [rewards, setRewards] = useState<{ name: string | null; freeCookies: number; freeDrinks: number; cookieStamps: number; drinkStamps: number; subRewardAvailable: number; loyaltyPerFree?: number; vip?: { name: string; freeDelivery: boolean; freeCookiePerOrder: boolean } | null } | null>(null);
   const [redeemKind, setRedeemKind] = useState<Kind | null>(null);
   const [pendingSubRedeem, setPendingSubRedeem] = useState(false);
   // Redemption requires an OTP the MEMBER receives on WhatsApp — so staff can't
@@ -262,7 +262,7 @@ export default function CafePOS() {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: memberPhone }),
     }).then((x) => x.json()).catch(() => null);
     if (r?.ok) {
-      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0, subRewardAvailable: r.subRewardAvailable ?? 0 });
+      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0, subRewardAvailable: r.subRewardAvailable ?? 0, loyaltyPerFree: r.loyaltyPerFree ?? 10, vip: r.vip ?? null });
       setErr("");
     } else {
       setRewards(null);
@@ -286,7 +286,7 @@ export default function CafePOS() {
     }).then((x) => x.json()).catch(() => null);
     if (r?.ok) {
       if (r.phone) setMemberPhone(r.phone);
-      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0, subRewardAvailable: r.subRewardAvailable ?? 0 });
+      setRewards({ name: r.name, freeCookies: r.freeCookies, freeDrinks: r.freeDrinks, cookieStamps: r.cookieStamps ?? 0, drinkStamps: r.drinkStamps ?? 0, subRewardAvailable: r.subRewardAvailable ?? 0, loyaltyPerFree: r.loyaltyPerFree ?? 10, vip: r.vip ?? null });
       setErr("");
     } else {
       setErr(r?.error || "Member not found for that QR.");
@@ -735,9 +735,10 @@ export default function CafePOS() {
           <div style={{ background: "#fff" }}>
             <div style={{ maxWidth: 1100, margin: "0 auto", padding: "10px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
               <span style={{ fontSize: 22, fontWeight: 900, color: COLORS.blue }}>👋 Welcome, {rewards.name || "Member"}!</span>
+              {rewards.vip ? <span style={{ fontSize: 14, fontWeight: 900, color: "#7a5c00", background: "linear-gradient(135deg,#FFF1C2,#FCE08A)", border: "1px solid rgba(176,141,30,0.5)", borderRadius: 999, padding: "4px 12px" }}>👑 {rewards.vip.name}</span> : null}
               <span style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 14, fontWeight: 800, color: COLORS.black, alignItems: "center" }}>
-                <span style={welcomeChip}>🍪 {rewards.cookieStamps}/10</span>
-                <span style={welcomeChip}>🥤 {rewards.drinkStamps}/10</span>
+                <span style={welcomeChip}>🍪 {rewards.cookieStamps}/{rewards.loyaltyPerFree ?? 10}</span>
+                <span style={welcomeChip}>🥤 {rewards.drinkStamps}/{rewards.loyaltyPerFree ?? 10}</span>
                 {rewards.freeCookies > 0 ? <span style={welcomeFree}>🎁 {rewards.freeCookies} free cookie ready</span> : null}
                 {rewards.freeDrinks > 0 ? <span style={welcomeFree}>🎁 {rewards.freeDrinks} free drink ready</span> : null}
                 {rewards.subRewardAvailable > 0 ? <span style={{ ...welcomeFree, background: "#FFF0E0", color: COLORS.orange }}>🔁 {rewards.subRewardAvailable} subscription reward</span> : null}
