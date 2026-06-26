@@ -377,4 +377,43 @@ It runs on **Claude Haiku** (chosen for low cost on high message volume) and kee
 
 ---
 
+## 14. VIP tiers
+
+Reward your regulars with escalating perks. A member's tier is worked out **live
+from their orders** — no scheduled job, no stored status.
+
+- **Reach** a tier by spending its **annual** amount (rolling **last 12 months**).
+- **Keep** it by meeting its **monthly minimum** (this or last calendar month — so a
+  quiet 1st-of-month doesn't demote anyone; two quiet months drops them a tier).
+- A member sits in the **highest active tier** they currently reach *and* keep.
+
+### Perks (per tier, your choice)
+- **Faster loyalty** — instead of buy-10-get-1, a VIP earns at **buy-9 / 8 / 7**.
+  (This is retroactive across their history — see the warning below.)
+- **Free same-day delivery** — the same-day delivery fee is waived at checkout.
+- **A free cookie every order** — the member picks the flavour at checkout.
+
+### Setting it up (`/admin` → 👑 **VIP tiers**)
+Each tier has: **name**, **Reach: annual (Rp)**, **Keep: monthly (Rp)** (0 = no
+monthly upkeep, kept once reached), **Buy N → 1 free**, and the two perk toggles.
+**Save changes**, then **Activate** (new tiers start **paused**). Seeded with a
+**Silver / Gold / Platinum** ladder, all paused — edit the numbers and activate
+when you're ready.
+
+> ⚠️ **Activating the faster-loyalty perk is retroactive.** Because it recomputes a
+> member's whole history at the better rate, turning on e.g. Gold (buy-8) can hand
+> a chunk of **free cookies** to existing big spenders straight away. That's the
+> intended "welcome to Gold" generosity — just know it's a real cost at the moment
+> you activate, not a slow drip.
+
+### Where members see it
+- **Account page** — a 👑 tier card with their perks and "spend Rp X more this month
+  to keep it" / "Rp Y more to reach the next tier".
+- **Cafe POS** — a 👑 tier chip in the member banner; stamps show the faster rate.
+- **Checkout** — free delivery shown as **Free 👑**, and the free-cookie picker.
+
+Nothing shows to customers until you activate at least one tier.
+
+---
+
 *Cookie Doh — where the cookie magic happens 🍪*

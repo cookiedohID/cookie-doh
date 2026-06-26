@@ -142,6 +142,16 @@ export default function AdminHelpPage() {
           </ul>
         </Section>
 
+        <Section title="👑 Admin — VIP tiers">
+          <p style={p}>At <span style={code}>/admin/vip</span> — reward your regulars. A member&apos;s tier is computed <b>live from their orders</b>: they <b>reach</b> a tier by spending its <b>annual</b> amount (last 12 months) and <b>keep</b> it by meeting its <b>monthly minimum</b> (this or last calendar month; two quiet months drops them a tier). They sit in the highest <b>active</b> tier they reach and keep.</p>
+          <ul style={{ paddingLeft: 18 }}>
+            <li style={li}><b>Perks per tier:</b> faster loyalty (<b>buy-9 / 8 / 7</b> instead of 10), <b>free same-day delivery</b>, and <b>a free cookie every order</b> (member picks the flavour at checkout).</li>
+            <li style={li}>Each tier: name, <b>Reach: annual</b>, <b>Keep: monthly</b> (0 = no upkeep), <b>Buy N → 1 free</b>, + the two perk toggles. <b>Save</b>, then <b>Activate</b> (tiers start paused). Seeded Silver/Gold/Platinum, all paused.</li>
+            <li style={li}>Members see their tier on the <b>account page</b>, the <b>cafe</b> banner, and <b>checkout</b> (free delivery + free-cookie picker).</li>
+            <li style={li}>⚠️ <b>Faster loyalty is retroactive</b> — activating e.g. Gold (buy-8) recomputes existing big spenders at the better rate and can hand them free cookies immediately. Intended, but a real cost at activation.</li>
+          </ul>
+        </Section>
+
         <Section title="💛 Growth &amp; retention (automatic)">
           <h3 style={h3}>Referrals — give a cookie, get a cookie</h3>
           <p style={p}>Members have a "Refer a friend" link in their account. When a <b>new</b> customer orders their <b>first box of 6+</b> with that link, <b>both</b> get a free cookie (a refund of that order reverses it). The daily digest flags unusual referral activity.</p>
