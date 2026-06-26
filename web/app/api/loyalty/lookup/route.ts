@@ -16,7 +16,9 @@ function supaAdmin() {
 }
 
 // Compute a phone's available rewards from paid order history. Used by the POS.
-export async function loyaltyForPhone(supa: any, phone: string) {
+// `stampsPerFree` lets a VIP member earn faster (buy-9/8/7-get-1); omit for the
+// standard buy-10.
+export async function loyaltyForPhone(supa: any, phone: string, stampsPerFree?: number) {
   const sig = phoneSignificant(phone);
   if (!sig) return null;
   const { data } = await supa
@@ -29,7 +31,7 @@ export async function loyaltyForPhone(supa: any, phone: string) {
   // string can't match inside a different, longer number.
   const exact = (data || []).filter((o: any) => phoneSignificant(o?.customer_phone) === sig);
   const grant = await grantsForPhone(supa, phone);
-  return loyaltyFromOrders(exact, grant);
+  return loyaltyFromOrders(exact, grant, stampsPerFree);
 }
 
 export async function POST(req: Request) {

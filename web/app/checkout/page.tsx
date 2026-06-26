@@ -758,9 +758,19 @@ export default function CheckoutPage() {
         },
       };
 
+      // Send the member's auth token so the server can identify the verified
+      // member and apply VIP perks (faster loyalty, free cookie). Guests have
+      // no session → no header → treated as non-member.
+      const checkoutHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      try {
+        const { data: sess } = await getSupabaseBrowser().auth.getSession();
+        const tk = sess?.session?.access_token;
+        if (tk) checkoutHeaders.Authorization = `Bearer ${tk}`;
+      } catch { /* guest checkout */ }
+
       const res = await fetch("/api/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: checkoutHeaders,
         body: JSON.stringify(payload),
       });
 

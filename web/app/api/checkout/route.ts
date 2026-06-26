@@ -11,6 +11,9 @@ import { validatePromo } from "@/lib/promo";
 import { rewardMatchesTier } from "@/lib/spendRewards";
 import { serverBoxTotal } from "@/lib/serverPricing";
 import { classifyItem } from "@/lib/loyalty";
+import { getMember } from "@/lib/memberServer";
+import { vipStatusForPhone, loyaltyPerFree } from "@/lib/vip";
+import { FLAVORS } from "@/lib/catalog";
 
 export const runtime = "nodejs";
 
@@ -113,6 +116,14 @@ export async function POST(req: Request) {
     const customerName = (payload?.customer?.name || "").toString();
     const customerPhone = (payload?.customer?.phone || "").toString();
     const email = (payload?.customer?.email || payload?.email || "").toString();
+
+    // 👑 VIP perks key off the VERIFIED signed-in member (OTP-bound phone), never
+    // the typed checkout phone — so they can't be claimed with someone else's
+    // number. Null for guests / unverified. (Free same-day delivery is applied
+    // client-side, consistent with how delivery pricing already works.)
+    const member = await getMember(supabase, req);
+    const memberPhone = member?.ownerPhone || null;
+    const vipTier = memberPhone ? (await vipStatusForPhone(supabase, memberPhone)).tier : null;
 
     // "Deliver to someone else": the recipient's own contact, distinct from the
     // buyer. The courier reaches the recipient and the tracking WhatsApp goes to
@@ -235,7 +246,10 @@ export async function POST(req: Request) {
       const wantDrinks = freeLines.filter((l: any) => l.kind === "drink").reduce((s: number, l: any) => s + l.quantity, 0);
       if (wantCookies || wantDrinks) {
         const supaCheck = supaAdmin();
-        const loy = await loyaltyForPhone(supaCheck, phone);
+        // VIP members earn faster (buy-9/8/7) — but only on their own verified
+        // number, so the higher balance can't be claimed for someone else.
+        const vipN = vipTier && phone === memberPhone ? loyaltyPerFree(vipTier) : undefined;
+        const loy = await loyaltyForPhone(supaCheck, phone, vipN);
         if (!loy || wantCookies > loy.freeCookies || wantDrinks > loy.freeDrinks) {
           return NextResponse.json({ ok: false, error: "Not enough rewards available." }, { status: 400 });
         }
@@ -289,6 +303,19 @@ export async function POST(req: Request) {
           return NextResponse.json({ ok: false, error: "Not enough subscription reward cookies available." }, { status: 400 });
         }
         items.push(...lines);
+      }
+    }
+
+    // ---- VIP free cookie (a per-order gift for an eligible verified member) ----
+    // The member picks the flavour; added at Rp0 and flagged noLoyalty so it
+    // neither earns a stamp nor spends one. Gated on the verified member's tier,
+    // so a guest / non-VIP can never trigger it.
+    if (vipTier?.free_cookie_per_order) {
+      const pick = (payload as any)?.vip_free_cookie;
+      const pickId = String(pick?.id ?? pick ?? "").trim();
+      const f = (FLAVORS as any[]).find((x) => String(x.id) === pickId);
+      if (f) {
+        items.push({ id: String(f.id), name: String(f.name), price: 0, quantity: 1, kind: "cookie", free: true, noLoyalty: true, vipGift: true } as any);
       }
     }
 
@@ -364,6 +391,7 @@ export async function POST(req: Request) {
         ref: refCode,
         promo: promoApplied,
         invite_recipient: !!(payload?.invite_recipient && recipientPhone),
+        vip_tier: vipTier?.name || null,
       },
     };
 
