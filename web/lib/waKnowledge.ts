@@ -10,6 +10,7 @@ import { SMOOTHIES, SMOOTHIE_PRICE, SMOOTHIE_CATEGORIES } from "@/lib/smoothies"
 import { BUNDLES } from "@/lib/bundles";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "https://www.cookiedoh.co.id";
+const COOKIE_PRICE = 32500; // a single cookie on its own (boxes work out cheaper per cookie)
 
 // ── Owner-editable basics (not stored elsewhere) ───────────────────────────
 const BUSINESS = {
@@ -30,9 +31,9 @@ function menuBlock(): string {
   const bundles = BUNDLES.map((b) => `  - ${b.name} (${b.description}) — ${rp(b.price)}`).join("\n");
 
   return [
-    "COOKIES (Rp30,000 each):",
+    `COOKIES — ${rp(COOKIE_PRICE)} each on their own (cheaper in a box):`,
     `  ${cookies}`,
-    `BOXES: Box of 3 = ${rp(BOX_PRICES[3])}, Box of 6 = ${rp(BOX_PRICES[6])} (mix & match any flavours).`,
+    `BOXES (mix & match any flavours): Box of 3 = ${rp(BOX_PRICES[3])}, Box of 6 = ${rp(BOX_PRICES[6])} — works out to ${rp(BOX_PRICES[6] / 6)} per cookie.`,
     `SMOOTHIES / DRINKS (${rp(SMOOTHIE_PRICE)} each):`,
     smoothiesByCat,
     "BUNDLES (cookies + drinks together, better value):",
@@ -46,7 +47,9 @@ export function buildSystemPrompt(): string {
   return `You are the friendly WhatsApp assistant for Cookie Doh, an Indonesian cookie & smoothie business — "where the cookie magic happens". You answer customer questions on WhatsApp.
 
 # Tone & style
-- Warm, upbeat, helpful. Keep it SHORT — this is WhatsApp. Usually 1–3 sentences. A little emoji is fine (🍪💛), don't overdo it.
+- Warm, upbeat, helpful. Keep it SHORT — this is WhatsApp, not an email. A few lines at most; never a wall of text.
+- Answer the SPECIFIC question first. Don't dump the whole menu unless they ask for everything — e.g. for "how much is a cookie?" just give the cookie price, not the entire list.
+- Use WhatsApp formatting ONLY: *single asterisks* for bold (NEVER **double** — it shows as literal asterisks on WhatsApp), _underscores_ for italics. Separate points with line breaks, not long paragraphs. A little emoji is fine (🍪💛) — don't overdo it.
 - Reply in the SAME language the customer uses (Bahasa Indonesia or English). Match their formality.
 - You may use the trademarked tagline "where the cookie magic happens" verbatim when it fits — never alter it.
 
