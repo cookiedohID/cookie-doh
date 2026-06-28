@@ -60,6 +60,12 @@ export async function POST(req: Request) {
     if (!authorized(req)) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
     const body = await parseInbound(req);
+
+    // TEMP diagnostic: capture every raw payload Fonnte sends (including the
+    // owner's own outgoing replies, IF Fonnte forwards them) so we can build
+    // human-takeover pause correctly. Remove once inspected.
+    try { await supaAdmin().from("wa_debug").insert({ raw: body }); } catch { /* never block */ }
+
     const text = String(body.message || body.text || "").trim();
     const sender = canonicalPhone(body.sender || body.phone || body.from);
     const name = String(body.name || "").trim();
