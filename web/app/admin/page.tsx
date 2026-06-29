@@ -15,6 +15,7 @@ const SECTIONS = [
   { href: "/admin/promos", title: "Promo codes", desc: "Discount codes for checkout", emoji: "🎟️" },
   { href: "/admin/spend-rewards", title: "Spend rewards", desc: "Spend Rp X, unlock a reward", emoji: "🎯" },
   { href: "/admin/vip", title: "VIP tiers", desc: "Reward lifetime spend", emoji: "👑" },
+  { href: "/admin/production", title: "Production plan", desc: "How many recipes to bake", emoji: "🧑‍🍳" },
   { href: "/admin/help", title: "Manual", desc: "How everything works", emoji: "📖" },
 ];
 

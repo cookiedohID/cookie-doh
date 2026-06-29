@@ -152,6 +152,15 @@ export default function AdminHelpPage() {
           </ul>
         </Section>
 
+        <Section title="🧑‍🍳 Admin — Production plan">
+          <p style={p}>At <span style={code}>/admin/production</span> — how many recipes to bake, from live stock + recent sales.</p>
+          <ul style={{ paddingLeft: 18 }}>
+            <li style={li}>Two bases (🌑 dark, 🌕 light). <b>1 recipe = 11 cookies</b>; smallest batch is <b>½ a recipe per flavour</b>.</li>
+            <li style={li}>Per flavour: demand = (sales/day over the window) × coverage days, minus current stock → rounded up to the next ½-recipe. Out-of-stock sellers are flagged.</li>
+            <li style={li}>Adjust <b>coverage</b> (7/14/30 days) and the <b>sales window</b> (14/28/56 days) at the top; it recalculates live. Smoothie sales of a flavour aren&apos;t counted — cookies only.</li>
+          </ul>
+        </Section>
+
         <Section title="💛 Growth &amp; retention (automatic)">
           <h3 style={h3}>Referrals — give a cookie, get a cookie</h3>
           <p style={p}>Members have a "Refer a friend" link in their account. When a <b>new</b> customer orders their <b>first box of 6+</b> with that link, <b>both</b> get a free cookie (a refund of that order reverses it). The daily digest flags unusual referral activity.</p>

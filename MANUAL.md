@@ -416,4 +416,25 @@ Nothing shows to customers until you activate at least one tier.
 
 ---
 
+## 15. Production plan
+
+`/admin` → 🧑‍🍳 **Production plan** tells you **how many recipes to bake**, from your
+live stock + recent sales — so you bake what's actually selling and don't run out.
+
+- **Two bases:** 🌑 dark and 🌕 light. **1 recipe = 11 cookies** of a base; the smallest
+  batch is **½ a recipe per flavour**.
+- For each flavour: expected demand = (its sales/day over the chosen window) ×
+  the coverage days; subtract current stock (all locations) → what's short →
+  rounded up to the next ½-recipe. Out-of-stock sellers are flagged.
+- The headline shows the total, e.g. *"1 dark + 1½ light = 2½ recipes,"* with a
+  per-flavour breakdown so you know how to split each base batch.
+- **Adjust** "bake to cover" (7 / 14 / 30 days) and the sales window (last 14 / 28 /
+  56 days) at the top — it recalculates instantly.
+- A flavour sold as a **smoothie** isn't counted here — only cookies.
+
+*(Base mapping lives in `web/lib/production.ts`. "Crimson Crush" isn't in the
+catalogue yet — add it to the flavours + that file's base map when it exists.)*
+
+---
+
 *Cookie Doh — where the cookie magic happens 🍪*
