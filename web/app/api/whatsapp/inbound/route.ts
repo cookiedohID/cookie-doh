@@ -26,7 +26,11 @@ function supaAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-const HANDOFF_PAUSE_HOURS = 3;
+// The bot stays muted for a number while it's being handled by a human (a
+// handoff, or the owner muting it in admin), and auto-resumes once the chat has
+// been idle this long. Each new message while muted rolls the window forward,
+// so the mute lifts ~this many hours after the LAST message.
+const PAUSE_IDLE_HOURS = 2;
 const HISTORY_TURNS = 10;
 
 // Fonnte posts form-urlencoded by default, JSON if the device is configured for it.
@@ -61,11 +65,6 @@ export async function POST(req: Request) {
 
     const body = await parseInbound(req);
 
-    // TEMP diagnostic: capture every raw payload Fonnte sends (including the
-    // owner's own outgoing replies, IF Fonnte forwards them) so we can build
-    // human-takeover pause correctly. Remove once inspected.
-    try { await supaAdmin().from("wa_debug").insert({ raw: body }); } catch { /* never block */ }
-
     const text = String(body.message || body.text || "").trim();
     const sender = canonicalPhone(body.sender || body.phone || body.from);
     const name = String(body.name || "").trim();
@@ -93,9 +92,16 @@ export async function POST(req: Request) {
     const pausedUntil = state?.auto_paused_until ? new Date(state.auto_paused_until).getTime() : 0;
     const isPaused = pausedUntil > Date.now();
 
-    // A human is currently handling this number → stay quiet, just log + dedupe.
+    // A human is currently handling this number → stay quiet. Roll the mute
+    // forward so it only lifts after the chat has been idle for the window
+    // (idle-based resume — an active back-and-forth keeps the bot muted).
     if (isPaused) {
-      await supa.from("wa_state").upsert({ phone: sender, last_inbound_id: inboundId || null, updated_at: new Date().toISOString() });
+      await supa.from("wa_state").upsert({
+        phone: sender,
+        auto_paused_until: new Date(Date.now() + PAUSE_IDLE_HOURS * 3600 * 1000).toISOString(),
+        last_inbound_id: inboundId || null,
+        updated_at: new Date().toISOString(),
+      });
       return NextResponse.json({ ok: true, paused: true });
     }
 
@@ -144,14 +150,14 @@ export async function POST(req: Request) {
         `🙋 WhatsApp: ${who} needs a hand`,
         escalateReason ? `Reason: ${escalateReason}` : "",
         `Their message: "${text}"`,
-        pause ? `Auto-replies paused ${HANDOFF_PAUSE_HOURS}h — reply them directly on WhatsApp.` : "Reply them directly on WhatsApp.",
+        pause ? `Bot muted for this chat while you handle it (auto-resumes after it's quiet ~${PAUSE_IDLE_HOURS}h). Reply them directly on WhatsApp.` : "Reply them directly on WhatsApp.",
       ].filter(Boolean);
       await sendWhatsApp({ message: lines.join("\n") }); // owner = ADMIN_NOTIFY_WHATSAPP
     }
 
     // Persist state (pause window on handoff + dedupe id).
     const auto_paused_until = pause
-      ? new Date(Date.now() + HANDOFF_PAUSE_HOURS * 3600 * 1000).toISOString()
+      ? new Date(Date.now() + PAUSE_IDLE_HOURS * 3600 * 1000).toISOString()
       : (isPaused ? state?.auto_paused_until : null);
     await supa.from("wa_state").upsert({
       phone: sender,

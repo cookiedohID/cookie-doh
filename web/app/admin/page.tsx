@@ -16,6 +16,7 @@ const SECTIONS = [
   { href: "/admin/spend-rewards", title: "Spend rewards", desc: "Spend Rp X, unlock a reward", emoji: "🎯" },
   { href: "/admin/vip", title: "VIP tiers", desc: "Reward lifetime spend", emoji: "👑" },
   { href: "/admin/production", title: "Production plan", desc: "How many recipes to bake", emoji: "🧑‍🍳" },
+  { href: "/admin/whatsapp", title: "WhatsApp chats", desc: "Mute the AI bot per customer", emoji: "💬" },
   { href: "/admin/help", title: "Manual", desc: "How everything works", emoji: "📖" },
 ];
 

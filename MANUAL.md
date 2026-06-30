@@ -358,8 +358,16 @@ number messaging in — never anyone else's).
 **Hand-off to you.** For complaints, refunds, changing/cancelling a paid order, wholesale/custom/event
 requests, allergy-critical questions, anything it can't answer, or when the customer asks for a person,
 it **escalates to you** (you get a WhatsApp with the customer's number, their message and the reason)
-and **pauses its own auto-replies to that number for 3 hours** so you can take over without it talking
-over you. It never takes payment or confirms an order in chat — it points customers to the website.
+and **mutes itself for that chat** so you can take over. It never takes payment or confirms an order in
+chat — it points customers to the website.
+
+**Muting the bot for a customer (`/admin` → 💬 WhatsApp chats).** When *you* want to handle someone
+yourself, open **WhatsApp chats**, find the conversation and tap **Mute bot** — the bot goes silent for
+just that customer (others still get instant replies). Whether muted by you or by a hand-off, it
+**auto-resumes once the chat has been quiet for ~2 hours** (each new message while muted rolls that
+window forward, so an active back-and-forth stays muted). You can **Unmute** anytime.
+*(Note: replies you type on your phone aren't visible to the system — WhatsApp doesn't forward your
+outgoing messages — which is why muting is a tap here rather than automatic.)*
 
 It runs on **Claude Haiku** (chosen for low cost on high message volume) and keeps replies short.
 
