@@ -440,6 +440,18 @@ live stock + recent sales — so you bake what's actually selling and don't run 
   56 days) at the top — it recalculates instantly.
 - A flavour sold as a **smoothie** isn't counted here — only cookies.
 
+**Bake it → add to inventory.** The plan is a starting point, not a lock:
+
+- Every flavour has an editable **"Make 🍪"** box, pre-filled with the suggestion
+  (in *cookies* — ½ recipe ≈ 6 cookies). **Change any number** to whatever you
+  actually baked; the per-base "Making X cookies ≈ Y recipes" line updates live.
+- Pick **which location** the baked cookies go to (top-right dropdown; defaults to
+  **Kemang**, your kitchen).
+- Hit **✓ Add to inventory** — it adds each flavour's cookies to that location's
+  stock, clears any "sold out" flag on them, and logs the batch for the reports
+  history. The plan then reloads: stock is higher and those flavours drop off the
+  "need to bake" list. (Nothing is added until you press the button and confirm.)
+
 *(Base mapping lives in `web/lib/production.ts`. "Crimson Crush" isn't in the
 catalogue yet — add it to the flavours + that file's base map when it exists.)*
 

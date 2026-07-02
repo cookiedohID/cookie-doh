@@ -158,6 +158,7 @@ export default function AdminHelpPage() {
             <li style={li}>Two bases (🌑 dark, 🌕 light). <b>1 recipe = 11 cookies</b>; smallest batch is <b>½ a recipe per flavour</b>.</li>
             <li style={li}>Per flavour: demand = (sales/day over the window) × coverage days, minus current stock → rounded up to the next ½-recipe. Out-of-stock sellers are flagged.</li>
             <li style={li}>Adjust <b>coverage</b> (7/14/30 days) and the <b>sales window</b> (14/28/56 days) at the top; it recalculates live. Smoothie sales of a flavour aren&apos;t counted — cookies only.</li>
+            <li style={li}><b>Bake it → add to inventory:</b> each flavour has an editable <b>Make 🍪</b> box (pre-filled with the suggestion, in cookies). Change any amount, pick the <b>location</b> (top-right, defaults to Kemang), then <b>✓ Add to inventory</b> — it raises that location&apos;s stock, clears sold-out, and logs the batch. Nothing changes until you press the button and confirm.</li>
           </ul>
         </Section>
 
