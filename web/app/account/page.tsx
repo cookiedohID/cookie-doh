@@ -32,6 +32,139 @@ function vipPerksLine(t: NonNullable<VipT>): string {
   return parts.join(" · ");
 }
 
+// ── TotalBuahStore (TBS) rewards — federated view (see /api/account/tbs) ──────────
+// Its own brand identity (red + green + cherry logo + tagline) but the Cookie Doh
+// app font, per the owner's call. Only rendered when the proxy returns found data.
+const TBS_RED = "#9c1216";
+const TBS_GREEN = "#135232";
+
+type TbsItem = { sku: string; name: string; qty: number; amount: number; url: string; status: "in_stock" | "out_of_stock" | "discontinued" };
+type TbsReceipt = { date: string; store: string; receiptNo: string; total: number; pointsEarned: number; items: TbsItem[] };
+type TbsData = {
+  member: { name: string | null; tier: string | null; memberSince: string | null };
+  points: { balance: number; expiryMonths: number | null; expiring: { amount: number; on: string }[] };
+  history: { total: number; offset: number; receipts: TbsReceipt[] };
+};
+
+function TbsCherry({ size = 26 }: { size?: number }) {
+  return (
+    <svg width={size} height={Math.round((size * 30) / 26)} viewBox="0 0 26 30" aria-hidden="true">
+      <path d="M12 14 C 12 9, 14 6, 17 4" stroke={TBS_GREEN} strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      <path d="M17 4 C 22 1, 25 4, 21 7 C 18 6, 18 6, 17 4 Z" fill="#4aa02c" />
+      <circle cx="11" cy="20" r="8" fill="#b0201d" />
+      <circle cx="8" cy="17" r="2" fill="#d76b62" />
+    </svg>
+  );
+}
+
+function fmtTbsDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function TbsRewards({ data, authToken }: { data: TbsData; authToken: string | null }) {
+  const [receipts, setReceipts] = useState<TbsReceipt[]>(data.history.receipts);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [loadingMore, setLoadingMore] = useState(false);
+  const total = data.history.total;
+  const p = data.points;
+
+  const badgeFor = (status: string) =>
+    status === "out_of_stock" ? { text: "out of stock", bg: "#FBECEA", fg: TBS_RED }
+      : status === "discontinued" ? { text: "discontinued", bg: "#efefef", fg: "#666" }
+        : null;
+
+  async function loadMore() {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      // Use a FRESH token — the one captured at page load may have expired on a long-open tab.
+      let t = authToken;
+      try { const { data } = await getSupabaseBrowser().auth.getSession(); t = data.session?.access_token || authToken; } catch { /* fall back to stored */ }
+      if (!t) return;
+      const r = await fetch(`/api/account/tbs?offset=${receipts.length}&limit=20`, { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
+      const j = await r.json();
+      const more: TbsReceipt[] = j?.found && Array.isArray(j?.history?.receipts) ? j.history.receipts : [];
+      if (more.length) {
+        // De-dupe by receiptNo so an overlapping page can't double-list a receipt (and stop growing when nothing new).
+        setReceipts((prev) => {
+          const seen = new Set(prev.map((x) => x.receiptNo).filter(Boolean));
+          const fresh = more.filter((x) => !x.receiptNo || !seen.has(x.receiptNo));
+          return fresh.length ? [...prev, ...fresh] : prev;
+        });
+      }
+    } catch { /* ignore — TBS is optional */ } finally { setLoadingMore(false); }
+  }
+
+  return (
+    <div style={{ marginTop: 18, borderRadius: 16, overflow: "hidden", border: "1px solid rgba(0,0,0,0.08)", borderTop: `4px solid ${TBS_RED}`, background: "#fff" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid #eee" }}>
+        <TbsCherry size={26} />
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: TBS_GREEN, lineHeight: 1, letterSpacing: 0.5 }}>tbs</div>
+          <div style={{ fontSize: 12, fontStyle: "italic", color: TBS_RED, marginTop: 1 }}>100% Fresh. Today and Always</div>
+        </div>
+      </div>
+      <div style={{ padding: 16 }}>
+        <div style={{ padding: "12px 14px", background: "#FBF4F3", border: "1px solid #f0dcda", borderRadius: 12 }}>
+          <div style={{ fontSize: 12, color: TBS_GREEN }}>rupiah points</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: TBS_RED }}>{rpFmt(p.balance)}</div>
+          <div style={{ fontSize: 12, color: "#5a5a5a", marginTop: 2 }}>
+            {p.expiring?.length ? `${rpFmt(p.expiring[0].amount)} expiring ${fmtTbsDate(p.expiring[0].on)}` : "points expire 12 months after earning"}
+            {data.member.tier ? <> · tier <b style={{ color: TBS_GREEN }}>{data.member.tier}</b></> : null}
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 800, color: TBS_RED, textTransform: "uppercase", letterSpacing: 0.4, margin: "16px 0 2px" }}>purchase history</div>
+        {receipts.map((r, idx) => {
+          // Composite, position-stable key — receipts only ever append, and receiptNo
+          // may be blank, so index-qualify it to guarantee uniqueness.
+          const key = `${idx}:${r.receiptNo || r.date || ""}`;
+          const isOpen = !!open[key];
+          return (
+            <div key={key}>
+              <div onClick={() => setOpen((o) => ({ ...o, [key]: !isOpen }))} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.08)", cursor: "pointer", fontSize: 13 }}>
+                <div>
+                  <div style={{ color: COLORS.black }}>{r.store} · {r.items.length} item{r.items.length === 1 ? "" : "s"}</div>
+                  <div style={{ color: COLORS.muted, fontSize: 12 }}>{fmtTbsDate(r.date)}{r.pointsEarned ? ` · +${r.pointsEarned.toLocaleString("id-ID")} pts` : ""}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: COLORS.black }}>{rpFmt(r.total)}<span style={{ color: "#999", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform .15s", display: "inline-block" }}>›</span></div>
+              </div>
+              {isOpen ? (
+                <div style={{ padding: "2px 0 8px 4px" }}>
+                  {r.items.map((it, i) => {
+                    const b = badgeFor(it.status);
+                    const linkColor = it.status === "in_stock" ? TBS_GREEN : it.status === "out_of_stock" ? TBS_RED : "#8a8a8a";
+                    return (
+                      <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 0", fontSize: 12.5, gap: 8 }}>
+                        <span style={{ minWidth: 0 }}>
+                          {it.url
+                            ? <a href={it.url} target="_blank" rel="noreferrer" style={{ color: linkColor, textDecoration: "none" }}>{it.name} ×{it.qty} ↗</a>
+                            : <span>{it.name} ×{it.qty}</span>}
+                          {b ? <span style={{ fontSize: 10.5, padding: "1px 6px", borderRadius: 999, marginLeft: 6, background: b.bg, color: b.fg, whiteSpace: "nowrap" }}>{b.text}</span> : null}
+                        </span>
+                        <span style={{ color: COLORS.black }}>{rpFmt(it.amount)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+
+        {receipts.length < total ? (
+          <div style={{ textAlign: "center", marginTop: 12, borderTop: "1px solid rgba(0,0,0,0.06)", paddingTop: 10 }}>
+            <div style={{ fontSize: 11, color: "#999", marginBottom: 6 }}>showing {receipts.length} of {total} · past 12 months</div>
+            <button onClick={loadMore} disabled={loadingMore} style={{ width: "100%", height: 34, border: "1px solid #e2c9c7", borderRadius: 8, background: "#fff", color: TBS_RED, fontSize: 13, fontWeight: 700, cursor: loadingMore ? "default" : "pointer" }}>{loadingMore ? "…" : "Load more"}</button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function AccountPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -52,6 +185,8 @@ export default function AccountPage() {
   const [err, setErr] = useState("");
   const [loadErr, setLoadErr] = useState("");
   const [email, setEmail] = useState("");
+  const [tbs, setTbs] = useState<TbsData | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
   async function token() {
     const { data } = await getSupabaseBrowser().auth.getSession();
@@ -66,6 +201,13 @@ export default function AccountPage() {
       if (!t) { router.replace("/account/login"); return; }
       // Capture the signed-in identity so the UI can always show WHICH account.
       try { const { data } = await getSupabaseBrowser().auth.getSession(); setEmail(data.session?.user?.email || ""); } catch {}
+      // TotalBuahStore rewards — federated, feature-flagged server-side. Best-effort,
+      // non-blocking; only surfaces when the proxy is configured AND finds the member.
+      setAuthToken(t);
+      fetch("/api/account/tbs", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" })
+        .then((r) => r.json())
+        .then((j) => { if (j?.configured && j?.found) setTbs(j as TbsData); })
+        .catch(() => { /* TBS is optional; never blocks the account page */ });
       const timeoutSignal = typeof AbortSignal !== "undefined" && (AbortSignal as any).timeout ? (AbortSignal as any).timeout(12000) : undefined;
       const res = await fetch("/api/account/me", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store", signal: timeoutSignal });
       const j = await res.json().catch(() => ({}));
@@ -355,6 +497,9 @@ export default function AccountPage() {
         <p style={{ marginTop: 12, fontSize: 12, color: COLORS.muted, lineHeight: 1.5, textAlign: "center" }}>
           Every cookie &amp; drink you buy earns a stamp — singles, boxes, assortments &amp; bundles. Only redeemed free rewards don&apos;t.
         </p>
+
+        {/* TotalBuahStore rewards — only appears when the TBS proxy is configured + finds the member */}
+        {tbs ? <TbsRewards data={tbs} authToken={authToken} /> : null}
 
         {/* Birthday — set once, then locked (so it can't be edited to farm the reward) */}
         <div style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
