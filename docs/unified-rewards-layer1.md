@@ -137,8 +137,10 @@ customer feels they've switched between two separate brands.
   font, already loaded), the tagline *where the cookie magic happens*, sand/cream
   surfaces — matching the storefront.
 - **TBS tab:** TotalBuahStore identity (from `TBS Brand Guideline.pdf` v1.1) —
-  primary **red `#9c1216`** + secondary **green `#135232`**, and the **"tbs" cherry
-  logo**. **Typography: use the Cookie Doh app font** for all text (owner's call — the
+  primary **red `#9c1216`** + secondary **green `#135232`**, the **"tbs" cherry logo**,
+  and the tagline **100% Fresh. Today and Always** (verbatim, TBS's counterpart to
+  Cookie Doh's "where the cookie magic happens"). **Typography: use the Cookie Doh app
+  font** for all text (owner's call — the
   TBS specialty faces Intro Rust / A Song for Jennifer don't read well in a
   receipt/purchase-history list). Brand differentiation here is **colour + logo only**,
   not type.
