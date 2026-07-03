@@ -462,4 +462,21 @@ catalogue yet — add it to the flavours + that file's base map when it exists.)
 
 ---
 
+## 16. Install the admin as a phone app
+
+The whole back-office runs as an installable app — no App Store needed.
+
+- **iPhone (Safari):** open `cookiedoh.co.id/admin`, tap **Share** → **Add to Home
+  Screen**. It appears as **CD Admin** and opens full-screen, like a native app.
+- **Android (Chrome):** open `/admin`, tap the **⋮** menu → **Install app** (or
+  "Add to Home screen").
+- Log in once; the session lasts 30 days. It auto-updates whenever we deploy.
+- The **cafe register** (`/cafe`) installs the same way as its own **Cafe POS** app.
+
+*(PWA manifests: `web/public/backoffice.webmanifest` for admin, `cafe.webmanifest`
+for the register. Admin's lives at a non-`/admin` path so the login gate doesn't
+block it.)*
+
+---
+
 *Cookie Doh — where the cookie magic happens 🍪*
