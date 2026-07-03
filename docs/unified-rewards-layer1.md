@@ -70,7 +70,8 @@ Cloud Run). The shared token never reaches the browser, and Cookie Doh enforces
 **Auth:** `Authorization: Bearer <PARTNER_API_TOKEN>` (shared secret, env var on both
 sides). Missing/wrong → `401`. Read-only; no writes ever.
 
-**Query:** `phone` (required, E.164).
+**Query:** `phone` (required, E.164). Optional paging for history: `offset` (default 0),
+`limit` (default 20, max 100).
 
 **Response 200:**
 ```json
@@ -85,27 +86,42 @@ sides). Missing/wrong → `401`. Read-only; no writes ever.
   "points": {
     "balance": 125000,
     "unit": "IDR-points",
-    "expiring": [ { "amount": 20000, "on": "2026-09-30" } ]
+    "expiryMonths": 12,
+    "expiring": [ { "amount": 20000, "on": "2027-06-28" } ]
   },
-  "history": [
-    {
-      "date": "2026-06-28T10:12:00+07:00",
-      "store": "RC Veteran",
-      "receiptNo": "TBS-000123",
-      "total": 84000,
-      "pointsEarned": 1260,
-      "items": [
-        { "name": "Apel Fuji 1kg", "qty": 1, "amount": 32000 },
-        { "name": "Susu UHT 1L",   "qty": 2, "amount": 52000 }
-      ]
-    }
-  ]
+  "history": {
+    "total": 47,
+    "offset": 0,
+    "receipts": [
+      {
+        "date": "2026-06-28T10:12:00+07:00",
+        "store": "RC Veteran",
+        "receiptNo": "TBS-000123",
+        "total": 84000,
+        "pointsEarned": 1260,
+        "items": [
+          { "sku": "FRT-APLFJ-1KG", "name": "Apel Fuji 1kg", "qty": 1, "amount": 32000,
+            "url": "https://totalbuahstore.com/product/apel-fuji-1kg", "status": "in_stock" },
+          { "sku": "DRY-SUHT-1L", "name": "Susu UHT 1L", "qty": 2, "amount": 52000,
+            "url": "https://totalbuahstore.com/product/susu-uht-1l", "status": "out_of_stock" }
+        ]
+      }
+    ]
+  }
 }
 ```
 - No member for that phone → `{ "found": false }` (200, not an error).
-- `history` = most recent **N** receipts (default 20). `items` optional depth — can
-  omit line items in v1 and return receipt totals only if that's simpler on the ERP side.
-- All money in IDR (integers). `expiring` optional (empty array if TBS points don't expire).
+- **Points expire 12 months after they're earned** (`expiryMonths: 12`). `expiring[]`
+  lists upcoming expiries (amount + date) so the UI can warn "expiring soon".
+- **History = detailed receipts** (line items required, not optional). Each receipt is
+  **kept for 1 year**; return the most recent **20** by default and honour `offset`/`limit`
+  (+ `history.total`) so the UI can **"load more"** back through the full year.
+- Each item carries `sku`, `name`, `qty`, `amount`, a live product `url` on
+  **`totalbuahstore.com`**, and `status` ∈ `in_stock` | `out_of_stock` | `discontinued`.
+  The `url` is **always present** so a customer can tap to reorder; the store's own
+  product page renders the out-of-stock / discontinued state when applicable (the
+  endpoint just reports `status`; the tab badges it).
+- All money in IDR (integers).
 
 ---
 
@@ -121,9 +137,15 @@ sides). Missing/wrong → `401`. Read-only; no writes ever.
 - **Account page** `web/app/account/page.tsx`: add a **tabbed "Rewards & history"** section.
   - **Cookie Doh tab:** cookie stamps (x/10), smoothie stamps (x/10), free
     cookies/drinks available, VIP tier chip → then Cookie Doh order history.
-  - **TBS tab:** rupiah-points balance (+ "expiring soon" if any), tier → then TBS
-    receipt history. `found:false` → "Link your TBS membership" empty state.
-- Tabs are client-side only (no reload); the TBS tab lazy-loads on first open.
+  - **TBS tab:** rupiah-points balance (+ "expiring soon" — points expire 12 months
+    after earning), tier → then TBS **receipt history**. Each receipt expands to its
+    **line items**; every item name is a **live link to its `totalbuahstore.com`
+    product page** (tap to reorder). Items flagged `out_of_stock`/`discontinued` get a
+    small badge but still link (the store page shows that state). Show the latest 20
+    with **"load more"** paging back through the past year. `found:false` →
+    "Link your TBS membership" empty state.
+- Tabs are client-side only (no reload); the TBS tab lazy-loads on first open. Product
+  links open in a new tab to `totalbuahstore.com` (external — outside the account app).
 
 ---
 
@@ -149,9 +171,8 @@ customer feels they've switched between two separate brands.
   both panels share the Cookie Doh app font. Use the actual **tbs logo asset** in the
   TBS header. Keep the Cookie Doh tagline **verbatim** (trademarked). Colour and logo
   are what distinguish the two tabs — not typography.
-- **Name to confirm:** the guideline says **TotalBuahStore**; the store locations say
-  **Total Buah Segar**. Confirm which is customer-facing before spelling it out (the
-  logo mark sidesteps this).
+- **Name:** the customer-facing brand is **TotalBuahStore** (site: **totalbuahstore.com**),
+  where the full name is shown; product reorder links point there.
 
 ---
 
@@ -181,10 +202,14 @@ customer feels they've switched between two separate brands.
 
 ---
 
-## 9. Open questions for the owner
+## 9. Decisions (locked 2026-07-03)
 
-1. **History depth & detail:** last 20 receipts OK? Show **line items** per receipt,
-   or just **receipt totals** to start? (default: 20 receipts, totals, with line
-   items if easy on the ERP side.)
-2. **Points expiry:** do TBS rupiah points expire? (drives the "expiring soon" chip.)
-3. **Tier:** show the TBS tier in the TBS tab? (default: yes.)
+- **Brand name / domain:** TotalBuahStore — **totalbuahstore.com**.
+- **Points expiry:** points expire **12 months** after earning; show "expiring soon".
+- **History:** show **20** at a time, **kept for 1 year** (load-more paging back a year).
+- **Receipts:** **detailed line items**, each product a **live link** to its
+  totalbuahstore.com page to ease reorder.
+- **Out of stock / discontinued:** the item still links; the product page shows the
+  out-of-stock / discontinued state (endpoint reports `status`, tab badges it).
+- **Tier:** shown in the TBS tab.
+- **TBS-tab typography:** Cookie Doh app font (readability); identity = colour + logo.
