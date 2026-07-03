@@ -451,6 +451,11 @@ live stock + recent sales — so you bake what's actually selling and don't run 
   stock, clears any "sold out" flag on them, and logs the batch for the reports
   history. The plan then reloads: stock is higher and those flavours drop off the
   "need to bake" list. (Nothing is added until you press the button and confirm.)
+- **Back-in-stock alerts** toggle (top): when **On** (default), if a bake brings back
+  a flavour that was sold out at *every* location, everyone who tapped "notify me"
+  gets a WhatsApp. Flip it **Off** for a quiet restock. It only messages flavours
+  that were truly sold out storefront-wide and had people waiting — so most bakes
+  send nothing; the success line tells you if anyone was alerted.
 
 *(Base mapping lives in `web/lib/production.ts`. "Crimson Crush" isn't in the
 catalogue yet — add it to the flavours + that file's base map when it exists.)*

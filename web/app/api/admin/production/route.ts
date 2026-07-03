@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { computeProductionPlan, BASE_OF } from "@/lib/production";
 import { LOCATIONS } from "@/lib/locations";
+import { aggSoldOut, notifyBackInStock } from "@/lib/stockAlerts";
 
 export const runtime = "nodejs";
 
@@ -40,15 +41,19 @@ export async function POST(req: Request) {
     if (!location_id || !VALID_LOC.has(location_id)) {
       return NextResponse.json({ ok: false, error: "Pick a location to add the baked cookies to." }, { status: 400 });
     }
+    // Opt-in: WhatsApp back-in-stock subscribers when a sold-out flavour returns.
+    const notify = Boolean(b?.notify);
 
-    // Normalise the requested cookies per flavour — only known cookie flavours,
-    // whole numbers > 0. Everything else is ignored.
-    const items: { id: string; cookies: number }[] = [];
+    // Normalise + de-dupe: sum cookies per flavour (only known cookie flavours,
+    // whole numbers > 0). Deduping means a repeated id can't double-upsert or
+    // double-alert, and flip-detection stays correct.
+    const byId = new Map<string, number>();
     for (const raw of Array.isArray(b?.items) ? b.items : []) {
       const id = String(raw?.id ?? "").trim();
       const cookies = Math.max(0, Math.floor(Number(raw?.cookies ?? 0)));
-      if (BASE_OF[id] && cookies > 0) items.push({ id, cookies });
+      if (BASE_OF[id] && cookies > 0) byId.set(id, (byId.get(id) || 0) + cookies);
     }
+    const items = [...byId.entries()].map(([id, cookies]) => ({ id, cookies }));
     if (!items.length) {
       return NextResponse.json({ ok: false, error: "Enter how many cookies you baked (at least one flavour)." }, { status: 400 });
     }
@@ -57,7 +62,10 @@ export async function POST(req: Request) {
     const now = new Date().toISOString();
     const added: { id: string; before: number; after: number; cookies: number }[] = [];
     const movements: any[] = [];
+    const flipCandidates: string[] = []; // sold-out storefront-wide BEFORE this bake
     for (const it of items) {
+      // Capture pre-bake sold-out state first (only when we may alert).
+      const wasOut = notify ? await aggSoldOut(supa, it.id) : false;
       const { data: cur } = await supa
         .from("location_stock").select("stock")
         .eq("location_id", location_id).eq("item_id", it.id).maybeSingle();
@@ -70,13 +78,23 @@ export async function POST(req: Request) {
       if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
       added.push({ id: it.id, before, after, cookies: it.cookies });
       movements.push({ location_id, item_id: it.id, qty: it.cookies, stock_before: before, stock_after: after, reason: "production" });
+      if (wasOut) flipCandidates.push(it.id);
     }
 
     // Audit trail (best-effort; table is optional).
     try { await supa.from("stock_movements").insert(movements); } catch { /* table optional */ }
 
+    // Back-in-stock alerts — only for flavours that were sold out storefront-wide
+    // before this bake and are now available again. Skipped entirely if !notify.
+    let alerted = 0;
+    if (notify && flipCandidates.length) {
+      for (const id of new Set(flipCandidates)) {
+        if (!(await aggSoldOut(supa, id))) alerted += await notifyBackInStock(supa, id);
+      }
+    }
+
     const totalCookies = added.reduce((n, a) => n + a.cookies, 0);
-    return NextResponse.json({ ok: true, location_id, added, totalCookies });
+    return NextResponse.json({ ok: true, location_id, added, totalCookies, alerted });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });
   }

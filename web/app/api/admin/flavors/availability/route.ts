@@ -2,48 +2,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { LOCATIONS } from "@/lib/locations";
-import { FLAVORS } from "@/lib/catalog";
-import { sendWhatsApp } from "@/lib/whatsapp";
+import { aggSoldOut, notifyBackInStock } from "@/lib/stockAlerts";
 
 function supaAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error("Missing Supabase env");
   return createClient(url, key, { auth: { persistSession: false } });
-}
-
-// Aggregate storefront sold-out for an item: true only when EVERY tracked
-// location is effectively sold out (mirrors /api/flavors/availability).
-async function aggSoldOut(supa: any, item_id: string): Promise<boolean> {
-  const { data } = await supa.from("location_stock").select("sold_out, stock").eq("item_id", item_id);
-  const rows = data || [];
-  if (!rows.length) return false;
-  let soldOutCount = 0;
-  for (const r of rows) {
-    const eff = Boolean(r.sold_out) || (typeof r.stock === "number" && r.stock <= 0);
-    if (eff) soldOutCount += 1;
-  }
-  return soldOutCount >= rows.length;
-}
-
-// Fire when a flavour flips sold-out -> available: WhatsApp everyone subscribed,
-// then clear them. Never throws (best-effort; table may not exist yet).
-async function notifyBackInStock(supa: any, item_id: string) {
-  try {
-    const { data: subs } = await supa.from("stock_subscriptions").select("phone").eq("item_id", item_id);
-    const phones = [...new Set((subs || []).map((s: any) => String(s?.phone || "")).filter(Boolean))];
-    if (!phones.length) return;
-    const name = FLAVORS.find((f) => f.id === item_id)?.name || "Your cookie";
-    const site = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.cookiedoh.co.id").replace(/\/$/, "");
-    const message = `🍪 Good news! ${name} is BACK IN STOCK at Cookie Doh — grab it before it sells out again: ${site}/build`;
-    const BATCH = 5;
-    for (let i = 0; i < phones.length; i += BATCH) {
-      await Promise.all(phones.slice(i, i + BATCH).map((to: any) => sendWhatsApp({ to, message })));
-    }
-    await supa.from("stock_subscriptions").delete().eq("item_id", item_id);
-  } catch (e) {
-    console.error("back-in-stock notify failed:", e);
-  }
 }
 
 function checkAdminAuth(req: Request) {

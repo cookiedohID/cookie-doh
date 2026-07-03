@@ -34,6 +34,7 @@ export default function ProductionPage() {
   // Editable "make" amounts (cookies) per flavour + where they get added.
   const [qty, setQty] = useState<Record<string, number>>({});
   const [locationId, setLocationId] = useState<string>(DEFAULT_LOCATION_ID);
+  const [notify, setNotify] = useState(true); // WhatsApp back-in-stock subscribers on a bake
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -72,19 +73,22 @@ export default function ProductionPage() {
   const addToInventory = useCallback(async () => {
     if (!totals.items.length || saving) return;
     const loc = LOCATIONS.find((l) => l.id === locationId);
-    if (!window.confirm(`Add ${totals.cookies} cookies to ${loc?.short || locationId} stock?`)) return;
+    const confirmMsg = `Add ${totals.cookies} cookies to ${loc?.short || locationId} stock?`
+      + (notify ? "\n\n🔔 Any sold-out flavour that comes back will WhatsApp its waiting subscribers." : "");
+    if (!window.confirm(confirmMsg)) return;
     setSaving(true); setErr(""); setMsg("");
     try {
       const j = await (await fetch("/api/admin/production", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ location_id: locationId, items: totals.items }),
+        body: JSON.stringify({ location_id: locationId, items: totals.items, notify }),
       })).json();
       if (j?.ok) {
-        setMsg(`✅ Added ${j.totalCookies} cookies to ${loc?.short || locationId}. Stock updated.`);
+        const alertBit = j.alerted ? ` · 🔔 alerted ${j.alerted} subscriber${j.alerted === 1 ? "" : "s"}` : "";
+        setMsg(`✅ Added ${j.totalCookies} cookies to ${loc?.short || locationId}. Stock updated.${alertBit}`);
         await load(); // refresh — stock is now higher, suggestions drop
       } else setErr(j?.error || "Could not add to inventory.");
     } catch (e: any) { setErr(e?.message || "Error"); } finally { setSaving(false); }
-  }, [totals, saving, locationId, load]);
+  }, [totals, saving, locationId, notify, load]);
 
   const pill = (active: boolean): React.CSSProperties => ({
     border: `1px solid ${active ? COLORS.blue : "rgba(0,0,0,0.18)"}`, background: active ? COLORS.blue : "#fff",
@@ -120,6 +124,14 @@ export default function ProductionPage() {
               style={{ border: "1px solid rgba(0,0,0,0.18)", borderRadius: 10, padding: "7px 10px", fontWeight: 700, fontSize: 13, background: "#fff", color: COLORS.black }}>
               {LOCATIONS.map((l) => <option key={l.id} value={l.id}>{l.short}</option>)}
             </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: COLORS.muted, marginBottom: 4 }}>BACK-IN-STOCK ALERTS</div>
+            <label title="When a flavour that was sold out everywhere comes back, WhatsApp everyone who asked to be notified."
+              style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, color: COLORS.black, border: "1px solid rgba(0,0,0,0.18)", borderRadius: 10, padding: "7px 10px", background: "#fff" }}>
+              <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} style={{ width: 16, height: 16, accentColor: COLORS.blue }} />
+              {notify ? "🔔 On — WhatsApp subscribers" : "🔕 Off — no alerts"}
+            </label>
           </div>
         </section>
 

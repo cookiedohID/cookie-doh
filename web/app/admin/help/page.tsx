@@ -159,6 +159,7 @@ export default function AdminHelpPage() {
             <li style={li}>Per flavour: demand = (sales/day over the window) × coverage days, minus current stock → rounded up to the next ½-recipe. Out-of-stock sellers are flagged.</li>
             <li style={li}>Adjust <b>coverage</b> (7/14/30 days) and the <b>sales window</b> (14/28/56 days) at the top; it recalculates live. Smoothie sales of a flavour aren&apos;t counted — cookies only.</li>
             <li style={li}><b>Bake it → add to inventory:</b> each flavour has an editable <b>Make 🍪</b> box (pre-filled with the suggestion, in cookies). Change any amount, pick the <b>location</b> (top-right, defaults to Kemang), then <b>✓ Add to inventory</b> — it raises that location&apos;s stock, clears sold-out, and logs the batch. Nothing changes until you press the button and confirm.</li>
+            <li style={li}><b>Back-in-stock alerts</b> toggle: when On (default), a bake that brings back a flavour sold out at <i>every</i> location WhatsApps everyone who asked to be notified. Turn it Off for a quiet restock. Only truly storefront-wide-sold-out flavours with waiting subscribers get messaged.</li>
           </ul>
         </Section>
 
