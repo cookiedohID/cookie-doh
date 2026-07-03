@@ -136,13 +136,22 @@ customer feels they've switched between two separate brands.
 - **Cookie Doh tab:** Cookie Doh blue `#0014a7`, the `cookie doh` wordmark (dearjoe
   font, already loaded), the tagline *where the cookie magic happens*, sand/cream
   surfaces — matching the storefront.
-- **TBS tab:** Total Buah Segar identity — maroon `#781714` + green `#004b1c`,
-  Poppins typography, the TBS wordmark. (Same palette as the TBS ERP.)
+- **TBS tab:** TotalBuahStore identity (from `TBS Brand Guideline.pdf` v1.1) —
+  primary **red `#9c1216`** (headlines) + secondary **green `#135232`** (logo letters,
+  small text); the **"tbs" cherry logo** (green sketch letters, red cherry, red brush
+  ring). Fonts: **Intro Rust** (display/headlines), **Nanum Barun Gothic** (body),
+  **A Song for Jennifer** (the script logotype).
 - **Implementation:** scope each panel with its own theme wrapper (e.g. `.theme-cd` /
   `.theme-tbs`) that sets the brand colours, `font-family`, and heading style for
-  everything inside it; the wrapper swaps with the tab. Load Poppins for the TBS
-  panel only. Keep the Cookie Doh tagline **verbatim** (trademarked). Nothing from one
-  brand's palette or typography bleeds into the other tab.
+  everything inside it; the wrapper swaps with the tab. Use the actual **tbs logo
+  asset** in the TBS header. **Fonts:** Nanum Barun Gothic is free (self-host or Nanum
+  Gothic web fallback); **Intro Rust** and **A Song for Jennifer** are specialty faces —
+  self-host the licensed files, or fall back to an approved web substitute for the
+  headline/logotype. Keep the Cookie Doh tagline **verbatim** (trademarked). Nothing
+  from one brand's palette or typography bleeds into the other tab.
+- **Name to confirm:** the guideline says **TotalBuahStore**; the store locations say
+  **Total Buah Segar**. Confirm which is customer-facing before spelling it out (the
+  logo mark sidesteps this).
 
 ---
 
