@@ -3,6 +3,7 @@
 
 import type { CSSProperties } from "react";
 import TbsCartSection, { useTbsBasket } from "@/components/TbsCartSection";
+import { tbsIssueText } from "@/lib/tbsStockCheck";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1636,10 +1637,15 @@ export default function CheckoutPage() {
                 );
               })}
               {tbsBasket.lines.map((l) => (
-                <div key={`st-${l.sku}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, padding: "4px 0", color: "#444" }}>
-                  <span>🍒 <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`}
-                    style={{ color: "#444", textDecoration: "none" }}>{l.name}</Link> × {l.qty}</span>
-                  <span>{formatIDR(l.qty * l.price)}</span>
+                <div key={`st-${l.sku}`} style={{ fontSize: 13, padding: "4px 0", color: "#444" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <span>🍒 <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`}
+                      style={{ color: "#444", textDecoration: "none" }}>{l.name}</Link> × {l.qty}</span>
+                    <span>{formatIDR(l.qty * l.price)}</span>
+                  </div>
+                  {tbsBasket.issues[l.sku] ? (
+                    <div style={{ color: "#b3261e", fontWeight: 800, fontSize: 12 }}>{tbsIssueText(tbsBasket.issues[l.sku])}</div>
+                  ) : null}
                 </div>
               ))}
             </div>

@@ -9,10 +9,14 @@
 export type TbsLineWant = { sku: string; qty: number };
 export type TbsStockIssue = { type: "out" | "short" | "gone" | "group"; stock: number };
 
-// Variant → base-unit factor. 1 for base lines; parsed from the ERP's own
-// "(Box of N)" suffix for variants; 0 = unknown (skip the aggregate for it).
-export function boxFactor(entry: { name?: unknown }, sku: string): number {
+// Variant → base-unit factor. 1 for base lines. Prefers the ERP's explicit
+// `factor` field (contract since partner a152e09); until that deploys, falls
+// back to the ERP-generated "(Box of N)" name suffix; 0 = unknown (skip the
+// aggregate for that line).
+export function boxFactor(entry: { name?: unknown; factor?: unknown }, sku: string): number {
   if (!sku.includes("@")) return 1;
+  const f = Math.round(Number(entry?.factor));
+  if (Number.isFinite(f) && f >= 1) return f;
   const m = /\(Box of (\d+)\)\s*$/.exec(String(entry?.name || ""));
   return m ? Math.max(1, parseInt(m[1], 10)) : 0;
 }
@@ -54,10 +58,13 @@ export function computeTbsStockIssues(lines: TbsLineWant[], items: any[]): Recor
       if (!x) continue;
       const base = l.sku.split("@")[0];
       const baseEntry: any = bySku.get(base);
-      if (!baseEntry) continue;
+      // explicit baseStock (new ERP contract) beats deriving from the base entry
+      const bs = Number.isFinite(Number(x.baseStock)) ? Math.max(0, Number(x.baseStock))
+        : baseEntry ? Math.max(0, Number(baseEntry.stock) || 0) : null;
+      if (bs === null) continue;
       const f = boxFactor(x, l.sku);
       if (!f) continue;
-      groups[base] ||= { demand: 0, baseStock: Math.max(0, Number(baseEntry.stock) || 0), lines: [] };
+      groups[base] ||= { demand: 0, baseStock: bs, lines: [] };
       groups[base].demand += Math.max(0, Math.round(Number(l.qty) || 0)) * f;
       groups[base].lines.push(l.sku);
     }
