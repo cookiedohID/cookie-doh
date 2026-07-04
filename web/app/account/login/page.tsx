@@ -119,7 +119,7 @@ export default function MemberLoginPage() {
             ? note || "Enter your email and we'll send you a link to set a new password."
             : step === "otp"
             ? note || "Enter the code from WhatsApp."
-            : "Earn a free cookie every 10 cookies, and a free drink every 10 drinks. Single cookies, drinks, boxes & assortments count toward stamps — bundles and other promotional items don’t."}
+            : "Earn a free cookie every 10 cookies, and a free drink every 10 drinks. Single cookies, drinks, boxes & assortments count toward stamps — bundles and other promotional items don’t. TotalBuahStore items earn TBS reward points instead of stamps."}
         </p>
 
         <form onSubmit={onSubmit} style={{ marginTop: 22, display: "grid", gap: 10 }}>

@@ -1620,6 +1620,27 @@ export default function CheckoutPage() {
           >
             <div style={{ fontWeight: 950, color: COLORS.black }}>Your order 🤍</div>
 
+            {/* itemized summary — Cookie Doh boxes/items then TotalBuahStore lines */}
+            <div style={{ marginTop: 10 }}>
+              {(Array.isArray((cart as any)?.boxes) ? (cart as any).boxes : []).map((b: any, bi: number) => {
+                const count = (b.items || []).reduce((n: number, it: any) => n + (it.quantity || 0), 0);
+                const amount = (b.items || []).reduce((n: number, it: any) => n + (it.price || 0) * (it.quantity || 0), 0);
+                const title = b.kind === "bundle" ? (b.label || "Bundle") : b.label ? b.label : `Box of ${b.boxSize || count}`;
+                return (
+                  <div key={`sb-${bi}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, padding: "4px 0", color: "#444" }}>
+                    <span>🍪 {title} × {count}</span>
+                    <span>{formatIDR(amount)}</span>
+                  </div>
+                );
+              })}
+              {tbsBasket.lines.map((l) => (
+                <div key={`st-${l.sku}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, padding: "4px 0", color: "#444" }}>
+                  <span>🍒 {l.name} × {l.qty}</span>
+                  <span>{formatIDR(l.qty * l.price)}</span>
+                </div>
+              ))}
+            </div>
+
             <div style={{ marginTop: 12, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", color: "#6B6B6B", fontWeight: 800 }}>
                 <div>Subtotal</div>

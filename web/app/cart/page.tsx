@@ -294,13 +294,16 @@ export default function CartPage() {
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
-                      <div style={{ fontWeight: 950, color: COLORS.black }}>
+                      <Link
+                        href={box.kind === "bundle" ? "/bundles" : box.label ? "/assortments" : "/build"}
+                        style={{ fontWeight: 950, color: COLORS.black, textDecoration: "none" }}
+                      >
                         {box.kind === "bundle"
                           ? `${box.label || "Bundle"} • ${boxCount} items`
                           : box.label
                           ? `${box.label} • ${boxCount} ${box.items.every((it: any) => it.kind === "drink") ? (boxCount === 1 ? "drink" : "drinks") : boxCount === 1 ? "cookie" : "cookies"}`
                           : `Box of ${box.boxSize} • ${boxCount} cookies`}
-                      </div>
+                      </Link>
 
                       <button
                         onClick={() => onRemoveBox(idx)}

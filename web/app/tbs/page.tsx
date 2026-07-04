@@ -10,6 +10,7 @@
 // preview via their normal admin login).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { getCart } from "@/lib/cart";
 import {
   RED, GREEN, CREAM, rp, catLabel, catEmoji, tileColors, TbsCherry,
   loadBasket, saveBasket, useTbsGate, ComingSoon, TbsProductCard, type BasketLine,
@@ -34,6 +35,22 @@ export default function TbsShopPage() {
   const [basket, setBasket] = useState<Record<string, BasketLine>>({});
   const [basketOpen, setBasketOpen] = useState(false);
   const [rail, setRail] = useState<Item[]>([]);
+  const [cdCart, setCdCart] = useState<{ n: number; total: number }>({ n: 0, total: 0 });
+
+  useEffect(() => {
+    const readCd = () => {
+      try {
+        const c = getCart();
+        const boxes = Array.isArray(c?.boxes) ? c.boxes : [];
+        let n = 0, total = 0;
+        for (const b of boxes) for (const it of (b.items || [])) { n += it.quantity || 0; total += (it.price || 0) * (it.quantity || 0); }
+        setCdCart({ n, total });
+      } catch { setCdCart({ n: 0, total: 0 }); }
+    };
+    readCd();
+    window.addEventListener("focus", readCd);
+    return () => window.removeEventListener("focus", readCd);
+  }, [basketOpen]);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Stores (once the gate opens)
@@ -338,10 +355,16 @@ export default function TbsShopPage() {
               <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: "2px solid rgba(0,0,0,0.1)", fontWeight: 900, fontSize: 15 }}>
                 <span>Total</span><span style={{ color: RED }}>{rp(basketTotal)}</span>
               </div>
-              <a href="/tbs/checkout" style={{ display: "block", textAlign: "center", textDecoration: "none", width: "100%", border: "none", background: "#7CB342", color: "#fff", borderRadius: 12, padding: "14px", fontWeight: 900, fontSize: 15 }}>
-                Checkout — {rp(basketTotal)}
+              {cdCart.n > 0 ? (
+                <Link href="/cart" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, textDecoration: "none", background: "#EEF1FB", border: "1px solid rgba(0,20,167,0.18)", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, color: "#0014A7", fontWeight: 700 }}>🍪 Cookie Doh cart · {cdCart.n} item{cdCart.n > 1 ? "s" : ""}</span>
+                  <span style={{ fontSize: 13, color: "#0014A7", fontWeight: 700 }}>{rp(cdCart.total)} ›</span>
+                </Link>
+              ) : null}
+              <a href={cdCart.n > 0 ? "/cart" : "/tbs/checkout"} style={{ display: "block", textAlign: "center", textDecoration: "none", width: "100%", border: "none", background: "#7CB342", color: "#fff", borderRadius: 12, padding: "14px", fontWeight: 900, fontSize: 15 }}>
+                {cdCart.n > 0 ? `Checkout together — ${rp(basketTotal + cdCart.total)}` : `Checkout — ${rp(basketTotal)}`}
               </a>
-              <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>Pickup or delivery from {storeName} · QRIS & cards</p>
+              <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>{cdCart.n > 0 ? "One payment — cookies & groceries ship together" : `Pickup or delivery from ${storeName} · QRIS & cards`}</p>
             </div>
           </div>
         ) : null}

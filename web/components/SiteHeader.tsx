@@ -90,7 +90,6 @@ function TbsHeader({ pathname }: { pathname: string }) {
             style={{ ...tab(catsOpen), border: "none", background: catsOpen ? "#FBEFEA" : "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
             ☰ Categories
           </button>
-          <Link href="/tbs" style={tab(pathname === "/tbs")}>Shop</Link>
           <Link href="/account" style={tab(pathname.startsWith("/account"))}>Family</Link>
           <Link href="/" style={{ textDecoration: "none", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, background: "#0014A7", color: "#fff", borderRadius: 999, padding: "8px 13px", fontWeight: 800, fontSize: 13.5 }}>
             🍪 <span>Cookie Doh</span>
