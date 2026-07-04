@@ -16,15 +16,33 @@ export const STAMPS_PER_FREE = 10;
 const COOKIE_IDS = new Set(FLAVORS.map((f: any) => String(f.id)));
 const DRINK_IDS = new Set(SMOOTHIES.map((s) => s.id));
 
+// The earliest orders (Jan–Feb 2026) saved lines with a `name` but NO `id`, so
+// they never earned stamps. Owner decision 2026-07-04: they count. Exact-name
+// matching (current names + retired flavors) recognises them; cookie wins the
+// two names that exist as both cookie and smoothie — those orders predate
+// smoothies. Applies ONLY when a line has no id (see classifyItem).
+const LEGACY_COOKIE_NAMES = ["The Comfort", "Velvety Heart", "My Sweet Lavender"];
+const COOKIE_NAMES = new Set(
+  [...FLAVORS.map((f: any) => String(f.name)), ...LEGACY_COOKIE_NAMES].map((n) => n.trim().toLowerCase())
+);
+const DRINK_NAMES = new Set(SMOOTHIES.map((s) => String(s.name).trim().toLowerCase()));
+
 export type ItemKind = "cookie" | "drink" | "other";
 
-export function classifyItem(id: string, kind?: string): ItemKind {
+export function classifyItem(id: string, kind?: string, name?: string): ItemKind {
   // Prefer an explicit kind on the order line (the cafe POS sets it) so the two
   // ids that exist as BOTH a cookie and a smoothie (ruby-glow, strawberry-kiss)
   // are bucketed by what was actually sold, not by id-set precedence.
   if (kind === "cookie" || kind === "drink") return kind;
   if (COOKIE_IDS.has(id)) return "cookie";
   if (DRINK_IDS.has(id)) return "drink";
+  // Name fallback for id-less legacy lines only — a line that HAS an id (a
+  // bundle, fee, TBS grocery…) must never be reclassified by its display name.
+  if ((!id || id === "undefined" || id === "null") && name) {
+    const n = name.trim().toLowerCase();
+    if (COOKIE_NAMES.has(n)) return "cookie";
+    if (DRINK_NAMES.has(n)) return "drink";
+  }
   return "other";
 }
 
@@ -64,7 +82,7 @@ export function loyaltyFromOrders(
   for (const o of orders || []) {
     if (String(o?.payment_status).toUpperCase() !== "PAID") continue;
     for (const it of parseItems(o?.items_json)) {
-      const kind = classifyItem(String(it?.id ?? ""), it?.kind);
+      const kind = classifyItem(String(it?.id ?? ""), it?.kind, typeof it?.name === "string" ? it.name : undefined);
       if (kind === "other") continue;
       const qty = Math.max(0, Math.floor(Number(it?.quantity ?? 0)));
       if (!qty) continue;
