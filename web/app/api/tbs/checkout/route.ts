@@ -33,8 +33,11 @@ export async function POST(req: Request) {
 
     // ---- validate the basics --------------------------------------------
     const store = String(b?.store || "").toUpperCase();
-    const geo = TBS_STORE_GEO[store];
-    if (!geo) return NextResponse.json({ ok: false, error: "Pick a valid store." }, { status: 400 });
+    if (!/^[A-Z0-9-]{2,20}$/.test(store)) return NextResponse.json({ ok: false, error: "Pick a valid store." }, { status: 400 });
+    // geo powers the delivery-distance fee; a store without an entry yet can
+    // still take pickup orders (repricing below proves the store is real)
+    const geo = TBS_STORE_GEO[store] || null;
+    const storeName = geo?.name || store;
 
     const fulfil = b?.fulfil === "delivery" ? "delivery" : "pickup";
     const name = String(b?.customer?.name || "").trim().slice(0, 120);
@@ -44,7 +47,7 @@ export async function POST(req: Request) {
     if (!phone) return NextResponse.json({ ok: false, error: "Enter a valid WhatsApp number (08… or +628…)." }, { status: 400 });
     const notes = String(b?.notes || "").slice(0, 400) || null;
 
-    const rawLines = Array.isArray(b?.lines) ? b.lines.slice(0, 60) : [];
+    const rawLines = Array.isArray(b?.lines) ? b.lines.slice(0, 200) : [];
     if (!rawLines.length) return NextResponse.json({ ok: false, error: "Your basket is empty." }, { status: 400 });
     // merge duplicate skus, clamp quantities
     const wanted = new Map<string, number>();
@@ -54,6 +57,8 @@ export async function POST(req: Request) {
       if (sku) wanted.set(sku, Math.min(99, (wanted.get(sku) || 0) + qty));
     }
     if (!wanted.size) return NextResponse.json({ ok: false, error: "Your basket is empty." }, { status: 400 });
+    // the ERP prices at most 60 SKUs per call — reject rather than silently drop
+    if (wanted.size > 60) return NextResponse.json({ ok: false, error: "More than 60 different items — please split into two orders." }, { status: 400 });
 
     // ---- REPRICE from the ERP (authoritative) ----------------------------
     const priced = await partnerGet("/stock", { store, skus: [...wanted.keys()].join(",") });
@@ -83,6 +88,7 @@ export async function POST(req: Request) {
     let address: string | null = null;
     let km: number | null = null;
     if (fulfil === "delivery") {
+      if (!geo) return NextResponse.json({ ok: false, error: "Delivery isn't set up for this store yet — choose pickup." }, { status: 400 });
       address = String(b?.address || "").trim().slice(0, 500) || null;
       const lat = Number(b?.lat), lng = Number(b?.lng);
       if (!address || !Number.isFinite(lat) || !Number.isFinite(lng)) {
@@ -91,7 +97,7 @@ export async function POST(req: Request) {
       const kmRaw = haversineKm(geo, { lat, lng });
       km = Math.round(kmRaw * 10) / 10;
       if (kmRaw > TBS_DELIVERY_MAX_KM) {
-        return NextResponse.json({ ok: false, error: `That address is ${km} km from ${geo.name} — outside the ${TBS_DELIVERY_MAX_KM} km delivery area. Choose pickup or a closer store.` }, { status: 400 });
+        return NextResponse.json({ ok: false, error: `That address is ${km} km from ${storeName} — outside the ${TBS_DELIVERY_MAX_KM} km delivery area. Choose pickup or a closer store.` }, { status: 400 });
       }
       deliveryFee = tbsDeliveryFee(km);
     }
@@ -122,7 +128,7 @@ export async function POST(req: Request) {
         items_json: items,
         meta: {
           source: "tbs",
-          tbs: { store, storeName: geo.name, fulfil, address, km, delivery_fee: deliveryFee, pushed: false },
+          tbs: { store, storeName, fulfil, address, km, delivery_fee: deliveryFee, pushed: false },
         },
       })
       .select("id")
@@ -134,7 +140,7 @@ export async function POST(req: Request) {
       order_id: midtransOrderId,
       gross_amount: total,
       customer: { name, phone },
-      itemsText: `TotalBuahStore ${fulfil} — ${lines.length} item${lines.length > 1 ? "s" : ""} @ ${geo.name}`,
+      itemsText: `TotalBuahStore ${fulfil} — ${lines.length} item${lines.length > 1 ? "s" : ""} @ ${storeName}`,
       siteUrl,
       finishUrl: `${siteUrl}/tbs/success`,
     });

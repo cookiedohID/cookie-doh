@@ -67,7 +67,18 @@ export function TbsCherry({ size = 30 }: { size?: number }) {
 export function loadBasket(store: string): Record<string, BasketLine> {
   try {
     const raw = JSON.parse(localStorage.getItem("tbs_basket") || "null");
-    if (raw && raw.store === store && raw.items) return raw.items;
+    if (raw && raw.store === store && raw.items) {
+      // sanitize: a corrupt line (non-finite qty/price from an old bug or a
+      // hand-edited localStorage) must never reach checkout
+      const clean: Record<string, BasketLine> = {};
+      for (const [k, v] of Object.entries(raw.items as Record<string, BasketLine>)) {
+        const qty = Math.round(Number(v?.qty));
+        const price = Math.round(Number(v?.price));
+        if (!v?.sku || !Number.isFinite(qty) || qty < 1 || !Number.isFinite(price) || price < 0) continue;
+        clean[k] = { ...v, qty: Math.min(99, qty), price };
+      }
+      return clean;
+    }
   } catch { /* ignore */ }
   return {};
 }
@@ -157,7 +168,7 @@ export function TbsProductCard({ it, inBasket, onAdd, width }: {
   const cap = it.status === "in_stock" ? Math.max(0, it.stock) : 99;
   const canMore = !out && inBasket < cap;
   const circle = (filled: boolean): React.CSSProperties => ({
-    width: 32, height: 32, borderRadius: 999, fontWeight: 900, fontSize: 17, cursor: "pointer",
+    width: 32, height: 32, flex: "0 0 auto", borderRadius: 999, fontWeight: 900, fontSize: 17, cursor: "pointer",
     border: `1.6px solid ${GREEN}`, background: filled ? GREEN : "#fff", color: filled ? "#fff" : GREEN,
     display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
   });

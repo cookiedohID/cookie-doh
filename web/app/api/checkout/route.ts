@@ -154,15 +154,25 @@ export async function POST(req: Request) {
     let tbsSubtotal = 0;
     const tbsReq = payload?.tbs;
     if (tbsReq && Array.isArray(tbsReq?.lines) && tbsReq.lines.length) {
-      const { partnerGet, TBS_STORE_GEO } = await import("@/lib/tbsShop");
+      const { partnerGet, TBS_STORE_GEO, canSeeTbsShop } = await import("@/lib/tbsShop");
+      // same visibility gate as every other TBS endpoint — while the shop is in
+      // preview, only preview/admin sessions may buy TBS items
+      if (!canSeeTbsShop(req)) {
+        return NextResponse.json({ ok: false, error: "TotalBuahStore isn't open yet — please remove the TBS items from your cart." }, { status: 403 });
+      }
       const tbsStore = String(tbsReq.store || "").toUpperCase();
       const geo = (TBS_STORE_GEO as any)[tbsStore];
-      if (!geo) return NextResponse.json({ ok: false, error: "Pick your TotalBuahStore first." }, { status: 400 });
+      if (!/^[A-Z0-9-]{2,20}$/.test(tbsStore)) return NextResponse.json({ ok: false, error: "Pick your TotalBuahStore first." }, { status: 400 });
       const wanted = new Map<string, number>();
-      for (const l of tbsReq.lines.slice(0, 60)) {
+      for (const l of tbsReq.lines.slice(0, 200)) {
         const sku = String(l?.sku || "").trim().slice(0, 48);
         const q = Math.max(1, Math.min(99, Math.round(Number(l?.qty) || 0)));
         if (sku) wanted.set(sku, Math.min(99, (wanted.get(sku) || 0) + q));
+      }
+      // the ERP prices at most 60 SKUs per call — reject instead of silently
+      // dropping lines the customer thinks they bought
+      if (wanted.size > 60) {
+        return NextResponse.json({ ok: false, error: "Your TotalBuahStore basket has more than 60 different items — please split it into two orders." }, { status: 400 });
       }
       if (wanted.size) {
         const priced = await partnerGet("/stock", { store: tbsStore, skus: [...wanted.keys()].join(",") });
@@ -180,7 +190,7 @@ export async function POST(req: Request) {
           tbsSubtotal += price * q;
         }
         if (problems.length) return NextResponse.json({ ok: false, error: `Some TBS items need attention: ${problems.join("; ")}.`, problems }, { status: 409 });
-        tbsMeta = { store: tbsStore, storeName: geo.name, fulfil: null, delivery_fee: 0, pushed: false, mixed: true, items_subtotal: tbsSubtotal };
+        tbsMeta = { store: tbsStore, storeName: geo?.name || tbsStore, fulfil: null, delivery_fee: 0, pushed: false, mixed: true, items_subtotal: tbsSubtotal };
       }
     }
 

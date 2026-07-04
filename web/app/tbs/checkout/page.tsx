@@ -4,20 +4,21 @@
 // Pickup or delivery from the chosen store; pays via the existing Midtrans
 // snap popup. ALL money math is server-side (/api/tbs/checkout repricing +
 // delivery fee) — this page only displays what the server returns.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
+import { useTbsBasket } from "@/components/TbsCartSection";
 import {
-  RED, GREEN, CREAM, rp, loadBasket, saveBasket, useTbsGate, ComingSoon,
-  TBS_FALLBACK_STORES, type BasketLine,
+  RED, GREEN, CREAM, rp, saveBasket, useTbsGate, ComingSoon,
 } from "../shared";
 
 export default function TbsCheckoutPage() {
   const { gate } = useTbsGate();
   const router = useRouter();
-  const [store, setStore] = useState("");
-  const [lines, setLines] = useState<BasketLine[]>([]);
+  // shared basket hook: same lines the cart shows + live stock validation
+  // (auto-refreshes vs the store; hasIssues gates the pay button below)
+  const { store, storeName, lines, subtotal, issues, hasIssues } = useTbsBasket();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [fulfil, setFulfil] = useState<"pickup" | "delivery">("pickup");
@@ -29,9 +30,6 @@ export default function TbsCheckoutPage() {
   const [serverPricing, setServerPricing] = useState<{ subtotal: number; delivery_fee: number; km: number | null; total: number } | null>(null);
 
   useEffect(() => {
-    const st = localStorage.getItem("tbs_store") || "";
-    setStore(st);
-    setLines(Object.values(loadBasket(st)));
     // prefill member contact if they've ordered before
     try {
       const saved = JSON.parse(localStorage.getItem("cd_contact") || "null");
@@ -39,9 +37,6 @@ export default function TbsCheckoutPage() {
       if (saved?.phone) setPhone(saved.phone);
     } catch { /* ignore */ }
   }, []);
-
-  const storeName = TBS_FALLBACK_STORES.find((s) => s.code === store)?.name || store;
-  const subtotal = useMemo(() => lines.reduce((n, l) => n + l.qty * l.price, 0), [lines]);
 
   const pay = async () => {
     setErr(""); setBusy(true); setServerPricing(null);
@@ -75,7 +70,7 @@ export default function TbsCheckoutPage() {
   if (gate === "loading") return <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", color: "#888" }}>Loading…</main>;
   if (gate === "hidden") return <ComingSoon />;
 
-  const canPay = lines.length > 0 && name.trim() && phone.trim().length >= 9 && (fulfil === "pickup" || (address && latLng));
+  const canPay = lines.length > 0 && !hasIssues && name.trim() && phone.trim().length >= 9 && (fulfil === "pickup" || (address && latLng));
 
   return (
     <main style={{ minHeight: "100vh", background: CREAM }}>
@@ -91,9 +86,20 @@ export default function TbsCheckoutPage() {
           <>
             {/* order summary */}
             <section style={{ marginTop: 14, background: "#fff", borderRadius: 14, border: "1px solid rgba(0,0,0,0.07)", padding: "6px 14px" }}>
+              {hasIssues ? (
+                <div style={{ background: "#FBECEA", border: "1px solid #ECC9C5", borderRadius: 10, padding: "8px 12px", fontSize: 12.5, color: "#8c1d18", fontWeight: 700, margin: "8px 0" }}>
+                  ⚠️ Some items are no longer available — <Link href="/tbs" style={{ color: "#8c1d18" }}>go back</Link> and remove or reduce them to pay.
+                </div>
+              ) : null}
               {lines.map((l) => (
-                <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "9px 0", borderBottom: "1px solid rgba(0,0,0,0.05)", fontSize: 13 }}>
-                  <span style={{ color: "#333" }}>{l.name} <span style={{ color: "#999" }}>× {l.qty}</span></span>
+                <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "9px 0", borderBottom: "1px solid rgba(0,0,0,0.05)", fontSize: 13, opacity: issues[l.sku] && issues[l.sku].type !== "short" ? 0.55 : 1 }}>
+                  <span style={{ color: "#333" }}>{l.name} <span style={{ color: "#999" }}>× {l.qty}</span>
+                    {issues[l.sku] ? (
+                      <span style={{ display: "block", color: "#b3261e", fontWeight: 800, fontSize: 12 }}>
+                        {issues[l.sku].type === "short" ? `Only ${issues[l.sku].stock} left — reduce the quantity` : "Out of stock — please remove"}
+                      </span>
+                    ) : null}
+                  </span>
                   <span style={{ fontWeight: 700 }}>{rp(l.qty * l.price)}</span>
                 </div>
               ))}

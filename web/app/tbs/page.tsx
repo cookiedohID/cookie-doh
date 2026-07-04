@@ -32,6 +32,7 @@ export default function TbsShopPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [fetchErr, setFetchErr] = useState(false);
   const [basket, setBasket] = useState<Record<string, BasketLine>>({});
   const [basketOpen, setBasketOpen] = useState(false);
   const [rail, setRail] = useState<Item[]>([]);
@@ -60,7 +61,9 @@ export default function TbsShopPage() {
         setSheetIssues(next);
       } catch { /* keep */ }
     })();
-  }, [basketOpen, store]); // eslint-disable-line react-hooks/exhaustive-deps
+    // recompute whenever the basket itself changes so fixing a flagged line
+    // clears the warning + unblocks checkout immediately
+  }, [basketOpen, store, Object.values(basket).map((l) => `${l.sku}:${l.qty}`).join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const readCd = () => {
@@ -107,11 +110,12 @@ export default function TbsShopPage() {
       if (query) p.set("q", query);
       const j = await (await fetch(`/api/tbs/catalog?${p}`, { cache: "no-store" })).json();
       if (j?.ok) {
+        setFetchErr(false);
         setTotal(j.total || 0);
         if (!category && !query) setCats(j.categories || []);
         setItems((prev) => (append ? [...prev, ...(j.items || [])] : j.items || []));
-      }
-    } catch { /* keep whatever is shown */ } finally { setLoading(false); }
+      } else setFetchErr(true);
+    } catch { setFetchErr(true); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { if (store) fetchCatalog(store, cat, q, 0, false); }, [store, cat, fetchCatalog]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -145,9 +149,23 @@ export default function TbsShopPage() {
     setStore(code); setCat(""); setQ(""); setPickerOpen(false);
   };
 
+  // Sheet lines are BasketLines (no live stock field) — adjust them by sku,
+  // capped at the stock the issue check reported. add() is for catalog items.
+  const setSheetQty = (sku: string, qty: number) => {
+    setBasket((prev) => {
+      const next = { ...prev };
+      const cap = sheetIssues[sku]?.type === "short" ? Math.max(1, sheetIssues[sku].stock) : 99;
+      const n = Math.min(cap, Math.round(Number(qty) || 0));
+      if (n <= 0) delete next[sku];
+      else if (next[sku]) next[sku] = { ...next[sku], qty: n };
+      saveBasket(store, next);
+      return next;
+    });
+  };
+
   const add = (it: Item, delta: number) => {
     setBasket((prev) => {
-      const cap = it.status === "in_stock" ? Math.max(0, it.stock) : 99;
+      const cap = it.status === "in_stock" && Number.isFinite(Number(it.stock)) ? Math.max(0, Number(it.stock)) : 99;
       const cur = prev[it.sku]?.qty || 0;
       const qty = Math.max(0, Math.min(Math.min(99, Math.max(1, cap)), cur + delta));
       const next = { ...prev };
@@ -159,6 +177,7 @@ export default function TbsShopPage() {
   };
 
   useEffect(() => {
+    try { if (new URLSearchParams(window.location.search).get("pick") === "1") setPickerOpen(true); } catch { /* ignore */ }
     const open = () => setBasketOpen(true);
     const openPicker = () => setPickerOpen(true);
     window.addEventListener("tbs-open-basket", open);
@@ -168,6 +187,14 @@ export default function TbsShopPage() {
 
   const basketList = useMemo(() => Object.values(basket), [basket]);
   const basketCount = basketList.reduce((n, l) => n + l.qty, 0);
+  // keep the floating WhatsApp bubble above the fixed basket bar
+  useEffect(() => {
+    if (basketCount > 0) document.documentElement.style.setProperty("--cd-bottombar-h", "68px");
+    else document.documentElement.style.removeProperty("--cd-bottombar-h");
+    return () => { document.documentElement.style.removeProperty("--cd-bottombar-h"); };
+  }, [basketCount > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
   const basketTotal = basketList.reduce((n, l) => n + l.qty * l.price, 0);
   const storeName = stores.find((s) => s.code === store)?.name || store;
 
@@ -281,7 +308,16 @@ export default function TbsShopPage() {
             Load more ({items.length} of {total})
           </button>
         ) : null}
-        {!loading && store && items.length === 0 ? <p style={{ textAlign: "center", color: "#999", marginTop: 24 }}>Nothing found{q ? ` for “${q}”` : ""}.</p> : null}
+        {!loading && store && fetchErr && items.length === 0 ? (
+          <div style={{ textAlign: "center", marginTop: 24 }}>
+            <p style={{ color: "#777", fontSize: 14 }}>The store is unreachable right now — it may be waking up.</p>
+            <button onClick={() => fetchCatalog(store, cat, q, 0, false)}
+              style={{ border: `1.5px solid ${RED}`, background: "#fff", color: RED, borderRadius: 999, padding: "10px 22px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+              Try again
+            </button>
+          </div>
+        ) : null}
+        {!loading && store && !fetchErr && items.length === 0 ? <p style={{ textAlign: "center", color: "#999", marginTop: 24 }}>Nothing found{q ? ` for “${q}”` : ""}.</p> : null}
 
         {/* store picker sheet */}
         {pickerOpen ? (
@@ -332,6 +368,13 @@ export default function TbsShopPage() {
             <div style={{ width: "min(560px, 100%)", maxHeight: "80vh", overflowY: "auto", background: "#fff", borderRadius: "18px 18px 0 0", padding: "18px 16px 26px" }} onClick={(e) => e.stopPropagation()}>
               <div style={{ fontWeight: 900, fontSize: 17, color: GREEN, marginBottom: 2 }}>Your basket — {storeName}</div>
               <div style={{ fontSize: 12.5, color: "#888", marginBottom: 12 }}>Pickup or delivery from this store.</div>
+              {basketList.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "18px 0 6px" }}>
+                  <div style={{ fontSize: 34 }}>🧺</div>
+                  <p style={{ color: "#777", fontSize: 14, margin: "8px 0 14px" }}>Your basket is empty — add something fresh!</p>
+                  <button onClick={() => setBasketOpen(false)} style={{ border: "none", background: "#7CB342", color: "#fff", borderRadius: 12, padding: "12px 26px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>Browse the shop</button>
+                </div>
+              ) : null}
               {basketList.map((l) => (
                 <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.07)" }}>
                   <div style={{ minWidth: 0, opacity: sheetIssues[l.sku] && sheetIssues[l.sku].type !== "short" ? 0.55 : 1 }}>
@@ -344,12 +387,15 @@ export default function TbsShopPage() {
                     ) : null}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
-                    <button onClick={() => add({ ...(l as any), status: "in_stock" }, -1)} style={{ border: `1px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, width: 28, height: 28, fontWeight: 900, cursor: "pointer" }}>−</button>
+                    <button onClick={() => setSheetQty(l.sku, l.qty - 1)} aria-label="less" style={{ border: `1px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, width: 28, height: 28, flex: "0 0 auto", fontWeight: 900, cursor: "pointer" }}>−</button>
                     <span style={{ fontWeight: 900, minWidth: 16, textAlign: "center" }}>{l.qty}</span>
-                    <button onClick={() => add({ ...(l as any), status: "in_stock" }, +1)} style={{ border: "none", background: GREEN, color: "#fff", borderRadius: 999, width: 28, height: 28, fontWeight: 900, cursor: "pointer" }}>+</button>
+                    <button onClick={() => setSheetQty(l.sku, l.qty + 1)} aria-label="more"
+                      disabled={Boolean(sheetIssues[l.sku] && sheetIssues[l.sku].type !== "short")}
+                      style={{ border: "none", background: sheetIssues[l.sku] && sheetIssues[l.sku].type !== "short" ? "#ccc" : GREEN, color: "#fff", borderRadius: 999, width: 28, height: 28, flex: "0 0 auto", fontWeight: 900, cursor: "pointer" }}>+</button>
                   </div>
                 </div>
               ))}
+              {basketList.length > 0 ? (<>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: "2px solid rgba(0,0,0,0.1)", fontWeight: 900, fontSize: 15 }}>
                 <span>Total</span><span style={{ color: RED }}>{rp(basketTotal)}</span>
               </div>
@@ -370,6 +416,7 @@ export default function TbsShopPage() {
                 {cdCart.n > 0 ? `Checkout together — ${rp(basketTotal + cdCart.total)}` : `Checkout — ${rp(basketTotal)}`}
               </a>
               <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>{cdCart.n > 0 ? "One payment — cookies & groceries ship together" : `Pickup or delivery from ${storeName} · QRIS & cards`}</p>
+              </>) : null}
             </div>
           </div>
         ) : null}

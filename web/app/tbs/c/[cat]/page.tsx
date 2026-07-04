@@ -25,6 +25,7 @@ export default function TbsCategoryPage() {
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [fetchErr, setFetchErr] = useState(false);
   const [basket, setBasket] = useState<Record<string, BasketLine>>({});
 
   useEffect(() => {
@@ -43,10 +44,11 @@ export default function TbsCategoryPage() {
       const p = new URLSearchParams({ store, category: cat, sort, limit: "24", offset: String(offset) });
       const j = await (await fetch(`/api/tbs/catalog?${p}`, { cache: "no-store" })).json();
       if (j?.ok) {
+        setFetchErr(false);
         setTotal(j.total || 0);
         setItems((prev) => (append ? [...prev, ...(j.items || [])] : j.items || []));
-      }
-    } catch { /* keep shown */ } finally { setLoading(false); }
+      } else setFetchErr(true);
+    } catch { setFetchErr(true); } finally { setLoading(false); }
   }, [store, cat, sort]);
 
   useEffect(() => { fetchPage(0, false); }, [fetchPage]);
@@ -95,7 +97,16 @@ export default function TbsCategoryPage() {
             Load more ({items.length} of {total})
           </button>
         ) : null}
-        {!loading && items.length === 0 ? <p style={{ textAlign: "center", color: "#999", marginTop: 24 }}>Nothing in stock here right now.</p> : null}
+        {!loading && fetchErr && items.length === 0 ? (
+          <div style={{ textAlign: "center", marginTop: 24 }}>
+            <p style={{ color: "#777", fontSize: 14 }}>The store is unreachable right now — it may be waking up.</p>
+            <button onClick={() => fetchPage(0, false)}
+              style={{ border: `1.5px solid ${RED}`, background: "#fff", color: RED, borderRadius: 999, padding: "10px 22px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+              Try again
+            </button>
+          </div>
+        ) : null}
+        {!loading && !fetchErr && items.length === 0 ? <p style={{ textAlign: "center", color: "#999", marginTop: 24 }}>Nothing in stock here right now.</p> : null}
       </div>
     </main>
   );

@@ -41,7 +41,12 @@ export default function TbsProductPage() {
         if (j?.ok && j.found) {
           const variants: Variant[] = Array.isArray(j.variants) ? j.variants : [];
           setData({ product: j.product, availability: j.availability || [], related: j.related || [], variants });
-          setVariant(variants.find((v) => v.factor <= 1) || variants[0] || null);
+          let wantUom = "";
+          try { wantUom = (new URLSearchParams(window.location.search).get("u") || "").toUpperCase(); } catch { /* ignore */ }
+          setVariant(
+            (wantUom && variants.find((v) => v.uom.toUpperCase() === wantUom)) ||
+            variants.find((v) => v.factor <= 1) || variants[0] || null
+          );
         } else setMissing(true);
       } catch { setMissing(true); }
     })();
@@ -56,10 +61,18 @@ export default function TbsProductPage() {
   const selPrice = sel ? sel.price : data?.product.price || 0;
   const selKey = sel && sel.factor > 1 ? `${data?.product.sku}@${sel.uom}` : data?.product.sku || "";
   const selName = sel && sel.factor > 1 ? `${data?.product.name} (${sel.label})` : data?.product.name || "";
-  const selOut = Boolean(mineLive && sel && sel.stock < 1);
+  const selOut = Boolean(mineLive && sel && sel.stock < 1) || !(selPrice > 0);
 
   const addToBasket = () => {
-    if (!data || !selKey) return;
+    if (!data || !selKey || !(selPrice > 0)) return;
+    // direct visitors may not have picked a store yet — adding here pins it,
+    // otherwise checkout (which reads tbs_store) would see an empty basket
+    try {
+      if (localStorage.getItem("tbs_store") !== store) {
+        localStorage.setItem("tbs_store", store);
+        window.dispatchEvent(new Event("tbs-store"));
+      }
+    } catch { /* ignore */ }
     const items = loadBasket(store);
     const cur = items[selKey]?.qty || 0;
     items[selKey] = {
@@ -153,10 +166,10 @@ export default function TbsProductPage() {
                 ) : null}
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 14 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid rgba(0,0,0,0.15)", borderRadius: 8, padding: "6px 10px" }}>
-                    <button onClick={() => setQty((n) => Math.max(1, n - 1))} style={{ border: "none", background: "transparent", fontSize: 18, fontWeight: 900, cursor: "pointer", color: GREEN }}>−</button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, border: "1px solid rgba(0,0,0,0.15)", borderRadius: 8, padding: "0 4px" }}>
+                    <button onClick={() => setQty((n) => Math.max(1, n - 1))} aria-label="less" style={{ border: "none", background: "transparent", fontSize: 18, fontWeight: 900, cursor: "pointer", color: GREEN, minWidth: 40, minHeight: 40 }}>−</button>
                     <span style={{ fontWeight: 700, minWidth: 22, textAlign: "center" }}>{qty}</span>
-                    <button onClick={() => setQty((n) => Math.min(mineLive && sel ? Math.max(1, sel.stock) : 99, n + 1))} style={{ border: "none", background: "transparent", fontSize: 18, fontWeight: 900, cursor: "pointer", color: GREEN }}>+</button>
+                    <button onClick={() => setQty((n) => Math.min(mineLive && sel ? Math.max(1, sel.stock) : 99, n + 1))} aria-label="more" style={{ border: "none", background: "transparent", fontSize: 18, fontWeight: 900, cursor: "pointer", color: GREEN, minWidth: 40, minHeight: 40 }}>+</button>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <span style={{ fontSize: 12, color: "#999", marginRight: 8 }}>Total amount</span>

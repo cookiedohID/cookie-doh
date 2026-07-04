@@ -257,12 +257,18 @@ export async function POST(req: Request) {
       // redeliveries fail the .eq filter and skip). The ERP's event_id dedup is
       // the second net — verified live: a replayed push returns the same order.
       let tbsClaimed = false;
-      if (paid && tbsMeta && !tbsMeta.pushed && tbsMeta.pushed !== "claiming") {
+      // Rescue: a crash between claim and result leaves pushed:"claiming"
+      // forever, and redeliveries would skip it. A claim older than 10 minutes
+      // is dead — let this delivery re-claim it (ERP event_id dedup makes a
+      // double push harmless).
+      const claimedAt = tbsMeta?.pushed === "claiming" ? Date.parse(tbsMeta?.claimed_at || "") : NaN;
+      const staleClaim = tbsMeta?.pushed === "claiming" && (!Number.isFinite(claimedAt) || Date.now() - claimedAt > 10 * 60 * 1000);
+      if (paid && tbsMeta && ((!tbsMeta.pushed && tbsMeta.pushed !== "claiming") || staleClaim)) {
         const { data: claim } = await supabase
           .from("orders")
-          .update({ meta: { ...nextMeta, tbs: { ...tbsMeta, pushed: "claiming" } } })
+          .update({ meta: { ...nextMeta, tbs: { ...tbsMeta, pushed: "claiming", claimed_at: new Date().toISOString() } } })
           .eq("id", order.id)
-          .eq("meta->tbs->>pushed", "false")
+          .eq("meta->tbs->>pushed", staleClaim ? "claiming" : "false")
           .select("id")
           .maybeSingle();
         tbsClaimed = Boolean(claim);

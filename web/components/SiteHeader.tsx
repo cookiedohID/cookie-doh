@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getCart } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
+import { CAT_META } from "@/app/tbs/shared";
 
 type NavItem = { href: string; label: string };
 
@@ -34,22 +35,10 @@ function tbsBasketCount(): number {
   } catch { return 0; }
 }
 
-const TBS_CATS: { id: string; label: string; emoji: string }[] = [
-  { id: "BUAH IMPOR", label: "Imported Fruits", emoji: "🍎" },
-  { id: "BUAH LOCAL", label: "Local Fruits", emoji: "🍌" },
-  { id: "BUAH EXOR", label: "Exotic Fruits", emoji: "🐉" },
-  { id: "SEASONAL", label: "Seasonal Picks", emoji: "🍇" },
-  { id: "KONS SAYUR", label: "Vegetables", emoji: "🥬" },
-  { id: "SYR LOCAL", label: "Local Vegetables", emoji: "🥦" },
-  { id: "SNACK LOCA", label: "Indonesian Snacks", emoji: "🍘" },
-  { id: "SNACK IMPO", label: "Imported Snacks", emoji: "🍫" },
-  { id: "SNACK LAKU", label: "Best-Selling Snacks", emoji: "🍿" },
-  { id: "KONS SNACK", label: "Snacks & Treats", emoji: "🥨" },
-  { id: "FROZEN", label: "Frozen Food", emoji: "🧊" },
-  { id: "BEAUTYCARE", label: "Beauty & Care", emoji: "🧴" },
-  { id: "PROD JUS", label: "Juices", emoji: "🧃" },
-  { id: "SPC CMDTS", label: "Specialty", emoji: "🌾" },
-];
+// One source of truth for category names/emoji: the shop's own CAT_META —
+// the dropdown must reach every category the shop can render.
+const TBS_CATS: { id: string; label: string; emoji: string }[] =
+  Object.entries(CAT_META).map(([id, m]) => ({ id, label: m.label, emoji: m.emoji }));
 
 const TBS_STORE_SHORT: Record<string, string> = {
   "TBS-RCV": "RC Veteran", "TBS-KTR": "Karang Tengah", "TBS-XMAS": "Bekasi",
@@ -68,8 +57,8 @@ function TbsHeader({ pathname }: { pathname: string }) {
     return () => { window.removeEventListener("tbs-store", readStore); window.removeEventListener("focus", readStore); };
   }, [pathname]);
   const storeClick = () => {
-    if (pathname.startsWith("/tbs")) window.dispatchEvent(new Event("tbs-open-picker"));
-    else location.href = "/tbs";
+    if (pathname === "/tbs") window.dispatchEvent(new Event("tbs-open-picker"));
+    else location.href = "/tbs?pick=1"; // only the main shop page hosts the picker
   };
   useEffect(() => {
     const refresh = () => setN(tbsBasketCount());

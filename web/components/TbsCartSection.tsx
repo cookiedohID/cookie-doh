@@ -69,10 +69,13 @@ export function useTbsBasket() {
     return () => { alive = false; clearInterval(t); };
   }, [store, lines.map((l) => `${l.sku}:${l.qty}`).join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const subtotal = lines.reduce((n, l) => n + l.qty * l.price, 0);
+  // gate off ⇒ the TBS basket is invisible everywhere (no rows, no totals, no
+  // payload) — the server refuses gate-off TBS checkouts, so never surface one
+  const effLines = enabled ? lines : [];
+  const subtotal = effLines.reduce((n, l) => n + l.qty * l.price, 0);
   const storeName = TBS_FALLBACK_STORES.find((s) => s.code === store)?.name || store;
-  const hasIssues = Object.keys(issues).length > 0;
-  return { store, storeName, lines, subtotal, enabled, issues, hasIssues };
+  const hasIssues = enabled && Object.keys(issues).length > 0;
+  return { store, storeName, lines: effLines, subtotal, enabled, issues, hasIssues };
 }
 
 export default function TbsCartSection({ compact = false }: { compact?: boolean }) {
@@ -81,8 +84,10 @@ export default function TbsCartSection({ compact = false }: { compact?: boolean 
 
   const setQty = (sku: string, qty: number) => {
     const items = loadBasket(store);
-    if (qty <= 0) delete items[sku];
-    else if (items[sku]) items[sku] = { ...items[sku], qty: Math.min(99, qty) };
+    const cap = issues[sku]?.type === "short" ? Math.max(1, issues[sku].stock) : issues[sku] ? 0 : 99;
+    const n = Math.min(cap === 0 ? Math.min(qty, items[sku]?.qty ?? 0) : cap, qty);
+    if (n <= 0) delete items[sku];
+    else if (items[sku]) items[sku] = { ...items[sku], qty: n };
     saveBasket(store, items);
   };
 
@@ -104,7 +109,7 @@ export default function TbsCartSection({ compact = false }: { compact?: boolean 
         {lines.map((l) => (
           <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)", fontSize: 13 }}>
             <div style={{ minWidth: 0, opacity: issues[l.sku]?.type === "out" || issues[l.sku]?.type === "gone" ? 0.55 : 1 }}>
-              <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}`} style={{ textDecoration: "none", color: "#333", lineHeight: 1.35, display: "block" }}>{l.name}</Link>
+              <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`} style={{ textDecoration: "none", color: "#333", lineHeight: 1.35, display: "block" }}>{l.name}</Link>
               <div style={{ fontSize: 12, color: "#999" }}>{rp(l.price)} / {l.unit}</div>
               {issues[l.sku] ? (
                 <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>
