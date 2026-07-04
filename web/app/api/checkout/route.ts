@@ -184,6 +184,20 @@ export async function POST(req: Request) {
       }
     }
 
+    // Fulfilment-aware money guards (unified cart):
+    //  • pickup never carries a delivery fee (client-supplied shippingCost ignored);
+    //  • a TBS delivery order's quote must originate from the SELECTED TBS store.
+    const fulfilTypeEarly = (payload?.fulfillment?.type || payload?.fulfilment_status || "").toString().trim();
+    if (fulfilTypeEarly === "pickup" && shippingCost !== 0) {
+      return NextResponse.json({ ok: false, error: "Pickup orders have no delivery fee — please refresh and try again." }, { status: 400 });
+    }
+    if (tbsMeta && fulfilTypeEarly === "delivery") {
+      const qOrigin = String(payload?.meta?.quote?.origin?.id || "").toLowerCase();
+      if (qOrigin && qOrigin !== String(tbsMeta.store).toLowerCase()) {
+        return NextResponse.json({ ok: false, error: "Your delivery quote is from a different store than your TotalBuahStore basket — refresh the checkout page." }, { status: 400 });
+      }
+    }
+
     // ---- Server-authoritative cart valuation ----
     // The client's box.total / total / subtotal are NEVER trusted for money. Every
     // non-reward box is re-priced from catalog constants (serverBoxTotal); the
@@ -419,7 +433,9 @@ export async function POST(req: Request) {
       shipping_json: payload?.delivery || null,
 
       meta: {
-        ...(payload?.meta || {}),
+        // client meta is accepted EXCEPT the tbs block — that is server-derived
+        // only (a crafted meta.tbs would poison settlement + the store push).
+        ...(() => { const m = { ...(payload?.meta || {}) } as any; delete m.tbs; return m; })(),
         ...(tbsMeta ? { tbs: { ...tbsMeta, fulfil: fulfillmentType || "delivery" } } : {}),
         fulfillment,
         pickup,

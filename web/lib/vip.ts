@@ -43,7 +43,7 @@ async function paidOrders(supa: any, phone: string | null): Promise<PaidOrder[]>
   if (!sig) return [];
   const { data } = await supa
     .from("orders")
-    .select("payment_status, total_idr, created_at, customer_phone")
+    .select("payment_status, total_idr, created_at, customer_phone, meta")
     .ilike("customer_phone", `%${sig}%`)
     .limit(3000);
   return (data || [])
@@ -51,7 +51,12 @@ async function paidOrders(supa: any, phone: string | null): Promise<PaidOrder[]>
       (o: any) =>
         String(o?.payment_status).toUpperCase() === "PAID" && phoneSignificant(o?.customer_phone) === sig
     )
-    .map((o: any) => ({ amount: Math.max(0, Math.round(Number(o?.total_idr || 0))), t: new Date(o?.created_at).getTime() }))
+    .map((o: any) => ({
+      // VIP thresholds count Cookie Doh spend only — subtract any TBS grocery
+      // portion from unified-cart orders (perks are CD-funded).
+      amount: Math.max(0, Math.round(Number(o?.total_idr || 0)) - Math.max(0, Math.round(Number(o?.meta?.tbs?.items_subtotal || 0)))),
+      t: new Date(o?.created_at).getTime(),
+    }))
     .filter((o: PaidOrder) => Number.isFinite(o.t));
 }
 

@@ -41,7 +41,10 @@ export async function tryQualifyReferral(supa: any, order: any): Promise<Referra
     // Must be worth at least a box of 6 IN MERCHANDISE — use the subtotal, which
     // excludes shipping (and Rp0 free/redeemed lines), so a small order padded by
     // delivery fees can't qualify. Fall back to total for legacy rows.
-    const merchSpend = Number(order?.subtotal_idr || order?.total_idr || 0);
+    // Merchandise = Cookie Doh items only — TBS grocery lines (unified cart)
+    // must not qualify a referral (the reward is funded by CD margins).
+    const tbsPortion = Math.max(0, Math.round(Number(order?.meta?.tbs?.items_subtotal || 0)));
+    const merchSpend = Math.max(0, Number(order?.subtotal_idr || order?.total_idr || 0) - tbsPortion);
     if (merchSpend < MIN_QUALIFYING_TOTAL) return { qualified: false, reason: "below min spend" };
 
     // Resolve the referrer by their member code.
