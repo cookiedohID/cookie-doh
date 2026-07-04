@@ -48,8 +48,13 @@ function TbsHeader({ pathname }: { pathname: string }) {
     fontWeight: active ? 900 : 700, fontSize: 14,
     color: active ? TBS_RED : "#333", background: active ? "#FBEFEA" : "transparent",
   });
+  const basketClick = () => {
+    if (location.pathname === "/tbs") window.dispatchEvent(new Event("tbs-open-basket"));
+    else location.href = "/tbs";
+  };
   return (
-    <header style={{ position: "sticky", top: 0, zIndex: 50, background: "#fff", borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
+    <>
+    <header style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "#fff", borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
       {/* brand strip — official tagline, verbatim */}
       <div style={{ background: TBS_RED, color: "#fff", textAlign: "center", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, padding: "5px 10px", textTransform: "uppercase" }}>
         100% Fresh. Today and Always
@@ -64,15 +69,18 @@ function TbsHeader({ pathname }: { pathname: string }) {
         <nav aria-label="TBS" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, overflowX: "auto" }}>
           <Link href="/tbs" style={tab(pathname === "/tbs")}>Shop</Link>
           <Link href="/account" style={tab(pathname.startsWith("/account"))}>Member</Link>
-          <Link href="/" style={{ ...tab(false), display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid rgba(0,0,0,0.12)" }}>
+          <Link href="/" style={{ textDecoration: "none", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, background: "#0014A7", color: "#fff", borderRadius: 999, padding: "8px 13px", fontWeight: 800, fontSize: 13.5 }}>
             🍪 <span>Cookie Doh</span>
           </Link>
-          <span aria-label={`${n} items in basket`} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 900, color: TBS_GREEN, padding: "8px 6px 8px 10px", fontSize: 14 }}>
+          <button onClick={basketClick} aria-label={`Basket, ${n} items`} style={{ border: "none", background: "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 900, color: TBS_GREEN, padding: "8px 6px 8px 10px", fontSize: 16 }}>
             🧺{n > 0 ? <span style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, background: TBS_RED, color: "#fff", fontSize: 11.5, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{n}</span> : null}
-          </span>
+          </button>
         </nav>
       </div>
     </header>
+    {/* spacer for the fixed header (strip ~26px + bar ~63px) */}
+    <div style={{ height: 90 }} />
+    </>
   );
 }
 
@@ -287,22 +295,23 @@ export default function SiteHeader() {
         >
           {nav.map((item) => {
             const active = isActive(item.href);
+            const isTbs = item.href === "/tbs";
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 style={{
                   textDecoration: "none",
-                  color: "rgba(255,255,255,0.92)",
+                  color: isTbs ? "#fff" : "rgba(255,255,255,0.92)",
                   fontWeight: active ? 950 : 800,
-                  padding: "8px 8px",
+                  padding: isTbs ? "8px 13px" : "8px 8px",
                   borderRadius: 999,
                   whiteSpace: "nowrap",
-                  border: active ? "1px solid rgba(255,255,255,0.35)" : "1px solid transparent",
-                  background: active ? "rgba(255,255,255,0.12)" : "transparent",
+                  border: active && !isTbs ? "1px solid rgba(255,255,255,0.35)" : "1px solid transparent",
+                  background: isTbs ? "#9c1216" : active ? "rgba(255,255,255,0.12)" : "transparent",
                 }}
               >
-                {item.label}
+                {isTbs ? "🍒 " : ""}{item.label}
               </Link>
             );
           })}

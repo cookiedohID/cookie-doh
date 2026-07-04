@@ -102,7 +102,7 @@ export default function TbsProductPage() {
                 <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, textTransform: "uppercase", letterSpacing: 0.5 }}>{catLabel(p.category)}</div>
                 <h1 style={{ margin: "6px 0 2px", fontSize: 21, lineHeight: 1.3, fontWeight: 900, color: "#191919" }}>{p.name}</h1>
                 <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontSize: 27, fontWeight: 900, color: RED }}>{rp(p.price)}</span>
+                  <span style={{ fontSize: 27, fontWeight: 600, color: "#191919" }}>{rp(p.price)}</span>
                   <span style={{ fontSize: 13, color: "#999" }}>per {p.unit}</span>
                 </div>
                 {p.weighed ? <p style={{ fontSize: 12.5, color: "#8a6d3b", background: "#FCF8E3", borderRadius: 8, padding: "7px 10px", marginTop: 10 }}>Sold as a fixed-price pack of about 1 kg — the store packs it fresh for you.</p> : null}
@@ -128,8 +128,8 @@ export default function TbsProductPage() {
                       <span style={{ fontSize: 13, fontWeight: a.store === store ? 800 : 600, color: "#333" }}>
                         {a.storeName}{a.store === store ? " · your store" : ""}
                       </span>
-                      <span style={{ fontSize: 12, fontWeight: 800, color: a.status === "in_stock" ? GREEN : a.status === "out_of_stock" ? "#b33" : "#8a6d3b" }}>
-                        {a.status === "in_stock" ? `In stock${a.stock ? ` (${a.stock})` : ""}` : a.status === "out_of_stock" ? "Out of stock" : "Confirmed by store"}
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: a.status === "in_stock" ? GREEN : a.status === "out_of_stock" ? "#b33" : "#8a6d3b" }}>
+                        {a.status === "in_stock" ? (a.stock > 0 && a.stock <= 5 ? "🔺 Low stock" : "🟢 In stock") : a.status === "out_of_stock" ? "✕ Out of stock" : "Confirmed by store"}
                       </span>
                     </div>
                   ))}
@@ -158,7 +158,7 @@ export default function TbsProductPage() {
                         <div style={{ height: 70, background: rt.bg, display: "grid", placeItems: "center", fontSize: 26 }}>{catEmoji(r.category)}</div>
                         <div style={{ padding: "9px 10px 11px" }}>
                           <div style={{ fontSize: 12.5, fontWeight: 700, color: "#222", lineHeight: 1.3, minHeight: 32 }}>{r.name}</div>
-                          <div style={{ fontSize: 13.5, fontWeight: 900, color: RED, marginTop: 4 }}>{rp(r.price)}</div>
+                          <div style={{ fontSize: 13.5, fontWeight: 500, color: "#191919", marginTop: 4 }}>{rp(r.price)}</div>
                         </div>
                       </Link>
                     );

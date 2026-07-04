@@ -102,6 +102,12 @@ export default function TbsShopPage() {
     });
   };
 
+  useEffect(() => {
+    const open = () => setBasketOpen(true);
+    window.addEventListener("tbs-open-basket", open);
+    return () => window.removeEventListener("tbs-open-basket", open);
+  }, []);
+
   const basketList = useMemo(() => Object.values(basket), [basket]);
   const basketCount = basketList.reduce((n, l) => n + l.qty, 0);
   const basketTotal = basketList.reduce((n, l) => n + l.qty * l.price, 0);
@@ -167,9 +173,9 @@ export default function TbsShopPage() {
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
                 <h2 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>Shop by category</h2>
               </div>
-              <div style={{ display: "flex", gap: 14, overflowX: "auto", padding: "12px 2px 6px", WebkitOverflowScrolling: "touch" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 12, padding: "12px 2px 6px" }}>
                 {cats.map((c) => c.id ? (
-                  <button key={c.id} onClick={() => setCat(c.id!)} style={{ flex: "0 0 auto", border: "none", background: "transparent", cursor: "pointer", textAlign: "center", width: 86 }}>
+                  <button key={c.id} onClick={() => setCat(c.id!)} style={{ border: "none", background: "transparent", cursor: "pointer", textAlign: "center" }}>
                     <span style={{ display: "grid", placeItems: "center", width: 72, height: 72, margin: "0 auto", borderRadius: "50%", background: "#fff", border: "1px solid rgba(0,0,0,0.08)", fontSize: 30, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>{catEmoji(c.id)}</span>
                     <span style={{ display: "block", marginTop: 7, fontSize: 11.5, fontWeight: 800, color: "#333", lineHeight: 1.25 }}>{catLabel(c.id)}</span>
                   </button>
@@ -205,15 +211,17 @@ export default function TbsShopPage() {
                   <span style={{ fontSize: 26, fontWeight: 900, color: t.fg, opacity: 0.75 }}>
                     {catEmoji(it.category)}
                   </span>
-                  {out ? <span style={{ position: "absolute", top: 8, right: 8, fontSize: 10.5, fontWeight: 800, background: "#efefef", color: "#777", borderRadius: 999, padding: "2px 8px" }}>out of stock</span> : null}
+                  <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12 }} aria-label={out ? "out of stock" : it.status === "in_stock" && it.stock > 0 && it.stock <= 5 ? "low stock" : "in stock"}>
+                    {out ? "✕" : it.status === "in_stock" ? (it.stock > 0 && it.stock <= 5 ? "🔺" : "🟢") : ""}
+                  </span>
                   {it.weighed ? <span style={{ position: "absolute", bottom: 8, left: 8, fontSize: 10.5, fontWeight: 800, background: "#fff", color: GREEN, borderRadius: 999, padding: "2px 8px", border: `1px solid ${GREEN}22` }}>±1kg pack</span> : null}
                 </div>
                 </Link>
                 <div style={{ padding: "10px 11px 12px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-                  <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} style={{ textDecoration: "none", fontSize: 13, fontWeight: 700, color: "#222", lineHeight: 1.35, minHeight: 35, display: "block" }}>{it.name}</Link>
+                  <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} style={{ textDecoration: "none", fontSize: 13, fontWeight: 400, color: "#333", lineHeight: 1.35, minHeight: 35, display: "block" }}>{it.name}</Link>
                   <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                     <div>
-                      <div style={{ fontSize: 14.5, fontWeight: 900, color: RED }}>{rp(it.price)}</div>
+                      <div style={{ fontSize: 14.5, fontWeight: 500, color: "#191919" }}>{rp(it.price)}</div>
                       <div style={{ fontSize: 11, color: "#999" }}>per {it.unit}</div>
                     </div>
                     {inBasket === 0 ? (
@@ -256,7 +264,7 @@ export default function TbsShopPage() {
                   <button key={s.code} onClick={() => pickStore(s.code)}
                     style={{ textAlign: "left", border: store === s.code ? `2px solid ${GREEN}` : "1px solid rgba(0,0,0,0.12)", background: store === s.code ? "#F0F7EE" : "#fff", borderRadius: 12, padding: "12px 14px", cursor: "pointer" }}>
                     <div style={{ fontWeight: 800, color: "#222" }}>{s.name}</div>
-                    <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{s.city || ""}{s.items ? ` · ${s.items} products in stock` : ""}</div>
+                    <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{s.city || ""}</div>
                   </button>
                 ))}
               </div>
