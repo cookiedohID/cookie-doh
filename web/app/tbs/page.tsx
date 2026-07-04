@@ -36,6 +36,31 @@ export default function TbsShopPage() {
   const [basketOpen, setBasketOpen] = useState(false);
   const [rail, setRail] = useState<Item[]>([]);
   const [cdCart, setCdCart] = useState<{ n: number; total: number }>({ n: 0, total: 0 });
+  const [sheetIssues, setSheetIssues] = useState<Record<string, { type: string; stock: number }>>({});
+
+  useEffect(() => {
+    if (!basketOpen || !store || basketList.length === 0) { setSheetIssues({}); return; }
+    (async () => {
+      try {
+        const skus = basketList.map((l) => l.sku).join(",");
+        const j = await (await fetch(`/api/tbs/stock?store=${encodeURIComponent(store)}&skus=${encodeURIComponent(skus)}`, { cache: "no-store" })).json();
+        if (!j?.ok || !Array.isArray(j.items)) return;
+        const bySku = new Map(j.items.map((x: any) => [String(x.sku), x]));
+        const stockLive = j.items.some((x: any) => x.stockLive);
+        const next: Record<string, { type: string; stock: number }> = {};
+        for (const l of basketList) {
+          const x: any = bySku.get(l.sku);
+          if (!x || !(Number(x.price) > 0)) { next[l.sku] = { type: "gone", stock: 0 }; continue; }
+          if (stockLive) {
+            const st = Math.max(0, Number(x.stock) || 0);
+            if (st <= 0) next[l.sku] = { type: "out", stock: 0 };
+            else if (st < l.qty) next[l.sku] = { type: "short", stock: st };
+          }
+        }
+        setSheetIssues(next);
+      } catch { /* keep */ }
+    })();
+  }, [basketOpen, store]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const readCd = () => {
@@ -309,9 +334,14 @@ export default function TbsShopPage() {
               <div style={{ fontSize: 12.5, color: "#888", marginBottom: 12 }}>Pickup or delivery from this store.</div>
               {basketList.map((l) => (
                 <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.07)" }}>
-                  <div style={{ minWidth: 0 }}>
+                  <div style={{ minWidth: 0, opacity: sheetIssues[l.sku] && sheetIssues[l.sku].type !== "short" ? 0.55 : 1 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 700, color: "#222" }}>{l.name}</div>
                     <div style={{ fontSize: 12, color: "#999" }}>{rp(l.price)} / {l.unit}</div>
+                    {sheetIssues[l.sku] ? (
+                      <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>
+                        {sheetIssues[l.sku].type === "short" ? `Only ${sheetIssues[l.sku].stock} left — reduce quantity` : "Out of stock — please remove"}
+                      </div>
+                    ) : null}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
                     <button onClick={() => add({ ...(l as any), status: "in_stock" }, -1)} style={{ border: `1px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, width: 28, height: 28, fontWeight: 900, cursor: "pointer" }}>−</button>
@@ -329,7 +359,14 @@ export default function TbsShopPage() {
                   <span style={{ fontSize: 13, color: "#0014A7", fontWeight: 700 }}>{rp(cdCart.total)} ›</span>
                 </Link>
               ) : null}
-              <a href={cdCart.n > 0 ? "/cart" : "/tbs/checkout"} style={{ display: "block", textAlign: "center", textDecoration: "none", width: "100%", border: "none", background: "#7CB342", color: "#fff", borderRadius: 12, padding: "14px", fontWeight: 900, fontSize: 15 }}>
+              {Object.keys(sheetIssues).length ? (
+                <div style={{ background: "#FBECEA", border: "1px solid #ECC9C5", borderRadius: 10, padding: "8px 12px", fontSize: 12.5, color: "#8c1d18", fontWeight: 700, marginBottom: 10 }}>
+                  ⚠️ Fix the flagged items (remove or reduce) to continue to checkout.
+                </div>
+              ) : null}
+              <a href={Object.keys(sheetIssues).length ? undefined : (cdCart.n > 0 ? "/cart" : "/tbs/checkout")}
+                 onClick={(e) => { if (Object.keys(sheetIssues).length) e.preventDefault(); }}
+                 style={{ display: "block", textAlign: "center", textDecoration: "none", width: "100%", border: "none", background: Object.keys(sheetIssues).length ? "#ddd" : "#7CB342", color: Object.keys(sheetIssues).length ? "#999" : "#fff", borderRadius: 12, padding: "14px", fontWeight: 900, fontSize: 15, cursor: Object.keys(sheetIssues).length ? "default" : "pointer" }}>
                 {cdCart.n > 0 ? `Checkout together — ${rp(basketTotal + cdCart.total)}` : `Checkout — ${rp(basketTotal)}`}
               </a>
               <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>{cdCart.n > 0 ? "One payment — cookies & groceries ship together" : `Pickup or delivery from ${storeName} · QRIS & cards`}</p>

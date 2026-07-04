@@ -11,10 +11,13 @@ import {
   RED, GREEN, rp, loadBasket, saveBasket, TBS_FALLBACK_STORES, type BasketLine,
 } from "@/app/tbs/shared";
 
+export type BasketIssue = { type: "out" | "short" | "gone"; stock: number };
+
 export function useTbsBasket() {
   const [store, setStore] = useState("");
   const [lines, setLines] = useState<BasketLine[]>([]);
   const [enabled, setEnabled] = useState(false);
+  const [issues, setIssues] = useState<Record<string, BasketIssue>>({});
   useEffect(() => {
     const refresh = () => {
       const st = localStorage.getItem("tbs_store") || "";
@@ -29,13 +32,51 @@ export function useTbsBasket() {
     window.addEventListener("focus", refresh);
     return () => { window.removeEventListener("tbs-basket", refresh); window.removeEventListener("focus", refresh); };
   }, []);
+
+  // AUTO-REFRESH: revalidate the basket against live stock (mount, focus,
+  // basket changes, and every 60s). Prices are silently updated to current;
+  // stock problems become per-line issues the UIs render + gate checkout on.
+  useEffect(() => {
+    if (!store || lines.length === 0) { setIssues({}); return; }
+    let alive = true;
+    const check = async () => {
+      try {
+        const skus = lines.map((l) => l.sku).join(",");
+        const j = await (await fetch(`/api/tbs/stock?store=${encodeURIComponent(store)}&skus=${encodeURIComponent(skus)}`, { cache: "no-store" })).json();
+        if (!alive || !j?.ok || !Array.isArray(j.items)) return;
+        const bySku = new Map(j.items.map((x: any) => [String(x.sku), x]));
+        const next: Record<string, BasketIssue> = {};
+        const stockLive = j.items.some((x: any) => x.stockLive);
+        let priceChanged = false;
+        const stored = loadBasket(store);
+        for (const l of lines) {
+          const x: any = bySku.get(l.sku);
+          if (!x || !(Number(x.price) > 0)) { next[l.sku] = { type: "gone", stock: 0 }; continue; }
+          if (stockLive) {
+            const st = Math.max(0, Number(x.stock) || 0);
+            if (st <= 0) next[l.sku] = { type: "out", stock: 0 };
+            else if (st < l.qty) next[l.sku] = { type: "short", stock: st };
+          }
+          const cur = Math.round(Number(x.price));
+          if (stored[l.sku] && cur > 0 && stored[l.sku].price !== cur) { stored[l.sku].price = cur; priceChanged = true; }
+        }
+        if (priceChanged) saveBasket(store, stored);
+        setIssues(next);
+      } catch { /* keep last known state */ }
+    };
+    check();
+    const t = setInterval(check, 60_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [store, lines.map((l) => `${l.sku}:${l.qty}`).join("|")]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const subtotal = lines.reduce((n, l) => n + l.qty * l.price, 0);
   const storeName = TBS_FALLBACK_STORES.find((s) => s.code === store)?.name || store;
-  return { store, storeName, lines, subtotal, enabled };
+  const hasIssues = Object.keys(issues).length > 0;
+  return { store, storeName, lines, subtotal, enabled, issues, hasIssues };
 }
 
 export default function TbsCartSection({ compact = false }: { compact?: boolean }) {
-  const { store, storeName, lines, subtotal, enabled } = useTbsBasket();
+  const { store, storeName, lines, subtotal, enabled, issues, hasIssues } = useTbsBasket();
   if (!enabled || !store || lines.length === 0) return null;
 
   const setQty = (sku: string, qty: number) => {
@@ -55,11 +96,21 @@ export default function TbsCartSection({ compact = false }: { compact?: boolean 
         <Link href="/tbs" style={{ fontSize: 12.5, color: RED, fontWeight: 700, textDecoration: "none" }}>+ add more</Link>
       </div>
       <div style={{ padding: "0 16px 12px" }}>
+        {hasIssues ? (
+          <div style={{ background: "#FBECEA", border: "1px solid #ECC9C5", borderRadius: 10, padding: "8px 12px", fontSize: 12.5, color: "#8c1d18", fontWeight: 700, margin: "4px 0 8px" }}>
+            ⚠️ Some items are no longer available in this quantity — please remove or reduce them to check out.
+          </div>
+        ) : null}
         {lines.map((l) => (
           <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)", fontSize: 13 }}>
-            <div style={{ minWidth: 0 }}>
+            <div style={{ minWidth: 0, opacity: issues[l.sku]?.type === "out" || issues[l.sku]?.type === "gone" ? 0.55 : 1 }}>
               <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}`} style={{ textDecoration: "none", color: "#333", lineHeight: 1.35, display: "block" }}>{l.name}</Link>
               <div style={{ fontSize: 12, color: "#999" }}>{rp(l.price)} / {l.unit}</div>
+              {issues[l.sku] ? (
+                <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>
+                  {issues[l.sku].type === "short" ? `Only ${issues[l.sku].stock} left — reduce the quantity` : "Out of stock — please remove"}
+                </div>
+              ) : null}
             </div>
             {compact ? (
               <span style={{ flex: "0 0 auto", fontSize: 13, color: "#333" }}>× {l.qty} · <b>{rp(l.qty * l.price)}</b></span>

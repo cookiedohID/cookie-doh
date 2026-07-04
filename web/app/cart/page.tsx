@@ -115,6 +115,10 @@ export default function CartPage() {
 
   const goCheckout = () => {
     if (hasUnavailable) return;
+    if (tbsBasket.hasIssues) {
+      alert("Some TotalBuahStore items in your basket are out of stock or short — please remove or reduce them first.");
+      return;
+    }
     router.push("/checkout");
   };
 

@@ -693,6 +693,7 @@ export default function CheckoutPage() {
     if (!scheduleDate || !scheduleTime)
       return "Please choose delivery/pickup date and time.";
     if (fulfillment === "pickup" && !pickupPointId) return "Please choose a pickup point.";
+    if (tbsBasket.hasIssues) return "Some TotalBuahStore items are out of stock or short — go back to the cart and remove or reduce them.";
 
     return null;
   };
