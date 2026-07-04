@@ -19,6 +19,32 @@ type Item = { sku: string; name: string; category: string | null; price: number;
 type Cat = { id: string | null; name: string | null; count: number };
 type BasketLine = { sku: string; name: string; price: number; unit: string; qty: number };
 
+const CAT_META: Record<string, { label: string; emoji: string }> = {
+  "BUAH IMPOR": { label: "Imported Fruits", emoji: "🍎" },
+  "BUAH LOCAL": { label: "Local Fruits", emoji: "🍌" },
+  "BUAH EXOR": { label: "Exotic Fruits", emoji: "🐉" },
+  "BUAH EXOX": { label: "Exotic Fruits II", emoji: "🥭" },
+  "SEASONAL": { label: "Seasonal Picks", emoji: "🍇" },
+  "KONS SAYUR": { label: "Vegetables", emoji: "🥬" },
+  "SYR LOCAL": { label: "Local Vegetables", emoji: "🥦" },
+  "SYR IMPORT": { label: "Imported Vegetables", emoji: "🥕" },
+  "SYR PASAR": { label: "Market Vegetables", emoji: "🌽" },
+  "SNACK LOCA": { label: "Indonesian Snacks", emoji: "🍘" },
+  "SNACK IMPO": { label: "Imported Snacks", emoji: "🍫" },
+  "SNACK LAKU": { label: "Best-Selling Snacks", emoji: "🍿" },
+  "KONS SNACK": { label: "Snacks & Treats", emoji: "🥨" },
+  "FROZEN": { label: "Frozen Food", emoji: "🧊" },
+  "FRZ LOC": { label: "Frozen Local", emoji: "❄️" },
+  "FRZ IMP": { label: "Frozen Import", emoji: "🥶" },
+  "BEAUTYCARE": { label: "Beauty & Care", emoji: "🧴" },
+  "PROD JUS": { label: "Juices", emoji: "🧃" },
+  "PROD BUAH": { label: "Fruit Products", emoji: "🍯" },
+  "SPC CMDTS": { label: "Specialty", emoji: "🌾" },
+  "KONS STAT": { label: "Household", emoji: "🧺" },
+};
+const catLabel = (id: string | null) => (id && CAT_META[id]?.label) || id || "";
+const catEmoji = (id: string | null) => (id && CAT_META[id]?.emoji) || "🛒";
+
 const rp = (n: number) => "Rp" + Number(n || 0).toLocaleString("id-ID");
 
 function TbsCherry({ size = 30 }: { size?: number }) {
@@ -52,7 +78,10 @@ function loadBasket(store: string): Record<string, BasketLine> {
   return {};
 }
 function saveBasket(store: string, items: Record<string, BasketLine>) {
-  try { localStorage.setItem("tbs_basket", JSON.stringify({ store, items })); } catch { /* ignore */ }
+  try {
+    localStorage.setItem("tbs_basket", JSON.stringify({ store, items }));
+    window.dispatchEvent(new Event("tbs-basket"));
+  } catch { /* ignore */ }
 }
 
 export default function TbsShopPage() {
@@ -170,19 +199,37 @@ export default function TbsShopPage() {
           </div>
         ) : null}
 
-        {/* TBS brand header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <TbsCherry size={38} />
-            <div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: GREEN, lineHeight: 1, letterSpacing: 0.5 }}>TotalBuahStore</div>
-              <div style={{ fontSize: 13, fontStyle: "italic", color: RED, marginTop: 3 }}>100% Fresh. Today and Always</div>
+        {/* hero (mockup-inspired) */}
+        <section style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 18, padding: "26px 22px", display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 300px", minWidth: 260 }}>
+            <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.15, fontWeight: 900, color: "#191919", textTransform: "uppercase" }}>
+              Curated with <span style={{ color: RED }}>expertise</span>,<br />delivering to <span style={{ color: GREEN }}>you</span>.
+            </h1>
+            <p style={{ color: "#666", fontSize: 14, lineHeight: 1.6, margin: "10px 0 16px", maxWidth: 420 }}>
+              Premium imported and local products, handpicked for quality, freshness, and your everyday needs.
+            </p>
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <a href="#tbs-shop" style={{ textDecoration: "none", background: "#7CB342", color: "#fff", fontWeight: 900, fontSize: 14, padding: "12px 22px", borderRadius: 8, letterSpacing: 0.5 }}>SHOP NOW</a>
+              <button onClick={() => setPickerOpen(true)} style={{ border: `1.5px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, padding: "10px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+                📍 {store ? storeName : "Choose your store"}
+              </button>
             </div>
           </div>
-          <button onClick={() => setPickerOpen(true)} style={{ border: `1.5px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, padding: "9px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
-            📍 {store ? storeName : "Choose your store"}
-          </button>
-        </div>
+          <div style={{ flex: "0 0 auto" }}><img src="/tbs/logo.png" alt="TotalBuahStore" style={{ height: 130, width: "auto" }} /></div>
+        </section>
+
+        {/* quality strip */}
+        <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginTop: 12 }}>
+          {[["🏅", "Quality guaranteed", "We source only the best for you and your family."],
+            ["🚚", "Pickup & delivery", "Collect at your store or get it sent to your door."],
+            ["🎧", "Expert support", "Our team is here to help you shop with confidence."]].map(([e, t, d]) => (
+            <div key={t} style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 12, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center" }}>
+              <span style={{ fontSize: 22 }}>{e}</span>
+              <div><div style={{ fontWeight: 800, fontSize: 13, color: "#222" }}>{t}</div>
+                <div style={{ fontSize: 11.5, color: "#888", lineHeight: 1.4 }}>{d}</div></div>
+            </div>
+          ))}
+        </section>
 
         {!stockSynced && store ? (
           <div style={{ marginTop: 10, fontSize: 12, color: "#8a6d3b", background: "#FCF8E3", border: "1px solid #efe4bb", borderRadius: 8, padding: "6px 10px" }}>
@@ -194,15 +241,35 @@ export default function TbsShopPage() {
         <div style={{ marginTop: 14 }}>
           <input value={q} onChange={(e) => onSearch(e.target.value)} placeholder="Search fruit, snacks, groceries…"
             style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.14)", fontSize: 15, background: "#fff" }} />
-          <div style={{ display: "flex", gap: 7, overflowX: "auto", padding: "10px 0 2px", WebkitOverflowScrolling: "touch" }}>
-            <button onClick={() => setCat("")} style={{ flex: "0 0 auto", border: "none", borderRadius: 999, padding: "7px 13px", fontWeight: 800, fontSize: 13, cursor: "pointer", background: !cat ? RED : "#fff", color: !cat ? "#fff" : "#444", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>All</button>
-            {cats.map((c) => c.id ? (
-              <button key={c.id} onClick={() => setCat(c.id!)} style={{ flex: "0 0 auto", border: "none", borderRadius: 999, padding: "7px 13px", fontWeight: 800, fontSize: 13, cursor: "pointer", background: cat === c.id ? RED : "#fff", color: cat === c.id ? "#fff" : "#444", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", whiteSpace: "nowrap" }}>
-                {c.name} <span style={{ opacity: 0.6, fontWeight: 700 }}>{c.count}</span>
-              </button>
-            ) : null)}
-          </div>
+          {!cat && !q ? (
+            <div style={{ marginTop: 14 }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+                <h2 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>Shop by category</h2>
+              </div>
+              <div style={{ display: "flex", gap: 14, overflowX: "auto", padding: "12px 2px 6px", WebkitOverflowScrolling: "touch" }}>
+                {cats.map((c) => c.id ? (
+                  <button key={c.id} onClick={() => setCat(c.id!)} style={{ flex: "0 0 auto", border: "none", background: "transparent", cursor: "pointer", textAlign: "center", width: 86 }}>
+                    <span style={{ display: "grid", placeItems: "center", width: 72, height: 72, margin: "0 auto", borderRadius: "50%", background: "#fff", border: "1px solid rgba(0,0,0,0.08)", fontSize: 30, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>{catEmoji(c.id)}</span>
+                    <span style={{ display: "block", marginTop: 7, fontSize: 11.5, fontWeight: 800, color: "#333", lineHeight: 1.25 }}>{catLabel(c.id)}</span>
+                  </button>
+                ) : null)}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 7, overflowX: "auto", padding: "10px 0 2px", WebkitOverflowScrolling: "touch" }}>
+              <button onClick={() => setCat("")} style={{ flex: "0 0 auto", border: "none", borderRadius: 999, padding: "7px 13px", fontWeight: 800, fontSize: 13, cursor: "pointer", background: !cat ? RED : "#fff", color: !cat ? "#fff" : "#444", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>All</button>
+              {cats.map((c) => c.id ? (
+                <button key={c.id} onClick={() => setCat(c.id!)} style={{ flex: "0 0 auto", border: "none", borderRadius: 999, padding: "7px 13px", fontWeight: 800, fontSize: 13, cursor: "pointer", background: cat === c.id ? RED : "#fff", color: cat === c.id ? "#fff" : "#444", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", whiteSpace: "nowrap" }}>
+                  {catLabel(c.id)} <span style={{ opacity: 0.6, fontWeight: 700 }}>{c.count}</span>
+                </button>
+              ) : null)}
+            </div>
+          )}
         </div>
+
+        <h2 id="tbs-shop" style={{ margin: "18px 0 0", fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>
+          {q ? `Results for “${q}”` : cat ? catLabel(cat) : "Featured products"}
+        </h2>
 
         {/* product grid */}
         <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
@@ -214,7 +281,7 @@ export default function TbsShopPage() {
               <div key={it.sku} style={{ background: "#fff", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", display: "flex", flexDirection: "column" }}>
                 <div style={{ height: 84, background: t.bg, display: "grid", placeItems: "center", position: "relative" }}>
                   <span style={{ fontSize: 26, fontWeight: 900, color: t.fg, opacity: 0.75 }}>
-                    {it.name.split(" ").slice(0, 2).map((w) => w[0]).join("")}
+                    {catEmoji(it.category)}
                   </span>
                   {out ? <span style={{ position: "absolute", top: 8, right: 8, fontSize: 10.5, fontWeight: 800, background: "#efefef", color: "#777", borderRadius: 999, padding: "2px 8px" }}>out of stock</span> : null}
                   {it.weighed ? <span style={{ position: "absolute", bottom: 8, left: 8, fontSize: 10.5, fontWeight: 800, background: "#fff", color: GREEN, borderRadius: 999, padding: "2px 8px", border: `1px solid ${GREEN}22` }}>±1kg pack</span> : null}
@@ -283,6 +350,18 @@ export default function TbsShopPage() {
             </button>
           </div>
         ) : null}
+
+        {/* TBS rewards band (links to the Member page's TBS tab) */}
+        <section style={{ marginTop: 26, background: RED, borderRadius: 16, color: "#fff", padding: "20px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 18, letterSpacing: 0.4 }}>TBS REWARDS</div>
+            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 3 }}>Belanja lebih hemat dengan poin di setiap transaksi.</div>
+          </div>
+          <a href="/account" style={{ textDecoration: "none", background: "#7CB342", color: "#fff", fontWeight: 900, fontSize: 13, padding: "11px 18px", borderRadius: 8, letterSpacing: 0.5 }}>GABUNG SEKARANG</a>
+        </section>
+        <p style={{ textAlign: "center", color: "#999", fontSize: 11.5, marginTop: 18 }}>
+          TotalBuahStore · 100% Fresh. Today and Always · part of the Cookie Doh × TBS family
+        </p>
 
         {basketOpen ? (
           <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "end center" }} onClick={() => setBasketOpen(false)}>

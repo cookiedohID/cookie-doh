@@ -22,6 +22,60 @@ function cartCount() {
   }
 }
 
+// ── TotalBuahStore header (full brand takeover on /tbs) ─────────────────────
+const TBS_RED = "#9c1216";
+const TBS_GREEN = "#135232";
+
+function tbsBasketCount(): number {
+  try {
+    const raw = JSON.parse(localStorage.getItem("tbs_basket") || "null");
+    if (!raw?.items) return 0;
+    return (Object.values(raw.items) as { qty?: number }[]).reduce((n, l) => n + (l.qty || 0), 0);
+  } catch { return 0; }
+}
+
+function TbsHeader({ pathname }: { pathname: string }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    const refresh = () => setN(tbsBasketCount());
+    refresh();
+    window.addEventListener("tbs-basket", refresh);
+    window.addEventListener("focus", refresh);
+    return () => { window.removeEventListener("tbs-basket", refresh); window.removeEventListener("focus", refresh); };
+  }, [pathname]);
+  const tab = (active: boolean): React.CSSProperties => ({
+    textDecoration: "none", whiteSpace: "nowrap", padding: "8px 11px", borderRadius: 999,
+    fontWeight: active ? 900 : 700, fontSize: 14,
+    color: active ? TBS_RED : "#333", background: active ? "#FBEFEA" : "transparent",
+  });
+  return (
+    <header style={{ position: "sticky", top: 0, zIndex: 50, background: "#fff", borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
+      {/* brand strip — official tagline, verbatim */}
+      <div style={{ background: TBS_RED, color: "#fff", textAlign: "center", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, padding: "5px 10px", textTransform: "uppercase" }}>
+        100% Fresh. Today and Always
+      </div>
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "8px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+        <Link href="/tbs" aria-label="TotalBuahStore home" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none", flex: "0 0 auto" }}>
+          {/* real TBS logo asset (plain img — the optimizer washes out this sketch PNG at small sizes) */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/tbs/logo.png" alt="tbs" style={{ height: 46, width: "auto", display: "block" }} />
+          <span style={{ fontWeight: 900, fontSize: 17, color: TBS_GREEN, letterSpacing: 0.3 }}>TotalBuahStore</span>
+        </Link>
+        <nav aria-label="TBS" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, overflowX: "auto" }}>
+          <Link href="/tbs" style={tab(pathname === "/tbs")}>Shop</Link>
+          <Link href="/account" style={tab(pathname.startsWith("/account"))}>Member</Link>
+          <Link href="/" style={{ ...tab(false), display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid rgba(0,0,0,0.12)" }}>
+            🍪 <span>Cookie Doh</span>
+          </Link>
+          <span aria-label={`${n} items in basket`} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontWeight: 900, color: TBS_GREEN, padding: "8px 6px 8px 10px", fontSize: 14 }}>
+            🧺{n > 0 ? <span style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999, background: TBS_RED, color: "#fff", fontSize: 11.5, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{n}</span> : null}
+          </span>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
 function Badge({ n }: { n: number }) {
   if (n <= 0) return null;
   return (
@@ -102,6 +156,13 @@ export default function SiteHeader() {
   // Kiosk mode: the cafe POS is a standalone full-screen register — hide the
   // storefront nav so a walk-in customer can't navigate away from it.
   if (pathname?.startsWith("/cafe")) return null;
+
+  // ── TotalBuahStore takeover ─────────────────────────────────────────────
+  // On /tbs the WHOLE header becomes TBS (owner decision 2026-07-04): TBS logo,
+  // tagline strip, its own nav — and Cookie Doh becomes just a menu tab.
+  if (pathname?.startsWith("/tbs")) {
+    return <TbsHeader pathname={pathname} />;
+  }
 
   // Admin mode: show admin functions instead of the storefront nav. The logo
   // still links to the storefront homepage. The login page keeps a bare header.
