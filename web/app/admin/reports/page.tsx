@@ -263,6 +263,35 @@ export default function AdminReportsPage() {
                 ))}{(data?.tbsFee?.orders || []).length === 0 && <tr><td style={{ padding: 8, color: COLORS.muted }} colSpan={7}>No orders in range.</td></tr>}</tbody>
               </table>
             </div>
+            {(data?.tbsProducts || []).length > 0 ? (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <h3 style={{ fontSize: 13.5, fontWeight: 800, color: COLORS.black, margin: 0 }}>Products sold ({(data.tbsProducts || []).length})</h3>
+                  <button onClick={() => downloadCsv([
+                    ["Store", "SKU", "Product", "Qty", "Revenue (Rp)"],
+                    ...(data.tbsProducts || []).map((r: any) => [r.store, r.sku, r.name, r.qty, r.revenue]),
+                  ], `tbs-products_${from}_${to}.csv`)}
+                    style={{ border: "1px solid rgba(0,0,0,0.16)", background: "#fff", color: COLORS.black, fontWeight: 800, fontSize: 12.5, padding: "8px 14px", borderRadius: 999, cursor: "pointer" }}>
+                    ⬇ Products CSV
+                  </button>
+                </div>
+                <div style={{ overflowX: "auto", marginTop: 8 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead><tr style={{ borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "right", color: COLORS.muted, fontSize: 11 }}>
+                      <th style={{ textAlign: "left", padding: 6 }}>Store</th><th style={{ textAlign: "left", padding: 6 }}>Product</th><th style={{ padding: 6 }}>Qty</th><th style={{ padding: 6 }}>Revenue</th>
+                    </tr></thead>
+                    <tbody>{(data.tbsProducts || []).map((r: any, i: number) => (
+                      <tr key={i} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)", textAlign: "right" }}>
+                        <td style={{ textAlign: "left", padding: 6 }}>{r.store}</td>
+                        <td style={{ textAlign: "left", padding: 6 }}>{r.name}</td>
+                        <td style={{ padding: 6 }}>{r.qty}</td>
+                        <td style={{ padding: 6, fontWeight: 700 }}>{rupiah(r.revenue)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
             <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.muted }}>🧾 Tukar Faktur Cabang:</span>
               {[...new Set(((data?.tbsFee?.orders || []) as any[]).map((r: any) => r.store))].map((st: any) => (

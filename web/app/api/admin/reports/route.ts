@@ -99,6 +99,7 @@ export async function GET(req: Request) {
       for (const it of items) {
         const id = String(it?.id ?? "");
         if (!id) continue;
+        if (it?.kind === "tbs" || id.startsWith("tbs:")) continue; // TBS groceries get their own per-store breakdown
         const name = String(it?.name ?? id);
         const kind = classifyItem(id, it?.kind);
         const qty = Math.max(0, Math.floor(Number(it?.quantity ?? 0)));
@@ -181,6 +182,7 @@ export async function GET(req: Request) {
     const tbsMap: Record<string, { store: string; orders: number; items_idr: number; delivery_idr: number; collected_idr: number; fee_idr: number; net_transfer_idr: number }> = {};
     const tbsFeeOrders: Array<{ date: string; order_id: string; order_no: any; store: string; items_idr: number; delivery_idr: number; fee_idr: number; net_idr: number; collected_idr: number }> = [];
     const tbsDailyMap: Record<string, { date: string; store: string; orders: number; items_idr: number; delivery_idr: number; fee_idr: number; net_idr: number }> = {};
+    const tbsProductMap: Record<string, { store: string; sku: string; name: string; qty: number; revenue: number }> = {};
     for (const o of tbsOrders) {
       const t = (o as any)?.meta?.tbs;
       if (!t?.store) continue;
@@ -209,11 +211,21 @@ export async function GET(req: Request) {
       const day = (tbsDailyMap[dk] ||= { date: wibDate, store: key, orders: 0, items_idr: 0, delivery_idr: 0, fee_idr: 0, net_idr: 0 });
       day.orders += 1; day.items_idr += itemsResolved; day.delivery_idr += fee; day.fee_idr += platformFee;
       day.net_idr += itemsResolved + fee - platformFee;
+      for (const it of (Array.isArray((o as any).items_json) ? (o as any).items_json : [])) {
+        if (it?.kind !== "tbs" || !it?.sku) continue;
+        const q = Math.max(0, Math.floor(Number(it?.quantity ?? 0)));
+        if (!q) continue;
+        const pk = `${key}|${String(it.sku)}`;
+        const prod = (tbsProductMap[pk] ||= { store: key, sku: String(it.sku), name: String(it?.name || it.sku), qty: 0, revenue: 0 });
+        prod.qty += q;
+        prod.revenue += Math.round((Number(it?.price) || 0) * q);
+      }
     }
     for (const r of Object.values(tbsMap)) r.net_transfer_idr = r.items_idr + r.delivery_idr - r.fee_idr;
     const tbsSettlement = Object.values(tbsMap).sort((a, b) => b.items_idr - a.items_idr);
     tbsFeeOrders.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.store.localeCompare(b.store)));
     const tbsDaily = Object.values(tbsDailyMap).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.store.localeCompare(b.store)));
+    const tbsProducts = Object.values(tbsProductMap).sort((a, b) => b.revenue - a.revenue).slice(0, 300);
 
     return NextResponse.json({
       ok: true,
@@ -222,6 +234,7 @@ export async function GET(req: Request) {
       summary: { orders: orders.length, revenue: totalRevenue, freeCookies, freeDrinks },
       daily, dailyDetail, items, byLocation, redemptions, inventory, movements, tbsSettlement,
       tbsDaily,
+      tbsProducts,
       tbsFee: {
         pct: feePct,
         orders: tbsFeeOrders,
