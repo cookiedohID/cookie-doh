@@ -258,7 +258,7 @@ export default function TbsShopPage() {
               <h2 style={{ margin: "0 0 10px", fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>⭐ Best sellers</h2>
               <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6, WebkitOverflowScrolling: "touch" }}>
                 {rail.map((it) => (
-                  <TbsProductCard key={`rail-${it.sku}`} it={it as any} inBasket={basket[it.sku]?.qty || 0} onAdd={(x, d) => add(x as any, d)} width={158} />
+                  <TbsProductCard key={`rail-${it.sku}`} it={it as any} inBasket={basket[it.sku]?.qty || 0} onAdd={(x, d) => add(x as any, d)} width={150} />
                 ))}
               </div>
             </div>

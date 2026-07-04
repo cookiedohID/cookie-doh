@@ -173,11 +173,14 @@ export function TbsProductCard({ it, inBasket, onAdd, width }: {
     display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
   });
   return (
-    <div style={{ width, flex: width ? "0 0 auto" : undefined, background: "#fff", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", display: "flex", flexDirection: "column" }}>
+    <div style={{ width, flex: width ? "0 0 auto" : undefined, background: "#fff", borderRadius: 14, overflow: "hidden", border: inBasket > 0 ? `2px solid ${GREEN}` : "1px solid rgba(0,0,0,0.07)", display: "flex", flexDirection: "column" }}>
       <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} aria-label={`View ${it.name}`} style={{ display: "block", textDecoration: "none", height: 168, background: t.bg, position: "relative" }}>
         <div style={{ height: 168, display: "grid", placeItems: "center" }}>
           <span style={{ fontSize: 44, opacity: 0.9 }}>{catEmoji(it.category)}</span>
         </div>
+        {inBasket > 0 ? (
+          <span aria-label={`${inBasket} in basket`} style={{ position: "absolute", top: 8, right: 8, minWidth: 24, height: 24, padding: "0 7px", borderRadius: 999, background: GREEN, color: "#fff", fontWeight: 900, fontSize: 13, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.18)" }}>{inBasket}</span>
+        ) : null}
         {it.weighed ? <span style={{ position: "absolute", bottom: 8, left: 8, fontSize: 10.5, fontWeight: 800, background: "#fff", color: GREEN, borderRadius: 999, padding: "2px 8px", border: `1px solid ${GREEN}22` }}>±1kg pack</span> : null}
       </Link>
       <div style={{ padding: "10px 11px 12px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
