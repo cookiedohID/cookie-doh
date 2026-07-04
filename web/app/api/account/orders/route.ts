@@ -72,6 +72,14 @@ export async function GET(req: Request) {
           ? o.items_json.map((it: any) => {
               const id = String(it?.id ?? "");
               const kind = classifyItem(id, it?.kind);
+              // TBS grocery lines link to their product page (variant preserved
+              // via ?u= so the box option is preselected, like the cart links)
+              let tbsHref: string | null = null;
+              if (it?.kind === "tbs" || id.startsWith("tbs:")) {
+                const sku = String(it?.sku || id.replace(/^tbs:/, ""));
+                const [base, uom] = sku.split("@");
+                if (base) tbsHref = `/tbs/p/${encodeURIComponent(base)}${uom ? `?u=${encodeURIComponent(uom)}` : ""}`;
+              }
               return {
                 id,
                 name: String(it?.name ?? "Item"),
@@ -82,7 +90,7 @@ export async function GET(req: Request) {
                 // giveaway — labelling those "free" wrongly looked like we gave them away.
                 free: it?.free === true,
                 // Where "reorder" should take the customer.
-                href: kind === "cookie" ? "/cookies" : kind === "drink" ? "/smoothies" : null,
+                href: kind === "cookie" ? "/cookies" : kind === "drink" ? "/smoothies" : tbsHref,
               };
             })
           : [];
