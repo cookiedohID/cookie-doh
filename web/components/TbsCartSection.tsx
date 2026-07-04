@@ -58,7 +58,7 @@ export default function TbsCartSection({ compact = false }: { compact?: boolean 
         {lines.map((l) => (
           <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)", fontSize: 13 }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ color: "#333", lineHeight: 1.35 }}>{l.name}</div>
+              <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}`} style={{ textDecoration: "none", color: "#333", lineHeight: 1.35, display: "block" }}>{l.name}</Link>
               <div style={{ fontSize: 12, color: "#999" }}>{rp(l.price)} / {l.unit}</div>
             </div>
             {compact ? (

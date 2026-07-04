@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   RED, GREEN, CREAM, rp, catLabel, catEmoji, tileColors, TbsCherry,
-  loadBasket, saveBasket, useTbsGate, ComingSoon, type BasketLine,
+  loadBasket, saveBasket, useTbsGate, ComingSoon, TbsProductCard, type BasketLine,
 } from "./shared";
 
 type Store = { code: string; name: string; city?: string; items?: number };
@@ -33,6 +33,7 @@ export default function TbsShopPage() {
   const [loading, setLoading] = useState(false);
   const [basket, setBasket] = useState<Record<string, BasketLine>>({});
   const [basketOpen, setBasketOpen] = useState(false);
+  const [rail, setRail] = useState<Item[]>([]);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Stores (once the gate opens)
@@ -72,6 +73,17 @@ export default function TbsShopPage() {
   }, []);
 
   useEffect(() => { if (store) fetchCatalog(store, cat, q, 0, false); }, [store, cat, fetchCatalog]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Best-sellers rail (kurly.com/main-style horizontal strip)
+  useEffect(() => {
+    if (!store) return;
+    (async () => {
+      try {
+        const j = await (await fetch(`/api/tbs/catalog?store=${encodeURIComponent(store)}&limit=10&sort=popular`, { cache: "no-store" })).json();
+        if (j?.ok) setRail(j.items || []);
+      } catch { /* rail is optional */ }
+    })();
+  }, [store]);
 
   const onSearch = (v: string) => {
     setQ(v);
@@ -168,6 +180,17 @@ export default function TbsShopPage() {
         <div style={{ marginTop: 14 }}>
           <input value={q} onChange={(e) => onSearch(e.target.value)} placeholder="Search fruit, snacks, groceries…"
             style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.14)", fontSize: 15, background: "#fff" }} />
+          {!cat && !q && rail.length ? (
+            <div style={{ marginTop: 16 }}>
+              <h2 style={{ margin: "0 0 10px", fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>⭐ Best sellers</h2>
+              <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6, WebkitOverflowScrolling: "touch" }}>
+                {rail.map((it) => (
+                  <TbsProductCard key={`rail-${it.sku}`} it={it as any} inBasket={basket[it.sku]?.qty || 0} onAdd={(x, d) => add(x as any, d)} width={158} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {!cat && !q ? (
             <div style={{ marginTop: 14 }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
@@ -175,10 +198,10 @@ export default function TbsShopPage() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 12, padding: "12px 2px 6px" }}>
                 {cats.map((c) => c.id ? (
-                  <button key={c.id} onClick={() => setCat(c.id!)} style={{ border: "none", background: "transparent", cursor: "pointer", textAlign: "center" }}>
+                  <Link key={c.id} href={`/tbs/c/${encodeURIComponent(c.id)}`} style={{ textDecoration: "none", textAlign: "center" }}>
                     <span style={{ display: "grid", placeItems: "center", width: 72, height: 72, margin: "0 auto", borderRadius: "50%", background: "#fff", border: "1px solid rgba(0,0,0,0.08)", fontSize: 30, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}>{catEmoji(c.id)}</span>
                     <span style={{ display: "block", marginTop: 7, fontSize: 11.5, fontWeight: 800, color: "#333", lineHeight: 1.25 }}>{catLabel(c.id)}</span>
-                  </button>
+                  </Link>
                 ) : null)}
               </div>
             </div>

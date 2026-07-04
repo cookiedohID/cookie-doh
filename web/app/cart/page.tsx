@@ -255,7 +255,7 @@ export default function CartPage() {
 
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 900, color: COLORS.black, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                            {it.name}
+                            <Link href={it.kind === "drink" ? "/smoothies" : "/cookies"} style={{ color: "inherit", textDecoration: "none" }}>{it.name}</Link>
                           </div>
                           <div style={{ color: "#6B6B6B", fontSize: 13, marginTop: 2 }}>{formatIDR(it.price)} each</div>
 
@@ -348,7 +348,7 @@ export default function CartPage() {
                             </div>
                             <div style={{ minWidth: 0, flex: 1 }}>
                               <div style={{ fontWeight: 800, color: COLORS.black, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {it.name} × {it.quantity}
+                                <Link href={it.kind === "drink" ? "/smoothies" : "/cookies"} style={{ color: "inherit", textDecoration: "none" }}>{it.name}</Link> × {it.quantity}
                               </div>
                               {isSoldOut && (
                                 <div style={{ marginTop: 4, display: "inline-flex", alignItems: "center", gap: 8 }}>

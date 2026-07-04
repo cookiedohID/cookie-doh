@@ -4,6 +4,7 @@
 // constants, category naming, basket storage) used by the storefront and the
 // product detail pages.
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export const RED = "#9c1216";
 export const GREEN = "#135232";
@@ -132,3 +133,56 @@ export const TBS_FALLBACK_STORES = [
   { code: "TBS-KTR", name: "Karang Tengah (Lebak Bulus)", city: "Jakarta Selatan", items: 0 },
   { code: "TBS-XMAS", name: "Bekasi (KH Noer Ali)", city: "Bekasi", items: 0 },
 ];
+
+// Add/remove a catalog item to the basket (composite variant keys supported).
+export function bumpBasket(store: string, it: { sku: string; name: string; price: number; unit: string }, delta: number) {
+  const items = loadBasket(store);
+  const cur = items[it.sku]?.qty || 0;
+  const qty = Math.max(0, Math.min(99, cur + delta));
+  if (qty === 0) delete items[it.sku];
+  else items[it.sku] = { sku: it.sku, name: it.name, price: it.price, unit: it.unit, qty };
+  saveBasket(store, items);
+}
+
+export type CatalogItem = { sku: string; name: string; category: string | null; price: number; unit: string; weighed: boolean | null; stock: number; status: string };
+
+// The standard TBS product card (grid + rails + category pages).
+export function TbsProductCard({ it, inBasket, onAdd, width }: {
+  it: CatalogItem; inBasket: number; onAdd: (it: CatalogItem, delta: number) => void; width?: number | string;
+}) {
+  const t = tileColors(it.category);
+  const out = it.status === "out_of_stock";
+  const low = it.status === "in_stock" && it.stock > 0 && it.stock <= 5;
+  return (
+    <div style={{ width, flex: width ? "0 0 auto" : undefined, background: "#fff", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", display: "flex", flexDirection: "column" }}>
+      <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} aria-label={`View ${it.name}`} style={{ display: "block", textDecoration: "none", height: 84, background: t.bg, position: "relative" }}>
+        <div style={{ height: 84, display: "grid", placeItems: "center" }}>
+          <span style={{ fontSize: 26, opacity: 0.9 }}>{catEmoji(it.category)}</span>
+        </div>
+        <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12 }} aria-label={out ? "out of stock" : low ? "low stock" : "in stock"}>
+          {out ? "✕" : it.status === "in_stock" ? (low ? "🔺" : "🟢") : ""}
+        </span>
+        {it.weighed ? <span style={{ position: "absolute", bottom: 8, left: 8, fontSize: 10.5, fontWeight: 800, background: "#fff", color: GREEN, borderRadius: 999, padding: "2px 8px", border: `1px solid ${GREEN}22` }}>±1kg pack</span> : null}
+      </Link>
+      <div style={{ padding: "10px 11px 12px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+        <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} style={{ textDecoration: "none", fontSize: 13, fontWeight: 400, color: "#333", lineHeight: 1.35, minHeight: 35, display: "block" }}>{it.name}</Link>
+        <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+          <div>
+            <div style={{ fontSize: 14.5, fontWeight: 500, color: "#191919" }}>{rp(it.price)}</div>
+            <div style={{ fontSize: 11, color: "#999" }}>per {it.unit}</div>
+          </div>
+          {inBasket === 0 ? (
+            <button disabled={out} onClick={() => onAdd(it, +1)} aria-label={`Add ${it.name}`}
+              style={{ border: "none", borderRadius: 999, width: 34, height: 34, fontWeight: 900, fontSize: 18, cursor: out ? "default" : "pointer", background: out ? "#eee" : GREEN, color: out ? "#aaa" : "#fff" }}>+</button>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button onClick={() => onAdd(it, -1)} style={{ border: `1px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, width: 28, height: 28, fontWeight: 900, cursor: "pointer" }}>−</button>
+              <span style={{ fontWeight: 900, color: "#222", minWidth: 16, textAlign: "center" }}>{inBasket}</span>
+              <button onClick={() => onAdd(it, +1)} style={{ border: "none", background: GREEN, color: "#fff", borderRadius: 999, width: 28, height: 28, fontWeight: 900, cursor: "pointer" }}>+</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

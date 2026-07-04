@@ -16,6 +16,7 @@ export async function GET(req: Request) {
       store,
       category: String(u.searchParams.get("category") || "").slice(0, 30),
       q: String(u.searchParams.get("q") || "").slice(0, 60),
+      sort: ["popular", "price_asc", "price_desc"].includes(String(u.searchParams.get("sort"))) ? String(u.searchParams.get("sort")) : "",
       offset: String(Math.max(0, parseInt(u.searchParams.get("offset") || "0", 10) || 0)),
       limit: String(Math.min(60, Math.max(1, parseInt(u.searchParams.get("limit") || "24", 10) || 24))),
     });

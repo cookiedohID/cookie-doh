@@ -391,11 +391,27 @@ export default function CheckoutPage() {
   const [scheduleTime, setScheduleTime] = useState<string>("");
 
   // Pickup points
+  const tbsBasket = useTbsBasket();
   const pickupPoints = useMemo(
-    () => parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON),
-    []
+    () => {
+      const all = parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON);
+      // Unified cart: groceries come from ONE chosen TBS store — pickup is only
+      // offered there (delivery is quoted from it too).
+      if (tbsBasket.lines.length && tbsBasket.store) {
+        const own = all.filter((p: any) => String(p.id).toLowerCase() === tbsBasket.store.toLowerCase());
+        if (own.length) return own;
+      }
+      return all;
+    },
+    [tbsBasket.lines.length, tbsBasket.store]
   );
   const [pickupPointId, setPickupPointId] = useState<string>(() => pickupPoints[0]?.id || "");
+  // keep the selection valid when the list narrows to the TBS store
+  useEffect(() => {
+    if (pickupPoints.length && !pickupPoints.some((p: any) => p.id === pickupPointId)) {
+      setPickupPointId(pickupPoints[0].id);
+    }
+  }, [pickupPoints, pickupPointId]);
 
   // Shipping quote
   const [shippingCost, setShippingCost] = useState<number | null>(null);
@@ -618,7 +634,6 @@ export default function CheckoutPage() {
   const vipCanFreeCookie = !!memberVip?.tier?.free_cookie_per_order;
   const deliveryFee = fulfillment === "delivery" ? (vipFreeDelivery ? 0 : shippingCost) : 0;
   const promoDiscount = appliedPromo ? Math.min(appliedPromo.discount, subtotal) : 0;
-  const tbsBasket = useTbsBasket();
   const tbsSubtotal = tbsBasket.lines.length ? tbsBasket.subtotal : 0;
   const grandTotal = Math.max(0, subtotal + (deliveryFee || 0) - promoDiscount) + tbsSubtotal;
 
