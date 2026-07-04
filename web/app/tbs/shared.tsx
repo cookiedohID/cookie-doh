@@ -183,22 +183,25 @@ export function TbsProductCard({ it, inBasket, onAdd, width }: {
       <div style={{ padding: "10px 11px 12px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
         <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} style={{ textDecoration: "none", fontSize: 13, fontWeight: 400, color: "#333", lineHeight: 1.35, minHeight: 35, display: "block" }}>{it.name}</Link>
         <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-          <div>
-            <div style={{ fontSize: 14.5, fontWeight: 500, color: "#191919" }}>{rp(it.price)}</div>
-            <div style={{ fontSize: 11, color: "#999" }}>per {it.unit}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 500, color: "#191919", whiteSpace: "nowrap" }}>{rp(it.price)}</div>
+            <div style={{ fontSize: 11, color: "#999", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>per {it.unit}</div>
           </div>
           {inBasket === 0 ? (
             <button disabled={!canMore} onClick={() => canMore && onAdd(it, +1)} aria-label={`Add ${it.name}`}
               style={{ ...circle(true), opacity: canMore ? 1 : 0.35, cursor: canMore ? "pointer" : "default" }}>+</button>
-          ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => onAdd(it, -1)} aria-label="less" style={circle(false)}>−</button>
-              <span style={{ fontWeight: 900, color: "#191919", minWidth: 18, textAlign: "center", fontSize: 15 }}>{inBasket}</span>
-              <button disabled={!canMore} onClick={() => canMore && onAdd(it, +1)} aria-label="more"
-                style={{ ...circle(true), opacity: canMore ? 1 : 0.35, cursor: canMore ? "pointer" : "default" }}>+</button>
-            </div>
-          )}
+          ) : null}
         </div>
+        {inBasket > 0 ? (
+          // In-basket: the stepper gets its own full-width row (a side-by-side
+          // row clips on the 158px rail tiles), TBS green like the sheet.
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 8, border: `1.4px solid ${GREEN}33`, background: "#F0F7EE", borderRadius: 999, padding: 3 }}>
+            <button onClick={() => onAdd(it, -1)} aria-label="less" style={{ ...circle(false), width: 28, height: 28, border: "none", background: "transparent" }}>−</button>
+            <span style={{ fontWeight: 900, color: "#191919", minWidth: 18, textAlign: "center", fontSize: 15 }}>{inBasket}</span>
+            <button disabled={!canMore} onClick={() => canMore && onAdd(it, +1)} aria-label="more"
+              style={{ ...circle(true), width: 28, height: 28, opacity: canMore ? 1 : 0.35, cursor: canMore ? "pointer" : "default" }}>+</button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
