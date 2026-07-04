@@ -29,6 +29,7 @@ export default function TbsProductPage() {
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const [tab, setTab] = useState<"desc" | "details">("desc");
+  const [otherStores, setOtherStores] = useState(false);
 
   useEffect(() => { setStore(localStorage.getItem("tbs_store") || "TBS-RCV"); }, []);
 
@@ -155,7 +156,7 @@ export default function TbsProductPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid rgba(0,0,0,0.15)", borderRadius: 8, padding: "6px 10px" }}>
                     <button onClick={() => setQty((n) => Math.max(1, n - 1))} style={{ border: "none", background: "transparent", fontSize: 18, fontWeight: 900, cursor: "pointer", color: GREEN }}>−</button>
                     <span style={{ fontWeight: 700, minWidth: 22, textAlign: "center" }}>{qty}</span>
-                    <button onClick={() => setQty((n) => Math.min(99, n + 1))} style={{ border: "none", background: "transparent", fontSize: 18, fontWeight: 900, cursor: "pointer", color: GREEN }}>+</button>
+                    <button onClick={() => setQty((n) => Math.min(mineLive && sel ? Math.max(1, sel.stock) : 99, n + 1))} style={{ border: "none", background: "transparent", fontSize: 18, fontWeight: 900, cursor: "pointer", color: GREEN }}>+</button>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <span style={{ fontSize: 12, color: "#999", marginRight: 8 }}>Total amount</span>
@@ -203,8 +204,11 @@ export default function TbsProductPage() {
                   {specRow("Category", catLabel(p.category))}
                   {specRow("Unit", sel ? sel.label : p.unit)}
                   {specRow("Fulfilment", "Pickup or delivery from your selected store")}
-                  <div style={{ fontSize: 12, fontWeight: 800, color: "#666", textTransform: "uppercase", letterSpacing: 0.4, margin: "16px 0 4px" }}>Availability by store</div>
-                  {data!.availability.map((a) => (
+                  <button onClick={() => setOtherStores((v) => !v)}
+                    style={{ display: "block", border: "none", background: "transparent", padding: "14px 0 4px", cursor: "pointer", fontSize: 13.5, fontWeight: 800, color: GREEN }}>
+                    🔎 Find in other stores {otherStores ? "▴" : "▾"}
+                  </button>
+                  {otherStores && data!.availability.map((a) => (
                     <div key={a.store} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", borderRadius: 8, marginBottom: 3, background: a.store === store ? "#F0F7EE" : "transparent" }}>
                       <span style={{ fontSize: 13, fontWeight: a.store === store ? 800 : 500, color: "#333" }}>{a.storeName}{a.store === store ? " · your store" : ""}</span>
                       <span style={{ fontSize: 12.5, fontWeight: 700, color: a.status === "in_stock" ? GREEN : a.status === "out_of_stock" ? "#b33" : "#8a6d3b" }}>

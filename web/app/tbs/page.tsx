@@ -116,13 +116,15 @@ export default function TbsShopPage() {
       setBasket(loadBasket(code));
     }
     localStorage.setItem("tbs_store", code);
+    try { window.dispatchEvent(new Event("tbs-store")); } catch { /* ignore */ }
     setStore(code); setCat(""); setQ(""); setPickerOpen(false);
   };
 
   const add = (it: Item, delta: number) => {
     setBasket((prev) => {
+      const cap = it.status === "in_stock" ? Math.max(0, it.stock) : 99;
       const cur = prev[it.sku]?.qty || 0;
-      const qty = Math.max(0, Math.min(99, cur + delta));
+      const qty = Math.max(0, Math.min(Math.min(99, Math.max(1, cap)), cur + delta));
       const next = { ...prev };
       if (qty === 0) delete next[it.sku];
       else next[it.sku] = { sku: it.sku, name: it.name, price: it.price, unit: it.unit, qty };
@@ -133,8 +135,10 @@ export default function TbsShopPage() {
 
   useEffect(() => {
     const open = () => setBasketOpen(true);
+    const openPicker = () => setPickerOpen(true);
     window.addEventListener("tbs-open-basket", open);
-    return () => window.removeEventListener("tbs-open-basket", open);
+    window.addEventListener("tbs-open-picker", openPicker);
+    return () => { window.removeEventListener("tbs-open-basket", open); window.removeEventListener("tbs-open-picker", openPicker); };
   }, []);
 
   const basketList = useMemo(() => Object.values(basket), [basket]);
@@ -240,45 +244,9 @@ export default function TbsShopPage() {
 
         {/* product grid */}
         <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
-          {items.map((it) => {
-            const t = tileColors(it.category);
-            const inBasket = basket[it.sku]?.qty || 0;
-            const out = it.status === "out_of_stock";
-            return (
-              <div key={it.sku} style={{ background: "#fff", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", display: "flex", flexDirection: "column" }}>
-                <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} aria-label={`View ${it.name}`} style={{ display: "block", textDecoration: "none", height: 168, background: t.bg, position: "relative" }}>
-                <div style={{ height: 168, display: "grid", placeItems: "center", position: "relative" }}>
-                  <span style={{ fontSize: 44, fontWeight: 900, color: t.fg, opacity: 0.75 }}>
-                    {catEmoji(it.category)}
-                  </span>
-                  <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12 }} aria-label={out ? "out of stock" : it.status === "in_stock" && it.stock > 0 && it.stock <= 5 ? "low stock" : "in stock"}>
-                    {out ? "✕" : it.status === "in_stock" ? (it.stock > 0 && it.stock <= 5 ? "🔺" : "🟢") : ""}
-                  </span>
-                  {it.weighed ? <span style={{ position: "absolute", bottom: 8, left: 8, fontSize: 10.5, fontWeight: 800, background: "#fff", color: GREEN, borderRadius: 999, padding: "2px 8px", border: `1px solid ${GREEN}22` }}>±1kg pack</span> : null}
-                </div>
-                </Link>
-                <div style={{ padding: "10px 11px 12px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-                  <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} style={{ textDecoration: "none", fontSize: 13, fontWeight: 400, color: "#333", lineHeight: 1.35, minHeight: 35, display: "block" }}>{it.name}</Link>
-                  <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
-                    <div>
-                      <div style={{ fontSize: 14.5, fontWeight: 500, color: "#191919" }}>{rp(it.price)}</div>
-                      <div style={{ fontSize: 11, color: "#999" }}>per {it.unit}</div>
-                    </div>
-                    {inBasket === 0 ? (
-                      <button disabled={out} onClick={() => add(it, +1)} aria-label={`Add ${it.name}`}
-                        style={{ border: "none", borderRadius: 999, width: 34, height: 34, fontWeight: 900, fontSize: 18, cursor: out ? "default" : "pointer", background: out ? "#eee" : GREEN, color: out ? "#aaa" : "#fff" }}>+</button>
-                    ) : (
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <button onClick={() => add(it, -1)} style={{ border: `1px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, width: 28, height: 28, fontWeight: 900, cursor: "pointer" }}>−</button>
-                        <span style={{ fontWeight: 900, color: "#222", minWidth: 16, textAlign: "center" }}>{inBasket}</span>
-                        <button onClick={() => add(it, +1)} style={{ border: "none", background: GREEN, color: "#fff", borderRadius: 999, width: 28, height: 28, fontWeight: 900, cursor: "pointer" }}>+</button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {items.map((it) => (
+            <TbsProductCard key={it.sku} it={it as any} inBasket={basket[it.sku]?.qty || 0} onAdd={(x, d) => add(x as any, d)} />
+          ))}
         </div>
 
         {loading ? <p style={{ textAlign: "center", color: "#999", marginTop: 16 }}>Loading…</p> : null}

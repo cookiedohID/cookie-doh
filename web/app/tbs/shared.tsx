@@ -135,10 +135,10 @@ export const TBS_FALLBACK_STORES = [
 ];
 
 // Add/remove a catalog item to the basket (composite variant keys supported).
-export function bumpBasket(store: string, it: { sku: string; name: string; price: number; unit: string }, delta: number) {
+export function bumpBasket(store: string, it: { sku: string; name: string; price: number; unit: string }, delta: number, max = 99) {
   const items = loadBasket(store);
   const cur = items[it.sku]?.qty || 0;
-  const qty = Math.max(0, Math.min(99, cur + delta));
+  const qty = Math.max(0, Math.min(Math.max(1, Math.min(99, max)), cur + delta));
   if (qty === 0) delete items[it.sku];
   else items[it.sku] = { sku: it.sku, name: it.name, price: it.price, unit: it.unit, qty };
   saveBasket(store, items);
@@ -147,21 +147,26 @@ export function bumpBasket(store: string, it: { sku: string; name: string; price
 export type CatalogItem = { sku: string; name: string; category: string | null; price: number; unit: string; weighed: boolean | null; stock: number; status: string };
 
 // The standard TBS product card (grid + rails + category pages).
+// Stock dots live on the PRODUCT PAGE only (owner decision); the card caps the
+// stepper at the store's available stock instead.
 export function TbsProductCard({ it, inBasket, onAdd, width }: {
   it: CatalogItem; inBasket: number; onAdd: (it: CatalogItem, delta: number) => void; width?: number | string;
 }) {
   const t = tileColors(it.category);
   const out = it.status === "out_of_stock";
-  const low = it.status === "in_stock" && it.stock > 0 && it.stock <= 5;
+  const cap = it.status === "in_stock" ? Math.max(0, it.stock) : 99;
+  const canMore = !out && inBasket < cap;
+  const circle = (filled: boolean): React.CSSProperties => ({
+    width: 32, height: 32, borderRadius: 999, fontWeight: 900, fontSize: 17, cursor: "pointer",
+    border: `1.6px solid ${GREEN}`, background: filled ? GREEN : "#fff", color: filled ? "#fff" : GREEN,
+    display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1,
+  });
   return (
     <div style={{ width, flex: width ? "0 0 auto" : undefined, background: "#fff", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", display: "flex", flexDirection: "column" }}>
       <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} aria-label={`View ${it.name}`} style={{ display: "block", textDecoration: "none", height: 168, background: t.bg, position: "relative" }}>
         <div style={{ height: 168, display: "grid", placeItems: "center" }}>
           <span style={{ fontSize: 44, opacity: 0.9 }}>{catEmoji(it.category)}</span>
         </div>
-        <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12 }} aria-label={out ? "out of stock" : low ? "low stock" : "in stock"}>
-          {out ? "✕" : it.status === "in_stock" ? (low ? "🔺" : "🟢") : ""}
-        </span>
         {it.weighed ? <span style={{ position: "absolute", bottom: 8, left: 8, fontSize: 10.5, fontWeight: 800, background: "#fff", color: GREEN, borderRadius: 999, padding: "2px 8px", border: `1px solid ${GREEN}22` }}>±1kg pack</span> : null}
       </Link>
       <div style={{ padding: "10px 11px 12px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
@@ -172,13 +177,14 @@ export function TbsProductCard({ it, inBasket, onAdd, width }: {
             <div style={{ fontSize: 11, color: "#999" }}>per {it.unit}</div>
           </div>
           {inBasket === 0 ? (
-            <button disabled={out} onClick={() => onAdd(it, +1)} aria-label={`Add ${it.name}`}
-              style={{ border: "none", borderRadius: 999, width: 34, height: 34, fontWeight: 900, fontSize: 18, cursor: out ? "default" : "pointer", background: out ? "#eee" : GREEN, color: out ? "#aaa" : "#fff" }}>+</button>
+            <button disabled={!canMore} onClick={() => canMore && onAdd(it, +1)} aria-label={`Add ${it.name}`}
+              style={{ ...circle(true), opacity: canMore ? 1 : 0.35, cursor: canMore ? "pointer" : "default" }}>+</button>
           ) : (
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <button onClick={() => onAdd(it, -1)} style={{ border: `1px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, width: 28, height: 28, fontWeight: 900, cursor: "pointer" }}>−</button>
-              <span style={{ fontWeight: 900, color: "#222", minWidth: 16, textAlign: "center" }}>{inBasket}</span>
-              <button onClick={() => onAdd(it, +1)} style={{ border: "none", background: GREEN, color: "#fff", borderRadius: 999, width: 28, height: 28, fontWeight: 900, cursor: "pointer" }}>+</button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={() => onAdd(it, -1)} aria-label="less" style={circle(false)}>−</button>
+              <span style={{ fontWeight: 900, color: "#191919", minWidth: 18, textAlign: "center", fontSize: 15 }}>{inBasket}</span>
+              <button disabled={!canMore} onClick={() => canMore && onAdd(it, +1)} aria-label="more"
+                style={{ ...circle(true), opacity: canMore ? 1 : 0.35, cursor: canMore ? "pointer" : "default" }}>+</button>
             </div>
           )}
         </div>

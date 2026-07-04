@@ -51,10 +51,26 @@ const TBS_CATS: { id: string; label: string; emoji: string }[] = [
   { id: "SPC CMDTS", label: "Specialty", emoji: "🌾" },
 ];
 
+const TBS_STORE_SHORT: Record<string, string> = {
+  "TBS-RCV": "RC Veteran", "TBS-KTR": "Karang Tengah", "TBS-XMAS": "Bekasi",
+};
+
 function TbsHeader({ pathname }: { pathname: string }) {
   const [n, setN] = useState(0);
   const [catsOpen, setCatsOpen] = useState(false);
+  const [storeCode, setStoreCode] = useState("");
   useEffect(() => { setCatsOpen(false); }, [pathname]);
+  useEffect(() => {
+    const readStore = () => setStoreCode(localStorage.getItem("tbs_store") || "");
+    readStore();
+    window.addEventListener("tbs-store", readStore);
+    window.addEventListener("focus", readStore);
+    return () => { window.removeEventListener("tbs-store", readStore); window.removeEventListener("focus", readStore); };
+  }, [pathname]);
+  const storeClick = () => {
+    if (pathname.startsWith("/tbs")) window.dispatchEvent(new Event("tbs-open-picker"));
+    else location.href = "/tbs";
+  };
   useEffect(() => {
     const refresh = () => setN(tbsBasketCount());
     refresh();
@@ -79,12 +95,20 @@ function TbsHeader({ pathname }: { pathname: string }) {
         100% Fresh. Today and Always
       </div>
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "8px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-        <Link href="/tbs" aria-label="TotalBuahStore home" style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none", flex: "0 0 auto" }}>
+        <Link href="/tbs" aria-label="TotalBuahStore home"
+          onClick={(e) => { if (pathname === "/tbs") { e.preventDefault(); window.scrollTo({ top: 0, behavior: "smooth" }); } }}
+          style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none", flex: "0 0 auto" }}>
           {/* real TBS logo asset (plain img — the optimizer washes out this sketch PNG at small sizes) */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/tbs/logo.png" alt="tbs" style={{ height: 46, width: "auto", display: "block" }} />
           <span style={{ fontWeight: 900, fontSize: 17, color: TBS_GREEN, letterSpacing: 0.3 }}>TotalBuahStore</span>
         </Link>
+        {storeCode ? (
+          <button onClick={storeClick} title="Change store"
+            style={{ border: `1px solid ${TBS_GREEN}44`, background: "#F0F7EE", color: TBS_GREEN, borderRadius: 999, padding: "5px 11px", fontWeight: 800, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+            📍 {TBS_STORE_SHORT[storeCode] || storeCode}
+          </button>
+        ) : null}
         <nav aria-label="TBS" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, overflowX: "auto" }}>
           <button onClick={() => setCatsOpen((v) => !v)} aria-expanded={catsOpen}
             style={{ ...tab(catsOpen), border: "none", background: catsOpen ? "#FBEFEA" : "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
