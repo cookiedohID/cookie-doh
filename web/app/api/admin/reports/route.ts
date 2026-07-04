@@ -151,27 +151,41 @@ export async function GET(req: Request) {
       }));
     } catch { /* not migrated yet */ }
 
-    // ---- TBS settlement: what Cookie Doh owes each TotalBuahStore store ----
-    // TBS web orders are paid into Cookie Doh's Midtrans; the store fulfils the
-    // goods. Owed to the store = the ITEMS subtotal (delivery fee listed
-    // separately — courier money, not store goods).
-    const tbsMap: Record<string, { store: string; orders: number; items_idr: number; delivery_idr: number; collected_idr: number }> = {};
+    // ---- TBS settlement + marketplace fee ------------------------------------
+    // Marketplace model (owner decision 2026-07-04): Cookie Doh and TBS keep
+    // separate books; CD is the marketplace and charges TBS a platform fee on
+    // the TBS GOODS value (delivery excluded — courier money). The store is
+    // owed items + delivery; TBS owes CD the fee; net transfer = the difference.
+    // Fee % comes from ?tbs_fee_pct= or TBS_MARKETPLACE_FEE_PCT (default 5).
+    const feePct = Math.min(50, Math.max(0, Number(url.searchParams.get("tbs_fee_pct") ?? process.env.TBS_MARKETPLACE_FEE_PCT ?? 5) || 0));
+    const tbsMap: Record<string, { store: string; orders: number; items_idr: number; delivery_idr: number; collected_idr: number; fee_idr: number; net_transfer_idr: number }> = {};
+    const tbsFeeOrders: Array<{ date: string; order_id: string; order_no: any; store: string; items_idr: number; fee_idr: number }> = [];
     for (const o of orders) {
       const t = (o as any)?.meta?.tbs;
       if (!t?.store) continue;
       const key = String(t.store);
-      const row = (tbsMap[key] ||= { store: key, orders: 0, items_idr: 0, delivery_idr: 0, collected_idr: 0 });
+      const row = (tbsMap[key] ||= { store: key, orders: 0, items_idr: 0, delivery_idr: 0, collected_idr: 0, fee_idr: 0, net_transfer_idr: 0 });
       const fee = Math.round(Number(t.delivery_fee) || 0);
       const total = Math.round(Number((o as any).total_idr) || 0);
       const tbsItems = (Array.isArray((o as any).items_json) ? (o as any).items_json : [])
         .filter((it: any) => it?.kind === "tbs")
         .reduce((n: number, it: any) => n + Math.round((Number(it.price) || 0) * (Number(it.quantity) || 1)), 0);
+      const itemsResolved = tbsItems > 0 ? tbsItems : Math.max(0, total - fee);
+      const platformFee = Math.round((itemsResolved * feePct) / 100);
       row.orders += 1;
       row.delivery_idr += fee;
-      row.items_idr += tbsItems > 0 ? tbsItems : Math.max(0, total - fee);
+      row.items_idr += itemsResolved;
       row.collected_idr += total;
+      row.fee_idr += platformFee;
+      tbsFeeOrders.push({
+        date: dayStr((o as any).paid_at || (o as any).created_at),
+        order_id: String((o as any).id), order_no: (o as any).order_no ?? null,
+        store: key, items_idr: itemsResolved, fee_idr: platformFee,
+      });
     }
+    for (const r of Object.values(tbsMap)) r.net_transfer_idr = r.items_idr + r.delivery_idr - r.fee_idr;
     const tbsSettlement = Object.values(tbsMap).sort((a, b) => b.items_idr - a.items_idr);
+    tbsFeeOrders.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
     return NextResponse.json({
       ok: true,
@@ -179,6 +193,12 @@ export async function GET(req: Request) {
       locations: LOCATIONS.map((l) => ({ id: l.id, name: l.short })),
       summary: { orders: orders.length, revenue: totalRevenue, freeCookies, freeDrinks },
       daily, dailyDetail, items, byLocation, redemptions, inventory, movements, tbsSettlement,
+      tbsFee: {
+        pct: feePct,
+        orders: tbsFeeOrders,
+        total_items_idr: tbsFeeOrders.reduce((n, r) => n + r.items_idr, 0),
+        total_fee_idr: tbsFeeOrders.reduce((n, r) => n + r.fee_idr, 0),
+      },
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });

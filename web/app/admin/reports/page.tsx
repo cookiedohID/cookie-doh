@@ -30,6 +30,7 @@ export default function AdminReportsPage() {
   const [from, setFrom] = useState(isoDaysAgo(29));
   const [to, setTo] = useState(isoDaysAgo(0));
   const [locationId, setLocationId] = useState("");
+  const [tbsFeePct, setTbsFeePct] = useState("");
   const [tab, setTab] = useState<Tab>("daily");
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [data, setData] = useState<Report | null>(null);
@@ -41,6 +42,7 @@ export default function AdminReportsPage() {
     try {
       const qs = new URLSearchParams({ from, to });
       if (locationId) qs.set("location_id", locationId);
+      if (tbsFeePct.trim()) qs.set("tbs_fee_pct", tbsFeePct.trim());
       const headers: Record<string, string> = {};
       const adminTok = process.env.NEXT_PUBLIC_ADMIN_TOKEN;
       if (adminTok) headers["x-admin-token"] = adminTok;
@@ -51,7 +53,7 @@ export default function AdminReportsPage() {
     } catch {
       setErr("Couldn't load reports.");
     } finally { setLoading(false); }
-  }, [from, to, locationId]);
+  }, [from, to, locationId, tbsFeePct]);
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
@@ -179,26 +181,75 @@ export default function AdminReportsPage() {
 
         {(data?.tbsSettlement || []).length > 0 ? (
           <section style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16, marginTop: 14 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 800, color: COLORS.black }}>🍒 TBS settlement (owed per store)</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: COLORS.black }}>🍒 TBS settlement & marketplace fee</h2>
             <p style={{ fontSize: 12, color: COLORS.muted, margin: "4px 0 8px" }}>
-              TotalBuahStore web orders paid via Cookie Doh in this range. Pay each store its <b>items</b> amount; delivery is courier money.
+              TotalBuahStore web orders paid via Cookie Doh in this range. The store is owed <b>items + delivery</b>;
+              Cookie Doh charges a <b>{Number(data?.tbsFee?.pct ?? 5)}% marketplace fee</b> on the items value (TBS books it as an expense).
+              <b> Net transfer</b> = items + delivery − fee.
+              {" "}<label style={{ fontWeight: 800 }}>Fee %:{" "}
+                <input value={tbsFeePct} onChange={(e) => setTbsFeePct(e.target.value.replace(/[^\d.]/g, ""))} placeholder={String(data?.tbsFee?.pct ?? 5)}
+                  style={{ width: 52, padding: "4px 8px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.16)" }} />
+              </label> (press Apply)
             </p>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead><tr style={{ borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "right", color: COLORS.muted, fontSize: 11 }}>
-                  <th style={{ textAlign: "left", padding: 6 }}>Store</th><th style={{ padding: 6 }}>Orders</th><th style={{ padding: 6 }}>Items (owed)</th><th style={{ padding: 6 }}>Delivery</th><th style={{ padding: 6 }}>Collected</th>
+                  <th style={{ textAlign: "left", padding: 6 }}>Store</th><th style={{ padding: 6 }}>Orders</th><th style={{ padding: 6 }}>Items</th><th style={{ padding: 6 }}>Delivery</th><th style={{ padding: 6 }}>Fee ({Number(data?.tbsFee?.pct ?? 5)}%)</th><th style={{ padding: 6 }}>Net transfer</th><th style={{ padding: 6 }}>Collected</th>
                 </tr></thead>
                 <tbody>{(data.tbsSettlement || []).map((r: any) => (
                   <tr key={r.store} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)", textAlign: "right" }}>
                     <td style={{ textAlign: "left", padding: 6, fontWeight: 700 }}>{r.store}</td>
                     <td style={{ padding: 6 }}>{r.orders}</td>
-                    <td style={{ padding: 6, fontWeight: 800 }}>Rp{Number(r.items_idr).toLocaleString("id-ID")}</td>
+                    <td style={{ padding: 6 }}>Rp{Number(r.items_idr).toLocaleString("id-ID")}</td>
                     <td style={{ padding: 6 }}>Rp{Number(r.delivery_idr).toLocaleString("id-ID")}</td>
+                    <td style={{ padding: 6, color: "#0f6e56", fontWeight: 800 }}>Rp{Number(r.fee_idr || 0).toLocaleString("id-ID")}</td>
+                    <td style={{ padding: 6, fontWeight: 800 }}>Rp{Number(r.net_transfer_idr ?? (r.items_idr + r.delivery_idr)).toLocaleString("id-ID")}</td>
                     <td style={{ padding: 6 }}>Rp{Number(r.collected_idr).toLocaleString("id-ID")}</td>
                   </tr>
                 ))}</tbody>
               </table>
             </div>
+            {(data?.tbsFee?.orders || []).length > 0 ? (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <h3 style={{ fontSize: 13.5, fontWeight: 800, color: COLORS.black, margin: 0 }}>
+                    Invoice backing — {data.tbsFee.orders.length} order{data.tbsFee.orders.length > 1 ? "s" : ""} ·
+                    {" "}items Rp{Number(data.tbsFee.total_items_idr).toLocaleString("id-ID")} ·
+                    {" "}<span style={{ color: "#0f6e56" }}>fee Rp{Number(data.tbsFee.total_fee_idr).toLocaleString("id-ID")}</span>
+                  </h3>
+                  <button onClick={() => {
+                    const rows = [["Date", "Order", "Store", "TBS items (Rp)", `Fee ${Number(data.tbsFee.pct)}% (Rp)`],
+                      ...data.tbsFee.orders.map((r: any) => [r.date, r.order_no ? `#${r.order_no}` : r.order_id.slice(0, 8), r.store, String(r.items_idr), String(r.fee_idr)]),
+                      ["TOTAL", "", "", String(data.tbsFee.total_items_idr), String(data.tbsFee.total_fee_idr)]];
+                    const csv = rows.map((r: any[]) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
+                    a.download = `tbs-marketplace-fee_${from}_${to}.csv`;
+                    a.click(); URL.revokeObjectURL(a.href);
+                  }} style={{ border: "none", background: "#135232", color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "8px 16px", borderRadius: 999, cursor: "pointer" }}>
+                    ⬇ Download CSV (invoice backing)
+                  </button>
+                </div>
+                <div style={{ overflowX: "auto", marginTop: 8 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                    <thead><tr style={{ borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "right", color: COLORS.muted, fontSize: 11 }}>
+                      <th style={{ textAlign: "left", padding: 6 }}>Date</th><th style={{ textAlign: "left", padding: 6 }}>Order</th><th style={{ textAlign: "left", padding: 6 }}>Store</th><th style={{ padding: 6 }}>TBS items</th><th style={{ padding: 6 }}>Fee</th>
+                    </tr></thead>
+                    <tbody>{data.tbsFee.orders.map((r: any, i: number) => (
+                      <tr key={i} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)", textAlign: "right" }}>
+                        <td style={{ textAlign: "left", padding: 6 }}>{r.date}</td>
+                        <td style={{ textAlign: "left", padding: 6 }}>
+                          <Link href={`/admin/orders/${r.order_id}`} style={{ color: COLORS.blue, textDecoration: "none", fontWeight: 700 }}>{r.order_no ? `#${r.order_no}` : r.order_id.slice(0, 8)}</Link>
+                        </td>
+                        <td style={{ textAlign: "left", padding: 6 }}>{r.store}</td>
+                        <td style={{ padding: 6 }}>Rp{Number(r.items_idr).toLocaleString("id-ID")}</td>
+                        <td style={{ padding: 6, color: "#0f6e56", fontWeight: 700 }}>Rp{Number(r.fee_idr).toLocaleString("id-ID")}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
