@@ -110,7 +110,7 @@ export default function MemberLoginPage() {
   return (
     <main style={{ minHeight: "100vh", background: COLORS.bg }}>
       <div style={{ maxWidth: 420, margin: "0 auto", padding: "40px 16px 80px" }}>
-        <span className="font-dearjoe" style={{ fontSize: 24, color: COLORS.blue }}>cookie doh members</span>
+        <span className="font-dearjoe" style={{ fontSize: 24, color: COLORS.blue }}>TBS × cookie doh family</span>
         <h1 style={{ margin: "4px 0 0", fontSize: 28, fontWeight: 800, color: COLORS.black }}>
           {mode === "reset" ? "Reset password" : mode === "login" ? "Welcome back" : step === "otp" ? "Verify your number" : "Join the club"}
         </h1>
@@ -135,7 +135,7 @@ export default function MemberLoginPage() {
             <>
               <input style={field} type="email" placeholder="Email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} />
               {mode === "signup" ? (
-                <input style={field} placeholder="Phone (08… or +628…) — your member number" inputMode="tel" value={phone}
+                <input style={field} placeholder="Phone (08… or +628…) — your family number" inputMode="tel" value={phone}
                   onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, "").replace(/(?!^)\+/g, ""))} />
               ) : null}
               <input style={field} type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -191,7 +191,7 @@ export default function MemberLoginPage() {
             </button>
 
             <div style={{ marginTop: 20, textAlign: "center", fontSize: 14, color: COLORS.muted }}>
-              {mode === "login" ? "New here?" : "Already a member?"}{" "}
+              {mode === "login" ? "New to the family?" : "Already part of the family?"}{" "}
               <button type="button" onClick={switchMode} style={{ border: "none", background: "none", color: COLORS.blue, fontWeight: 800, cursor: "pointer" }}>
                 {mode === "login" ? "Create an account" : "Log in"}
               </button>
