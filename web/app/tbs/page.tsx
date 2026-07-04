@@ -229,9 +229,9 @@ export default function TbsShopPage() {
             const out = it.status === "out_of_stock";
             return (
               <div key={it.sku} style={{ background: "#fff", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", display: "flex", flexDirection: "column" }}>
-                <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} aria-label={`View ${it.name}`} style={{ display: "block", textDecoration: "none", height: 84, background: t.bg, position: "relative" }}>
-                <div style={{ height: 84, display: "grid", placeItems: "center", position: "relative" }}>
-                  <span style={{ fontSize: 26, fontWeight: 900, color: t.fg, opacity: 0.75 }}>
+                <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} aria-label={`View ${it.name}`} style={{ display: "block", textDecoration: "none", height: 168, background: t.bg, position: "relative" }}>
+                <div style={{ height: 168, display: "grid", placeItems: "center", position: "relative" }}>
+                  <span style={{ fontSize: 44, fontWeight: 900, color: t.fg, opacity: 0.75 }}>
                     {catEmoji(it.category)}
                   </span>
                   <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12 }} aria-label={out ? "out of stock" : it.status === "in_stock" && it.stock > 0 && it.stock <= 5 ? "low stock" : "in stock"}>

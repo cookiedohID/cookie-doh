@@ -155,9 +155,9 @@ export function TbsProductCard({ it, inBasket, onAdd, width }: {
   const low = it.status === "in_stock" && it.stock > 0 && it.stock <= 5;
   return (
     <div style={{ width, flex: width ? "0 0 auto" : undefined, background: "#fff", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", display: "flex", flexDirection: "column" }}>
-      <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} aria-label={`View ${it.name}`} style={{ display: "block", textDecoration: "none", height: 84, background: t.bg, position: "relative" }}>
-        <div style={{ height: 84, display: "grid", placeItems: "center" }}>
-          <span style={{ fontSize: 26, opacity: 0.9 }}>{catEmoji(it.category)}</span>
+      <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} aria-label={`View ${it.name}`} style={{ display: "block", textDecoration: "none", height: 168, background: t.bg, position: "relative" }}>
+        <div style={{ height: 168, display: "grid", placeItems: "center" }}>
+          <span style={{ fontSize: 44, opacity: 0.9 }}>{catEmoji(it.category)}</span>
         </div>
         <span style={{ position: "absolute", top: 8, right: 8, fontSize: 12 }} aria-label={out ? "out of stock" : low ? "low stock" : "in stock"}>
           {out ? "✕" : it.status === "in_stock" ? (low ? "🔺" : "🟢") : ""}

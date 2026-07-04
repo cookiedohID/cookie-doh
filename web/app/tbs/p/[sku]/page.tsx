@@ -190,7 +190,7 @@ export default function TbsProductPage() {
                     const rt = tileColors(r.category);
                     return (
                       <Link key={r.sku} href={`/tbs/p/${encodeURIComponent(r.sku)}`} style={{ textDecoration: "none", background: "#fff", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)" }}>
-                        <div style={{ height: 70, background: rt.bg, display: "grid", placeItems: "center", fontSize: 26 }}>{catEmoji(r.category)}</div>
+                        <div style={{ height: 140, background: rt.bg, display: "grid", placeItems: "center", fontSize: 40 }}>{catEmoji(r.category)}</div>
                         <div style={{ padding: "9px 10px 11px" }}>
                           <div style={{ fontSize: 12.5, fontWeight: 700, color: "#222", lineHeight: 1.3, minHeight: 32 }}>{r.name}</div>
                           <div style={{ fontSize: 13.5, fontWeight: 500, color: "#191919", marginTop: 4 }}>{rp(r.price)}</div>
