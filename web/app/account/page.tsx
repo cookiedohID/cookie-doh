@@ -436,7 +436,7 @@ export default function AccountPage() {
             {qr ? <img src={qr} alt="Membership QR" width={110} height={110} style={{ display: "block" }} /> : <div style={{ width: 110, height: 110 }} />}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 16 }}>Cookie Doh × TBS Family</div>
+            <div style={{ fontWeight: 900, fontSize: 16 }}>TBS × Cookie Doh Family</div>
             <div style={{ opacity: 0.9, fontSize: 13, marginTop: 4 }}>{member.phone}</div>
             <div style={{ marginTop: 8, fontFamily: "monospace", fontWeight: 800, letterSpacing: 1 }}>{member.memberCode}</div>
             <div style={{ opacity: 0.85, fontSize: 12, marginTop: 8 }}>Show this at the counter to earn & redeem.</div>
