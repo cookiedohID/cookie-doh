@@ -480,3 +480,27 @@ block it.)*
 ---
 
 *Cookie Doh — where the cookie magic happens 🍪*
+
+---
+
+## 17. TotalBuahStore shop tab (NOT LAUNCHED — owner preview only)
+
+A second storefront on cookiedoh.co.id selling TBS groceries, in full TBS brand
+(red/green + cherry + "100% Fresh. Today and Always"). Hidden from customers
+until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
+`/tbs` (a "coming soon" page shows for everyone else).
+
+- **Preview it:** log in at `/admin/login` on your phone, then open `/tbs`.
+- **Store first:** the customer picks their TBS store (RC Veteran / Karang
+  Tengah / Bekasi); prices + live stock + fulfilment all come from that store.
+- **Catalog:** only the SKUs making **80% of revenue per category** (~1,870
+  products, 21 categories, recomputable as sales shift). Per-kg produce is sold
+  as fixed **±1kg packs**. Search + category chips + basket built in.
+- **Stock:** live per store once the ERP's stock feed is loaded; until then
+  items show as orderable with a "stock syncing" note.
+- **Launch:** flip `TBS_SHOP_PUBLIC` in `web/lib/tbsShop.ts` (one-line change).
+- **Still being wired:** checkout (QRIS + pickup/delivery), order → TBS
+  back-office pick/pack, per-store settlement report.
+
+*(Data flows server-to-server from the TBS ERP's partner API — same token as
+the Member-page TBS rewards tab.)*

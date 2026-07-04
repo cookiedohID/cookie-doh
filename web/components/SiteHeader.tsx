@@ -52,6 +52,15 @@ export default function SiteHeader() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
+  const [tbsShop, setTbsShop] = useState(false);
+
+  // TotalBuahStore shop tab — feature-flagged (admins preview before launch).
+  useEffect(() => {
+    fetch("/api/tbs/enabled", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => setTbsShop(Boolean(j?.enabled)))
+      .catch(() => { /* tab stays hidden */ });
+  }, []);
 
   const nav: NavItem[] = useMemo(
     () => [
@@ -59,9 +68,10 @@ export default function SiteHeader() {
       { href: "/cookies", label: "Cookies" },
       { href: "/smoothies", label: "Smoothies" },
       { href: "/bundles", label: "Bundles" },
+      ...(tbsShop ? [{ href: "/tbs", label: "TotalBuahStore" }] : []),
       { href: "/account", label: "Member" },
     ],
-    []
+    [tbsShop]
   );
 
   const isActive = (href: string) => {
