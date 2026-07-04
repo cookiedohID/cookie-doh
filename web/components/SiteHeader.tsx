@@ -34,8 +34,27 @@ function tbsBasketCount(): number {
   } catch { return 0; }
 }
 
+const TBS_CATS: { id: string; label: string; emoji: string }[] = [
+  { id: "BUAH IMPOR", label: "Imported Fruits", emoji: "🍎" },
+  { id: "BUAH LOCAL", label: "Local Fruits", emoji: "🍌" },
+  { id: "BUAH EXOR", label: "Exotic Fruits", emoji: "🐉" },
+  { id: "SEASONAL", label: "Seasonal Picks", emoji: "🍇" },
+  { id: "KONS SAYUR", label: "Vegetables", emoji: "🥬" },
+  { id: "SYR LOCAL", label: "Local Vegetables", emoji: "🥦" },
+  { id: "SNACK LOCA", label: "Indonesian Snacks", emoji: "🍘" },
+  { id: "SNACK IMPO", label: "Imported Snacks", emoji: "🍫" },
+  { id: "SNACK LAKU", label: "Best-Selling Snacks", emoji: "🍿" },
+  { id: "KONS SNACK", label: "Snacks & Treats", emoji: "🥨" },
+  { id: "FROZEN", label: "Frozen Food", emoji: "🧊" },
+  { id: "BEAUTYCARE", label: "Beauty & Care", emoji: "🧴" },
+  { id: "PROD JUS", label: "Juices", emoji: "🧃" },
+  { id: "SPC CMDTS", label: "Specialty", emoji: "🌾" },
+];
+
 function TbsHeader({ pathname }: { pathname: string }) {
   const [n, setN] = useState(0);
+  const [catsOpen, setCatsOpen] = useState(false);
+  useEffect(() => { setCatsOpen(false); }, [pathname]);
   useEffect(() => {
     const refresh = () => setN(tbsBasketCount());
     refresh();
@@ -67,6 +86,10 @@ function TbsHeader({ pathname }: { pathname: string }) {
           <span style={{ fontWeight: 900, fontSize: 17, color: TBS_GREEN, letterSpacing: 0.3 }}>TotalBuahStore</span>
         </Link>
         <nav aria-label="TBS" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, overflowX: "auto" }}>
+          <button onClick={() => setCatsOpen((v) => !v)} aria-expanded={catsOpen}
+            style={{ ...tab(catsOpen), border: "none", background: catsOpen ? "#FBEFEA" : "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+            ☰ Categories
+          </button>
           <Link href="/tbs" style={tab(pathname === "/tbs")}>Shop</Link>
           <Link href="/account" style={tab(pathname.startsWith("/account"))}>Family</Link>
           <Link href="/" style={{ textDecoration: "none", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, background: "#0014A7", color: "#fff", borderRadius: 999, padding: "8px 13px", fontWeight: 800, fontSize: 13.5 }}>
@@ -77,6 +100,20 @@ function TbsHeader({ pathname }: { pathname: string }) {
           </button>
         </nav>
       </div>
+      {catsOpen ? (
+        <div style={{ borderTop: "1px solid rgba(0,0,0,0.06)", background: "#fff", boxShadow: "0 14px 28px rgba(0,0,0,0.12)" }}>
+          <div style={{ maxWidth: 980, margin: "0 auto", padding: "12px 14px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 6 }}>
+            {TBS_CATS.map((c) => (
+              <Link key={c.id} href={`/tbs/c/${encodeURIComponent(c.id)}`} onClick={() => setCatsOpen(false)}
+                style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 8, padding: "9px 10px", borderRadius: 10, color: "#333", fontSize: 13.5, fontWeight: 600 }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = "#F7F3F0")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = "transparent")}>
+                <span style={{ fontSize: 18 }}>{c.emoji}</span> {c.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : null}
     </header>
     {/* spacer for the fixed header (strip ~26px + bar ~63px) */}
     <div style={{ height: 90 }} />
