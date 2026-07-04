@@ -9,84 +9,18 @@
 // fixed ±1kg packs. Hidden behind the flag until the owner approves (admins
 // preview via their normal admin login).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-const RED = "#9c1216";
-const GREEN = "#135232";
-const CREAM = "#F7F9F5";
+import Link from "next/link";
+import {
+  RED, GREEN, CREAM, rp, catLabel, catEmoji, tileColors, TbsCherry,
+  loadBasket, saveBasket, useTbsGate, ComingSoon, type BasketLine,
+} from "./shared";
 
 type Store = { code: string; name: string; city?: string; items?: number };
 type Item = { sku: string; name: string; category: string | null; price: number; unit: string; weighed: boolean | null; stock: number; status: string };
 type Cat = { id: string | null; name: string | null; count: number };
-type BasketLine = { sku: string; name: string; price: number; unit: string; qty: number };
-
-const CAT_META: Record<string, { label: string; emoji: string }> = {
-  "BUAH IMPOR": { label: "Imported Fruits", emoji: "🍎" },
-  "BUAH LOCAL": { label: "Local Fruits", emoji: "🍌" },
-  "BUAH EXOR": { label: "Exotic Fruits", emoji: "🐉" },
-  "BUAH EXOX": { label: "Exotic Fruits II", emoji: "🥭" },
-  "SEASONAL": { label: "Seasonal Picks", emoji: "🍇" },
-  "KONS SAYUR": { label: "Vegetables", emoji: "🥬" },
-  "SYR LOCAL": { label: "Local Vegetables", emoji: "🥦" },
-  "SYR IMPORT": { label: "Imported Vegetables", emoji: "🥕" },
-  "SYR PASAR": { label: "Market Vegetables", emoji: "🌽" },
-  "SNACK LOCA": { label: "Indonesian Snacks", emoji: "🍘" },
-  "SNACK IMPO": { label: "Imported Snacks", emoji: "🍫" },
-  "SNACK LAKU": { label: "Best-Selling Snacks", emoji: "🍿" },
-  "KONS SNACK": { label: "Snacks & Treats", emoji: "🥨" },
-  "FROZEN": { label: "Frozen Food", emoji: "🧊" },
-  "FRZ LOC": { label: "Frozen Local", emoji: "❄️" },
-  "FRZ IMP": { label: "Frozen Import", emoji: "🥶" },
-  "BEAUTYCARE": { label: "Beauty & Care", emoji: "🧴" },
-  "PROD JUS": { label: "Juices", emoji: "🧃" },
-  "PROD BUAH": { label: "Fruit Products", emoji: "🍯" },
-  "SPC CMDTS": { label: "Specialty", emoji: "🌾" },
-  "KONS STAT": { label: "Household", emoji: "🧺" },
-};
-const catLabel = (id: string | null) => (id && CAT_META[id]?.label) || id || "";
-const catEmoji = (id: string | null) => (id && CAT_META[id]?.emoji) || "🛒";
-
-const rp = (n: number) => "Rp" + Number(n || 0).toLocaleString("id-ID");
-
-function TbsCherry({ size = 30 }: { size?: number }) {
-  return (
-    <svg width={size} height={Math.round((size * 30) / 26)} viewBox="0 0 26 30" aria-hidden="true">
-      <path d="M12 14 C 12 9, 14 6, 17 4" stroke={GREEN} strokeWidth="1.8" fill="none" strokeLinecap="round" />
-      <path d="M17 4 C 22 1, 25 4, 21 7 C 18 6, 18 6, 17 4 Z" fill="#4aa02c" />
-      <circle cx="11" cy="20" r="8" fill="#b0201d" />
-      <circle cx="8" cy="17" r="2" fill="#d76b62" />
-    </svg>
-  );
-}
-
-// Deterministic soft tile colour per category (no product photos yet).
-function tileColors(cat: string | null): { bg: string; fg: string } {
-  const palette = [
-    { bg: "#EAF3E7", fg: GREEN }, { bg: "#FBEFEA", fg: RED },
-    { bg: "#F3EFE2", fg: "#7a5c00" }, { bg: "#E7F0F3", fg: "#0f5a6e" },
-    { bg: "#F0EAF5", fg: "#5b3a80" },
-  ];
-  let h = 0;
-  for (const ch of cat || "x") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return palette[h % palette.length];
-}
-
-function loadBasket(store: string): Record<string, BasketLine> {
-  try {
-    const raw = JSON.parse(localStorage.getItem("tbs_basket") || "null");
-    if (raw && raw.store === store && raw.items) return raw.items;
-  } catch { /* ignore */ }
-  return {};
-}
-function saveBasket(store: string, items: Record<string, BasketLine>) {
-  try {
-    localStorage.setItem("tbs_basket", JSON.stringify({ store, items }));
-    window.dispatchEvent(new Event("tbs-basket"));
-  } catch { /* ignore */ }
-}
 
 export default function TbsShopPage() {
-  const [gate, setGate] = useState<"loading" | "hidden" | "open">("loading");
-  const [preview, setPreview] = useState(false);
+  const { gate, preview } = useTbsGate();
   const [stores, setStores] = useState<Store[]>([]);
   const [stockSynced, setStockSynced] = useState(true);
   const [store, setStore] = useState<string>("");
@@ -101,13 +35,11 @@ export default function TbsShopPage() {
   const [basketOpen, setBasketOpen] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Gate + stores
+  // Stores (once the gate opens)
   useEffect(() => {
+    if (gate !== "open") return;
     (async () => {
       try {
-        const g = await (await fetch("/api/tbs/enabled", { cache: "no-store" })).json();
-        if (!g?.enabled) { setGate("hidden"); return; }
-        setPreview(Boolean(g.preview));
         const s = await (await fetch("/api/tbs/stores", { cache: "no-store" })).json();
         const list: Store[] = s?.stores || [];
         setStores(list);
@@ -119,10 +51,9 @@ export default function TbsShopPage() {
         } else {
           setPickerOpen(true);
         }
-        setGate("open");
-      } catch { setGate("hidden"); }
+      } catch { /* fallback stores handled server-side */ }
     })();
-  }, []);
+  }, [gate]);
 
   const fetchCatalog = useCallback(async (storeCode: string, category: string, query: string, offset: number, append: boolean) => {
     if (!storeCode) return;
@@ -177,17 +108,7 @@ export default function TbsShopPage() {
   const storeName = stores.find((s) => s.code === store)?.name || store;
 
   if (gate === "loading") return <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", color: "#888" }}>Loading…</main>;
-  if (gate === "hidden") {
-    return (
-      <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: 20 }}>
-        <div style={{ textAlign: "center", maxWidth: 420 }}>
-          <TbsCherry size={44} />
-          <h1 style={{ fontSize: 22, fontWeight: 900, color: GREEN, margin: "10px 0 4px" }}>TotalBuahStore is coming soon</h1>
-          <p style={{ color: "#6B6B6B", fontSize: 14, lineHeight: 1.6 }}>Fresh fruit & groceries from Total Buah — right here on Cookie Doh. Stay tuned 🍒</p>
-        </div>
-      </main>
-    );
-  }
+  if (gate === "hidden") return <ComingSoon />;
 
   return (
     <main style={{ minHeight: "100vh", background: CREAM }}>
@@ -279,15 +200,17 @@ export default function TbsShopPage() {
             const out = it.status === "out_of_stock";
             return (
               <div key={it.sku} style={{ background: "#fff", borderRadius: 14, overflow: "hidden", border: "1px solid rgba(0,0,0,0.07)", display: "flex", flexDirection: "column" }}>
-                <div style={{ height: 84, background: t.bg, display: "grid", placeItems: "center", position: "relative" }}>
+                <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} aria-label={`View ${it.name}`} style={{ display: "block", textDecoration: "none", height: 84, background: t.bg, position: "relative" }}>
+                <div style={{ height: 84, display: "grid", placeItems: "center", position: "relative" }}>
                   <span style={{ fontSize: 26, fontWeight: 900, color: t.fg, opacity: 0.75 }}>
                     {catEmoji(it.category)}
                   </span>
                   {out ? <span style={{ position: "absolute", top: 8, right: 8, fontSize: 10.5, fontWeight: 800, background: "#efefef", color: "#777", borderRadius: 999, padding: "2px 8px" }}>out of stock</span> : null}
                   {it.weighed ? <span style={{ position: "absolute", bottom: 8, left: 8, fontSize: 10.5, fontWeight: 800, background: "#fff", color: GREEN, borderRadius: 999, padding: "2px 8px", border: `1px solid ${GREEN}22` }}>±1kg pack</span> : null}
                 </div>
+                </Link>
                 <div style={{ padding: "10px 11px 12px", display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#222", lineHeight: 1.35, minHeight: 35 }}>{it.name}</div>
+                  <Link href={`/tbs/p/${encodeURIComponent(it.sku)}`} style={{ textDecoration: "none", fontSize: 13, fontWeight: 700, color: "#222", lineHeight: 1.35, minHeight: 35, display: "block" }}>{it.name}</Link>
                   <div style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                     <div>
                       <div style={{ fontSize: 14.5, fontWeight: 900, color: RED }}>{rp(it.price)}</div>

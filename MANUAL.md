@@ -498,6 +498,9 @@ until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
   as fixed **±1kg packs**. Search + category chips + basket built in.
 - **Stock:** live per store once the ERP's stock feed is loaded; until then
   items show as orderable with a "stock syncing" note.
+- **Product pages:** tap any product → its own page (kurly.com-style): price,
+  ±1kg pack info, **availability at all 3 stores** (yours highlighted), product
+  facts, and related items from the same category.
 - **Launch:** flip `TBS_SHOP_PUBLIC` in `web/lib/tbsShop.ts` (one-line change).
 - **Still being wired:** checkout (QRIS + pickup/delivery), order → TBS
   back-office pick/pack, per-store settlement report.
