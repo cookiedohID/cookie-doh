@@ -101,3 +101,9 @@ export function ComingSoon() {
     </main>
   );
 }
+
+export const TBS_FALLBACK_STORES = [
+  { code: "TBS-RCV", name: "RC Veteran (Bintaro)", city: "Jakarta Selatan", items: 0 },
+  { code: "TBS-KTR", name: "Karang Tengah (Lebak Bulus)", city: "Jakarta Selatan", items: 0 },
+  { code: "TBS-XMAS", name: "Bekasi (KH Noer Ali)", city: "Bekasi", items: 0 },
+];

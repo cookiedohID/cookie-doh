@@ -502,8 +502,21 @@ until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
   ±1kg pack info, **availability at all 3 stores** (yours highlighted), product
   facts, and related items from the same category.
 - **Launch:** flip `TBS_SHOP_PUBLIC` in `web/lib/tbsShop.ts` (one-line change).
-- **Still being wired:** checkout (QRIS + pickup/delivery), order → TBS
-  back-office pick/pack, per-store settlement report.
+- **Product pages:** every product opens its own page — see above.
+- **Checkout (`/tbs/checkout`):** pickup at the chosen store or delivery
+  (fee by distance from that store, base Rp10k + Rp2.5k/km, max 12 km — tune in
+  `web/lib/tbsShop.ts`). Pays by QRIS/card via the same Midtrans as Cookie Doh.
+  **All prices are re-checked server-side against the live store data** at pay
+  time — the browser can never set its own prices, and oversells are blocked.
+- **After payment:** the order is pushed automatically to the TBS back-office
+  ("Sales → Web Orders"), where store staff confirm → prepare → complete. The
+  customer gets the standard WhatsApp confirmations; the order also appears in
+  `/admin/orders` and the customer's own order history.
+- **💰 TBS settlement (Admin → Reports):** a per-store table of TotalBuahStore
+  web orders in the selected date range — pay each store its **Items** amount
+  (delivery money is the courier's, listed separately).
+- **Refunds/cancels:** handled on the Cookie Doh side (the money lives in your
+  Midtrans); the store cancels its copy in Web Orders.
 
 *(Data flows server-to-server from the TBS ERP's partner API — same token as
 the Member-page TBS rewards tab.)*

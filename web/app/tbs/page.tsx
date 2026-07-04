@@ -307,10 +307,10 @@ export default function TbsShopPage() {
               <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: "2px solid rgba(0,0,0,0.1)", fontWeight: 900, fontSize: 15 }}>
                 <span>Total</span><span style={{ color: RED }}>{rp(basketTotal)}</span>
               </div>
-              <button disabled style={{ width: "100%", border: "none", background: "#ddd", color: "#888", borderRadius: 12, padding: "14px", fontWeight: 900, fontSize: 15 }}>
-                Checkout — arriving in the next update
-              </button>
-              <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>Browsing preview — payment, pickup & delivery are being wired up.</p>
+              <a href="/tbs/checkout" style={{ display: "block", textAlign: "center", textDecoration: "none", width: "100%", border: "none", background: "#7CB342", color: "#fff", borderRadius: 12, padding: "14px", fontWeight: 900, fontSize: 15 }}>
+                Checkout — {rp(basketTotal)}
+              </a>
+              <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>Pickup or delivery from {storeName} · QRIS & cards</p>
             </div>
           </div>
         ) : null}

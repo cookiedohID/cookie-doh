@@ -177,6 +177,31 @@ export default function AdminReportsPage() {
           )}
         </div>
 
+        {(data?.tbsSettlement || []).length > 0 ? (
+          <section style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16, marginTop: 14 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: COLORS.black }}>🍒 TBS settlement (owed per store)</h2>
+            <p style={{ fontSize: 12, color: COLORS.muted, margin: "4px 0 8px" }}>
+              TotalBuahStore web orders paid via Cookie Doh in this range. Pay each store its <b>items</b> amount; delivery is courier money.
+            </p>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead><tr style={{ borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "right", color: COLORS.muted, fontSize: 11 }}>
+                  <th style={{ textAlign: "left", padding: 6 }}>Store</th><th style={{ padding: 6 }}>Orders</th><th style={{ padding: 6 }}>Items (owed)</th><th style={{ padding: 6 }}>Delivery</th><th style={{ padding: 6 }}>Collected</th>
+                </tr></thead>
+                <tbody>{(data.tbsSettlement || []).map((r: any) => (
+                  <tr key={r.store} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)", textAlign: "right" }}>
+                    <td style={{ textAlign: "left", padding: 6, fontWeight: 700 }}>{r.store}</td>
+                    <td style={{ padding: 6 }}>{r.orders}</td>
+                    <td style={{ padding: 6, fontWeight: 800 }}>Rp{Number(r.items_idr).toLocaleString("id-ID")}</td>
+                    <td style={{ padding: 6 }}>Rp{Number(r.delivery_idr).toLocaleString("id-ID")}</td>
+                    <td style={{ padding: 6 }}>Rp{Number(r.collected_idr).toLocaleString("id-ID")}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+
         {tab === "inventory" && data?.movements ? (
           <div style={{ marginTop: 18 }}>
             <h2 style={{ fontSize: 16, fontWeight: 800, color: COLORS.black }}>Inventory movements</h2>

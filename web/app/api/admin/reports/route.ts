@@ -151,12 +151,31 @@ export async function GET(req: Request) {
       }));
     } catch { /* not migrated yet */ }
 
+    // ---- TBS settlement: what Cookie Doh owes each TotalBuahStore store ----
+    // TBS web orders are paid into Cookie Doh's Midtrans; the store fulfils the
+    // goods. Owed to the store = the ITEMS subtotal (delivery fee listed
+    // separately — courier money, not store goods).
+    const tbsMap: Record<string, { store: string; orders: number; items_idr: number; delivery_idr: number; collected_idr: number }> = {};
+    for (const o of orders) {
+      const t = (o as any)?.meta?.tbs;
+      if (!t?.store) continue;
+      const key = String(t.store);
+      const row = (tbsMap[key] ||= { store: key, orders: 0, items_idr: 0, delivery_idr: 0, collected_idr: 0 });
+      const fee = Math.round(Number(t.delivery_fee) || 0);
+      const total = Math.round(Number((o as any).total_idr) || 0);
+      row.orders += 1;
+      row.delivery_idr += fee;
+      row.items_idr += Math.max(0, total - fee);
+      row.collected_idr += total;
+    }
+    const tbsSettlement = Object.values(tbsMap).sort((a, b) => b.items_idr - a.items_idr);
+
     return NextResponse.json({
       ok: true,
       range: { from, to, locationId: locFilter },
       locations: LOCATIONS.map((l) => ({ id: l.id, name: l.short })),
       summary: { orders: orders.length, revenue: totalRevenue, freeCookies, freeDrinks },
-      daily, dailyDetail, items, byLocation, redemptions, inventory, movements,
+      daily, dailyDetail, items, byLocation, redemptions, inventory, movements, tbsSettlement,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });

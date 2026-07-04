@@ -246,6 +246,59 @@ export async function POST(req: Request) {
       console.error("loyalty reservation settle failed:", e);
     }
 
+    // TotalBuahStore web order: on PAID, hand the order to the TBS back-office so
+    // the store can pick/pack. Idempotent twice over — the partner endpoint dedups
+    // on event_id (= this order's id) and we mark meta.tbs.pushed. A failed push
+    // never blocks payment; it's retried on the next webhook redelivery and
+    // flagged in meta for the admin to see.
+    try {
+      const tbsMeta = (order as any)?.meta?.tbs;
+      // Atomic claim: only ONE webhook delivery may run the push (concurrent
+      // redeliveries fail the .eq filter and skip). The ERP's event_id dedup is
+      // the second net — verified live: a replayed push returns the same order.
+      let tbsClaimed = false;
+      if (paid && tbsMeta && !tbsMeta.pushed && tbsMeta.pushed !== "claiming") {
+        const { data: claim } = await supabase
+          .from("orders")
+          .update({ meta: { ...nextMeta, tbs: { ...tbsMeta, pushed: "claiming" } } })
+          .eq("id", order.id)
+          .eq("meta->tbs->>pushed", "false")
+          .select("id")
+          .maybeSingle();
+        tbsClaimed = Boolean(claim);
+      }
+      if (tbsClaimed) {
+        const { pushTbsOrder } = await import("@/lib/tbsShop");
+        const items = Array.isArray(order.items_json) ? order.items_json : [];
+        const lines = items
+          .filter((it: any) => it?.kind === "tbs" && it?.sku)
+          .map((it: any) => ({
+            sku: String(it.sku),
+            qty: Math.max(1, Math.round(Number(it.quantity) || 1)),
+            price: Math.round(Number(it.price) || 0),
+            amount: Math.round((Number(it.price) || 0) * (Number(it.quantity) || 1)),
+          }));
+        const res = await pushTbsOrder({
+          event_id: String(order.id),
+          store: String(tbsMeta.store || ""),
+          fulfil: tbsMeta.fulfil === "delivery" ? "delivery" : "pickup",
+          customer: { name: String(order.customer_name || ""), phone: String(order.customer_phone || "") },
+          address: tbsMeta.address || null,
+          notes: (order as any).notes || null,
+          lines,
+          subtotal: Math.round(Number(order.subtotal_idr) || 0),
+          delivery_fee: Math.round(Number(order.shipping_cost_idr) || 0),
+          total: Math.round(Number(order.total_idr) || 0),
+        });
+        await supabase
+          .from("orders")
+          .update({ meta: { ...nextMeta, tbs: { ...tbsMeta, pushed: res.ok, tbs_order_no: res.order_no || null, push_error: res.ok ? null : res.error } } })
+          .eq("id", order.id);
+      }
+    } catch (e) {
+      console.error("TBS order push failed:", e);
+    }
+
     // Referral rewards: if this PAID order carries a referral code and the buyer
     // is a brand-new customer who spent at least a box of 6, credit both sides a
     // free cookie. Idempotent (UNIQUE(referred_phone)); never blocks payment.
