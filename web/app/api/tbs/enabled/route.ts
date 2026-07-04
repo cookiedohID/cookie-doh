@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export async function GET(req: Request) {
   const enabled = canSeeTbsShop(req);
   return NextResponse.json(
-    { enabled, preview: enabled && !TBS_SHOP_PUBLIC },
+    { enabled, preview: enabled && !TBS_SHOP_PUBLIC, tabVisible: true },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

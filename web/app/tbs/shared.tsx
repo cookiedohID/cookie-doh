@@ -91,12 +91,37 @@ export function useTbsGate(): { gate: "loading" | "hidden" | "open"; preview: bo
 }
 
 export function ComingSoon() {
+  const [key, setKey] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const unlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setErr("");
+    try {
+      await fetch(`/api/tbs/preview?key=${encodeURIComponent(key.trim())}`, { redirect: "manual" });
+      const j = await (await fetch("/api/tbs/enabled", { cache: "no-store" })).json();
+      if (j?.enabled) { window.location.reload(); return; }
+      setErr("That password isn't right — check with the person who invited you.");
+    } catch { setErr("Something went wrong — try again."); }
+    setBusy(false);
+  };
   return (
     <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: 20 }}>
-      <div style={{ textAlign: "center", maxWidth: 420 }}>
+      <div style={{ textAlign: "center", maxWidth: 400, width: "100%" }}>
         <TbsCherry size={44} />
-        <h1 style={{ fontSize: 22, fontWeight: 900, color: GREEN, margin: "10px 0 4px" }}>TotalBuahStore is coming soon</h1>
-        <p style={{ color: "#6B6B6B", fontSize: 14, lineHeight: 1.6 }}>Fresh fruit & groceries from Total Buah — right here on Cookie Doh. Stay tuned 🍒</p>
+        <h1 style={{ fontSize: 22, fontWeight: 900, color: GREEN, margin: "10px 0 4px" }}>TotalBuahStore</h1>
+        <p style={{ color: "#6B6B6B", fontSize: 14, lineHeight: 1.6, margin: "0 0 16px" }}>
+          Fresh fruit & groceries — opening soon. Have an early-access password?
+        </p>
+        <form onSubmit={unlock} style={{ display: "flex", gap: 8 }}>
+          <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="Password" autoComplete="off"
+            style={{ flex: 1, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.16)", fontSize: 15 }} />
+          <button type="submit" disabled={busy || !key.trim()}
+            style={{ border: "none", borderRadius: 10, padding: "12px 18px", fontWeight: 800, fontSize: 14, cursor: "pointer", background: key.trim() ? RED : "#ddd", color: "#fff" }}>
+            {busy ? "…" : "Enter"}
+          </button>
+        </form>
+        {err ? <p style={{ color: "#b32", fontSize: 12.5, fontWeight: 700, marginTop: 10 }}>{err}</p> : null}
       </div>
     </main>
   );

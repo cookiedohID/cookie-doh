@@ -120,7 +120,7 @@ export default function SiteHeader() {
   useEffect(() => {
     fetch("/api/tbs/enabled", { cache: "no-store" })
       .then((r) => r.json())
-      .then((j) => setTbsShop(Boolean(j?.enabled)))
+      .then((j) => setTbsShop(Boolean(j?.enabled || j?.tabVisible)))
       .catch(() => { /* tab stays hidden */ });
   }, []);
 
