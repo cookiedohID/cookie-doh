@@ -423,7 +423,7 @@ export default function AccountPage() {
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "32px 16px 80px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <div>
-            <span className="font-dearjoe" style={{ fontSize: 20, color: COLORS.blue }}>member</span>
+            <span className="font-dearjoe" style={{ fontSize: 20, color: COLORS.blue }}>family</span>
             <h1 style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 800, color: COLORS.black }}>Hi {member.name || "there"} 👋</h1>
             {email ? <div style={{ marginTop: 2, fontSize: 12.5, color: COLORS.muted }}>Signed in as {email}</div> : null}
           </div>
@@ -436,7 +436,7 @@ export default function AccountPage() {
             {qr ? <img src={qr} alt="Membership QR" width={110} height={110} style={{ display: "block" }} /> : <div style={{ width: 110, height: 110 }} />}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 16 }}>Cookie Doh Member</div>
+            <div style={{ fontWeight: 900, fontSize: 16 }}>Cookie Doh × TBS Family</div>
             <div style={{ opacity: 0.9, fontSize: 13, marginTop: 4 }}>{member.phone}</div>
             <div style={{ marginTop: 8, fontFamily: "monospace", fontWeight: 800, letterSpacing: 1 }}>{member.memberCode}</div>
             <div style={{ opacity: 0.85, fontSize: 12, marginTop: 8 }}>Show this at the counter to earn & redeem.</div>

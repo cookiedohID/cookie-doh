@@ -2,6 +2,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import TbsCartSection, { useTbsBasket } from "@/components/TbsCartSection";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -64,6 +65,8 @@ function clearCartStorage() {
     localStorage.removeItem("cart");
     localStorage.removeItem("cookie_doh_cart");
     localStorage.removeItem("cookie_doh_cart_v0");
+    localStorage.removeItem("tbs_basket");
+    try { window.dispatchEvent(new Event("tbs-basket")); } catch { /* ignore */ }
     localStorage.removeItem("cart_items");
     localStorage.removeItem("cookieDohCart");
   } catch {}
@@ -521,7 +524,7 @@ export default function CheckoutPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: ac.signal,
-          body: JSON.stringify({ lat: addressLat, lng: addressLng, speed: deliverySpeed }),
+          body: JSON.stringify({ lat: addressLat, lng: addressLng, speed: deliverySpeed, origin_id: tbsBasket.lines.length ? tbsBasket.store.toLowerCase() : undefined }),
         });
         const j = await res.json().catch(() => ({}));
         if (!res.ok || j?.ok === false) throw new Error(j?.error || "Failed to calculate delivery fee");
@@ -615,7 +618,9 @@ export default function CheckoutPage() {
   const vipCanFreeCookie = !!memberVip?.tier?.free_cookie_per_order;
   const deliveryFee = fulfillment === "delivery" ? (vipFreeDelivery ? 0 : shippingCost) : 0;
   const promoDiscount = appliedPromo ? Math.min(appliedPromo.discount, subtotal) : 0;
-  const grandTotal = Math.max(0, subtotal + (deliveryFee || 0) - promoDiscount);
+  const tbsBasket = useTbsBasket();
+  const tbsSubtotal = tbsBasket.lines.length ? tbsBasket.subtotal : 0;
+  const grandTotal = Math.max(0, subtotal + (deliveryFee || 0) - promoDiscount) + tbsSubtotal;
 
   async function applyPromo() {
     const code = promoInput.trim();
@@ -761,6 +766,7 @@ export default function CheckoutPage() {
         // 👑 VIP free cookie — the member's chosen flavour (server validates eligibility).
         vip_free_cookie: vipCanFreeCookie && vipFreeCookieId ? { id: vipFreeCookieId, name: FLAVORS.find((f: any) => f.id === vipFreeCookieId)?.name || "Cookie" } : null,
         total: grandTotal,
+        ...(tbsBasket.lines.length ? { tbs: { store: tbsBasket.store, lines: tbsBasket.lines.map((l) => ({ sku: l.sku, qty: l.qty })) } } : {}),
         meta: {
           quote: quoteMeta,
           delivery_mode: fulfillment === "delivery" ? deliveryMode : null,
@@ -1654,6 +1660,13 @@ export default function CheckoutPage() {
                 <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", color: "#1d9e75", fontWeight: 900 }}>
                   <div>Discount</div>
                   <div>−{formatIDR(promoDiscount)}</div>
+                </div>
+              ) : null}
+
+              {tbsBasket.lines.length ? (
+                <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", color: COLORS.black, fontWeight: 700 }}>
+                  <div>🍒 TotalBuahStore ({tbsBasket.lines.reduce((n, l) => n + l.qty, 0)} items)</div>
+                  <div>{formatIDR(tbsSubtotal)}</div>
                 </div>
               ) : null}
 

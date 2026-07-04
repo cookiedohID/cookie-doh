@@ -68,7 +68,7 @@ function TbsHeader({ pathname }: { pathname: string }) {
         </Link>
         <nav aria-label="TBS" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, overflowX: "auto" }}>
           <Link href="/tbs" style={tab(pathname === "/tbs")}>Shop</Link>
-          <Link href="/account" style={tab(pathname.startsWith("/account"))}>Member</Link>
+          <Link href="/account" style={tab(pathname.startsWith("/account"))}>Family</Link>
           <Link href="/" style={{ textDecoration: "none", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, background: "#0014A7", color: "#fff", borderRadius: 999, padding: "8px 13px", fontWeight: 800, fontSize: 13.5 }}>
             🍪 <span>Cookie Doh</span>
           </Link>
@@ -131,7 +131,7 @@ export default function SiteHeader() {
       { href: "/smoothies", label: "Smoothies" },
       { href: "/bundles", label: "Bundles" },
       ...(tbsShop ? [{ href: "/tbs", label: "TotalBuahStore" }] : []),
-      { href: "/account", label: "Member" },
+      { href: "/account", label: "Family" },
     ],
     [tbsShop]
   );

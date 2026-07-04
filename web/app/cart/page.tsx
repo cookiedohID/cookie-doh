@@ -18,6 +18,7 @@ import {
   type CartState,
 } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
+import TbsCartSection, { useTbsBasket } from "@/components/TbsCartSection";
 import CartUpsell from "@/components/CartUpsell";
 import CartSpendReward from "@/components/CartSpendReward";
 import CartBoxDeal from "@/components/CartBoxDeal";
@@ -56,6 +57,7 @@ export default function CartPage() {
     return s;
   }, []);
 
+  const tbsBasket = useTbsBasket();
   const subtotal = useMemo(
     () => cart.boxes.reduce((sum, b) => sum + (b.total || 0), 0),
     [cart]
@@ -127,6 +129,9 @@ export default function CartPage() {
             Freshly baked and packed with care.
           </p>
         </header>
+
+        {/* Unified cart: the TotalBuahStore "table" — ships together from the same store */}
+        <TbsCartSection />
 
         {!isEmpty && hasUnavailable && (
           <section
@@ -444,7 +449,7 @@ export default function CartPage() {
             <section style={{ marginTop: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <div style={{ fontWeight: 800, color: COLORS.black }}>Subtotal</div>
-                <div style={{ fontWeight: 950, color: COLORS.black }}>{formatIDR(subtotal)}</div>
+                <div style={{ fontWeight: 950, color: COLORS.black }}>{formatIDR(subtotal + tbsBasket.subtotal)}</div>
               </div>
 
               <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "baseline", color: "#6B6B6B" }}>
@@ -491,7 +496,7 @@ export default function CartPage() {
           <div style={{ maxWidth: 980, margin: "0 auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
               <div style={{ fontWeight: 900, color: COLORS.black }}>{totalItems} {totalItems === 1 ? "item" : "items"}</div>
-              <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Subtotal: {formatIDR(subtotal)}</div>
+              <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Subtotal: {formatIDR(subtotal + tbsBasket.subtotal)}</div>
             </div>
 
             <button

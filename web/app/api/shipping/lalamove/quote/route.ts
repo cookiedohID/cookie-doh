@@ -78,7 +78,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const points = buildPoints();
+    let points = buildPoints();
+    // Unified cart: when TBS groceries are aboard, the order must ship from the
+    // customer's selected TBS store — pin the origin to it if we know it.
+    const originId = String(body?.origin_id || "").trim().toLowerCase();
+    if (originId) {
+      const pinned = points.filter((p) => p.id === originId);
+      if (pinned.length) points = pinned;
+    }
     if (!points.length) {
       return NextResponse.json(
         { ok: false, error: "No pickup locations configured", requestId },
