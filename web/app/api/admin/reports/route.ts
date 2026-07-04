@@ -163,9 +163,12 @@ export async function GET(req: Request) {
       const row = (tbsMap[key] ||= { store: key, orders: 0, items_idr: 0, delivery_idr: 0, collected_idr: 0 });
       const fee = Math.round(Number(t.delivery_fee) || 0);
       const total = Math.round(Number((o as any).total_idr) || 0);
+      const tbsItems = (Array.isArray((o as any).items_json) ? (o as any).items_json : [])
+        .filter((it: any) => it?.kind === "tbs")
+        .reduce((n: number, it: any) => n + Math.round((Number(it.price) || 0) * (Number(it.quantity) || 1)), 0);
       row.orders += 1;
       row.delivery_idr += fee;
-      row.items_idr += Math.max(0, total - fee);
+      row.items_idr += tbsItems > 0 ? tbsItems : Math.max(0, total - fee);
       row.collected_idr += total;
     }
     const tbsSettlement = Object.values(tbsMap).sort((a, b) => b.items_idr - a.items_idr);

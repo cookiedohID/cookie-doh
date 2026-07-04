@@ -278,17 +278,21 @@ export async function POST(req: Request) {
             price: Math.round(Number(it.price) || 0),
             amount: Math.round((Number(it.price) || 0) * (Number(it.quantity) || 1)),
           }));
+        // Money for the STORE = the TBS lines only (a mixed order also carries
+        // Cookie Doh items the store isn't owed for).
+        const tbsLinesSum = lines.reduce((n: number, l: any) => n + (Number(l.amount) || 0), 0);
+        const tbsFee = tbsMeta.mixed ? 0 : Math.round(Number(order.shipping_cost_idr) || 0);
         const res = await pushTbsOrder({
           event_id: String(order.id),
           store: String(tbsMeta.store || ""),
           fulfil: tbsMeta.fulfil === "delivery" ? "delivery" : "pickup",
           customer: { name: String(order.customer_name || ""), phone: String(order.customer_phone || "") },
-          address: tbsMeta.address || null,
+          address: tbsMeta.address || (order as any).shipping_address || null,
           notes: (order as any).notes || null,
           lines,
-          subtotal: Math.round(Number(order.subtotal_idr) || 0),
-          delivery_fee: Math.round(Number(order.shipping_cost_idr) || 0),
-          total: Math.round(Number(order.total_idr) || 0),
+          subtotal: tbsLinesSum,
+          delivery_fee: tbsFee,
+          total: tbsLinesSum + tbsFee,
         });
         await supabase
           .from("orders")

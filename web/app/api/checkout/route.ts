@@ -147,6 +147,43 @@ export async function POST(req: Request) {
 
     const shippingCost = Number(payload?.shipping_cost_idr ?? payload?.shipping_cost ?? 0) || 0;
 
+    // ---- TotalBuahStore lines (unified cart) — repriced server-side vs the ERP.
+    // Same guards as /api/tbs/checkout: finite price, oversell vs live stock,
+    // qty caps, composite SKU@UOM variants. TBS lines never join promos/loyalty.
+    let tbsMeta: any = null;
+    let tbsSubtotal = 0;
+    const tbsReq = payload?.tbs;
+    if (tbsReq && Array.isArray(tbsReq?.lines) && tbsReq.lines.length) {
+      const { partnerGet, TBS_STORE_GEO } = await import("@/lib/tbsShop");
+      const tbsStore = String(tbsReq.store || "").toUpperCase();
+      const geo = (TBS_STORE_GEO as any)[tbsStore];
+      if (!geo) return NextResponse.json({ ok: false, error: "Pick your TotalBuahStore first." }, { status: 400 });
+      const wanted = new Map<string, number>();
+      for (const l of tbsReq.lines.slice(0, 60)) {
+        const sku = String(l?.sku || "").trim().slice(0, 48);
+        const q = Math.max(1, Math.min(99, Math.round(Number(l?.qty) || 0)));
+        if (sku) wanted.set(sku, Math.min(99, (wanted.get(sku) || 0) + q));
+      }
+      if (wanted.size) {
+        const priced = await partnerGet("/stock", { store: tbsStore, skus: [...wanted.keys()].join(",") });
+        if (!Array.isArray(priced)) return NextResponse.json({ ok: false, error: "The TBS store is unreachable right now — try again in a minute." }, { status: 200 });
+        const bySku = new Map(priced.map((x: any) => [String(x.sku), x]));
+        const problems: string[] = [];
+        for (const [sku, q] of wanted) {
+          const x: any = bySku.get(sku);
+          const priceNum = Number(x?.price);
+          if (!x || !Number.isFinite(priceNum) || priceNum <= 0 || priceNum > 100_000_000) { problems.push(`${sku}: no longer available`); continue; }
+          if (x.stockLive !== false && Number(x.stock) < q) { problems.push(`${x.name}: only ${Math.max(0, Number(x.stock) || 0)} left`); continue; }
+          if (x.stockLive === false && q > 20) { problems.push(`${x.name}: max 20 per order`); continue; }
+          const price = Math.round(priceNum);
+          items.push({ id: `tbs:${sku}`, name: String(x.name || sku), quantity: q, price, kind: "tbs", sku, unit: String(x.unit || "pcs") } as any);
+          tbsSubtotal += price * q;
+        }
+        if (problems.length) return NextResponse.json({ ok: false, error: `Some TBS items need attention: ${problems.join("; ")}.`, problems }, { status: 409 });
+        tbsMeta = { store: tbsStore, storeName: geo.name, fulfil: null, delivery_fee: 0, pushed: false, mixed: true, items_subtotal: tbsSubtotal };
+      }
+    }
+
     // ---- Server-authoritative cart valuation ----
     // The client's box.total / total / subtotal are NEVER trusted for money. Every
     // non-reward box is re-priced from catalog constants (serverBoxTotal); the
@@ -207,8 +244,8 @@ export async function POST(req: Request) {
     }
 
     // ---- Authoritative amounts (client totals ignored for the charge) ----
-    const subtotal = nonRewardSubtotal + rewardTotal;
-    const finalTotal = Math.max(0, nonRewardSubtotal - discount) + rewardTotal + shippingCost;
+    const subtotal = nonRewardSubtotal + rewardTotal + tbsSubtotal;
+    const finalTotal = Math.max(0, nonRewardSubtotal - discount) + rewardTotal + tbsSubtotal + shippingCost;
     if (finalTotal < 1) {
       return NextResponse.json(
         { ok: false, error: promoApplied ? "This code would make the order free — please contact us to arrange it." : "Your cart is empty." },
@@ -383,6 +420,7 @@ export async function POST(req: Request) {
 
       meta: {
         ...(payload?.meta || {}),
+        ...(tbsMeta ? { tbs: { ...tbsMeta, fulfil: fulfillmentType || "delivery" } } : {}),
         fulfillment,
         pickup,
         quote,
