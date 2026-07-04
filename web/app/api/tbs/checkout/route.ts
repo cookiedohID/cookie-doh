@@ -12,9 +12,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createSnapToken } from "@/lib/midtrans";
 import {
-  canSeeTbsShop, partnerGet, TBS_STORE_GEO, haversineKm,
+  canSeeTbsShop, partnerGetStock, TBS_STORE_GEO, haversineKm,
   tbsDeliveryFee, TBS_DELIVERY_MAX_KM,
 } from "@/lib/tbsShop";
+import { computeTbsStockIssues } from "@/lib/tbsStockCheck";
 import { canonicalPhone } from "@/lib/phone";
 
 export const runtime = "nodejs";
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
     if (wanted.size > 60) return NextResponse.json({ ok: false, error: "More than 60 different items — please split into two orders." }, { status: 400 });
 
     // ---- REPRICE from the ERP (authoritative) ----------------------------
-    const priced = await partnerGet("/stock", { store, skus: [...wanted.keys()].join(",") });
+    const priced = await partnerGetStock(store, [...wanted.keys()]);
     if (!Array.isArray(priced)) return NextResponse.json({ ok: false, error: "The store is unreachable right now — please try again in a minute." }, { status: 200 });
     const bySku = new Map<string, any>(priced.map((p: any) => [String(p.sku), p]));
 
@@ -76,6 +77,20 @@ export async function POST(req: Request) {
       if (p.stockLive === false && qty > 20) { problems.push(`${p.name}: max 20 per order while stock is syncing`); continue; }
       const price = Math.round(priceNum);
       lines.push({ sku, name: String(p.name || sku), qty, price, amount: price * qty, unit: String(p.unit || "pcs") });
+    }
+    // Cross-pack aggregate: singles + boxes of the SAME product must together
+    // fit the base stock (per-line checks can't see the shared pool).
+    {
+      const agg = computeTbsStockIssues([...wanted].map(([sku, qty]) => ({ sku, qty })), priced);
+      const seenBase = new Set<string>();
+      for (const [sku, issue] of Object.entries(agg)) {
+        if (issue.type !== "group") continue;
+        const base = sku.split("@")[0];
+        if (seenBase.has(base)) continue;
+        seenBase.add(base);
+        const baseName = String(bySku.get(base)?.name || base);
+        problems.push(`${baseName}: only ${issue.stock} in stock across all pack sizes`);
+      }
     }
     if (problems.length) {
       return NextResponse.json({ ok: false, error: `Some items need attention: ${problems.join("; ")}. Please review your basket.`, problems }, { status: 409 });

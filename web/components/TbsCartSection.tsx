@@ -10,8 +10,9 @@ import Link from "next/link";
 import {
   RED, GREEN, rp, loadBasket, saveBasket, TBS_FALLBACK_STORES, type BasketLine,
 } from "@/app/tbs/shared";
+import { computeTbsStockIssues, tbsIssueText, tbsIssueDead, type TbsStockIssue } from "@/lib/tbsStockCheck";
 
-export type BasketIssue = { type: "out" | "short" | "gone"; stock: number };
+export type BasketIssue = TbsStockIssue;
 
 export function useTbsBasket() {
   const [store, setStore] = useState("");
@@ -45,23 +46,16 @@ export function useTbsBasket() {
         const j = await (await fetch(`/api/tbs/stock?store=${encodeURIComponent(store)}&skus=${encodeURIComponent(skus)}`, { cache: "no-store" })).json();
         if (!alive || !j?.ok || !Array.isArray(j.items)) return;
         const bySku = new Map(j.items.map((x: any) => [String(x.sku), x]));
-        const next: Record<string, BasketIssue> = {};
-        const stockLive = j.items.some((x: any) => x.stockLive);
         let priceChanged = false;
         const stored = loadBasket(store);
         for (const l of lines) {
           const x: any = bySku.get(l.sku);
-          if (!x || !(Number(x.price) > 0)) { next[l.sku] = { type: "gone", stock: 0 }; continue; }
-          if (stockLive) {
-            const st = Math.max(0, Number(x.stock) || 0);
-            if (st <= 0) next[l.sku] = { type: "out", stock: 0 };
-            else if (st < l.qty) next[l.sku] = { type: "short", stock: st };
-          }
+          if (!x) continue;
           const cur = Math.round(Number(x.price));
           if (stored[l.sku] && cur > 0 && stored[l.sku].price !== cur) { stored[l.sku].price = cur; priceChanged = true; }
         }
         if (priceChanged) saveBasket(store, stored);
-        setIssues(next);
+        setIssues(computeTbsStockIssues(lines, j.items));
       } catch { /* keep last known state */ }
     };
     check();
@@ -84,8 +78,10 @@ export default function TbsCartSection({ compact = false }: { compact?: boolean 
 
   const setQty = (sku: string, qty: number) => {
     const items = loadBasket(store);
-    const cap = issues[sku]?.type === "short" ? Math.max(1, issues[sku].stock) : issues[sku] ? 0 : 99;
-    const n = Math.min(cap === 0 ? Math.min(qty, items[sku]?.qty ?? 0) : cap, qty);
+    const i = issues[sku];
+    // short: cap at what's left; dead or cross-pack-oversubscribed: only reduce
+    const cap = i?.type === "short" ? Math.max(1, i.stock) : i ? Math.min(qty, items[sku]?.qty ?? 0) : 99;
+    const n = Math.min(cap, qty);
     if (n <= 0) delete items[sku];
     else if (items[sku]) items[sku] = { ...items[sku], qty: n };
     saveBasket(store, items);
@@ -108,13 +104,11 @@ export default function TbsCartSection({ compact = false }: { compact?: boolean 
         ) : null}
         {lines.map((l) => (
           <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", borderTop: "1px solid rgba(0,0,0,0.06)", fontSize: 13 }}>
-            <div style={{ minWidth: 0, opacity: issues[l.sku]?.type === "out" || issues[l.sku]?.type === "gone" ? 0.55 : 1 }}>
+            <div style={{ minWidth: 0, opacity: tbsIssueDead(issues[l.sku]) ? 0.55 : 1 }}>
               <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`} style={{ textDecoration: "none", color: "#333", lineHeight: 1.35, display: "block" }}>{l.name}</Link>
               <div style={{ fontSize: 12, color: "#999" }}>{rp(l.price)} / {l.unit}</div>
               {issues[l.sku] ? (
-                <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>
-                  {issues[l.sku].type === "short" ? `Only ${issues[l.sku].stock} left — reduce the quantity` : "Out of stock — please remove"}
-                </div>
+                <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>{tbsIssueText(issues[l.sku])}</div>
               ) : null}
             </div>
             {compact ? (

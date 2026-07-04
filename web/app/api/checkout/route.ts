@@ -154,7 +154,8 @@ export async function POST(req: Request) {
     let tbsSubtotal = 0;
     const tbsReq = payload?.tbs;
     if (tbsReq && Array.isArray(tbsReq?.lines) && tbsReq.lines.length) {
-      const { partnerGet, TBS_STORE_GEO, canSeeTbsShop } = await import("@/lib/tbsShop");
+      const { partnerGetStock, TBS_STORE_GEO, canSeeTbsShop } = await import("@/lib/tbsShop");
+      const { computeTbsStockIssues } = await import("@/lib/tbsStockCheck");
       // same visibility gate as every other TBS endpoint — while the shop is in
       // preview, only preview/admin sessions may buy TBS items
       if (!canSeeTbsShop(req)) {
@@ -175,7 +176,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: false, error: "Your TotalBuahStore basket has more than 60 different items — please split it into two orders." }, { status: 400 });
       }
       if (wanted.size) {
-        const priced = await partnerGet("/stock", { store: tbsStore, skus: [...wanted.keys()].join(",") });
+        const priced = await partnerGetStock(tbsStore, [...wanted.keys()]);
         if (!Array.isArray(priced)) return NextResponse.json({ ok: false, error: "The TBS store is unreachable right now — try again in a minute." }, { status: 200 });
         const bySku = new Map(priced.map((x: any) => [String(x.sku), x]));
         const problems: string[] = [];
@@ -188,6 +189,17 @@ export async function POST(req: Request) {
           const price = Math.round(priceNum);
           items.push({ id: `tbs:${sku}`, name: String(x.name || sku), quantity: q, price, kind: "tbs", sku, unit: String(x.unit || "pcs") } as any);
           tbsSubtotal += price * q;
+        }
+        {
+          const agg = computeTbsStockIssues([...wanted].map(([sku, qty]) => ({ sku, qty })), priced);
+          const seenBase = new Set<string>();
+          for (const [sku, issue] of Object.entries(agg)) {
+            if (issue.type !== "group") continue;
+            const base = sku.split("@")[0];
+            if (seenBase.has(base)) continue;
+            seenBase.add(base);
+            problems.push(`${String(bySku.get(base)?.name || base)}: only ${issue.stock} in stock across all pack sizes`);
+          }
         }
         if (problems.length) return NextResponse.json({ ok: false, error: `Some TBS items need attention: ${problems.join("; ")}.`, problems }, { status: 409 });
         tbsMeta = { store: tbsStore, storeName: geo?.name || tbsStore, fulfil: null, delivery_fee: 0, pushed: false, mixed: true, items_subtotal: tbsSubtotal };

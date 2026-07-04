@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getCart } from "@/lib/cart";
+import { computeTbsStockIssues, tbsIssueText, tbsIssueDead, type TbsStockIssue } from "@/lib/tbsStockCheck";
 import {
   RED, GREEN, CREAM, rp, catLabel, catEmoji, tileColors, TbsCherry,
   loadBasket, saveBasket, useTbsGate, ComingSoon, TbsProductCard, type BasketLine,
@@ -37,7 +38,7 @@ export default function TbsShopPage() {
   const [basketOpen, setBasketOpen] = useState(false);
   const [rail, setRail] = useState<Item[]>([]);
   const [cdCart, setCdCart] = useState<{ n: number; total: number }>({ n: 0, total: 0 });
-  const [sheetIssues, setSheetIssues] = useState<Record<string, { type: string; stock: number }>>({});
+  const [sheetIssues, setSheetIssues] = useState<Record<string, TbsStockIssue>>({});
 
   useEffect(() => {
     if (!basketOpen || !store || basketList.length === 0) { setSheetIssues({}); return; }
@@ -46,19 +47,7 @@ export default function TbsShopPage() {
         const skus = basketList.map((l) => l.sku).join(",");
         const j = await (await fetch(`/api/tbs/stock?store=${encodeURIComponent(store)}&skus=${encodeURIComponent(skus)}`, { cache: "no-store" })).json();
         if (!j?.ok || !Array.isArray(j.items)) return;
-        const bySku = new Map(j.items.map((x: any) => [String(x.sku), x]));
-        const stockLive = j.items.some((x: any) => x.stockLive);
-        const next: Record<string, { type: string; stock: number }> = {};
-        for (const l of basketList) {
-          const x: any = bySku.get(l.sku);
-          if (!x || !(Number(x.price) > 0)) { next[l.sku] = { type: "gone", stock: 0 }; continue; }
-          if (stockLive) {
-            const st = Math.max(0, Number(x.stock) || 0);
-            if (st <= 0) next[l.sku] = { type: "out", stock: 0 };
-            else if (st < l.qty) next[l.sku] = { type: "short", stock: st };
-          }
-        }
-        setSheetIssues(next);
+        setSheetIssues(computeTbsStockIssues(basketList, j.items));
       } catch { /* keep */ }
     })();
     // recompute whenever the basket itself changes so fixing a flagged line
@@ -154,7 +143,8 @@ export default function TbsShopPage() {
   const setSheetQty = (sku: string, qty: number) => {
     setBasket((prev) => {
       const next = { ...prev };
-      const cap = sheetIssues[sku]?.type === "short" ? Math.max(1, sheetIssues[sku].stock) : 99;
+      const i = sheetIssues[sku];
+      const cap = i?.type === "short" ? Math.max(1, i.stock) : i ? Math.min(Math.round(Number(qty) || 0), prev[sku]?.qty ?? 0) : 99;
       const n = Math.min(cap, Math.round(Number(qty) || 0));
       if (n <= 0) delete next[sku];
       else if (next[sku]) next[sku] = { ...next[sku], qty: n };
@@ -377,22 +367,20 @@ export default function TbsShopPage() {
               ) : null}
               {basketList.map((l) => (
                 <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.07)" }}>
-                  <div style={{ minWidth: 0, opacity: sheetIssues[l.sku] && sheetIssues[l.sku].type !== "short" ? 0.55 : 1 }}>
+                  <div style={{ minWidth: 0, opacity: tbsIssueDead(sheetIssues[l.sku]) ? 0.55 : 1 }}>
                     <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`}
                       style={{ fontSize: 13.5, fontWeight: 700, color: "#222", textDecoration: "none", display: "block" }}>{l.name}</Link>
                     <div style={{ fontSize: 12, color: "#999" }}>{rp(l.price)} / {l.unit}</div>
                     {sheetIssues[l.sku] ? (
-                      <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>
-                        {sheetIssues[l.sku].type === "short" ? `Only ${sheetIssues[l.sku].stock} left — reduce quantity` : "Out of stock — please remove"}
-                      </div>
+                      <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>{tbsIssueText(sheetIssues[l.sku])}</div>
                     ) : null}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
                     <button onClick={() => setSheetQty(l.sku, l.qty - 1)} aria-label="less" style={{ border: `1px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, width: 28, height: 28, flex: "0 0 auto", fontWeight: 900, cursor: "pointer" }}>−</button>
                     <span style={{ fontWeight: 900, minWidth: 16, textAlign: "center" }}>{l.qty}</span>
                     <button onClick={() => setSheetQty(l.sku, l.qty + 1)} aria-label="more"
-                      disabled={Boolean(sheetIssues[l.sku] && sheetIssues[l.sku].type !== "short")}
-                      style={{ border: "none", background: sheetIssues[l.sku] && sheetIssues[l.sku].type !== "short" ? "#ccc" : GREEN, color: "#fff", borderRadius: 999, width: 28, height: 28, flex: "0 0 auto", fontWeight: 900, cursor: "pointer" }}>+</button>
+                      disabled={Boolean(sheetIssues[l.sku])}
+                      style={{ border: "none", background: sheetIssues[l.sku] ? "#ccc" : GREEN, color: "#fff", borderRadius: 999, width: 28, height: 28, flex: "0 0 auto", fontWeight: 900, cursor: "pointer" }}>+</button>
                   </div>
                 </div>
               ))}

@@ -51,6 +51,19 @@ function partnerBase(): { base: string; token: string } | null {
 const CACHE = new Map<string, { at: number; data: any }>();
 const TTL_MS = 120_000;
 
+// Stock lookup for a basket: always fetches each variant's BASE sku too (the
+// shared pool for cross-pack checks) and chunks past the ERP's 60-SKU cap.
+// Returns the merged entry array, or null if any chunk failed.
+export async function partnerGetStock(store: string, skus: string[]): Promise<any[] | null> {
+  const { expandTbsSkus } = await import("@/lib/tbsStockCheck");
+  const list = expandTbsSkus(skus).slice(0, 180);
+  const chunks: string[][] = [];
+  for (let i = 0; i < list.length; i += 60) chunks.push(list.slice(i, i + 60));
+  const parts = await Promise.all(chunks.map((c) => partnerGet("/stock", { store, skus: c.join(",") })));
+  if (parts.some((d) => !Array.isArray(d))) return null;
+  return (parts as any[][]).flat();
+}
+
 export async function partnerGet(path: string, params: Record<string, string>): Promise<any | null> {
   const cfg = partnerBase();
   if (!cfg) return null;
