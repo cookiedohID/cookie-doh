@@ -93,7 +93,9 @@ export default function TbsCheckoutPage() {
               ) : null}
               {lines.map((l) => (
                 <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "9px 0", borderBottom: "1px solid rgba(0,0,0,0.05)", fontSize: 13, opacity: issues[l.sku] && issues[l.sku].type !== "short" ? 0.55 : 1 }}>
-                  <span style={{ color: "#333" }}>{l.name} <span style={{ color: "#999" }}>× {l.qty}</span>
+                  <span style={{ color: "#333" }}>
+                    <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`}
+                      style={{ color: "#333", textDecoration: "none" }}>{l.name}</Link> <span style={{ color: "#999" }}>× {l.qty}</span>
                     {issues[l.sku] ? (
                       <span style={{ display: "block", color: "#b3261e", fontWeight: 800, fontSize: 12 }}>
                         {issues[l.sku].type === "short" ? `Only ${issues[l.sku].stock} left — reduce the quantity` : "Out of stock — please remove"}

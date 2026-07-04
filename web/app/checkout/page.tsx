@@ -1627,16 +1627,18 @@ export default function CheckoutPage() {
                 const count = (b.items || []).reduce((n: number, it: any) => n + (it.quantity || 0), 0);
                 const amount = (b.items || []).reduce((n: number, it: any) => n + (it.price || 0) * (it.quantity || 0), 0);
                 const title = b.kind === "bundle" ? (b.label || "Bundle") : b.label ? b.label : `Box of ${b.boxSize || count}`;
+                const boxHref = b.kind === "bundle" ? "/bundles" : b.label ? "/assortments" : "/build";
                 return (
                   <div key={`sb-${bi}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, padding: "4px 0", color: "#444" }}>
-                    <span>🍪 {title} × {count}</span>
+                    <span>🍪 <Link href={boxHref} style={{ color: "#444", textDecoration: "none" }}>{title}</Link> × {count}</span>
                     <span>{formatIDR(amount)}</span>
                   </div>
                 );
               })}
               {tbsBasket.lines.map((l) => (
                 <div key={`st-${l.sku}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 13, padding: "4px 0", color: "#444" }}>
-                  <span>🍒 {l.name} × {l.qty}</span>
+                  <span>🍒 <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`}
+                    style={{ color: "#444", textDecoration: "none" }}>{l.name}</Link> × {l.qty}</span>
                   <span>{formatIDR(l.qty * l.price)}</span>
                 </div>
               ))}

@@ -378,7 +378,8 @@ export default function TbsShopPage() {
               {basketList.map((l) => (
                 <div key={l.sku} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 0", borderTop: "1px solid rgba(0,0,0,0.07)" }}>
                   <div style={{ minWidth: 0, opacity: sheetIssues[l.sku] && sheetIssues[l.sku].type !== "short" ? 0.55 : 1 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: "#222" }}>{l.name}</div>
+                    <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`}
+                      style={{ fontSize: 13.5, fontWeight: 700, color: "#222", textDecoration: "none", display: "block" }}>{l.name}</Link>
                     <div style={{ fontSize: 12, color: "#999" }}>{rp(l.price)} / {l.unit}</div>
                     {sheetIssues[l.sku] ? (
                       <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>
