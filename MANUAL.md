@@ -512,9 +512,25 @@ until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
   ("Sales → Web Orders"), where store staff confirm → prepare → complete. The
   customer gets the standard WhatsApp confirmations; the order also appears in
   `/admin/orders` and the customer's own order history.
-- **💰 TBS settlement (Admin → Reports):** a per-store table of TotalBuahStore
-  web orders in the selected date range — pay each store its **Items** amount
-  (delivery money is the courier's, listed separately).
+- **💰 Marketplace model (separate books):** Cookie Doh is TBS's marketplace
+  and charges TBS a **fee (default 5%) on the TBS goods value** (never on
+  delivery — that's courier money). Cookie Doh books the fee as revenue;
+  TBS books it as an expense. Change the default with the `TBS_MARKETPLACE_FEE_PCT`
+  env or per-report with the **Fee %** box.
+- **📊 TBS sales reports (Admin → Reports → 🍒 TBS tab):** per **store per day**
+  summary (orders / goods / delivery / fee / net owed) with totals, plus the
+  per-order detail underneath. Both download as CSV (**Summary CSV** /
+  **Detail CSV**). Dates are WIB business days.
+- **🧾 Tukar Faktur Cabang (monthly settlement invoice):** from the TBS tab,
+  tap a store's **TFC button** (or open `/admin/tbs-tf`), pick the month, and
+  **Generate**. You get a numbered document (e.g. `TFC-XMAS-202607`) listing
+  every order, the gross owed to the store, the marketplace fee, and the
+  **NET PAYABLE TO STORE** — with signature lines. **Print / Save PDF** and
+  send it; the TBS side books it through the back-office AP. Regenerating the
+  same closed month always gives the same numbers.
+- **Monthly routine:** 1st of the month → Reports → 🍒 TBS tab → set last
+  month's dates → download the CSVs → generate each store's Tukar Faktur →
+  transfer each store its NET amount.
 - **Refunds/cancels:** handled on the Cookie Doh side (the money lives in your
   Midtrans); the store cancels its copy in Web Orders.
 
