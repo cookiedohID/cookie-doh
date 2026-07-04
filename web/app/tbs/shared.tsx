@@ -9,7 +9,7 @@ export const RED = "#9c1216";
 export const GREEN = "#135232";
 export const CREAM = "#F7F9F5";
 
-export type BasketLine = { sku: string; name: string; price: number; unit: string; qty: number };
+export type BasketLine = { sku: string; name: string; price: number; unit: string; qty: number; uom?: string };
 
 export const rp = (n: number) => "Rp" + Number(n || 0).toLocaleString("id-ID");
 

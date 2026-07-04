@@ -13,6 +13,7 @@ import {
 } from "../../shared";
 
 type Product = { sku: string; name: string; category: string | null; categoryName?: string | null; price: number; unit: string; weighed: boolean };
+type Variant = { uom: string; factor: number; label: string; price: number; stock: number };
 type Avail = { store: string; storeName: string; stock: number; status: "in_stock" | "out_of_stock" | "unknown" };
 type Related = { sku: string; name: string; category: string | null; price: number; unit: string };
 
@@ -21,7 +22,8 @@ export default function TbsProductPage() {
   const params = useParams<{ sku: string }>();
   const sku = decodeURIComponent(String(params?.sku || ""));
   const [store, setStore] = useState("");
-  const [data, setData] = useState<{ product: Product; availability: Avail[]; related: Related[] } | null>(null);
+  const [data, setData] = useState<{ product: Product; availability: Avail[]; related: Related[]; variants: Variant[] } | null>(null);
+  const [variant, setVariant] = useState<Variant | null>(null);
   const [missing, setMissing] = useState(false);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
@@ -33,23 +35,37 @@ export default function TbsProductPage() {
     (async () => {
       try {
         const j = await (await fetch(`/api/tbs/product?store=${encodeURIComponent(store)}&sku=${encodeURIComponent(sku)}`, { cache: "no-store" })).json();
-        if (j?.ok && j.found) setData({ product: j.product, availability: j.availability || [], related: j.related || [] });
+        if (j?.ok && j.found) {
+          const variants: Variant[] = Array.isArray(j.variants) ? j.variants : [];
+          setData({ product: j.product, availability: j.availability || [], related: j.related || [], variants });
+          setVariant(variants.find((v) => v.factor <= 1) || variants[0] || null);
+        }
         else setMissing(true);
       } catch { setMissing(true); }
     })();
   }, [gate, store, sku]);
 
   const mine = useMemo(() => data?.availability.find((a) => a.store === store), [data, store]);
+  const mineLive = mine && mine.status !== "unknown";
   const out = mine?.status === "out_of_stock";
 
+  // Selected variant drives price + basket line. Variants use a composite
+  // "SKU@UOM" code end-to-end (the ERP /stock endpoint reprices it), so the
+  // checkout money path needs no special-casing.
+  const sel = variant;
+  const selPrice = sel ? sel.price : data?.product.price || 0;
+  const selKey = sel && sel.factor > 1 ? `${data?.product.sku}@${sel.uom}` : data?.product.sku || "";
+  const selName = sel && sel.factor > 1 ? `${data?.product.name} (${sel.label})` : data?.product.name || "";
+  const selOut = Boolean(mineLive && sel && sel.stock < 1);
+
   const addToBasket = () => {
-    if (!data) return;
+    if (!data || !selKey) return;
     const items = loadBasket(store);
-    const cur = items[data.product.sku]?.qty || 0;
-    items[data.product.sku] = {
-      sku: data.product.sku, name: data.product.name,
-      price: data.product.price, unit: data.product.unit,
-      qty: Math.min(99, cur + qty),
+    const cur = items[selKey]?.qty || 0;
+    items[selKey] = {
+      sku: selKey, name: selName,
+      price: selPrice, unit: sel && sel.factor > 1 ? "box" : data.product.unit,
+      qty: Math.min(99, cur + qty), uom: sel?.uom,
     } as BasketLine;
     saveBasket(store, items);
     setAdded(true);
@@ -102,9 +118,28 @@ export default function TbsProductPage() {
                 <div style={{ fontSize: 12, fontWeight: 800, color: GREEN, textTransform: "uppercase", letterSpacing: 0.5 }}>{catLabel(p.category)}</div>
                 <h1 style={{ margin: "6px 0 2px", fontSize: 21, lineHeight: 1.3, fontWeight: 900, color: "#191919" }}>{p.name}</h1>
                 <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontSize: 27, fontWeight: 600, color: "#191919" }}>{rp(p.price)}</span>
-                  <span style={{ fontSize: 13, color: "#999" }}>per {p.unit}</span>
+                  <span style={{ fontSize: 27, fontWeight: 600, color: "#191919" }}>{rp(selPrice)}</span>
+                  <span style={{ fontSize: 13, color: "#999" }}>per {sel && sel.factor > 1 ? "box" : p.unit}</span>
                 </div>
+
+                {data!.variants.length > 1 ? (
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 6 }}>Choose an option</div>
+                    {data!.variants.map((v) => {
+                      const vOut = Boolean(mineLive && v.stock < 1);
+                      const active = sel?.uom === v.uom;
+                      return (
+                        <button key={v.uom} disabled={vOut} onClick={() => setVariant(v)}
+                          style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "11px 13px", marginBottom: 6, borderRadius: 10, cursor: vOut ? "default" : "pointer", textAlign: "left",
+                            border: active ? `2px solid ${GREEN}` : "1px solid rgba(0,0,0,0.13)",
+                            background: vOut ? "#f5f5f5" : active ? "#F0F7EE" : "#fff", color: vOut ? "#aaa" : "#222" }}>
+                          <span style={{ fontSize: 13.5 }}>{vOut ? "(Sold out) " : ""}{v.label}</span>
+                          <span style={{ fontSize: 13.5, fontWeight: 500, color: vOut ? "#aaa" : "#191919" }}>{rp(v.price)}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 {p.weighed ? <p style={{ fontSize: 12.5, color: "#8a6d3b", background: "#FCF8E3", borderRadius: 8, padding: "7px 10px", marginTop: 10 }}>Sold as a fixed-price pack of about 1 kg — the store packs it fresh for you.</p> : null}
 
                 {/* qty + add */}
@@ -114,9 +149,9 @@ export default function TbsProductPage() {
                     <span style={{ fontWeight: 900, minWidth: 22, textAlign: "center" }}>{qty}</span>
                     <button onClick={() => setQty((n) => Math.min(99, n + 1))} style={{ border: "none", background: "transparent", fontSize: 18, fontWeight: 900, cursor: "pointer", color: GREEN }}>+</button>
                   </div>
-                  <button onClick={addToBasket} disabled={out}
+                  <button onClick={addToBasket} disabled={out || selOut}
                     style={{ flex: 1, border: "none", borderRadius: 12, padding: "13px 16px", fontWeight: 900, fontSize: 14.5, cursor: out ? "default" : "pointer", background: out ? "#eee" : added ? GREEN : "#7CB342", color: out ? "#aaa" : "#fff", transition: "background .2s" }}>
-                    {out ? "Out of stock at your store" : added ? "✓ Added to basket" : `Add to basket — ${rp(p.price * qty)}`}
+                    {out || selOut ? "Out of stock at your store" : added ? "✓ Added to basket" : `Add to basket — ${rp(selPrice * qty)}`}
                   </button>
                 </div>
 
