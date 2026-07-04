@@ -30,6 +30,15 @@ function dayStr(iso: string | null): string {
   return String(iso).slice(0, 10);
 }
 
+// Indonesian business day (WIB, UTC+7) — used by the TBS money reports so an
+// evening sale doesn't drift to the next day.
+function dayStrWib(iso: string | null): string {
+  if (!iso) return "";
+  const t = Date.parse(String(iso));
+  if (!Number.isFinite(t)) return "";
+  return new Date(t + 7 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 export async function GET(req: Request) {
   try {
     if (!checkAdminAuth(req)) return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
@@ -158,9 +167,21 @@ export async function GET(req: Request) {
     // owed items + delivery; TBS owes CD the fee; net transfer = the difference.
     // Fee % comes from ?tbs_fee_pct= or TBS_MARKETPLACE_FEE_PCT (default 5).
     const feePct = Math.min(50, Math.max(0, Number(url.searchParams.get("tbs_fee_pct") ?? process.env.TBS_MARKETPLACE_FEE_PCT ?? 5) || 0));
+    // The TBS money numbers must MATCH the Tukar Faktur to the rupiah, so this
+    // block re-queries with WIB day boundaries (the main report window is UTC).
+    const { data: tbsOrderRows } = await supa
+      .from("orders")
+      .select("id, order_no, paid_at, created_at, total_idr, items_json, meta")
+      .eq("payment_status", "PAID")
+      .gte("paid_at", new Date(Date.parse(fromIso) - 7 * 3600 * 1000).toISOString())
+      .lte("paid_at", new Date(Date.parse(toIso) - 7 * 3600 * 1000).toISOString())
+      .order("paid_at", { ascending: true })
+      .limit(5000);
+    const tbsOrders = (tbsOrderRows || []).filter((o: any) => o?.meta?.tbs?.store);
     const tbsMap: Record<string, { store: string; orders: number; items_idr: number; delivery_idr: number; collected_idr: number; fee_idr: number; net_transfer_idr: number }> = {};
-    const tbsFeeOrders: Array<{ date: string; order_id: string; order_no: any; store: string; items_idr: number; fee_idr: number }> = [];
-    for (const o of orders) {
+    const tbsFeeOrders: Array<{ date: string; order_id: string; order_no: any; store: string; items_idr: number; delivery_idr: number; fee_idr: number; net_idr: number; collected_idr: number }> = [];
+    const tbsDailyMap: Record<string, { date: string; store: string; orders: number; items_idr: number; delivery_idr: number; fee_idr: number; net_idr: number }> = {};
+    for (const o of tbsOrders) {
       const t = (o as any)?.meta?.tbs;
       if (!t?.store) continue;
       const key = String(t.store);
@@ -177,15 +198,22 @@ export async function GET(req: Request) {
       row.items_idr += itemsResolved;
       row.collected_idr += total;
       row.fee_idr += platformFee;
+      const wibDate = dayStrWib((o as any).paid_at || (o as any).created_at);
       tbsFeeOrders.push({
-        date: dayStr((o as any).paid_at || (o as any).created_at),
+        date: wibDate,
         order_id: String((o as any).id), order_no: (o as any).order_no ?? null,
-        store: key, items_idr: itemsResolved, fee_idr: platformFee,
+        store: key, items_idr: itemsResolved, delivery_idr: fee, fee_idr: platformFee,
+        net_idr: itemsResolved + fee - platformFee, collected_idr: total,
       });
+      const dk = `${wibDate}|${key}`;
+      const day = (tbsDailyMap[dk] ||= { date: wibDate, store: key, orders: 0, items_idr: 0, delivery_idr: 0, fee_idr: 0, net_idr: 0 });
+      day.orders += 1; day.items_idr += itemsResolved; day.delivery_idr += fee; day.fee_idr += platformFee;
+      day.net_idr += itemsResolved + fee - platformFee;
     }
     for (const r of Object.values(tbsMap)) r.net_transfer_idr = r.items_idr + r.delivery_idr - r.fee_idr;
     const tbsSettlement = Object.values(tbsMap).sort((a, b) => b.items_idr - a.items_idr);
-    tbsFeeOrders.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    tbsFeeOrders.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.store.localeCompare(b.store)));
+    const tbsDaily = Object.values(tbsDailyMap).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.store.localeCompare(b.store)));
 
     return NextResponse.json({
       ok: true,
@@ -193,6 +221,7 @@ export async function GET(req: Request) {
       locations: LOCATIONS.map((l) => ({ id: l.id, name: l.short })),
       summary: { orders: orders.length, revenue: totalRevenue, freeCookies, freeDrinks },
       daily, dailyDetail, items, byLocation, redemptions, inventory, movements, tbsSettlement,
+      tbsDaily,
       tbsFee: {
         pct: feePct,
         orders: tbsFeeOrders,

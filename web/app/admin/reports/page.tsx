@@ -13,7 +13,7 @@ function isoDaysAgo(days: number) {
 }
 
 type Report = any;
-type Tab = "daily" | "items" | "locations" | "inventory" | "redemptions";
+type Tab = "daily" | "items" | "locations" | "inventory" | "redemptions" | "tbs";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "daily", label: "Daily sales" },
@@ -21,7 +21,16 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "locations", label: "Locations" },
   { key: "inventory", label: "Inventory" },
   { key: "redemptions", label: "Redeemed" },
+  { key: "tbs", label: "🍒 TBS" },
 ];
+
+function downloadCsv(rows: any[][], filename: string) {
+  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
+  a.download = filename;
+  a.click(); URL.revokeObjectURL(a.href);
+}
 
 const th: React.CSSProperties = { textAlign: "left", padding: "8px 10px", fontSize: 12, color: COLORS.muted, fontWeight: 800, borderBottom: "1px solid rgba(0,0,0,0.10)" };
 const td: React.CSSProperties = { padding: "8px 10px", fontSize: 13, color: "#222", borderBottom: "1px solid rgba(0,0,0,0.06)" };
@@ -175,9 +184,97 @@ export default function AdminReportsPage() {
                   ))}{(data.redemptions || []).length === 0 && <tr><td style={td} colSpan={3}>No rewards redeemed in range.</td></tr>}</tbody>
                 </>
               )}
+              {tab === "tbs" && (
+                <>
+                  <thead><tr>
+                    <th style={th}>Date (WIB)</th><th style={th}>Store</th><th style={th}>Orders</th>
+                    <th style={th}>Goods</th><th style={th}>Delivery</th><th style={th}>Fee ({Number(data?.tbsFee?.pct ?? 5)}%)</th><th style={th}>Net owed</th>
+                  </tr></thead>
+                  <tbody>
+                    {(data.tbsDaily || []).map((r: any, i: number) => (
+                      <tr key={i}>
+                        <td style={{ ...td, fontWeight: 700 }}>{r.date}</td>
+                        <td style={td}>{r.store}</td>
+                        <td style={td}>{r.orders}</td>
+                        <td style={td}>{rupiah(r.items_idr)}</td>
+                        <td style={td}>{rupiah(r.delivery_idr)}</td>
+                        <td style={{ ...td, color: "#0f6e56", fontWeight: 700 }}>{rupiah(r.fee_idr)}</td>
+                        <td style={{ ...td, fontWeight: 800 }}>{rupiah(r.net_idr)}</td>
+                      </tr>
+                    ))}
+                    {(data.tbsDaily || []).length > 0 ? (
+                      <tr style={{ background: "rgba(0,0,0,0.03)" }}>
+                        <td style={{ ...td, fontWeight: 900 }} colSpan={2}>Total</td>
+                        <td style={{ ...td, fontWeight: 900 }}>{(data.tbsDaily || []).reduce((n: number, r: any) => n + r.orders, 0)}</td>
+                        <td style={{ ...td, fontWeight: 900 }}>{rupiah((data.tbsDaily || []).reduce((n: number, r: any) => n + r.items_idr, 0))}</td>
+                        <td style={{ ...td, fontWeight: 900 }}>{rupiah((data.tbsDaily || []).reduce((n: number, r: any) => n + r.delivery_idr, 0))}</td>
+                        <td style={{ ...td, fontWeight: 900, color: "#0f6e56" }}>{rupiah((data.tbsDaily || []).reduce((n: number, r: any) => n + r.fee_idr, 0))}</td>
+                        <td style={{ ...td, fontWeight: 900 }}>{rupiah((data.tbsDaily || []).reduce((n: number, r: any) => n + r.net_idr, 0))}</td>
+                      </tr>
+                    ) : (
+                      <tr><td style={td} colSpan={7}>No TotalBuahStore web sales in range.</td></tr>
+                    )}
+                  </tbody>
+                </>
+              )}
             </table>
           )}
         </div>
+
+        {tab === "tbs" && data ? (
+          <section style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16, marginTop: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: COLORS.black, margin: 0 }}>Order detail ({(data?.tbsFee?.orders || []).length})</h2>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => downloadCsv([
+                  ["Date (WIB)", "Store", "Orders", "Goods (Rp)", "Delivery (Rp)", `Fee ${Number(data?.tbsFee?.pct ?? 5)}% (Rp)`, "Net owed (Rp)"],
+                  ...(data.tbsDaily || []).map((r: any) => [r.date, r.store, r.orders, r.items_idr, r.delivery_idr, r.fee_idr, r.net_idr]),
+                ], `tbs-daily-summary_${from}_${to}.csv`)}
+                  style={{ border: "1px solid rgba(0,0,0,0.16)", background: "#fff", color: COLORS.black, fontWeight: 800, fontSize: 12.5, padding: "8px 14px", borderRadius: 999, cursor: "pointer" }}>
+                  ⬇ Summary CSV
+                </button>
+                <button onClick={() => downloadCsv([
+                  ["Date (WIB)", "Order", "Store", "Goods (Rp)", "Delivery (Rp)", `Fee ${Number(data?.tbsFee?.pct ?? 5)}% (Rp)`, "Net (Rp)", "Collected (Rp)"],
+                  ...(data?.tbsFee?.orders || []).map((r: any) => [r.date, r.order_no ? `#${r.order_no}` : r.order_id.slice(0, 8), r.store, r.items_idr, r.delivery_idr ?? 0, r.fee_idr, r.net_idr ?? (r.items_idr - r.fee_idr), r.collected_idr ?? ""]),
+                ], `tbs-daily-detail_${from}_${to}.csv`)}
+                  style={{ border: "1px solid rgba(0,0,0,0.16)", background: "#fff", color: COLORS.black, fontWeight: 800, fontSize: 12.5, padding: "8px 14px", borderRadius: 999, cursor: "pointer" }}>
+                  ⬇ Detail CSV
+                </button>
+              </div>
+            </div>
+            <div style={{ overflowX: "auto", marginTop: 10 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                <thead><tr style={{ borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "right", color: COLORS.muted, fontSize: 11 }}>
+                  <th style={{ textAlign: "left", padding: 6 }}>Date (WIB)</th><th style={{ textAlign: "left", padding: 6 }}>Order</th><th style={{ textAlign: "left", padding: 6 }}>Store</th>
+                  <th style={{ padding: 6 }}>Goods</th><th style={{ padding: 6 }}>Delivery</th><th style={{ padding: 6 }}>Fee</th><th style={{ padding: 6 }}>Net</th>
+                </tr></thead>
+                <tbody>{(data?.tbsFee?.orders || []).map((r: any, i: number) => (
+                  <tr key={i} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)", textAlign: "right" }}>
+                    <td style={{ textAlign: "left", padding: 6 }}>{r.date}</td>
+                    <td style={{ textAlign: "left", padding: 6 }}>
+                      <Link href={`/admin/orders/${r.order_id}`} style={{ color: COLORS.blue, textDecoration: "none", fontWeight: 700 }}>{r.order_no ? `#${r.order_no}` : r.order_id.slice(0, 8)}</Link>
+                    </td>
+                    <td style={{ textAlign: "left", padding: 6 }}>{r.store}</td>
+                    <td style={{ padding: 6 }}>{rupiah(r.items_idr)}</td>
+                    <td style={{ padding: 6 }}>{rupiah(r.delivery_idr ?? 0)}</td>
+                    <td style={{ padding: 6, color: "#0f6e56", fontWeight: 700 }}>{rupiah(r.fee_idr)}</td>
+                    <td style={{ padding: 6, fontWeight: 700 }}>{rupiah(r.net_idr ?? (r.items_idr - r.fee_idr))}</td>
+                  </tr>
+                ))}{(data?.tbsFee?.orders || []).length === 0 && <tr><td style={{ padding: 8, color: COLORS.muted }} colSpan={7}>No orders in range.</td></tr>}</tbody>
+              </table>
+            </div>
+            <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ fontSize: 12.5, fontWeight: 800, color: COLORS.muted }}>🧾 Tukar Faktur Cabang:</span>
+              {[...new Set(((data?.tbsFee?.orders || []) as any[]).map((r: any) => r.store))].map((st: any) => (
+                <Link key={st} href={`/admin/tbs-tf?store=${encodeURIComponent(st)}&from=${from}&to=${to}${tbsFeePct.trim() ? `&tbs_fee_pct=${tbsFeePct.trim()}` : ""}`}
+                  style={{ textDecoration: "none", background: "#135232", color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "8px 14px", borderRadius: 999 }}>
+                  {st} ›
+                </Link>
+              ))}
+              {(data?.tbsFee?.orders || []).length === 0 ? <span style={{ fontSize: 12.5, color: COLORS.muted }}>— appears once there are orders in range</span> : null}
+            </div>
+          </section>
+        ) : null}
 
         {(data?.tbsSettlement || []).length > 0 ? (
           <section style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16, marginTop: 14 }}>
