@@ -25,8 +25,8 @@ function supaAdmin() {
 // Elapsed time counting ONLY store-open hours (10:00-21:00 WIB) — an order
 // paid at 20:00 isn't 'late' at 23:00 while the store is closed; its clock
 // pauses overnight and resumes at opening.
-const OPEN_H = 10, CLOSE_H = 21, WIB = 7 * 3600 * 1000;
-function openHoursElapsedMs(fromIso: string, now: number): number {
+const WIB = 7 * 3600 * 1000;
+function openHoursElapsedMs(fromIso: string, now: number, OPEN_H = 10, CLOSE_H = 21): number {
   let t = Date.parse(fromIso);
   if (!Number.isFinite(t) || t >= now) return 0;
   let total = 0, cur = t;
@@ -55,6 +55,8 @@ export async function GET(req: Request) {
     const supa = supaAdmin();
     const hours = await num(supa, "tbs_promise_hours", process.env.TBS_PROMISE_HOURS, 3);
     const voucher = await num(supa, "tbs_promise_voucher_idr", process.env.TBS_PROMISE_VOUCHER_IDR, 10000);
+    const openH = await num(supa, "tbs_open_hour", process.env.TBS_OPEN_HOUR, 10);
+    const closeH = await num(supa, "tbs_close_hour", process.env.TBS_CLOSE_HOUR, 21);
     const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
 
     // paid TBS orders past the promise window, not yet compensated
@@ -71,7 +73,7 @@ export async function GET(req: Request) {
     const now = Date.now();
     const candidates = (rows || []).filter((o: any) =>
       o?.meta?.tbs?.pushed === true &&
-      openHoursElapsedMs(String(o.paid_at), now) >= hours * 3600 * 1000
+      openHoursElapsedMs(String(o.paid_at), now, openH, closeH) >= hours * 3600 * 1000
     );
     if (!candidates.length) return NextResponse.json({ ok: true, checked: 0, issued: 0 });
 

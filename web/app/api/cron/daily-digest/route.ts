@@ -140,6 +140,17 @@ async function run(req: Request) {
     const feePct = await getTbsFeePct(supa, null);
     lines.push(`🍒 TBS web shop: ${tbsOrders} order${tbsOrders > 1 ? "s" : ""} · goods ${idr(tbsGoods)} · fee earned ~${idr(Math.round((tbsGoods * feePct) / 100))}`);
   }
+  // yesterday's customer ratings + arrival-promise vouchers (ops visibility)
+  try {
+    const { data: rat } = await supa.from("order_ratings").select("stars").gte("updated_at", fromIso).lte("updated_at", toIso);
+    if (rat?.length) {
+      const avg = Math.round((rat.reduce((n: number, r: any) => n + Number(r.stars), 0) / rat.length) * 10) / 10;
+      lines.push(`⭐ Ratings: ${rat.length} (avg ${avg}/5)`);
+    }
+    const { data: late } = await supa.from("orders").select("id").not("meta->promise_voucher", "is", null)
+      .gte("meta->promise_voucher->>at", fromIso).lte("meta->promise_voucher->>at", toIso).limit(50);
+    if (late?.length) lines.push(`🎟 Late-promise vouchers issued: ${late.length} — check the stores' Web Orders pace!`);
+  } catch { /* optional tables */ }
 
   if (topItems.length) {
     lines.push("");
