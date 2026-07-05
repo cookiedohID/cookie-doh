@@ -138,6 +138,12 @@ async function buildMember(supa: any, user: any, phone: string): Promise<MemberR
         .maybeSingle());
     }
     cust = row || existing;
+    // Unified member DB: a verified Cookie Doh member is a TBS member too
+    // (idempotent on phone; fire-and-forget — never slows the account load).
+    try {
+      const { registerTbsMember } = await import("@/lib/tbsShop");
+      void registerTbsMember(phone, name, user?.email || null);
+    } catch { /* best-effort */ }
     // Bind this verified phone to the user so a later claimant can't grab it.
     if (otp?.auth_user_id == null) {
       await supa.from("phone_otps").update({ auth_user_id: user.id }).eq("phone", phone).is("auth_user_id", null);

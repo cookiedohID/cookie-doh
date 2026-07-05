@@ -1,0 +1,22 @@
+name: TBS member sync (hourly)
+
+# Unified member DB: mirror members registered at TBS tills into the Cookie Doh
+# customers table (phone = the one identity). Since-cursor pull; idempotent.
+on:
+  schedule:
+    - cron: "20 * * * *" # hourly at :20
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull TBS members
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            "https://www.cookiedoh.co.id/api/cron/tbs-members")
+          echo "HTTP $code"
+          cat /tmp/resp.txt
+          echo
+          test "$code" = "200"

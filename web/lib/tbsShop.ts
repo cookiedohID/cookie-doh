@@ -78,6 +78,29 @@ function partnerBase(): { base: string; token: string } | null {
 const CACHE = new Map<string, { at: number; data: any }>();
 const TTL_MS = 120_000;
 
+// POST to the partner API (order push has its own; this is for small writes).
+export async function partnerPost(path: string, body: any): Promise<any | null> {
+  const cfg = partnerBase();
+  if (!cfg) return null;
+  try {
+    const signal = typeof (AbortSignal as any)?.timeout === "function" ? (AbortSignal as any).timeout(9000) : undefined;
+    const r = await fetch(`${cfg.base}${path}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body), cache: "no-store", signal,
+    });
+    return await r.json().catch(() => null);
+  } catch { return null; }
+}
+
+// Unified member DB (owner directive 2026-07-05): a Cookie Doh member IS a TBS
+// member — register the phone in the ERP. Best-effort + idempotent on phone;
+// never blocks the caller.
+export async function registerTbsMember(phone: string, name?: string | null, email?: string | null): Promise<void> {
+  try { await partnerPost("/member", { phone, name: name || undefined, email: email || undefined }); }
+  catch { /* best-effort */ }
+}
+
 // Stock lookup for a basket: always fetches each variant's BASE sku too (the
 // shared pool for cross-pack checks) and chunks past the ERP's 60-SKU cap.
 // Returns the merged entry array, or null if any chunk failed.
