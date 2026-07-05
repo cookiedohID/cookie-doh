@@ -82,6 +82,8 @@ export async function GET(req: Request) {
               }
               return {
                 id,
+                sku: it?.sku ? String(it.sku) : null,
+                unit: it?.unit ? String(it.unit) : null,
                 name: String(it?.name ?? "Item"),
                 qty: Number(it?.quantity ?? 1),
                 price: Number(it?.price ?? 0),
@@ -98,6 +100,7 @@ export async function GET(req: Request) {
         const f = meta.fulfillment || {};
         const pk = meta.pickup || {};
         const g = meta.gift || null;
+        const tbsMeta = meta.tbs || null;
         const fulfilType = meta.channel === "cafe" ? "cafe" : (f.type || o.fulfilment_status || null);
         return {
           id: o.id,
@@ -116,8 +119,34 @@ export async function GET(req: Request) {
           pickupAddress: pk.pointAddress || null,
           deliveryAddress: o.shipping_address || o.address || null,
           gift: g && (g.message || g.to || g.from) ? { message: g.message || null, to: g.to || null, from: g.from || null } : null,
+          paymentMethod: meta?.midtrans?.payment_type || null,
+          tbs: tbsMeta ? {
+            store: tbsMeta.store || null,
+            storeName: tbsMeta.storeName || null,
+            orderNo: tbsMeta.tbs_order_no || null,
+            pushed: tbsMeta.pushed === true,
+            stage: null as string | null, // filled from the live store status below
+          } : null,
         };
       });
+
+    // LIVE fulfilment stage for TBS orders: batch-ask the store system where
+    // each pushed order is (new/confirmed -> preparing, ready, completed).
+    // Best-effort — an unreachable ERP just leaves stage null.
+    try {
+      const ids = orders.filter((o: any) => o.tbs?.pushed).map((o: any) => o.id).slice(0, 100);
+      if (ids.length) {
+        const { partnerGet } = await import("@/lib/tbsShop");
+        const st = await partnerGet("/order-status", { ids: ids.join(",") });
+        if (Array.isArray(st)) {
+          const byId = new Map(st.map((r: any) => [String(r.event_id), r]));
+          for (const o of orders as any[]) {
+            const r = o.tbs ? byId.get(String(o.id)) : null;
+            if (r) { o.tbs.stage = String(r.status); o.tbs.orderNo = o.tbs.orderNo || r.order_no; }
+          }
+        }
+      }
+    } catch { /* stage stays null */ }
 
     return NextResponse.json({ ok: true, orders });
   } catch (e: any) {

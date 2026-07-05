@@ -7,7 +7,8 @@ import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
-type Item = { id?: string; name: string; qty: number; price: number; free: boolean; href?: string | null };
+type Item = { id?: string; sku?: string | null; unit?: string | null; name: string; qty: number; price: number; free: boolean; href?: string | null };
+type TbsBlock = { store: string | null; storeName: string | null; orderNo: string | null; pushed: boolean; stage: string | null };
 type Order = {
   id: string;
   orderNo: number | null;
@@ -24,6 +25,25 @@ type Order = {
   pickupAddress?: string | null;
   deliveryAddress?: string | null;
   gift?: { message: string | null; to: string | null; from: string | null } | null;
+  paymentMethod?: string | null;
+  tbs?: TbsBlock | null;
+};
+
+// A customer-facing fulfilment stage for any order (Shopee-style tabs).
+export function orderStage(o: Order): "topay" | "preparing" | "ready" | "done" | "cancelled" {
+  const pay = String(o.status).toUpperCase();
+  if (pay === "PENDING" || pay === "UNPAID") return "topay";
+  if (pay === "FAILED") return "cancelled";
+  const st = o.tbs?.stage;
+  if (st === "new" || st === "confirmed") return "preparing";
+  if (st === "ready") return "ready";
+  if (st === "cancelled") return "cancelled";
+  if (st === "completed") return "done";
+  // CD-only paid orders: the bakery flow has no store queue — treat as done
+  return o.tbs ? "preparing" : "done";
+}
+export const STAGE_LABEL: Record<string, string> = {
+  topay: "💳 To pay", preparing: "👩‍🍳 Being prepared", ready: "🛍 Ready / on the way", done: "✅ Completed", cancelled: "✗ Cancelled",
 };
 
 function fmtSchedule(date: string | null | undefined, time: string | null | undefined) {
@@ -52,6 +72,7 @@ function statusColor(status: string) {
 }
 
 type Brand = "all" | "cd" | "tbs" | "cafe";
+type Stage = "all" | "topay" | "preparing" | "ready" | "done";
 const orderHasTbs = (o: Order) => o.items.some((i) => (i.href || "").startsWith("/tbs"));
 const orderIsCafe = (o: Order) => String(o.channel || "").toLowerCase().includes("cafe") || o.fulfilType === "cafe";
 const orderHasCd = (o: Order) => o.items.some((i) => !(i.href || "").startsWith("/tbs"));
@@ -73,6 +94,7 @@ export default function MyOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [brand, setBrand] = useState<Brand>("all");
+  const [stage, setStage] = useState<Stage>("all");
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -102,7 +124,18 @@ export default function MyOrdersPage() {
         <p style={{ margin: "4px 0 0", color: COLORS.muted, fontSize: 13 }}>Your cafe &amp; online purchases.</p>
 
         {!loading && !err && orders.length > 0 ? (
-          <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ marginTop: 14, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+            {([["all", "All"], ["topay", "To pay"], ["preparing", "Being prepared"], ["ready", "Ready"], ["done", "Completed"]] as [Stage, string][]).map(([k, label]) => (
+              <button key={k} onClick={() => setStage(k)} style={{
+                border: "none", borderBottom: stage === k ? `2.5px solid ${COLORS.blue}` : "2.5px solid transparent",
+                background: "transparent", color: stage === k ? COLORS.blue : COLORS.muted,
+                fontWeight: 800, fontSize: 13, padding: "6px 10px", cursor: "pointer", whiteSpace: "nowrap",
+              }}>{label}{k !== "all" ? ` (${orders.filter((o) => orderStage(o) === k).length})` : ""}</button>
+            ))}
+          </div>
+        ) : null}
+        {!loading && !err && orders.length > 0 ? (
+          <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
             {([["all", "All"], ["cd", "🍪 Cookie Doh"], ["tbs", "🍒 TotalBuahStore"], ["cafe", "☕ Cafe"]] as [Brand, string][]).map(([k, label]) => (
               <button key={k} onClick={() => setBrand(k)} style={{
                 border: brand === k ? `1.5px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.14)",
@@ -127,21 +160,29 @@ export default function MyOrdersPage() {
         ) : (
           <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
             {orders.filter((o) =>
-              brand === "all" ? true :
-              brand === "tbs" ? orderHasTbs(o) :
-              brand === "cafe" ? orderIsCafe(o) :
-              orderHasCd(o) && !orderIsCafe(o)
+              (stage === "all" || orderStage(o) === stage) &&
+              (brand === "all" ? true :
+               brand === "tbs" ? orderHasTbs(o) :
+               brand === "cafe" ? orderIsCafe(o) :
+               orderHasCd(o) && !orderIsCafe(o))
             ).map((o) => {
               const sc = statusColor(o.status);
               const earned = earnedChips(o);
               return (
                 <div key={o.id} style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-                    <div style={{ fontWeight: 800, color: COLORS.black }}>
-                      {o.orderNo ? `Order #${o.orderNo}` : "Order"}
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: sc.fg, background: sc.bg, padding: "3px 9px", borderRadius: 999 }}>{o.status}</span>
+                    <Link href={`/account/orders/${o.id}`} style={{ fontWeight: 800, color: COLORS.black, textDecoration: "none" }}>
+                      {o.orderNo ? `Order #${o.orderNo}` : "Order"} <span style={{ color: COLORS.blue, fontWeight: 900 }}>›</span>
+                    </Link>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: sc.fg, background: sc.bg, padding: "3px 9px", borderRadius: 999 }}>
+                      {STAGE_LABEL[orderStage(o)] || o.status}
+                    </span>
                   </div>
+                  {o.tbs?.orderNo && o.tbs.stage ? (
+                    <div style={{ marginTop: 4, fontSize: 12, color: "#135232", fontWeight: 700 }}>
+                      🍒 {o.tbs.storeName || o.tbs.store}: {o.tbs.stage === "new" || o.tbs.stage === "confirmed" ? "preparing your order" : o.tbs.stage === "ready" ? (o.fulfilType === "pickup" ? "ready for pickup!" : "ready — on its way") : o.tbs.stage}
+                    </div>
+                  ) : null}
                   <div style={{ marginTop: 3, fontSize: 12, color: COLORS.muted, display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <span>{fmtDate(o.paidAt || o.createdAt)}</span>
                     <span>•</span>
