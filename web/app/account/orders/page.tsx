@@ -51,10 +51,28 @@ function statusColor(status: string) {
   return { bg: "#FFF4E5", fg: "#9A6700" }; // pending/other
 }
 
+type Brand = "all" | "cd" | "tbs" | "cafe";
+const orderHasTbs = (o: Order) => o.items.some((i) => (i.href || "").startsWith("/tbs"));
+const orderIsCafe = (o: Order) => String(o.channel || "").toLowerCase().includes("cafe") || o.fulfilType === "cafe";
+const orderHasCd = (o: Order) => o.items.some((i) => !(i.href || "").startsWith("/tbs"));
+
+// what a PAID order earned: every non-free cookie/drink = 1 stamp; TBS goods earn points at the store
+function earnedChips(o: Order): string[] {
+  if (String(o.status).toUpperCase() !== "PAID") return [];
+  const chips: string[] = [];
+  const cookies = o.items.filter((i) => i.href === "/cookies" && !i.free).reduce((n, i) => n + i.qty, 0);
+  const drinks = o.items.filter((i) => i.href === "/smoothies" && !i.free).reduce((n, i) => n + i.qty, 0);
+  if (cookies) chips.push(`+${cookies} 🍪 stamp${cookies > 1 ? "s" : ""}`);
+  if (drinks) chips.push(`+${drinks} 🥤 stamp${drinks > 1 ? "s" : ""}`);
+  if (orderHasTbs(o)) chips.push("🍒 earns TBS points when the store completes it");
+  return chips;
+}
+
 export default function MyOrdersPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [brand, setBrand] = useState<Brand>("all");
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -83,6 +101,18 @@ export default function MyOrdersPage() {
         <h1 style={{ margin: "8px 0 0", fontSize: 26, fontWeight: 800, color: COLORS.black }}>My Orders</h1>
         <p style={{ margin: "4px 0 0", color: COLORS.muted, fontSize: 13 }}>Your cafe &amp; online purchases.</p>
 
+        {!loading && !err && orders.length > 0 ? (
+          <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {([["all", "All"], ["cd", "🍪 Cookie Doh"], ["tbs", "🍒 TotalBuahStore"], ["cafe", "☕ Cafe"]] as [Brand, string][]).map(([k, label]) => (
+              <button key={k} onClick={() => setBrand(k)} style={{
+                border: brand === k ? `1.5px solid ${COLORS.blue}` : "1px solid rgba(0,0,0,0.14)",
+                background: brand === k ? "#EAF2FF" : "#fff", color: brand === k ? COLORS.blue : COLORS.black,
+                fontWeight: 800, fontSize: 12.5, padding: "7px 13px", borderRadius: 999, cursor: "pointer",
+              }}>{label}</button>
+            ))}
+          </div>
+        ) : null}
+
         {loading ? (
           <p style={{ marginTop: 24, color: COLORS.muted }}>Loading…</p>
         ) : err ? (
@@ -95,9 +125,15 @@ export default function MyOrdersPage() {
             <Link href="/" style={{ display: "inline-block", marginTop: 14, background: COLORS.blue, color: "#fff", fontWeight: 800, padding: "10px 22px", borderRadius: 999, textDecoration: "none" }}>Start an order</Link>
           </div>
         ) : (
-          <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
-            {orders.map((o) => {
+          <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
+            {orders.filter((o) =>
+              brand === "all" ? true :
+              brand === "tbs" ? orderHasTbs(o) :
+              brand === "cafe" ? orderIsCafe(o) :
+              orderHasCd(o) && !orderIsCafe(o)
+            ).map((o) => {
               const sc = statusColor(o.status);
+              const earned = earnedChips(o);
               return (
                 <div key={o.id} style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
@@ -155,6 +191,13 @@ export default function MyOrdersPage() {
                     <span>Total</span>
                     <span>{rupiah(o.total)}</span>
                   </div>
+                  {earned.length ? (
+                    <div style={{ marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {earned.map((c, i) => (
+                        <span key={i} style={{ fontSize: 11.5, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: c.startsWith("🍒") ? "#EAF3E7" : "#EAF2FF", color: c.startsWith("🍒") ? "#135232" : COLORS.blue }}>{c}</span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}

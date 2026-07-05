@@ -443,6 +443,24 @@ export default function AccountPage() {
           </div>
         </div>
 
+        {/* One membership, both brands: quick balances strip under the card */}
+        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: tbs ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8 }}>
+          <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700 }}>🍪 Free cookies</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.blue }}>{L.freeCookies}</div>
+          </div>
+          <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
+            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700 }}>🥤 Free drinks</div>
+            <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.blue }}>{L.freeDrinks}</div>
+          </div>
+          {tbs ? (
+            <div style={{ background: "#fff", border: "1px solid rgba(19,82,50,0.35)", borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: "#135232", fontWeight: 800 }}>🍒 TBS points{tbs.member.tier ? ` · ${tbs.member.tier}` : ""}</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#135232" }}>{Math.round(tbs.points.balance).toLocaleString("id-ID")}</div>
+            </div>
+          ) : null}
+        </div>
+
         {/* 👑 VIP status — only shown when a VIP program is running (tiers active) */}
         {vip && (vip.tier || vip.next) ? (
           <div style={{ marginTop: 14, borderRadius: 18, padding: 16, border: "1px solid rgba(176,141,30,0.45)", background: "linear-gradient(135deg, #FFF8E6, #FDEFC7)" }}>
