@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { orderStage, STAGE_LABEL } from "@/lib/orderStage";
 
 type Item = { id?: string; sku?: string | null; unit?: string | null; name: string; qty: number; price: number; free: boolean; href?: string | null };
 type TbsBlock = { store: string | null; storeName: string | null; orderNo: string | null; pushed: boolean; stage: string | null; pointsEarned?: number };
@@ -29,22 +30,6 @@ type Order = {
   tbs?: TbsBlock | null;
 };
 
-// A customer-facing fulfilment stage for any order (Shopee-style tabs).
-export function orderStage(o: Order): "topay" | "preparing" | "ready" | "done" | "cancelled" {
-  const pay = String(o.status).toUpperCase();
-  if (pay === "PENDING" || pay === "UNPAID") return "topay";
-  if (pay === "FAILED") return "cancelled";
-  const st = o.tbs?.stage;
-  if (st === "new" || st === "confirmed") return "preparing";
-  if (st === "ready") return "ready";
-  if (st === "cancelled") return "cancelled";
-  if (st === "completed") return "done";
-  // CD-only paid orders: the bakery flow has no store queue — treat as done
-  return o.tbs ? "preparing" : "done";
-}
-export const STAGE_LABEL: Record<string, string> = {
-  topay: "💳 To pay", preparing: "👩‍🍳 Being prepared", ready: "🛍 Ready / on the way", done: "✅ Completed", cancelled: "✗ Cancelled",
-};
 
 function fmtSchedule(date: string | null | undefined, time: string | null | undefined) {
   if (!date && !time) return "";

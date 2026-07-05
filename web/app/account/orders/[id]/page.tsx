@@ -71,6 +71,11 @@ export default function OrderDetailPage() {
     const tbsLines = (order?.items || []).filter((i: any) => (i.href || "").startsWith("/tbs") && i.sku);
     if (!tbsLines.length || !order?.tbs?.store) return;
     try {
+      // don't silently clobber a basket the customer is building
+      const cur = JSON.parse(localStorage.getItem("tbs_basket") || "null");
+      if (cur?.items && Object.keys(cur.items).length > 0) {
+        if (!window.confirm("You already have items in your TotalBuahStore basket — replace them with this order?")) return;
+      }
       const items: Record<string, any> = {};
       for (const l of tbsLines) items[l.sku] = { sku: l.sku, name: l.name, price: l.price, unit: l.unit || "pcs", qty: l.qty };
       localStorage.setItem("tbs_store", order.tbs.store);
