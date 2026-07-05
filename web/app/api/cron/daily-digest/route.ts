@@ -51,12 +51,20 @@ async function run(req: Request) {
   let revenue = 0;
   let freeCookies = 0;
   let freeDrinks = 0;
+  let tbsOrders = 0, tbsGoods = 0;
   const itemMap: Record<string, { name: string; qty: number }> = {};
   const locMap: Record<string, { orders: number; revenue: number }> = {};
 
   for (const o of orders) {
     const rev = Number(o.total_idr || 0);
     revenue += rev;
+    const t = (o as any)?.meta?.tbs;
+    if (t?.store) {
+      tbsOrders += 1;
+      tbsGoods += (Array.isArray(o.items_json) ? o.items_json : [])
+        .filter((it: any) => it?.kind === "tbs")
+        .reduce((n: number, it: any) => n + Math.round((Number(it.price) || 0) * (Number(it.quantity) || 1)), 0);
+    }
     locMap[o._loc] = locMap[o._loc] || { orders: 0, revenue: 0 };
     locMap[o._loc].orders += 1;
     locMap[o._loc].revenue += rev;
@@ -127,6 +135,11 @@ async function run(req: Request) {
   lines.push("");
   lines.push(`💰 Revenue: ${idr(revenue)}`);
   lines.push(`🧾 Orders: ${orders.length}`);
+  if (tbsOrders > 0) {
+    const { getTbsFeePct } = await import("@/lib/settings");
+    const feePct = await getTbsFeePct(supa, null);
+    lines.push(`🍒 TBS web shop: ${tbsOrders} order${tbsOrders > 1 ? "s" : ""} · goods ${idr(tbsGoods)} · fee earned ~${idr(Math.round((tbsGoods * feePct) / 100))}`);
+  }
 
   if (topItems.length) {
     lines.push("");

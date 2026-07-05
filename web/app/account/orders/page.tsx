@@ -8,7 +8,7 @@ import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 type Item = { id?: string; sku?: string | null; unit?: string | null; name: string; qty: number; price: number; free: boolean; href?: string | null };
-type TbsBlock = { store: string | null; storeName: string | null; orderNo: string | null; pushed: boolean; stage: string | null };
+type TbsBlock = { store: string | null; storeName: string | null; orderNo: string | null; pushed: boolean; stage: string | null; pointsEarned?: number };
 type Order = {
   id: string;
   orderNo: number | null;
@@ -85,7 +85,12 @@ function earnedChips(o: Order): string[] {
   const drinks = o.items.filter((i) => i.href === "/smoothies" && !i.free).reduce((n, i) => n + i.qty, 0);
   if (cookies) chips.push(`+${cookies} 🍪 stamp${cookies > 1 ? "s" : ""}`);
   if (drinks) chips.push(`+${drinks} 🥤 stamp${drinks > 1 ? "s" : ""}`);
-  if (orderHasTbs(o)) chips.push("🍒 earns TBS points when the store completes it");
+  if (orderHasTbs(o)) {
+    const pts = o.tbs?.pointsEarned || 0;
+    chips.push(o.tbs?.stage === "completed"
+      ? (pts > 0 ? `+${pts.toLocaleString("id-ID")} 🍒 TBS points earned` : "🍒 completed")
+      : "🍒 earns TBS points when the store completes it");
+  }
   return chips;
 }
 

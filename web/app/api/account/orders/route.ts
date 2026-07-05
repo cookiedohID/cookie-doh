@@ -126,6 +126,7 @@ export async function GET(req: Request) {
             orderNo: tbsMeta.tbs_order_no || null,
             pushed: tbsMeta.pushed === true,
             stage: null as string | null, // filled from the live store status below
+            pointsEarned: 0,
           } : null,
         };
       });
@@ -142,7 +143,11 @@ export async function GET(req: Request) {
           const byId = new Map(st.map((r: any) => [String(r.event_id), r]));
           for (const o of orders as any[]) {
             const r = o.tbs ? byId.get(String(o.id)) : null;
-            if (r) { o.tbs.stage = String(r.status); o.tbs.orderNo = o.tbs.orderNo || r.order_no; }
+            if (r) {
+              o.tbs.stage = String(r.status);
+              o.tbs.orderNo = o.tbs.orderNo || r.order_no;
+              o.tbs.pointsEarned = Math.max(0, Math.round(Number(r.points_earned) || 0));
+            }
           }
         }
       }
