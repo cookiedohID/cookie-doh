@@ -91,6 +91,28 @@ export default function OrderDetailPage() {
 
   const hasTbsItems = (order?.items || []).some((i: any) => (i.href || "").startsWith("/tbs") && i.sku);
 
+  // rating (Shopee 'Nilai') — editable once paid
+  const [stars, setStars] = useState(0);
+  const [comment, setComment] = useState("");
+  const [rateMsg, setRateMsg] = useState("");
+  useEffect(() => {
+    if (order?.rating) { setStars(Number(order.rating.stars) || 0); setComment(order.rating.comment || ""); }
+  }, [order]);
+  const submitRating = async (n: number) => {
+    setStars(n);
+    try {
+      const { data } = await getSupabaseBrowser().auth.getSession();
+      const t = data.session?.access_token;
+      if (!t) return;
+      const r = await fetch("/api/account/orders/rate", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+        body: JSON.stringify({ order_id: id, stars: n, comment }),
+      }).then((x) => x.json());
+      setRateMsg(r?.ok ? "Thank you! 💛" : (r?.error || "Couldn't save."));
+      setTimeout(() => setRateMsg(""), 2500);
+    } catch { setRateMsg("Couldn't save."); }
+  };
+
   return (
     <main style={{ minHeight: "100vh", background: COLORS.bg }}>
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "32px 16px 90px" }}>
@@ -181,6 +203,35 @@ export default function OrderDetailPage() {
                 </div>
               ) : null}
             </div>
+
+            {/* arrival promise (TBS orders still in the queue) */}
+            {order.tbs && (stage === "preparing") ? (
+              <div style={{ marginTop: 12, background: "#FFF9EC", border: "1px solid #F0DCA8", borderRadius: 14, padding: "10px 14px", fontSize: 12.5, color: "#7a5c00", fontWeight: 700 }}>
+                🛡 Arrival promise: ready within 3 hours of payment — or we send you a Rp10.000 voucher automatically.
+              </div>
+            ) : null}
+            {(order as any).promiseVoucher ? (
+              <div style={{ marginTop: 12, background: "#E8F3EC", border: "1px solid rgba(19,82,50,0.3)", borderRadius: 14, padding: "10px 14px", fontSize: 12.5, color: GREEN, fontWeight: 800 }}>
+                🎟 We were late — voucher {(order as any).promiseVoucher.code} (Rp{Number((order as any).promiseVoucher.value).toLocaleString("id-ID")} off) is yours, sent by WhatsApp.
+              </div>
+            ) : null}
+
+            {/* rating */}
+            {String(order.status).toUpperCase() === "PAID" ? (
+              <div style={{ marginTop: 12, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "12px 16px" }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: "#333" }}>⭐ Rate this order</div>
+                <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button key={n} onClick={() => submitRating(n)} aria-label={`${n} stars`}
+                      style={{ border: "none", background: "none", cursor: "pointer", fontSize: 26, lineHeight: 1, filter: n <= stars ? "none" : "grayscale(1) opacity(0.35)" }}>⭐</button>
+                  ))}
+                  {rateMsg ? <span style={{ alignSelf: "center", fontSize: 12.5, fontWeight: 700, color: GREEN }}>{rateMsg}</span> : null}
+                </div>
+                <textarea value={comment} onChange={(e) => setComment(e.target.value)} onBlur={() => { if (stars > 0) submitRating(stars); }}
+                  placeholder="Tell us more (optional)" rows={2}
+                  style={{ width: "100%", marginTop: 10, padding: "9px 12px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.12)", fontSize: 13, resize: "vertical" }} />
+              </div>
+            ) : null}
 
             {/* actions */}
             <div style={{ marginTop: 14, display: "grid", gap: 8 }}>

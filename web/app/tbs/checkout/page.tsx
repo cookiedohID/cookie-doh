@@ -162,6 +162,9 @@ export default function TbsCheckoutPage() {
             <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>
               Prices are confirmed by the store at payment time. QRIS / cards via Midtrans.
             </p>
+            <p style={{ fontSize: 11.5, color: "#7a5c00", textAlign: "center", marginTop: 4, fontWeight: 700 }}>
+              🛡 Arrival promise: ready within 3 hours — or we send you a Rp10.000 voucher.
+            </p>
           </>
         )}
       </div>

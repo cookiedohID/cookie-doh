@@ -120,6 +120,7 @@ export async function GET(req: Request) {
           deliveryAddress: o.shipping_address || o.address || null,
           gift: g && (g.message || g.to || g.from) ? { message: g.message || null, to: g.to || null, from: g.from || null } : null,
           paymentMethod: meta?.midtrans?.payment_type || null,
+          promiseVoucher: meta?.promise_voucher ? { code: meta.promise_voucher.code, value: Number(meta.promise_voucher.value) || 0 } : null,
           tbs: tbsMeta ? {
             store: tbsMeta.store || null,
             storeName: tbsMeta.storeName || null,
@@ -130,6 +131,19 @@ export async function GET(req: Request) {
           } : null,
         };
       });
+
+    // Ratings the member already left (Shopee 'Nilai') — one batched lookup.
+    try {
+      const ids = orders.map((o: any) => o.id);
+      if (ids.length) {
+        const { data: rat } = await supa.from("order_ratings").select("order_id, stars, comment").in("order_id", ids);
+        const byId = new Map((rat || []).map((r: any) => [String(r.order_id), r]));
+        for (const o of orders as any[]) {
+          const r = byId.get(String(o.id));
+          o.rating = r ? { stars: Number(r.stars), comment: r.comment || null } : null;
+        }
+      }
+    } catch { /* table optional */ }
 
     // LIVE fulfilment stage for TBS orders: batch-ask the store system where
     // each pushed order is (new/confirmed -> preparing, ready, completed).

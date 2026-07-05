@@ -1,0 +1,22 @@
+name: TBS arrival promise (hourly)
+
+# Auto-issues an apology voucher + WhatsApp when a paid TBS web order isn't
+# READY within the promised hours. Idempotent (unique voucher per order).
+on:
+  schedule:
+    - cron: "40 * * * *" # hourly at :40
+  workflow_dispatch: {}
+
+jobs:
+  promise:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check late orders
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            "https://www.cookiedoh.co.id/api/cron/tbs-promise")
+          echo "HTTP $code"
+          cat /tmp/resp.txt
+          echo
+          test "$code" = "200"

@@ -12,6 +12,9 @@ const ALLOWED: Record<string, (v: string) => boolean> = {
   tbs_marketplace_fee_pct: (v) => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 50,
   // TBS shop launch switch (Admin → TBS)
   tbs_shop_public: (v) => v === "true" || v === "false",
+  // arrival promise: hours to READY + apology voucher (Rp)
+  tbs_promise_hours: (v) => Number.isFinite(Number(v)) && Number(v) >= 1 && Number(v) <= 48,
+  tbs_promise_voucher_idr: (v) => Number.isFinite(Number(v)) && Number(v) >= 1000 && Number(v) <= 1000000,
 };
 
 function supaAdmin() {
