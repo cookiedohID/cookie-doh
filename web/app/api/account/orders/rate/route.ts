@@ -45,12 +45,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "You can rate an order once it's paid." }, { status: 400 });
     }
 
+    const { data: existing } = await supa.from("order_ratings").select("order_id").eq("order_id", orderId).maybeSingle();
     const { error } = await supa.from("order_ratings").upsert(
       { order_id: orderId, phone, stars, comment, updated_at: new Date().toISOString() },
       { onConflict: "order_id" }
     );
     if (error) throw new Error(error.message);
-    return NextResponse.json({ ok: true, stars, comment });
+
+    // Rate-to-earn (Shopee 'dapatkan koin'): the FIRST rating of an order
+    // grants a few TBS points. Idempotent at the ledger (source_ref =
+    // rating:<order_id>), HQ-funded in the store-flow reports, best-effort.
+    let earned = 0;
+    if (!existing) {
+      try {
+        const { getSetting } = await import("@/lib/settings");
+        const n = Number(await getSetting(supa, "tbs_rating_reward_points"));
+        const reward = Number.isFinite(n) && n >= 0 ? Math.round(n) : 100;
+        if (reward > 0) {
+          const { partnerPost } = await import("@/lib/tbsShop");
+          const r = await partnerPost("/adjust", { phone, points: reward, source_ref: `rating:${orderId}`, reason: `Rate-to-earn — order ${orderId.slice(0, 8)}` });
+          if (r?.ok) earned = reward;
+        }
+      } catch { /* points are a bonus, never block the rating */ }
+    }
+    return NextResponse.json({ ok: true, stars, comment, earned });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });
   }

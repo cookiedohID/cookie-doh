@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
     const { data } = await supa
       .from("orders")
-      .select("id, order_no, created_at, paid_at, total_idr, payment_status, fulfilment_status, items_json, meta, customer_phone, shipping_address, address, building_name")
+      .select("id, order_no, created_at, paid_at, total_idr, payment_status, fulfilment_status, items_json, meta, customer_phone, shipping_address, address, building_name, waybill, tracking_url, courier_company")
       .ilike("customer_phone", `%${sig}%`)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -121,6 +121,7 @@ export async function GET(req: Request) {
           gift: g && (g.message || g.to || g.from) ? { message: g.message || null, to: g.to || null, from: g.from || null } : null,
           paymentMethod: meta?.midtrans?.payment_type || null,
           promiseVoucher: meta?.promise_voucher ? { code: meta.promise_voucher.code, value: Number(meta.promise_voucher.value) || 0 } : null,
+          shipping: (o.waybill || o.tracking_url) ? { courier: o.courier_company || null, waybill: o.waybill || null, trackingUrl: o.tracking_url || null } : null,
           tbs: tbsMeta ? {
             store: tbsMeta.store || null,
             storeName: tbsMeta.storeName || null,

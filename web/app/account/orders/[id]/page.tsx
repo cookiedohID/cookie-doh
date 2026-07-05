@@ -108,7 +108,7 @@ export default function OrderDetailPage() {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
         body: JSON.stringify({ order_id: id, stars: n, comment }),
       }).then((x) => x.json());
-      setRateMsg(r?.ok ? "Thank you! 💛" : (r?.error || "Couldn't save."));
+      setRateMsg(r?.ok ? (r?.earned > 0 ? `Thank you! +${r.earned} 🍒 points 💛` : "Thank you! 💛") : (r?.error || "Couldn't save."));
       setTimeout(() => setRateMsg(""), 2500);
     } catch { setRateMsg("Couldn't save."); }
   };
@@ -145,6 +145,26 @@ export default function OrderDetailPage() {
                   {TIMELINE.map((t, i) => (
                     <span key={t} style={{ fontSize: 10.5, fontWeight: i === stageIdx ? 900 : 600, color: i <= stageIdx ? GREEN : COLORS.muted, textAlign: i === 0 ? "left" : i === TIMELINE.length - 1 ? "right" : "center" }}>{t}</span>
                   ))}
+                </div>
+              </div>
+            ) : null}
+
+            {/* courier tracking (CD deliveries with a live waybill) */}
+            {order.shipping ? (
+              <div style={{ marginTop: 12, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "12px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "#333" }}>🚚 Shipping info</div>
+                    <div style={{ fontSize: 12.5, color: "#555", marginTop: 3 }}>
+                      {order.shipping.courier ? `${order.shipping.courier}: ` : ""}{order.shipping.waybill || "—"}
+                    </div>
+                  </div>
+                  {order.shipping.trackingUrl ? (
+                    <a href={order.shipping.trackingUrl} target="_blank" rel="noreferrer"
+                      style={{ flex: "0 0 auto", textDecoration: "none", border: `1.5px solid ${GREEN}`, color: GREEN, fontWeight: 800, fontSize: 12.5, padding: "8px 16px", borderRadius: 999 }}>
+                      Track 🛰
+                    </a>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -219,7 +239,7 @@ export default function OrderDetailPage() {
             {/* rating */}
             {String(order.status).toUpperCase() === "PAID" ? (
               <div style={{ marginTop: 12, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "12px 16px" }}>
-                <div style={{ fontSize: 13.5, fontWeight: 800, color: "#333" }}>⭐ Rate this order</div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: "#333" }}>⭐ Rate this order{!order.rating ? <span style={{ color: GREEN, fontWeight: 800 }}> — earn 100 🍒 points</span> : null}</div>
                 <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button key={n} onClick={() => submitRating(n)} aria-label={`${n} stars`}
