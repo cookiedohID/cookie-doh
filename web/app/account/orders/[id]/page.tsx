@@ -224,6 +224,12 @@ export default function OrderDetailPage() {
               ) : null}
             </div>
 
+            {order.payUrl ? (
+              <a href={order.payUrl} style={{ display: "block", marginTop: 12, textAlign: "center", textDecoration: "none", background: "#0014A7", color: "#fff", fontWeight: 900, fontSize: 14.5, padding: "13px", borderRadius: 12 }}>
+                💳 Continue payment — {new Intl.NumberFormat("id-ID").format(order.total)} IDR
+              </a>
+            ) : null}
+
             {/* arrival promise (TBS orders still in the queue) */}
             {order.tbs && (stage === "preparing") ? (
               <div style={{ marginTop: 12, background: "#FFF9EC", border: "1px solid #F0DCA8", borderRadius: 14, padding: "10px 14px", fontSize: 12.5, color: "#7a5c00", fontWeight: 700 }}>

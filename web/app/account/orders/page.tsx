@@ -168,6 +168,11 @@ export default function MyOrdersPage() {
                       {STAGE_LABEL[orderStage(o)] || o.status}
                     </span>
                   </div>
+                  {(o as any).payUrl ? (
+                    <a href={(o as any).payUrl} style={{ display: "inline-block", marginTop: 8, textDecoration: "none", background: "#0014A7", color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "8px 16px", borderRadius: 999 }}>
+                      💳 Continue payment
+                    </a>
+                  ) : null}
                   {o.tbs?.orderNo && o.tbs.stage ? (
                     <div style={{ marginTop: 4, fontSize: 12, color: "#135232", fontWeight: 700 }}>
                       🍒 {o.tbs.storeName || o.tbs.store}: {o.tbs.stage === "new" || o.tbs.stage === "confirmed" ? "preparing your order" : o.tbs.stage === "ready" ? (o.fulfilType === "pickup" ? "ready for pickup!" : "ready — on its way") : o.tbs.stage}

@@ -160,6 +160,13 @@ export async function POST(req: Request) {
       finishUrl: `${siteUrl}/tbs/success`,
     });
 
+    // save the token so 'Continue payment' can reopen this popup later
+    try {
+      await supa.from("orders")
+        .update({ meta: { source: "tbs", tbs: { store, storeName, fulfil, address, km, delivery_fee: deliveryFee, pushed: false }, midtrans: { token } } })
+        .eq("id", order.id);
+    } catch { /* resume is a bonus */ }
+
     return NextResponse.json({
       ok: true, order_id: order.id, snap_token: token,
       pricing: { lines, subtotal, delivery_fee: deliveryFee, km, total },

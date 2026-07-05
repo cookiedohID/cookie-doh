@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
     const { data } = await supa
       .from("orders")
-      .select("id, order_no, created_at, paid_at, total_idr, payment_status, fulfilment_status, items_json, meta, customer_phone, shipping_address, address, building_name, waybill, tracking_url, courier_company")
+      .select("id, order_no, created_at, paid_at, total_idr, payment_status, fulfilment_status, items_json, meta, customer_phone, shipping_address, address, building_name, waybill, tracking_url, courier_company, nudge_token")
       .ilike("customer_phone", `%${sig}%`)
       .order("created_at", { ascending: false })
       .limit(200);
@@ -122,6 +122,9 @@ export async function GET(req: Request) {
           paymentMethod: meta?.midtrans?.payment_type || null,
           promiseVoucher: meta?.promise_voucher ? { code: meta.promise_voucher.code, value: Number(meta.promise_voucher.value) || 0 } : null,
           shipping: (o.waybill || o.tracking_url) ? { courier: o.courier_company || null, waybill: o.waybill || null, trackingUrl: o.tracking_url || null } : null,
+          _pendingResumable: String(o.payment_status).toUpperCase() === "PENDING" && Boolean(meta?.midtrans?.token)
+            && Date.now() - Date.parse(o.created_at || 0) < 24 * 3600 * 1000, // Snap tokens expire ~24h
+          _nudgeToken: o.nudge_token || null,
           tbs: tbsMeta ? {
             store: tbsMeta.store || null,
             storeName: tbsMeta.storeName || null,
@@ -132,6 +135,25 @@ export async function GET(req: Request) {
           } : null,
         };
       });
+
+    // Continue-payment links for the member's own PENDING orders (Shopee
+    // 'Belum Bayar' → Bayar). Reuses the /pay/[id]?t= resume flow; the access
+    // token is minted here if the abandoned-cart nudge hasn't yet (the caller
+    // is the verified owner, so handing them their own link is safe).
+    for (const o of orders as any[]) {
+      if (o._pendingResumable) {
+        let t = o._nudgeToken;
+        if (!t) {
+          try {
+            const { randomUUID } = await import("crypto");
+            t = randomUUID().replace(/-/g, "");
+            await supa.from("orders").update({ nudge_token: t }).eq("id", o.id).is("nudge_token", null);
+          } catch { t = null; }
+        }
+        if (t) o.payUrl = `/pay/${o.id}?t=${t}`;
+      }
+      delete o._pendingResumable; delete o._nudgeToken;
+    }
 
     // Ratings the member already left (Shopee 'Nilai') — one batched lookup.
     try {
