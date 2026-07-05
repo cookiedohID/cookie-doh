@@ -281,7 +281,41 @@ export async function POST(req: Request) {
 
     // ---- Authoritative amounts (client totals ignored for the charge) ----
     const subtotal = nonRewardSubtotal + rewardTotal + tbsSubtotal;
-    const finalTotal = Math.max(0, nonRewardSubtotal - discount) + rewardTotal + tbsSubtotal + shippingCost;
+    let finalTotal = Math.max(0, nonRewardSubtotal - discount) + rewardTotal + tbsSubtotal + shippingCost;
+
+    // ---- TBS points redemption (1 point = Rp1, TBS goods only) -----------
+    // Server-authoritative: the phone comes ONLY from the verified session
+    // (never the typed form field), the balance from the ERP, and the cap is
+    // min(balance, TBS goods, total - Rp1.000 so a payable charge remains).
+    // Points are DEDUCTED by the payment webhook on PAID (idempotent).
+    let tbsPointsMeta: any = null;
+    if (payload?.use_tbs_points === true && tbsSubtotal > 0) {
+      const authHeader = req.headers.get("authorization") || "";
+      const token = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : null;
+      let verifiedPhone: string | null = null;
+      if (token) {
+        try {
+          const { data: u } = await supabase.auth.getUser(token);
+          if (u?.user?.id) {
+            const { data: custRows } = await supabase
+              .from("customers").select("phone")
+              .eq("auth_user_id", u.user.id).eq("phone_verified", true).limit(1);
+            if (custRows?.[0]?.phone) verifiedPhone = canonicalPhone(String(custRows[0].phone));
+          }
+        } catch { /* no phone -> no points */ }
+      }
+      if (!verifiedPhone) {
+        return NextResponse.json({ ok: false, error: "Sign in with your verified WhatsApp number to use TBS points." }, { status: 401 });
+      }
+      const { tbsPointsBalance } = await import("@/lib/tbsShop");
+      const balance = await tbsPointsBalance(verifiedPhone);
+      const cap = Math.max(0, Math.min(balance, tbsSubtotal, finalTotal - 1000));
+      if (cap > 0) {
+        finalTotal -= cap;
+        tbsPointsMeta = { phone: verifiedPhone, discount: cap, redeemed: false };
+      }
+    }
+
     if (finalTotal < 1) {
       return NextResponse.json(
         { ok: false, error: promoApplied ? "This code would make the order free — please contact us to arrange it." : "Your cart is empty." },
@@ -457,8 +491,9 @@ export async function POST(req: Request) {
       meta: {
         // client meta is accepted EXCEPT the tbs block — that is server-derived
         // only (a crafted meta.tbs would poison settlement + the store push).
-        ...(() => { const m = { ...(payload?.meta || {}) } as any; delete m.tbs; return m; })(),
+        ...(() => { const m = { ...(payload?.meta || {}) } as any; delete m.tbs; delete m.tbs_points; return m; })(),
         ...(tbsMeta ? { tbs: { ...tbsMeta, fulfil: fulfillmentType || "delivery" } } : {}),
+        ...(tbsPointsMeta ? { tbs_points: tbsPointsMeta } : {}),
         fulfillment,
         pickup,
         quote,

@@ -121,6 +121,7 @@ export default function TbsTfPage() {
                 <th style={{ padding: "6px 4px" }}>Goods</th>
                 <th style={{ padding: "6px 4px" }}>Delivery</th>
                 <th style={{ padding: "6px 4px" }}>Fee ({tf.fee_pct}%)</th>
+                <th style={{ padding: "6px 4px" }}>Points used</th>
                 <th style={{ padding: "6px 4px" }}>Net</th>
               </tr>
             </thead>
@@ -133,11 +134,12 @@ export default function TbsTfPage() {
                   <td style={{ padding: "6px 4px" }}>{rp(l.items_idr)}</td>
                   <td style={{ padding: "6px 4px" }}>{rp(l.delivery_idr)}</td>
                   <td style={{ padding: "6px 4px" }}>({rp(l.fee_idr)})</td>
+                  <td style={{ padding: "6px 4px" }}>{l.points_idr ? `(${rp(l.points_idr)})` : "—"}</td>
                   <td style={{ padding: "6px 4px", fontWeight: 700 }}>{rp(l.net_idr)}</td>
                 </tr>
               ))}
               {tf.lines.length === 0 ? (
-                <tr><td colSpan={7} style={{ padding: 14, color: "#777" }}>No paid TotalBuahStore web orders for this store in the period.</td></tr>
+                <tr><td colSpan={8} style={{ padding: 14, color: "#777" }}>No paid TotalBuahStore web orders for this store in the period.</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -150,6 +152,7 @@ export default function TbsTfPage() {
                   <tr><td style={{ padding: "4px 10px", color: "#555" }}>Delivery fees collected</td><td style={{ padding: "4px 0", textAlign: "right", fontWeight: 700 }}>{rp(totals.delivery_idr)}</td></tr>
                   <tr style={{ borderTop: "1px solid rgba(0,0,0,0.15)" }}><td style={{ padding: "4px 10px", color: "#555" }}>Gross owed to store</td><td style={{ padding: "4px 0", textAlign: "right", fontWeight: 800 }}>{rp(totals.gross_idr)}</td></tr>
                   <tr><td style={{ padding: "4px 10px", color: "#555" }}>Cookie Doh marketplace fee ({tf.fee_pct}% of goods)</td><td style={{ padding: "4px 0", textAlign: "right", fontWeight: 800, color: "#9c1216" }}>({rp(totals.fee_idr)})</td></tr>
+                  {totals.points_idr ? <tr><td style={{ padding: "4px 10px", color: "#555" }}>TBS points redeemed by customers (store honored)</td><td style={{ padding: "4px 0", textAlign: "right", fontWeight: 800, color: "#9c1216" }}>({rp(totals.points_idr)})</td></tr> : null}
                   <tr style={{ borderTop: "2px solid #191919" }}>
                     <td style={{ padding: "7px 10px", fontWeight: 900, fontSize: 15 }}>NET PAYABLE TO STORE</td>
                     <td style={{ padding: "7px 0", textAlign: "right", fontWeight: 900, fontSize: 15, color: "#135232" }}>{rp(totals.net_idr)}</td>

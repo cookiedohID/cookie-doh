@@ -51,10 +51,15 @@ export async function GET(req: Request) {
       .order("paid_at", { ascending: true })
       .limit(5000);
 
-    const lines: Array<{ date: string; order_id: string; order_no: any; fulfil: string; items_idr: number; delivery_idr: number; fee_idr: number; net_idr: number }> = [];
+    const lines: Array<{ date: string; order_id: string; order_no: any; fulfil: string; items_idr: number; delivery_idr: number; fee_idr: number; points_idr: number; net_idr: number }> = [];
     for (const o of rows || []) {
       const t = (o as any)?.meta?.tbs;
       if (!t?.store || String(t.store).toUpperCase() !== store) continue;
+      // points the customer redeemed on this order (store honored them — CD
+      // collected that much less cash, so it comes off the transfer; the store
+      // recovers it from funding stores via the inter-store points ledger)
+      const tp = (o as any)?.meta?.tbs_points;
+      const pointsUsed = tp?.redeemed === true ? Math.max(0, Math.round(Number(tp.discount) || 0)) : 0;
       const delivery = Math.round(Number(t.delivery_fee) || 0);
       const total = Math.round(Number((o as any).total_idr) || 0);
       const goods = (Array.isArray((o as any).items_json) ? (o as any).items_json : [])
@@ -66,12 +71,12 @@ export async function GET(req: Request) {
         date: dayWib((o as any).paid_at || (o as any).created_at),
         order_id: String((o as any).id), order_no: (o as any).order_no ?? null,
         fulfil: t.mixed ? "mixed (with Cookie Doh)" : t.fulfil === "delivery" ? "delivery" : "pickup",
-        items_idr: itemsResolved, delivery_idr: delivery, fee_idr: fee,
-        net_idr: itemsResolved + delivery - fee,
+        items_idr: itemsResolved, delivery_idr: delivery, fee_idr: fee, points_idr: pointsUsed,
+        net_idr: itemsResolved + delivery - fee - pointsUsed,
       });
     }
 
-    const sum = (k: "items_idr" | "delivery_idr" | "fee_idr" | "net_idr") => lines.reduce((n, l) => n + l[k], 0);
+    const sum = (k: "items_idr" | "delivery_idr" | "fee_idr" | "points_idr" | "net_idr") => lines.reduce((n, l) => n + l[k], 0);
     // Deterministic TF number: calendar month → TFC-<store>-<YYYYMM>, otherwise the full range.
     const isMonth = from.slice(8) === "01" && to === new Date(Date.UTC(Number(to.slice(0, 4)), Number(to.slice(5, 7)), 0)).toISOString().slice(0, 10);
     const tfNo = isMonth
@@ -89,6 +94,7 @@ export async function GET(req: Request) {
           delivery_idr: sum("delivery_idr"),
           gross_idr: sum("items_idr") + sum("delivery_idr"),
           fee_idr: sum("fee_idr"),
+          points_idr: sum("points_idr"),
           net_idr: sum("net_idr"),
         },
       },

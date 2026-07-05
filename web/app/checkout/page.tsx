@@ -393,6 +393,22 @@ export default function CheckoutPage() {
 
   // Pickup points
   const tbsBasket = useTbsBasket();
+  const [tbsPoints, setTbsPoints] = useState(0);
+  const [useTbsPoints, setUseTbsPoints] = useState(false);
+  useEffect(() => {
+    if (!tbsBasket.lines.length) { setTbsPoints(0); return; }
+    (async () => {
+      try {
+        const { data } = await getSupabaseBrowser().auth.getSession();
+        const t = data.session?.access_token;
+        if (!t) return;
+        const j = await (await fetch("/api/account/tbs", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" })).json();
+        const bal = Number(j?.points?.balance);
+        if (j?.found && Number.isFinite(bal)) setTbsPoints(Math.max(0, Math.floor(bal)));
+      } catch { /* no points UI */ }
+    })();
+  }, [tbsBasket.lines.length]);
+  const tbsPointsDiscount = useTbsPoints ? Math.max(0, Math.min(tbsPoints, tbsBasket.lines.length ? tbsBasket.subtotal : 0)) : 0;
   const pickupPoints = useMemo(
     () => {
       const all = parsePickupPoints(process.env.NEXT_PUBLIC_PICKUP_POINTS_JSON);
@@ -636,7 +652,7 @@ export default function CheckoutPage() {
   const deliveryFee = fulfillment === "delivery" ? (vipFreeDelivery ? 0 : shippingCost) : 0;
   const promoDiscount = appliedPromo ? Math.min(appliedPromo.discount, subtotal) : 0;
   const tbsSubtotal = tbsBasket.lines.length ? tbsBasket.subtotal : 0;
-  const grandTotal = Math.max(0, subtotal + (deliveryFee || 0) - promoDiscount) + tbsSubtotal;
+  const grandTotal = Math.max(0, Math.max(0, subtotal + (deliveryFee || 0) - promoDiscount) + tbsSubtotal - tbsPointsDiscount);
 
   async function applyPromo() {
     const code = promoInput.trim();
@@ -784,6 +800,7 @@ export default function CheckoutPage() {
         vip_free_cookie: vipCanFreeCookie && vipFreeCookieId ? { id: vipFreeCookieId, name: FLAVORS.find((f: any) => f.id === vipFreeCookieId)?.name || "Cookie" } : null,
         total: grandTotal,
         ...(tbsBasket.lines.length ? { tbs: { store: tbsBasket.store, lines: tbsBasket.lines.map((l) => ({ sku: l.sku, qty: l.qty })) } } : {}),
+        ...(useTbsPoints && tbsPointsDiscount > 0 ? { use_tbs_points: true } : {}),
         meta: {
           quote: quoteMeta,
           delivery_mode: fulfillment === "delivery" ? deliveryMode : null,
@@ -1713,6 +1730,15 @@ export default function CheckoutPage() {
                   <div>🍒 TotalBuahStore ({tbsBasket.lines.reduce((n, l) => n + l.qty, 0)} items)</div>
                   <div>{formatIDR(tbsSubtotal)}</div>
                 </div>
+              ) : null}
+              {tbsBasket.lines.length && tbsPoints > 0 ? (
+                <label style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: "#F0F7EE", border: "1px solid rgba(19,82,50,0.25)", borderRadius: 10, padding: "8px 12px", cursor: "pointer" }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "#135232" }}>
+                    <input type="checkbox" checked={useTbsPoints} onChange={(e) => setUseTbsPoints(e.target.checked)} style={{ marginRight: 8 }} />
+                    🍒 Use my TBS points ({tbsPoints.toLocaleString("id-ID")} available)
+                  </span>
+                  {useTbsPoints ? <span style={{ fontSize: 13, fontWeight: 900, color: "#135232" }}>−{formatIDR(tbsPointsDiscount)}</span> : null}
+                </label>
               ) : null}
 
               <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", color: COLORS.black, fontWeight: 950 }}>

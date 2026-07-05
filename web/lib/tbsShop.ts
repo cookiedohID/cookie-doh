@@ -101,6 +101,28 @@ export async function registerTbsMember(phone: string, name?: string | null, ema
   catch { /* best-effort */ }
 }
 
+// The member's TBS points balance (federation endpoint keyed by phone).
+export async function tbsPointsBalance(phone: string): Promise<number> {
+  try {
+    const raw = process.env.TBS_PARTNER_API_URL, token = process.env.TBS_PARTNER_API_TOKEN;
+    if (!raw || !token || !phone) return 0;
+    const u = new URL(raw);
+    u.searchParams.set("phone", phone);
+    u.searchParams.set("limit", "1");
+    const signal = typeof (AbortSignal as any)?.timeout === "function" ? (AbortSignal as any).timeout(8000) : undefined;
+    const j = await (await fetch(u.toString(), { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal })).json();
+    const bal = Number(j?.points?.balance);
+    return j?.found && Number.isFinite(bal) ? Math.max(0, Math.floor(bal)) : 0;
+  } catch { return 0; }
+}
+
+// Spend points (1 point = Rp1) — idempotent on source_ref (ERP ledger unique).
+export async function redeemTbsPoints(phone: string, points: number, sourceRef: string): Promise<{ ok: boolean; error?: string }> {
+  const r = await partnerPost("/redeem", { phone, points, source_ref: sourceRef });
+  if (r && r.ok) return { ok: true };
+  return { ok: false, error: (r && (r.error || r.message)) || "redeem failed" };
+}
+
 // Stock lookup for a basket: always fetches each variant's BASE sku too (the
 // shared pool for cross-pack checks) and chunks past the ERP's 60-SKU cap.
 // Returns the merged entry array, or null if any chunk failed.

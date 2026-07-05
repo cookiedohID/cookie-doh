@@ -309,6 +309,27 @@ export async function POST(req: Request) {
       console.error("TBS order push failed:", e);
     }
 
+    // TBS points redemption: deduct the member's points now that the order is
+    // PAID. source_ref = order.id + ':redeem' (matches the store-flow reports;
+    // the ERP ledger is UNIQUE(kind, source_ref) so webhook retries are safe).
+    // Failure never blocks payment — it's flagged for the admin and retried on
+    // the next webhook redelivery.
+    try {
+      const tp = (order as any)?.meta?.tbs_points;
+      if (paid && tp && tp.redeemed !== true && Number(tp.discount) > 0 && tp.phone) {
+        const { redeemTbsPoints } = await import("@/lib/tbsShop");
+        const res = await redeemTbsPoints(String(tp.phone), Math.round(Number(tp.discount)), `${order.id}:redeem`);
+        const { data: cur } = await supabase.from("orders").select("meta").eq("id", order.id).maybeSingle();
+        const curMeta = (cur as any)?.meta && typeof (cur as any).meta === "object" ? (cur as any).meta : nextMeta;
+        await supabase
+          .from("orders")
+          .update({ meta: { ...curMeta, tbs_points: { ...tp, redeemed: res.ok, redeem_error: res.ok ? null : res.error } } })
+          .eq("id", order.id);
+      }
+    } catch (e) {
+      console.error("TBS points redeem failed:", e);
+    }
+
     // Referral rewards: if this PAID order carries a referral code and the buyer
     // is a brand-new customer who spent at least a box of 6, credit both sides a
     // free cookie. Idempotent (UNIQUE(referred_phone)); never blocks payment.
