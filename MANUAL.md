@@ -540,6 +540,19 @@ until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
   transfer each store its NET amount.
 - **Refunds/cancels:** handled on the Cookie Doh side (the money lives in your
   Midtrans); the store cancels its copy in Web Orders.
+- **📦 Customer order tracking:** My Orders has Shopee-style stage tabs
+  (To pay / Being prepared / Ready / Completed) fed LIVE from each store's
+  Web Orders queue; tapping an order opens the detail page (timeline, items,
+  payment method, order no + copy, WhatsApp help, **Buy again**).
+- **👥 One member base:** Cookie Doh and TBS share members by phone —
+  website signups and paid orders auto-register in TBS; till signups sync
+  back hourly. Points post when the store completes the order and appear in
+  the customer's Family page (balance + per-receipt points).
+- **🎛 Loyalty settings & reports:** earn % of margin = back-office →
+  Sales → Web Shop; the calculation trail + per-store points reports =
+  SmartList → POS (Points ledger / by store / flow map / inter-store debt /
+  Points given Detail·Header·Summary). Daily WhatsApp digest includes a TBS
+  line (orders · goods · fee earned).
 
 *(Data flows server-to-server from the TBS ERP's partner API — same token as
 the Member-page TBS rewards tab.)*
