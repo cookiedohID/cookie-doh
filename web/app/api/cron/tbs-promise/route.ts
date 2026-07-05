@@ -22,6 +22,26 @@ function supaAdmin() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+// Elapsed time counting ONLY store-open hours (10:00-21:00 WIB) — an order
+// paid at 20:00 isn't 'late' at 23:00 while the store is closed; its clock
+// pauses overnight and resumes at opening.
+const OPEN_H = 10, CLOSE_H = 21, WIB = 7 * 3600 * 1000;
+function openHoursElapsedMs(fromIso: string, now: number): number {
+  let t = Date.parse(fromIso);
+  if (!Number.isFinite(t) || t >= now) return 0;
+  let total = 0, cur = t;
+  for (let guard = 0; cur < now && guard < 14; guard++) {
+    const d = new Date(cur + WIB);
+    const dayStartUtc = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - WIB;
+    const open = dayStartUtc + OPEN_H * 3600 * 1000;
+    const close = dayStartUtc + CLOSE_H * 3600 * 1000;
+    const s = Math.max(cur, open), e = Math.min(now, close);
+    if (e > s) total += e - s;
+    cur = dayStartUtc + 24 * 3600 * 1000;
+  }
+  return total;
+}
+
 const num = async (supa: any, key: string, env: string | undefined, dflt: number) => {
   const s = Number(await getSetting(supa, key));
   if (Number.isFinite(s) && s > 0) return s;
@@ -48,7 +68,11 @@ export async function GET(req: Request) {
       .gte("paid_at", new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString())
       .limit(100);
 
-    const candidates = (rows || []).filter((o: any) => o?.meta?.tbs?.pushed === true);
+    const now = Date.now();
+    const candidates = (rows || []).filter((o: any) =>
+      o?.meta?.tbs?.pushed === true &&
+      openHoursElapsedMs(String(o.paid_at), now) >= hours * 3600 * 1000
+    );
     if (!candidates.length) return NextResponse.json({ ok: true, checked: 0, issued: 0 });
 
     // live stage — only orders the store has NOT made ready/completed are late

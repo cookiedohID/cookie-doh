@@ -13,7 +13,7 @@ function isoDaysAgo(days: number) {
 }
 
 type Report = any;
-type Tab = "daily" | "items" | "locations" | "inventory" | "redemptions" | "tbs";
+type Tab = "daily" | "items" | "locations" | "inventory" | "redemptions" | "tbs" | "ratings";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "daily", label: "Daily sales" },
@@ -22,6 +22,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "inventory", label: "Inventory" },
   { key: "redemptions", label: "Redeemed" },
   { key: "tbs", label: "🍒 TBS" },
+  { key: "ratings", label: "⭐ Ratings" },
 ];
 
 function downloadCsv(rows: any[][], filename: string) {
@@ -182,6 +183,21 @@ export default function AdminReportsPage() {
                   <tbody>{(data.redemptions || []).map((r: any) => (
                     <tr key={r.id}><td style={td}>{r.name}</td><td style={td}>{r.kind}</td><td style={td}>{r.qty}</td></tr>
                   ))}{(data.redemptions || []).length === 0 && <tr><td style={td} colSpan={3}>No rewards redeemed in range.</td></tr>}</tbody>
+                </>
+              )}
+              {tab === "ratings" && (
+                <>
+                  <thead><tr><th style={th}>Date</th><th style={th}>Order</th><th style={th}>Customer</th><th style={th}>Stars {data?.ratingsAvg ? `(avg ${data.ratingsAvg})` : ""}</th><th style={th}>Comment</th><th style={th}>Brand</th></tr></thead>
+                  <tbody>{(data.ratings || []).map((r: any, i: number) => (
+                    <tr key={i}>
+                      <td style={td}>{r.when}</td>
+                      <td style={td}><Link href={`/admin/orders/${r.order_id}`} style={{ color: COLORS.blue, fontWeight: 700, textDecoration: "none" }}>{r.order_no ? `#${r.order_no}` : String(r.order_id).slice(0, 8)}</Link></td>
+                      <td style={td}>{r.customer || "—"}</td>
+                      <td style={{ ...td, whiteSpace: "nowrap" }}>{"⭐".repeat(r.stars)}<span style={{ color: COLORS.muted, fontSize: 11 }}> {r.stars}/5</span></td>
+                      <td style={{ ...td, maxWidth: 320 }}>{r.comment || <span style={{ color: COLORS.muted }}>—</span>}</td>
+                      <td style={td}>{r.tbs ? "🍒 TBS" : "🍪 CD"}</td>
+                    </tr>
+                  ))}{(data.ratings || []).length === 0 && <tr><td style={td} colSpan={6}>No ratings in range yet — they appear as customers rate orders from their order page.</td></tr>}</tbody>
                 </>
               )}
               {tab === "tbs" && (

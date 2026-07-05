@@ -207,7 +207,7 @@ export default function OrderDetailPage() {
             {/* arrival promise (TBS orders still in the queue) */}
             {order.tbs && (stage === "preparing") ? (
               <div style={{ marginTop: 12, background: "#FFF9EC", border: "1px solid #F0DCA8", borderRadius: 14, padding: "10px 14px", fontSize: 12.5, color: "#7a5c00", fontWeight: 700 }}>
-                🛡 Arrival promise: ready within 3 hours of payment — or we send you a Rp10.000 voucher automatically.
+                🛡 Arrival promise: ready within 3 store hours (10:00–21:00) of payment — or we send you a Rp10.000 voucher automatically.
               </div>
             ) : null}
             {(order as any).promiseVoucher ? (

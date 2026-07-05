@@ -229,9 +229,37 @@ export async function GET(req: Request) {
     const tbsDaily = Object.values(tbsDailyMap).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.store.localeCompare(b.store)));
     const tbsProducts = Object.values(tbsProductMap).sort((a, b) => b.revenue - a.revenue).slice(0, 300);
 
+    // ---- Customer ratings (Shopee 'Nilai') in range ----------------------
+    let ratings: any[] = [];
+    let ratingsAvg: number | null = null;
+    try {
+      const { data: rat } = await supa
+        .from("order_ratings")
+        .select("order_id, stars, comment, created_at, updated_at")
+        .gte("updated_at", fromIso).lte("updated_at", toIso)
+        .order("updated_at", { ascending: false }).limit(300);
+      if (rat?.length) {
+        const ids = rat.map((r: any) => r.order_id);
+        const { data: ords } = await supa.from("orders").select("id, order_no, customer_name, items_json, meta").in("id", ids);
+        const byId = new Map((ords || []).map((o: any) => [String(o.id), o]));
+        ratings = rat.map((r: any) => {
+          const o: any = byId.get(String(r.order_id));
+          return {
+            order_id: r.order_id, order_no: o?.order_no ?? null,
+            customer: o?.customer_name ?? null,
+            stars: Number(r.stars), comment: r.comment || null,
+            when: String(r.updated_at || r.created_at).slice(0, 10),
+            tbs: Boolean(o?.meta?.tbs),
+          };
+        });
+        ratingsAvg = Math.round((ratings.reduce((n, r) => n + r.stars, 0) / ratings.length) * 100) / 100;
+      }
+    } catch { /* table optional */ }
+
     return NextResponse.json({
       ok: true,
       range: { from, to, locationId: locFilter },
+      ratings, ratingsAvg,
       locations: LOCATIONS.map((l) => ({ id: l.id, name: l.short })),
       summary: { orders: orders.length, revenue: totalRevenue, freeCookies, freeDrinks },
       daily, dailyDetail, items, byLocation, redemptions, inventory, movements, tbsSettlement,
