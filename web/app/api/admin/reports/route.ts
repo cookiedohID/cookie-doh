@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { LOCATIONS, getLocation, locationForOrder } from "@/lib/locations";
 import { classifyItem } from "@/lib/loyalty";
+import { getTbsFeePct } from "@/lib/settings";
 
 export const runtime = "nodejs";
 
@@ -167,7 +168,8 @@ export async function GET(req: Request) {
     // the TBS GOODS value (delivery excluded — courier money). The store is
     // owed items + delivery; TBS owes CD the fee; net transfer = the difference.
     // Fee % comes from ?tbs_fee_pct= or TBS_MARKETPLACE_FEE_PCT (default 5).
-    const feePct = Math.min(50, Math.max(0, Number(url.searchParams.get("tbs_fee_pct") ?? process.env.TBS_MARKETPLACE_FEE_PCT ?? 5) || 0));
+    // explicit ?tbs_fee_pct (what-if) → admin-saved setting → env → 5
+    const feePct = await getTbsFeePct(supa, url.searchParams.get("tbs_fee_pct"));
     // The TBS money numbers must MATCH the Tukar Faktur to the rupiah, so this
     // block re-queries with WIB day boundaries (the main report window is UTC).
     const { data: tbsOrderRows } = await supa

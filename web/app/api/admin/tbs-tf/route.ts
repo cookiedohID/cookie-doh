@@ -10,6 +10,7 @@
 // Gated like all /api/admin/* by the cd_admin cookie (proxy.ts).
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getTbsFeePct } from "@/lib/settings";
 
 export const runtime = "nodejs";
 
@@ -33,13 +34,14 @@ export async function GET(req: Request) {
     const today = new Date().toISOString().slice(0, 10);
     const from = (url.searchParams.get("from") || today.slice(0, 8) + "01").slice(0, 10);
     const to = (url.searchParams.get("to") || today).slice(0, 10);
-    const feePct = Math.min(50, Math.max(0, Number(url.searchParams.get("tbs_fee_pct") ?? process.env.TBS_MARKETPLACE_FEE_PCT ?? 5) || 0));
+    const supaEarly = supaAdmin();
+    const feePct = await getTbsFeePct(supaEarly, url.searchParams.get("tbs_fee_pct"));
 
     // WIB day boundaries → UTC query window (WIB = UTC+7, no DST)
     const fromIso = new Date(Date.parse(`${from}T00:00:00.000Z`) - 7 * 3600 * 1000).toISOString();
     const toIso = new Date(Date.parse(`${to}T23:59:59.999Z`) - 7 * 3600 * 1000).toISOString();
 
-    const supa = supaAdmin();
+    const supa = supaEarly;
     const { data: rows } = await supa
       .from("orders")
       .select("id, order_no, paid_at, created_at, total_idr, items_json, meta")

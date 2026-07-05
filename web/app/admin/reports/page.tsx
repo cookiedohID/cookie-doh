@@ -315,7 +315,16 @@ export default function AdminReportsPage() {
               {" "}<label style={{ fontWeight: 800 }}>Fee %:{" "}
                 <input value={tbsFeePct} onChange={(e) => setTbsFeePct(e.target.value.replace(/[^\d.]/g, ""))} placeholder={String(data?.tbsFee?.pct ?? 5)}
                   style={{ width: 52, padding: "4px 8px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.16)" }} />
-              </label> (press Apply)
+              </label> (press Apply to preview)
+              {" "}<button onClick={async () => {
+                const v = tbsFeePct.trim();
+                if (!v) { alert("Type the fee % first (e.g. 5)."); return; }
+                const r = await fetch("/api/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: "tbs_marketplace_fee_pct", value: v }) }).then((x) => x.json()).catch(() => null);
+                if (r?.ok) { alert(`Saved — ${v}% is now the default fee for all TBS reports and Tukar Faktur.`); setTbsFeePct(""); load(); }
+                else alert(r?.error || "Couldn't save.");
+              }} style={{ border: "none", background: "#135232", color: "#fff", fontWeight: 800, fontSize: 12, padding: "6px 12px", borderRadius: 999, cursor: "pointer" }}>
+                💾 Save as default
+              </button>
             </p>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>

@@ -314,3 +314,13 @@ alter table public.wa_state enable row level security;
 create table if not exists public.vip_tiers (id uuid primary key default gen_random_uuid(), name text not null, reach_annual_idr int not null, maintain_monthly_idr int not null default 0, loyalty_per_free int not null default 10, free_delivery boolean not null default false, free_cookie_per_order boolean not null default false, active boolean not null default false, created_at timestamptz not null default now());
 create index if not exists vip_tiers_reach_idx on public.vip_tiers (reach_annual_idr asc);
 alter table public.vip_tiers enable row level security;
+
+
+-- Owner-tunable settings (admin UI writes via service role; RLS keeps anon out).
+-- Already applied to prod 2026-07-05 (Fable session) — kept here for reference.
+create table if not exists public.app_settings (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.app_settings enable row level security;

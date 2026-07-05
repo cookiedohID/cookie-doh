@@ -515,8 +515,10 @@ until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
 - **💰 Marketplace model (separate books):** Cookie Doh is TBS's marketplace
   and charges TBS a **fee (default 5%) on the TBS goods value** (never on
   delivery — that's courier money). Cookie Doh books the fee as revenue;
-  TBS books it as an expense. Change the default with the `TBS_MARKETPLACE_FEE_PCT`
-  env or per-report with the **Fee %** box.
+  TBS books it as an expense. Change it anytime in
+  **Admin → Reports → TBS settlement section**: type a new **Fee %** and tap
+  **💾 Save as default** — every report and Tukar Faktur uses it from then on
+  (the box alone + Apply only previews without saving).
 - **📊 TBS sales reports (Admin → Reports → 🍒 TBS tab):** per **store per day**
   summary (orders / goods / delivery / fee / net owed) with totals, plus the
   per-order detail underneath. Both download as CSV (**Summary CSV** /
