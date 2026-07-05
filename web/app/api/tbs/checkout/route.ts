@@ -29,7 +29,7 @@ function supaAdmin() {
 
 export async function POST(req: Request) {
   try {
-    if (!canSeeTbsShop(req)) return NextResponse.json({ ok: false }, { status: 404 });
+    if (!(await canSeeTbsShop(req))) return NextResponse.json({ ok: false }, { status: 404 });
     const b = await req.json().catch(() => ({}));
 
     // ---- validate the basics --------------------------------------------

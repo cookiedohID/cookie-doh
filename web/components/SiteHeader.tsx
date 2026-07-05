@@ -230,6 +230,7 @@ export default function SiteHeader() {
       { href: "/admin/flavors", label: "Inventory" },
       { href: "/admin/locations", label: "Locations" },
       { href: "/admin/reports", label: "Reports" },
+      { href: "/admin/tbs", label: "🍒 TBS" },
       { href: "/admin/customers", label: "Customers" },
       { href: "/admin/broadcast", label: "Broadcast" },
       { href: "/admin/promos", label: "Promos" },

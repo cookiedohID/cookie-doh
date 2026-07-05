@@ -7,7 +7,7 @@ import { canSeeTbsShop, partnerGetStock } from "@/lib/tbsShop";
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  if (!canSeeTbsShop(req)) return NextResponse.json({ ok: false }, { status: 404 });
+  if (!(await canSeeTbsShop(req))) return NextResponse.json({ ok: false }, { status: 404 });
   try {
     const u = new URL(req.url);
     const store = String(u.searchParams.get("store") || "").toUpperCase();

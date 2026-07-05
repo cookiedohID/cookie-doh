@@ -10,6 +10,8 @@ export const runtime = "nodejs";
 const ALLOWED: Record<string, (v: string) => boolean> = {
   // marketplace fee %: 0–50, numeric
   tbs_marketplace_fee_pct: (v) => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 50,
+  // TBS shop launch switch (Admin → TBS)
+  tbs_shop_public: (v) => v === "true" || v === "false",
 };
 
 function supaAdmin() {
@@ -39,6 +41,10 @@ export async function POST(req: Request) {
     if (!ALLOWED[key]) return NextResponse.json({ ok: false, error: "unknown key" }, { status: 400 });
     if (!ALLOWED[key](value)) return NextResponse.json({ ok: false, error: "invalid value" }, { status: 400 });
     const ok = await setSetting(supaAdmin(), key, value);
+    if (ok && key === "tbs_shop_public") {
+      const { bustTbsPublicCache } = await import("@/lib/tbsShop");
+      bustTbsPublicCache(); // other server instances refresh within 60s
+    }
     return NextResponse.json({ ok });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });

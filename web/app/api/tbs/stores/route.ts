@@ -8,7 +8,7 @@ import { canSeeTbsShop, partnerGet, TBS_FALLBACK_STORES } from "@/lib/tbsShop";
 export const runtime = "nodejs";
 
 export async function GET(req: Request) {
-  if (!canSeeTbsShop(req)) return NextResponse.json({ ok: false }, { status: 404 });
+  if (!(await canSeeTbsShop(req))) return NextResponse.json({ ok: false }, { status: 404 });
   try {
     const live = await partnerGet("/stores", {});
     const stores = Array.isArray(live) && live.length ? live : TBS_FALLBACK_STORES;

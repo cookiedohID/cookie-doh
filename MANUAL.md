@@ -501,7 +501,8 @@ until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
 - **Product pages:** tap any product → its own page (kurly.com-style): price,
   ±1kg pack info, **availability at all 3 stores** (yours highlighted), product
   facts, and related items from the same category.
-- **Launch:** flip `TBS_SHOP_PUBLIC` in `web/lib/tbsShop.ts` (one-line change).
+- **Launch:** Admin → **🍒 TBS** → tap **🚀 Open shop to everyone** (takes effect
+  within seconds; the same button closes it back to password preview).
 - **Product pages:** every product opens its own page — see above.
 - **Checkout (`/tbs/checkout`):** pickup at the chosen store or delivery
   (fee by distance from that store, base Rp10k + Rp2.5k/km, max 12 km — tune in
@@ -519,6 +520,10 @@ until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
   **Admin → Reports → TBS settlement section**: type a new **Fee %** and tap
   **💾 Save as default** — every report and Tukar Faktur uses it from then on
   (the box alone + Apply only previews without saving).
+- **🎛 TBS admin hub (Admin → 🍒 TBS):** the one screen to run the shop —
+  open/close the shop, this-month money + fee, marketplace-fee setting,
+  live store health, and every TBS order with its back-office push status
+  (a failed hand-off shows a **Retry push** button; pushing twice is safe).
 - **📊 TBS sales reports (Admin → Reports → 🍒 TBS tab):** per **store per day**
   summary (orders / goods / delivery / fee / net owed) with totals, plus the
   per-order detail underneath. Both download as CSV (**Summary CSV** /

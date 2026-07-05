@@ -9,7 +9,29 @@
 // the same env vars the unified-rewards tab already uses).
 import { createHash } from "crypto";
 
-export const TBS_SHOP_PUBLIC = false; // ← flip to true to launch to customers
+// Fallback ONLY — the live switch is the `tbs_shop_public` row in app_settings,
+// toggled from Admin → TBS (10s cache per server instance, so a toggle takes
+// effect everywhere within seconds).
+export const TBS_SHOP_PUBLIC = false;
+
+let PUB_CACHE: { at: number; value: boolean } | null = null;
+export function bustTbsPublicCache() { PUB_CACHE = null; }
+export async function tbsShopPublic(): Promise<boolean> {
+  if (PUB_CACHE && Date.now() - PUB_CACHE.at < 10_000) return PUB_CACHE.value;
+  let v = TBS_SHOP_PUBLIC;
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (url && key) {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supa = createClient(url, key, { auth: { persistSession: false } });
+      const { data } = await supa.from("app_settings").select("value").eq("key", "tbs_shop_public").maybeSingle();
+      if (data?.value === "true" || data?.value === "false") v = data.value === "true";
+    }
+  } catch { /* fall back to the const */ }
+  PUB_CACHE = { at: Date.now(), value: v };
+  return v;
+}
 
 // Same check proxy.ts uses for /admin: cd_admin cookie == sha256("cookie-doh::"+pass).
 function adminToken(): string | null {
@@ -25,14 +47,19 @@ function previewCookieValue(): string {
   return createHash("sha256").update(`tbs-preview::${TBS_PREVIEW_KEY}`).digest("hex");
 }
 
-export function canSeeTbsShop(req: Request): boolean {
-  if (TBS_SHOP_PUBLIC) return true;
+export async function canSeeTbsShop(req: Request): Promise<boolean> {
+  if (await tbsShopPublic()) return true;
   const cookies = req.headers.get("cookie") || "";
   const a = /(?:^|;\s*)cd_admin=([^;]+)/.exec(cookies);
   const expect = adminToken();
   if (a && expect && decodeURIComponent(a[1]) === expect) return true;
   const p = /(?:^|;\s*)cd_tbs=([^;]+)/.exec(cookies);
   return Boolean(p && decodeURIComponent(p[1]) === previewCookieValue());
+}
+
+// Partner back-office host (for the admin hub's quick link).
+export function tbsBackofficeOrigin(): string | null {
+  try { return new URL(process.env.TBS_PARTNER_API_URL || "").origin; } catch { return null; }
 }
 
 export function tbsPreviewCookie(key: string): string | null {

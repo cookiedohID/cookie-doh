@@ -158,7 +158,7 @@ export async function POST(req: Request) {
       const { computeTbsStockIssues } = await import("@/lib/tbsStockCheck");
       // same visibility gate as every other TBS endpoint — while the shop is in
       // preview, only preview/admin sessions may buy TBS items
-      if (!canSeeTbsShop(req)) {
+      if (!(await canSeeTbsShop(req))) {
         return NextResponse.json({ ok: false, error: "TotalBuahStore isn't open yet — please remove the TBS items from your cart." }, { status: 403 });
       }
       const tbsStore = String(tbsReq.store || "").toUpperCase();
