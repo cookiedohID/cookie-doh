@@ -430,8 +430,36 @@ export default function AccountPage() {
           <button onClick={logout} style={{ border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Log out</button>
         </div>
 
+        {/* sticky section menu — jump anywhere without scrolling the long page */}
+        <div style={{ position: "sticky", top: 8, zIndex: 30, marginTop: 12 }}>
+          <details id="famMenu" style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.10)", borderRadius: 12, boxShadow: "0 6px 18px rgba(0,0,0,0.08)" }}>
+            <summary style={{ listStyle: "none", cursor: "pointer", padding: "10px 14px", fontWeight: 900, fontSize: 14, color: COLORS.blue }}>☰ Family menu</summary>
+            <div style={{ padding: "2px 8px 10px", display: "grid" }}>
+              {([
+                ["🧾 My Orders & tracking", "/account/orders", ""],
+                ["💳 Membership card", "", "sec-card"],
+                ["👑 VIP status", "", "sec-vip"],
+                ["🍪 Stamps & rewards", "", "sec-stamps"],
+                ["🍒 TBS points & receipts", "", "sec-tbs"],
+                ["🎂 Birthday", "", "sec-birthday"],
+                ["📍 My addresses", "/account/addresses", ""],
+                ["📦 My subscription", "/account/subscription", ""],
+              ] as [string, string, string][]).map(([label, href, anchor]) => (
+                href ? (
+                  <Link key={label} href={href} style={{ padding: "9px 10px", borderRadius: 8, textDecoration: "none", color: COLORS.black, fontWeight: 700, fontSize: 13.5 }}>{label}</Link>
+                ) : (
+                  <button key={label} onClick={() => {
+                    document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    (document.getElementById("famMenu") as any)?.removeAttribute("open");
+                  }} style={{ textAlign: "left", border: "none", background: "none", padding: "9px 10px", borderRadius: 8, color: COLORS.black, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>{label}</button>
+                )
+              ))}
+            </div>
+          </details>
+        </div>
+
         {/* Membership card / QR */}
-        <div style={{ marginTop: 18, borderRadius: 20, background: COLORS.blue, color: "#fff", padding: 20, display: "flex", gap: 16, alignItems: "center" }}>
+        <div id="sec-card" style={{ marginTop: 18, borderRadius: 20, background: COLORS.blue, color: "#fff", padding: 20, display: "flex", gap: 16, alignItems: "center" }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: 8, flex: "0 0 auto" }}>
             {qr ? <img src={qr} alt="Membership QR" width={110} height={110} style={{ display: "block" }} /> : <div style={{ width: 110, height: 110 }} />}
           </div>
@@ -463,7 +491,7 @@ export default function AccountPage() {
 
         {/* 👑 VIP status — only shown when a VIP program is running (tiers active) */}
         {vip && (vip.tier || vip.next) ? (
-          <div style={{ marginTop: 14, borderRadius: 18, padding: 16, border: "1px solid rgba(176,141,30,0.45)", background: "linear-gradient(135deg, #FFF8E6, #FDEFC7)" }}>
+          <div id="sec-vip" style={{ marginTop: 14, borderRadius: 18, padding: 16, border: "1px solid rgba(176,141,30,0.45)", background: "linear-gradient(135deg, #FFF8E6, #FDEFC7)" }}>
             {vip.tier ? (
               <>
                 <div style={{ fontWeight: 900, color: "#7a5c00", fontSize: 16 }}>👑 {vip.tier.name} member</div>
@@ -491,7 +519,7 @@ export default function AccountPage() {
         ) : null}
 
         {/* Loyalty progress */}
-        <div style={{ marginTop: 18, display: "grid", gap: 12 }}>
+        <div id="sec-stamps" style={{ marginTop: 18, display: "grid", gap: 12 }}>
           {cards.map((c) => (
             <div key={c.label} style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
@@ -517,11 +545,12 @@ export default function AccountPage() {
         </p>
 
         {/* TotalBuahStore rewards — only appears when the TBS proxy is configured + finds the member */}
+        <div id="sec-tbs" />
         {tbs ? <TbsRewards data={tbs} authToken={authToken} /> : null}
 
         {/* Birthday — set once, then locked (so it can't be edited to farm the reward) */}
         <div style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
-          <div style={{ fontWeight: 800, color: COLORS.black, fontSize: 16 }}>🎂 Your birthday</div>
+          <div id="sec-birthday" style={{ fontWeight: 800, color: COLORS.black, fontSize: 16 }}>🎂 Your birthday</div>
           {member.birthday ? (
             <>
               <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>
