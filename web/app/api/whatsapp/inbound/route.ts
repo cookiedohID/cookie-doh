@@ -48,7 +48,10 @@ async function parseInbound(req: Request): Promise<Record<string, string>> {
 
 function authorized(req: Request): boolean {
   const secret = process.env.WA_INBOUND_SECRET;
-  if (!secret) return true; // not configured → allow (dev); set it in prod
+  // Fail CLOSED in production: an unset secret must not leave the webhook open
+  // (a forged inbound could drive the bot to reply a sender their own order /
+  // reward data). In dev, allow so local testing isn't blocked.
+  if (!secret) return process.env.NODE_ENV !== "production";
   const url = new URL(req.url);
   const provided = url.searchParams.get("key") || req.headers.get("x-webhook-key") || "";
   return provided === secret;
