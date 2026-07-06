@@ -72,7 +72,11 @@ export default function AdminTbsPage() {
             {/* pre-launch advisory: store on-hand is approximate until opname */}
             {!s?.public ? (
               <div style={{ marginTop: 14, background: "#FFF9EC", border: "1px solid #F0DCA8", borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: "#7a5c00", lineHeight: 1.5 }}>
-                ⚠️ <b>Before opening to everyone:</b> store stock counts are still approximate until the physical stock-take (opname) at cutover. Keep the <b>“Stock shown online %”</b> buffer low (≤ 50%) in the TBS back-office (<b>Sales → Web Shop</b>) so the shop under-promises. Orders are always confirmed by the store at pickup/packing, so nothing oversells to a paid customer — but a low buffer keeps the shelf honest.
+                ⚠️ <b>Before opening to everyone:</b> store stock counts are still approximate until the physical stock-take (opname) at cutover.
+                {typeof data.stockShowPct === "number" ? (
+                  <> Buffer now: <b style={{ color: data.stockShowPct <= 50 ? "#0f6e56" : "#b45309" }}>“Stock shown online” = {data.stockShowPct}%</b>{data.stockShowPct <= 50 ? " ✓ safe" : " — recommend lowering to ≤ 50%"}.</>
+                ) : <> Keep the <b>“Stock shown online %”</b> buffer ≤ 50%.</>}{" "}
+                Change it in the TBS back-office (<b>Sales → Web Shop</b>). Orders are always confirmed by the store at pickup/packing, so nothing oversells to a paid customer — the buffer just keeps the shelf honest.
               </div>
             ) : null}
 

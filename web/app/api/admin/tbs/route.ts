@@ -21,11 +21,13 @@ function supaAdmin() {
 export async function GET() {
   try {
     const supa = supaAdmin();
-    const [pub, feePct, storesRes] = await Promise.all([
+    const [pub, feePct, storesRes, cfgRes] = await Promise.all([
       tbsShopPublic(),
       getTbsFeePct(supa, null),
       partnerGet("/stores", {}).catch(() => null),
+      partnerGet("/webshop-config", {}).catch(() => null),
     ]);
+    const stockShowPct = Number.isFinite(Number(cfgRes?.stock_show_pct)) ? Number(cfgRes.stock_show_pct) : null;
 
     // month-to-date (WIB) TBS money
     const now = Date.now();
@@ -89,6 +91,7 @@ export async function GET() {
       demand,
       shop: { public: pub, preview_key: TBS_PREVIEW_KEY, fee_pct: feePct },
       backoffice_url: tbsBackofficeOrigin(),
+      stockShowPct,
       stores: Array.isArray(storesRes?.stores) ? storesRes.stores : Array.isArray(storesRes) ? storesRes : null,
       month: { orders: mOrders, goods_idr: mGoods, fee_idr: mFee },
       recent,
