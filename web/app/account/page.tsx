@@ -337,6 +337,9 @@ export default function AccountPage() {
   }
 
   const field: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.18)", fontSize: 15 };
+  // Status chip (Band 2) — compact, single-line, horizontally scrollable strip.
+  const chip: React.CSSProperties = { flex: "0 0 auto", display: "inline-flex", alignItems: "center", gap: 5, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 999, padding: "6px 11px", fontSize: 12, whiteSpace: "nowrap", color: COLORS.black };
+  const chipLabel: React.CSSProperties = { color: COLORS.muted, fontWeight: 600 };
 
   if (loading) {
     return <main style={{ minHeight: "100vh", background: COLORS.bg, display: "grid", placeItems: "center", color: COLORS.muted }}>Loading…</main>;
@@ -420,73 +423,70 @@ export default function AccountPage() {
 
   return (
     <main style={{ minHeight: "100vh", background: COLORS.bg }}>
-      <div style={{ maxWidth: 480, margin: "0 auto", padding: "32px 16px 80px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <div>
-            <span className="font-dearjoe" style={{ fontSize: 20, color: COLORS.blue }}>family</span>
-            <h1 style={{ margin: "2px 0 0", fontSize: 26, fontWeight: 800, color: COLORS.black }}>Hi {member.name || "there"} 👋</h1>
-            {email ? <div style={{ marginTop: 2, fontSize: 12.5, color: COLORS.muted }}>Signed in as {email}</div> : null}
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px 80px" }}>
+        {/* Band 1 — compact profile header (Shopee "Me" style) */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ flex: "0 0 auto", width: 40, height: 40, borderRadius: 999, background: COLORS.blue, color: "#fff", display: "grid", placeItems: "center", fontWeight: 900, fontSize: member.name?.trim() ? 18 : 20 }}>
+            {(member.name?.trim()?.[0] || "🍪").toUpperCase()}
           </div>
-          <button onClick={logout} style={{ border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Log out</button>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h1 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: COLORS.black, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Hi {member.name || "there"} 👋</h1>
+            {email ? <div style={{ fontSize: 11, color: COLORS.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Signed in as {email}</div> : null}
+          </div>
+          <button onClick={logout} style={{ flex: "0 0 auto", border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>Log out</button>
         </div>
 
-        {/* sticky section menu — jump anywhere without scrolling the long page */}
-        <div style={{ position: "sticky", top: 8, zIndex: 30, marginTop: 12 }}>
-          <details id="famMenu" style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.10)", borderRadius: 12, boxShadow: "0 6px 18px rgba(0,0,0,0.08)" }}>
-            <summary style={{ listStyle: "none", cursor: "pointer", padding: "10px 14px", fontWeight: 900, fontSize: 14, color: COLORS.blue }}>☰ Family menu</summary>
-            <div style={{ padding: "2px 8px 10px", display: "grid" }}>
-              {([
-                ["🧾 My Orders & tracking", "/account/orders", ""],
-                ["💳 Membership card", "", "sec-card"],
-                ["👑 VIP status", "", "sec-vip"],
-                ["🍪 Stamps & rewards", "", "sec-stamps"],
-                ["🍒 TBS points & receipts", "", "sec-tbs"],
-                ["🎂 Birthday", "", "sec-birthday"],
-                ["📍 My addresses", "/account/addresses", ""],
-                ["📦 My subscription", "/account/subscription", ""],
-              ] as [string, string, string][]).map(([label, href, anchor]) => (
-                href ? (
-                  <Link key={label} href={href} style={{ padding: "9px 10px", borderRadius: 8, textDecoration: "none", color: COLORS.black, fontWeight: 700, fontSize: 13.5 }}>{label}</Link>
-                ) : (
-                  <button key={label} onClick={() => {
-                    document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    (document.getElementById("famMenu") as any)?.removeAttribute("open");
-                  }} style={{ textAlign: "left", border: "none", background: "none", padding: "9px 10px", borderRadius: 8, color: COLORS.black, fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>{label}</button>
-                )
-              ))}
-            </div>
-          </details>
+        {/* Band 2 — status chips: every live balance visible at a glance (scrolls, never wraps) */}
+        <div style={{ marginTop: 12, display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2, WebkitOverflowScrolling: "touch" }}>
+          <span style={chip}>🍪 <b style={{ color: COLORS.blue }}>{L.freeCookies}</b> <span style={chipLabel}>free cookies</span></span>
+          <span style={chip}>🥤 <b style={{ color: COLORS.blue }}>{L.freeDrinks}</b> <span style={chipLabel}>free drinks</span></span>
+          {tbs ? <span style={{ ...chip, borderColor: "rgba(19,82,50,0.35)" }}>🍒 <b style={{ color: TBS_GREEN }}>{Math.round(tbs.points.balance).toLocaleString("id-ID")}</b> <span style={chipLabel}>TBS pts</span></span> : null}
+          {vip && vip.tier ? <span style={{ ...chip, borderColor: "rgba(176,141,30,0.5)", background: "linear-gradient(135deg,#FFF8E6,#FDEFC7)" }}>👑 <b style={{ color: "#7a5c00" }}>{vip.tier.name}</b></span> : null}
         </div>
 
-        {/* Membership card / QR */}
-        <div id="sec-card" style={{ marginTop: 18, borderRadius: 20, background: COLORS.blue, color: "#fff", padding: 20, display: "flex", gap: 16, alignItems: "center" }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 8, flex: "0 0 auto" }}>
-            {qr ? <img src={qr} alt="Membership QR" width={110} height={110} style={{ display: "block" }} /> : <div style={{ width: 110, height: 110 }} />}
+        {/* Band 3 — compact membership QR card */}
+        <div id="sec-card" style={{ marginTop: 14, borderRadius: 18, background: COLORS.blue, color: "#fff", padding: 16, display: "flex", gap: 14, alignItems: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 7, flex: "0 0 auto" }}>
+            {qr ? <img src={qr} alt="Membership QR" width={88} height={88} style={{ display: "block" }} /> : <div style={{ width: 88, height: 88 }} />}
           </div>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 900, fontSize: 16 }}>TBS × Cookie Doh Family</div>
-            <div style={{ opacity: 0.9, fontSize: 13, marginTop: 4 }}>{member.phone}</div>
-            <div style={{ marginTop: 8, fontFamily: "monospace", fontWeight: 800, letterSpacing: 1 }}>{member.memberCode}</div>
-            <div style={{ opacity: 0.85, fontSize: 12, marginTop: 8 }}>Show this at the counter to earn & redeem.</div>
+            <div style={{ fontWeight: 900, fontSize: 14 }}>TBS × Cookie Doh Family</div>
+            <div style={{ opacity: 0.9, fontSize: 12, marginTop: 3 }}>{member.phone}</div>
+            <div style={{ marginTop: 6, fontFamily: "monospace", fontWeight: 800, letterSpacing: 1, fontSize: 13 }}>{member.memberCode}</div>
+            <div style={{ opacity: 0.85, fontSize: 11, marginTop: 6 }}>Show this at the counter to earn & redeem.</div>
           </div>
         </div>
 
-        {/* One membership, both brands: quick balances strip under the card */}
-        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: tbs ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8 }}>
-          <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700 }}>🍪 Free cookies</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.blue }}>{L.freeCookies}</div>
-          </div>
-          <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
-            <div style={{ fontSize: 11, color: COLORS.muted, fontWeight: 700 }}>🥤 Free drinks</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: COLORS.blue }}>{L.freeDrinks}</div>
-          </div>
-          {tbs ? (
-            <div style={{ background: "#fff", border: "1px solid rgba(19,82,50,0.35)", borderRadius: 14, padding: "10px 12px", textAlign: "center" }}>
-              <div style={{ fontSize: 11, color: "#135232", fontWeight: 800 }}>🍒 TBS points{tbs.member.tier ? ` · ${tbs.member.tier}` : ""}</div>
-              <div style={{ fontSize: 20, fontWeight: 900, color: "#135232" }}>{Math.round(tbs.points.balance).toLocaleString("id-ID")}</div>
-            </div>
-          ) : null}
+        {/* Band 4 — visible icon grid (replaces the old hidden ☰ Family menu). Everything
+            is one tap and always on screen; conditional tiles are filtered before mapping
+            so the grid packs 4-wide with no empty cells. */}
+        <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+          {(() => {
+            const tileStyle: React.CSSProperties = { display: "block", width: "100%", background: "#fff", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 14, padding: "12px 4px 8px", textAlign: "center", cursor: "pointer", textDecoration: "none" };
+            const body = (emoji: string, label: string) => (
+              <>
+                <div style={{ width: 44, height: 44, margin: "0 auto", borderRadius: 999, background: "rgba(0,20,167,0.06)", display: "grid", placeItems: "center", fontSize: 24 }}>{emoji}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.black, marginTop: 6, lineHeight: 1.15 }}>{label}</div>
+              </>
+            );
+            const tiles: { emoji: string; label: string; href?: string; anchor?: string }[] = [
+              { emoji: "🧾", label: "Orders", href: "/account/orders" },
+              { emoji: "🔁", label: "Subscription", href: "/account/subscription" },
+              { emoji: "📍", label: "Addresses", href: "/account/addresses" },
+              { emoji: "🎁", label: "Refer", anchor: "sec-refer" },
+              { emoji: "🍪", label: "Stamps", anchor: "sec-stamps" },
+              ...(vip && (vip.tier || vip.next) ? [{ emoji: "👑", label: "VIP", anchor: "sec-vip" }] : []),
+              ...(tbs ? [{ emoji: "🍒", label: "TBS", anchor: "sec-tbs" }] : []),
+              { emoji: "🎂", label: "Birthday", anchor: "sec-birthday" },
+            ];
+            return tiles.map((t) =>
+              t.href ? (
+                <Link key={t.label} href={t.href} style={tileStyle}>{body(t.emoji, t.label)}</Link>
+              ) : (
+                <button key={t.label} onClick={() => document.getElementById(t.anchor!)?.scrollIntoView({ behavior: "smooth", block: "start" })} style={{ ...tileStyle, font: "inherit" }}>{body(t.emoji, t.label)}</button>
+              )
+            );
+          })()}
         </div>
 
         {/* 👑 VIP status — only shown when a VIP program is running (tiers active) */}
@@ -586,7 +586,7 @@ export default function AccountPage() {
         </div>
 
         {/* Refer a friend */}
-        <div style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
+        <div id="sec-refer" style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
           <div style={{ fontWeight: 800, color: COLORS.black, fontSize: 16 }}>🎁 Refer a friend</div>
           <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>
             Give a cookie, get a cookie. When a friend orders a box of 6 (or more) for the first time with your link, you <b>both</b> get a free cookie 🍪
@@ -605,25 +605,6 @@ export default function AccountPage() {
           <a href={waShare} target="_blank" rel="noreferrer" style={{ marginTop: 10, display: "block", textAlign: "center", background: "#25D366", color: "#fff", fontWeight: 800, fontSize: 14, padding: "12px", borderRadius: 999, textDecoration: "none" }}>
             Share on WhatsApp
           </a>
-        </div>
-
-        {/* Account hub links */}
-        <div style={{ marginTop: 18, display: "grid", gap: 10 }}>
-          {[
-            { href: "/account/orders", label: "🧾 My Orders", hint: "Your cafe & online purchases" },
-            { href: "/account/subscription", label: "🔁 My Subscription", hint: "Skip, pause, edit or renew your boxes" },
-            { href: "/account/addresses", label: "📍 Saved Addresses", hint: "For faster checkout" },
-          ].map((l) => (
-            <Link key={l.href} href={l.href} style={{ textDecoration: "none" }}>
-              <div style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div style={{ fontWeight: 800, color: COLORS.black }}>{l.label}</div>
-                  <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>{l.hint}</div>
-                </div>
-                <span style={{ color: COLORS.blue, fontWeight: 900, fontSize: 20 }}>›</span>
-              </div>
-            </Link>
-          ))}
         </div>
       </div>
     </main>
