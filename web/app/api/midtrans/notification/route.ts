@@ -357,7 +357,7 @@ export async function POST(req: Request) {
     // the next webhook redelivery.
     try {
       const tp = (order as any)?.meta?.tbs_points;
-      if (paid && tp && tp.redeemed !== true && Number(tp.discount) > 0 && tp.phone) {
+      if (paid && tp && tp.redeemed !== true && tp.hold_uncertain !== true && Number(tp.discount) > 0 && tp.phone) {
         const { redeemTbsPoints } = await import("@/lib/tbsShop");
         const res = await redeemTbsPoints(String(tp.phone), Math.round(Number(tp.discount)), `${order.id}:redeem`);
         const { data: cur } = await supabase.from("orders").select("meta").eq("id", order.id).maybeSingle();

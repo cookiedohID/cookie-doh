@@ -539,28 +539,42 @@ export async function POST(req: Request) {
     // discount and charge full price. Refunded by the webhook / sweep if the
     // order is never paid.
     if (tbsPointsMeta && Number(tbsPointsMeta.discount) > 0) {
-      let held = false;
+      const dsc = Math.round(Number(tbsPointsMeta.discount));
+      let outcome: "held" | "none" | "uncertain" = "uncertain";
       try {
-        const { redeemTbsPoints } = await import("@/lib/tbsShop");
-        const r = await redeemTbsPoints(String(tbsPointsMeta.phone), Math.round(Number(tbsPointsMeta.discount)), `${orderRow.id}:redeem`);
-        held = r.ok;
-      } catch { held = false; }
-      if (held) {
+        const { redeemTbsPointsHold } = await import("@/lib/tbsShop");
+        const r = await redeemTbsPointsHold(String(tbsPointsMeta.phone), dsc, `${orderRow.id}:redeem`);
+        outcome = r.ok ? "held" : r.insufficient ? "none" : "uncertain";
+      } catch { outcome = "uncertain"; }
+
+      if (outcome === "held") {
+        // points debited — keep the discount. Mutate orderInsert.meta too so the
+        // later token-store write can't revert redeemed:true (audit #46 fix).
         tbsPointsMeta.redeemed = true;
-        await supabase.from("orders")
-          .update({ meta: { ...(orderInsert.meta || {}), tbs_points: { ...tbsPointsMeta } } })
-          .eq("id", orderRow.id);
-      } else {
-        // couldn't hold the points → undo the discount, charge full price
-        const restored = Number(finalTotal) + Math.round(Number(tbsPointsMeta.discount));
-        finalTotal = restored;
+        orderInsert.meta = { ...(orderInsert.meta || {}), tbs_points: { ...tbsPointsMeta } };
+        await supabase.from("orders").update({ meta: orderInsert.meta }).eq("id", orderRow.id);
+      } else if (outcome === "none") {
+        // definitively NOT debited (insufficient balance) → drop discount safely
+        finalTotal = Number(finalTotal) + dsc;
         const cleanMeta = { ...(orderInsert.meta || {}) } as any; delete cleanMeta.tbs_points;
         orderInsert.meta = cleanMeta;
         tbsPointsMeta = null;
-        await supabase.from("orders")
-          .update({ total_idr: restored, meta: cleanMeta })
-          .eq("id", orderRow.id);
-        (orderRow as any).total_idr = restored;
+        await supabase.from("orders").update({ total_idr: finalTotal, meta: cleanMeta }).eq("id", orderRow.id);
+        (orderRow as any).total_idr = finalTotal;
+      } else {
+        // INDETERMINATE (ERP unreachable across retries): the debit MAY have
+        // landed. Charge full price (revenue-safe), but KEEP the meta flagged so
+        // it is never silently lost — an admin reconciles (auto-refund would risk
+        // crediting phantom points). Alert.
+        finalTotal = Number(finalTotal) + dsc;
+        tbsPointsMeta = { ...tbsPointsMeta, redeemed: false, hold_uncertain: true };
+        orderInsert.meta = { ...(orderInsert.meta || {}), tbs_points: tbsPointsMeta };
+        await supabase.from("orders").update({ total_idr: finalTotal, meta: orderInsert.meta }).eq("id", orderRow.id);
+        (orderRow as any).total_idr = finalTotal;
+        try {
+          const { sendWhatsApp } = await import("@/lib/whatsapp");
+          await sendWhatsApp({ message: `⚠️ TBS points hold UNCERTAIN on order ${orderRow.order_no || orderRow.id} — ${dsc} pts may/may not have been debited (ERP timeout). Charged full price. Check the member's ledger and refund ${dsc} if debited.` });
+        } catch { /* alert best-effort */ }
       }
     }
 
