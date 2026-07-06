@@ -1,0 +1,23 @@
+name: TBS partner API canary (6-hourly)
+
+# Read + write heartbeat for the Cookie Doh <-> TBS partner connection.
+# WhatsApps the owner only when something is broken.
+on:
+  schedule:
+    - cron: "10 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe partner API
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            "https://www.cookiedoh.co.id/api/cron/partner-canary")
+          echo "HTTP $code"
+          cat /tmp/resp.txt
+          echo
+          test "$code" = "200"
+          grep -q '"ok":true' /tmp/resp.txt
