@@ -69,6 +69,13 @@ export default function AdminTbsPage() {
 
         {data ? (
           <>
+            {/* pre-launch advisory: store on-hand is approximate until opname */}
+            {!s?.public ? (
+              <div style={{ marginTop: 14, background: "#FFF9EC", border: "1px solid #F0DCA8", borderRadius: 12, padding: "10px 14px", fontSize: 12.5, color: "#7a5c00", lineHeight: 1.5 }}>
+                ⚠️ <b>Before opening to everyone:</b> store stock counts are still approximate until the physical stock-take (opname) at cutover. Keep the <b>“Stock shown online %”</b> buffer low (≤ 50%) in the TBS back-office (<b>Sales → Web Shop</b>) so the shop under-promises. Orders are always confirmed by the store at pickup/packing, so nothing oversells to a paid customer — but a low buffer keeps the shelf honest.
+              </div>
+            ) : null}
+
             {/* status + launch */}
             <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 12 }}>
               <div style={{ ...card, borderTop: `4px solid ${s?.public ? GREEN : "#c99700"}` }}>
