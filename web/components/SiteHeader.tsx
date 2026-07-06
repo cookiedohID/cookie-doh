@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getCart } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
 import { CAT_META } from "@/app/tbs/shared";
+import { useLang } from "@/lib/i18n";
 
 type NavItem = { href: string; label: string };
 
@@ -45,6 +46,7 @@ const TBS_STORE_SHORT: Record<string, string> = {
 };
 
 function TbsHeader({ pathname }: { pathname: string }) {
+  const { lang, setLang, t } = useLang();
   const [n, setN] = useState(0);
   const [catsOpen, setCatsOpen] = useState(false);
   const [storeCode, setStoreCode] = useState("");
@@ -93,7 +95,7 @@ function TbsHeader({ pathname }: { pathname: string }) {
           <span style={{ fontWeight: 900, fontSize: 17, color: TBS_GREEN, letterSpacing: 0.3 }}>TotalBuahStore</span>
         </Link>
         {storeCode ? (
-          <button onClick={storeClick} title="Change store"
+          <button onClick={storeClick} title={t("header.changeStore")}
             style={{ border: `1px solid ${TBS_GREEN}44`, background: "#F0F7EE", color: TBS_GREEN, borderRadius: 999, padding: "5px 11px", fontWeight: 800, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
             📍 {TBS_STORE_SHORT[storeCode] || storeCode}
           </button>
@@ -101,9 +103,13 @@ function TbsHeader({ pathname }: { pathname: string }) {
         <nav aria-label="TBS" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, overflowX: "auto" }}>
           <button onClick={() => setCatsOpen((v) => !v)} aria-expanded={catsOpen}
             style={{ ...tab(catsOpen), border: "none", background: catsOpen ? "#FBEFEA" : "transparent", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
-            ☰ Categories
+            ☰ {t("nav.categories")}
           </button>
-          <Link href="/account" style={tab(pathname.startsWith("/account"))}>Family</Link>
+          <Link href="/account" style={tab(pathname.startsWith("/account"))}>{t("nav.family")}</Link>
+          <button onClick={() => setLang(lang === "id" ? "en" : "id")} aria-label="Language"
+            style={{ border: "1px solid rgba(0,0,0,0.14)", background: "#fff", borderRadius: 999, padding: "6px 10px", fontWeight: 800, fontSize: 11.5, cursor: "pointer", color: "#333", whiteSpace: "nowrap" }}>
+            {lang === "id" ? "🇮🇩 ID" : "🇬🇧 EN"}
+          </button>
           <Link href="/" style={{ textDecoration: "none", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6, background: "#0014A7", color: "#fff", borderRadius: 999, padding: "8px 13px", fontWeight: 800, fontSize: 13.5 }}>
             🍪 <span>Cookie Doh</span>
           </Link>

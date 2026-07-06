@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getCart } from "@/lib/cart";
 import { computeTbsStockIssues, tbsIssueText, tbsIssueDead, type TbsStockIssue } from "@/lib/tbsStockCheck";
+import { useLang } from "@/lib/i18n";
 import {
   RED, GREEN, CREAM, rp, catLabel, catEmoji, tileColors, TbsCherry,
   loadBasket, saveBasket, useTbsGate, ComingSoon, TbsProductCard, type BasketLine,
@@ -26,6 +27,7 @@ export default function TbsShopPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [stockSynced, setStockSynced] = useState(true);
   const [store, setStore] = useState<string>("");
+  const { lang, t } = useLang();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [cats, setCats] = useState<Cat[]>([]);
   const [cat, setCat] = useState<string>("");
@@ -128,7 +130,7 @@ export default function TbsShopPage() {
 
   const pickStore = (code: string) => {
     if (store && code !== store && Object.keys(basket).length > 0) {
-      if (!window.confirm("Switching store clears your basket (prices & stock differ per store). Continue?")) return;
+      if (!window.confirm(t("shop.switchStoreConfirm"))) return;
       setBasket({}); saveBasket(code, {});
     } else {
       setBasket(loadBasket(code));
@@ -241,11 +243,11 @@ export default function TbsShopPage() {
 
         {/* search + categories */}
         <div style={{ marginTop: 14 }}>
-          <input value={q} onChange={(e) => onSearch(e.target.value)} placeholder="Search fruit, snacks, groceries…"
+          <input value={q} onChange={(e) => onSearch(e.target.value)} placeholder={t("shop.searchPlaceholder")}
             style={{ width: "100%", padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.14)", fontSize: 15, background: "#fff" }} />
           {!cat && !q && rail.length ? (
             <div style={{ marginTop: 16 }}>
-              <h2 style={{ margin: "0 0 10px", fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>⭐ Best sellers</h2>
+              <h2 style={{ margin: "0 0 10px", fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>{t("shop.bestSellers")}</h2>
               <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 6, WebkitOverflowScrolling: "touch" }}>
                 {rail.map((it) => (
                   <TbsProductCard key={`rail-${it.sku}`} it={it as any} inBasket={basket[it.sku]?.qty || 0} onAdd={(x, d) => add(x as any, d)} width={150} />
@@ -300,14 +302,14 @@ export default function TbsShopPage() {
         ) : null}
         {!loading && store && fetchErr && items.length === 0 ? (
           <div style={{ textAlign: "center", marginTop: 24 }}>
-            <p style={{ color: "#777", fontSize: 14 }}>The store is unreachable right now — it may be waking up.</p>
+            <p style={{ color: "#777", fontSize: 14 }}>{t("shop.unreachable")}</p>
             <button onClick={() => fetchCatalog(store, cat, q, 0, false)}
               style={{ border: `1.5px solid ${RED}`, background: "#fff", color: RED, borderRadius: 999, padding: "10px 22px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
-              Try again
+              {t("shop.tryAgain")}
             </button>
           </div>
         ) : null}
-        {!loading && store && !fetchErr && items.length === 0 ? <p style={{ textAlign: "center", color: "#999", marginTop: 24 }}>Nothing found{q ? ` for “${q}”` : ""}.</p> : null}
+        {!loading && store && !fetchErr && items.length === 0 ? <p style={{ textAlign: "center", color: "#999", marginTop: 24 }}>{t("shop.nothingFound")}{q ? ` — “${q}”` : ""}.</p> : null}
 
         {/* store picker sheet */}
         {pickerOpen ? (
@@ -315,9 +317,9 @@ export default function TbsShopPage() {
             <div style={{ width: "min(520px, 100%)", background: "#fff", borderRadius: "18px 18px 0 0", padding: "18px 16px 26px" }} onClick={(e) => e.stopPropagation()}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
                 <TbsCherry size={26} />
-                <div style={{ fontWeight: 900, fontSize: 17, color: GREEN }}>Choose your TotalBuahStore</div>
+                <div style={{ fontWeight: 900, fontSize: 17, color: GREEN }}>{t("shop.chooseStore")}</div>
               </div>
-              <p style={{ fontSize: 13, color: "#777", margin: "4px 0 12px" }}>Prices, stock and pickup/delivery come from this store.</p>
+              <p style={{ fontSize: 13, color: "#777", margin: "4px 0 12px" }}>{t("shop.storeNote")}</p>
               <div style={{ display: "grid", gap: 8 }}>
                 {stores.map((s) => (
                   <button key={s.code} onClick={() => pickStore(s.code)}
@@ -356,13 +358,13 @@ export default function TbsShopPage() {
         {basketOpen ? (
           <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "end center" }} onClick={() => setBasketOpen(false)}>
             <div style={{ width: "min(560px, 100%)", maxHeight: "80vh", overflowY: "auto", background: "#fff", borderRadius: "18px 18px 0 0", padding: "18px 16px 26px" }} onClick={(e) => e.stopPropagation()}>
-              <div style={{ fontWeight: 900, fontSize: 17, color: GREEN, marginBottom: 2 }}>Your basket — {storeName}</div>
-              <div style={{ fontSize: 12.5, color: "#888", marginBottom: 12 }}>Pickup or delivery from this store.</div>
+              <div style={{ fontWeight: 900, fontSize: 17, color: GREEN, marginBottom: 2 }}>{t("basket.title")} — {storeName}</div>
+              <div style={{ fontSize: 12.5, color: "#888", marginBottom: 12 }}>{t("basket.pickupOrDelivery")}</div>
               {basketList.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "18px 0 6px" }}>
                   <div style={{ fontSize: 34 }}>🧺</div>
-                  <p style={{ color: "#777", fontSize: 14, margin: "8px 0 14px" }}>Your basket is empty — add something fresh!</p>
-                  <button onClick={() => setBasketOpen(false)} style={{ border: "none", background: "#7CB342", color: "#fff", borderRadius: 12, padding: "12px 26px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>Browse the shop</button>
+                  <p style={{ color: "#777", fontSize: 14, margin: "8px 0 14px" }}>{t("basket.empty")}</p>
+                  <button onClick={() => setBasketOpen(false)} style={{ border: "none", background: "#7CB342", color: "#fff", borderRadius: 12, padding: "12px 26px", fontWeight: 900, fontSize: 14, cursor: "pointer" }}>{t("basket.browse")}</button>
                 </div>
               ) : null}
               {basketList.map((l) => (
@@ -386,7 +388,7 @@ export default function TbsShopPage() {
               ))}
               {basketList.length > 0 ? (<>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", borderTop: "2px solid rgba(0,0,0,0.1)", fontWeight: 900, fontSize: 15 }}>
-                <span>Total</span><span style={{ color: RED }}>{rp(basketTotal)}</span>
+                <span>{t("basket.total")}</span><span style={{ color: RED }}>{rp(basketTotal)}</span>
               </div>
               {cdCart.n > 0 ? (
                 <Link href="/cart" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, textDecoration: "none", background: "#EEF1FB", border: "1px solid rgba(0,20,167,0.18)", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
@@ -396,15 +398,15 @@ export default function TbsShopPage() {
               ) : null}
               {Object.keys(sheetIssues).length ? (
                 <div style={{ background: "#FBECEA", border: "1px solid #ECC9C5", borderRadius: 10, padding: "8px 12px", fontSize: 12.5, color: "#8c1d18", fontWeight: 700, marginBottom: 10 }}>
-                  ⚠️ Fix the flagged items (remove or reduce) to continue to checkout.
+                  {t("basket.fixFlagged")}
                 </div>
               ) : null}
               <a href={Object.keys(sheetIssues).length ? undefined : (cdCart.n > 0 ? "/cart" : "/tbs/checkout")}
                  onClick={(e) => { if (Object.keys(sheetIssues).length) e.preventDefault(); }}
                  style={{ display: "block", textAlign: "center", textDecoration: "none", width: "100%", border: "none", background: Object.keys(sheetIssues).length ? "#ddd" : "#7CB342", color: Object.keys(sheetIssues).length ? "#999" : "#fff", borderRadius: 12, padding: "14px", fontWeight: 900, fontSize: 15, cursor: Object.keys(sheetIssues).length ? "default" : "pointer" }}>
-                {cdCart.n > 0 ? `Checkout together — ${rp(basketTotal + cdCart.total)}` : `Checkout — ${rp(basketTotal)}`}
+                {cdCart.n > 0 ? `${t("basket.checkoutTogether")} — ${rp(basketTotal + cdCart.total)}` : `${t("basket.checkout")} — ${rp(basketTotal)}`}
               </a>
-              <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>{cdCart.n > 0 ? "One payment — cookies & groceries ship together" : `Pickup or delivery from ${storeName} · QRIS & cards`}</p>
+              <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>{cdCart.n > 0 ? t("basket.onePayment") : `Pickup or delivery from ${storeName} · QRIS & cards`}</p>
               </>) : null}
             </div>
           </div>

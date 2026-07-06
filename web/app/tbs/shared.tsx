@@ -4,6 +4,7 @@
 // constants, category naming, basket storage) used by the storefront and the
 // product detail pages.
 import { useEffect, useState } from "react";
+import { useLang } from "@/lib/i18n";
 import Link from "next/link";
 
 export const RED = "#9c1216";
@@ -103,6 +104,7 @@ export function useTbsGate(): { gate: "loading" | "hidden" | "open"; preview: bo
 }
 
 export function ComingSoon() {
+  const { t } = useLang();
   const [key, setKey] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -113,7 +115,7 @@ export function ComingSoon() {
       await fetch(`/api/tbs/preview?key=${encodeURIComponent(key.trim())}`, { redirect: "manual" });
       const j = await (await fetch("/api/tbs/enabled", { cache: "no-store" })).json();
       if (j?.enabled) { window.location.reload(); return; }
-      setErr("That password isn't right — check with the person who invited you.");
+      setErr(t("gate.wrong"));
     } catch { setErr("Something went wrong — try again."); }
     setBusy(false);
   };
@@ -123,14 +125,14 @@ export function ComingSoon() {
         <TbsCherry size={44} />
         <h1 style={{ fontSize: 22, fontWeight: 900, color: GREEN, margin: "10px 0 4px" }}>TotalBuahStore</h1>
         <p style={{ color: "#6B6B6B", fontSize: 14, lineHeight: 1.6, margin: "0 0 16px" }}>
-          Fresh fruit & groceries — opening soon. Have an early-access password?
+          {t("gate.openingSoon")}
         </p>
         <form onSubmit={unlock} style={{ display: "flex", gap: 8 }}>
-          <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="Password" autoComplete="off"
+          <input value={key} onChange={(e) => setKey(e.target.value)} placeholder={t("gate.password")} autoComplete="off"
             style={{ flex: 1, padding: "12px 14px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.16)", fontSize: 15 }} />
           <button type="submit" disabled={busy || !key.trim()}
             style={{ border: "none", borderRadius: 10, padding: "12px 18px", fontWeight: 800, fontSize: 14, cursor: "pointer", background: key.trim() ? RED : "#ddd", color: "#fff" }}>
-            {busy ? "…" : "Enter"}
+            {busy ? "…" : t("gate.enter")}
           </button>
         </form>
         {err ? <p style={{ color: "#b32", fontSize: 12.5, fontWeight: 700, marginTop: 10 }}>{err}</p> : null}
