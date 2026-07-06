@@ -1,0 +1,20 @@
+name: TBS points-hold refund sweep (hourly)
+
+# Safety net: refunds TBS points held at web checkout on orders never paid
+# (past the ~24h Snap-token life). Idempotent; the webhook is the primary path.
+on:
+  schedule:
+    - cron: "30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refund abandoned holds
+        run: |
+          code=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -H "x-cron-key: ${{ secrets.CRON_SECRET }}" \
+            "https://www.cookiedoh.co.id/api/cron/tbs-points-refund")
+          echo "HTTP $code"; cat /tmp/resp.txt; echo
+          test "$code" = "200"

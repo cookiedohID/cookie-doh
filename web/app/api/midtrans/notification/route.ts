@@ -215,6 +215,30 @@ export async function POST(req: Request) {
       },
     };
 
+    // Amount check: the settlement must be for the amount we actually billed.
+    // Midtrans reports the true paid gross_amount; if it doesn't match the DB
+    // total, HOLD the order for review instead of fulfilling (mirrors the
+    // subscription path). Defense-in-depth against any underpriced/stale order.
+    const paidAmount = Math.round(Number((statusResponse as any)?.gross_amount ?? 0));
+    const owed = Math.round(Number(order.total_idr ?? 0));
+    if (paid && owed > 0 && paidAmount !== owed) {
+      console.error(`[SECURITY] amount mismatch on ${midtrans_order_id}: paid ${paidAmount} != owed ${owed}`);
+      await supabase
+        .from("orders")
+        .update({
+          payment_status: "REVIEW",
+          midtrans_status: txStatus,
+          meta: { ...nextMeta, amount_mismatch: { paid: paidAmount, owed, at: new Date().toISOString() } },
+        })
+        .eq("id", order.id);
+      try {
+        await sendWhatsApp({
+          message: `⚠️ Payment AMOUNT MISMATCH on order ${order.order_no || order.id}: paid Rp${paidAmount.toLocaleString("id-ID")} but owed Rp${owed.toLocaleString("id-ID")}. Held for review — do NOT fulfil until reconciled.`,
+        });
+      } catch { /* alert best-effort */ }
+      return NextResponse.json({ ok: true, txStatus, fraud, paid: false, amount_mismatch: true });
+    }
+
     await supabase
       .from("orders")
       .update({
@@ -245,6 +269,23 @@ export async function POST(req: Request) {
     } catch (e) {
       console.error("loyalty reservation settle failed:", e);
     }
+
+    // TBS points HOLD refund: an order that held points at checkout (#46) but
+    // reached a TERMINAL non-paid state (deny/cancel/expire/failure) must get
+    // those points back. Idempotent on source_ref = order.id:refund.
+    try {
+      const tp = (order as any)?.meta?.tbs_points;
+      const terminalFailed = !paid && txStatus !== "pending";
+      if (terminalFailed && tp?.redeemed === true && tp?.refunded !== true && Number(tp.discount) > 0 && tp.phone) {
+        const { refundTbsPoints } = await import("@/lib/tbsShop");
+        const rr = await refundTbsPoints(String(tp.phone), Math.round(Number(tp.discount)), `${order.id}:refund`);
+        if (rr.ok) {
+          const { data: cur } = await supabase.from("orders").select("meta").eq("id", order.id).maybeSingle();
+          const cm = (cur as any)?.meta && typeof (cur as any).meta === "object" ? (cur as any).meta : nextMeta;
+          await supabase.from("orders").update({ meta: { ...cm, tbs_points: { ...tp, refunded: true } } }).eq("id", order.id);
+        }
+      }
+    } catch (e) { console.error("TBS points refund failed:", e); }
 
     // TotalBuahStore web order: on PAID, hand the order to the TBS back-office so
     // the store can pick/pack. Idempotent twice over — the partner endpoint dedups

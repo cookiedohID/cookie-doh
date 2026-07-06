@@ -530,6 +530,40 @@ export async function POST(req: Request) {
     if (e1) throw e1;
     if (!orderRow?.id) throw new Error("Order insert failed (missing id)");
 
+    // ---- TBS points: ATOMIC HOLD at checkout (launch-blocker #46) ----------
+    // The discount was already applied to finalTotal above, but points must be
+    // DEBITED now — before the charge — so the charge can never exceed a real
+    // balance. redeem_points is serialized per member + idempotent on
+    // source_ref, so two concurrent checkouts can't both succeed and a
+    // cross-channel spend can't slip in. On failure (balance gone) we DROP the
+    // discount and charge full price. Refunded by the webhook / sweep if the
+    // order is never paid.
+    if (tbsPointsMeta && Number(tbsPointsMeta.discount) > 0) {
+      let held = false;
+      try {
+        const { redeemTbsPoints } = await import("@/lib/tbsShop");
+        const r = await redeemTbsPoints(String(tbsPointsMeta.phone), Math.round(Number(tbsPointsMeta.discount)), `${orderRow.id}:redeem`);
+        held = r.ok;
+      } catch { held = false; }
+      if (held) {
+        tbsPointsMeta.redeemed = true;
+        await supabase.from("orders")
+          .update({ meta: { ...(orderInsert.meta || {}), tbs_points: { ...tbsPointsMeta } } })
+          .eq("id", orderRow.id);
+      } else {
+        // couldn't hold the points → undo the discount, charge full price
+        const restored = Number(finalTotal) + Math.round(Number(tbsPointsMeta.discount));
+        finalTotal = restored;
+        const cleanMeta = { ...(orderInsert.meta || {}) } as any; delete cleanMeta.tbs_points;
+        orderInsert.meta = cleanMeta;
+        tbsPointsMeta = null;
+        await supabase.from("orders")
+          .update({ total_idr: restored, meta: cleanMeta })
+          .eq("id", orderRow.id);
+        (orderRow as any).total_idr = restored;
+      }
+    }
+
     // 👤 Record/refresh the customer (by canonical phone). Never blocks checkout.
     await upsertCustomerForOrder(supabase, {
       name: customerName,

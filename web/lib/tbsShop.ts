@@ -123,6 +123,14 @@ export async function redeemTbsPoints(phone: string, points: number, sourceRef: 
   return { ok: false, error: (r && (r.error || r.message)) || "redeem failed" };
 }
 
+// Give points BACK (order held points at checkout but was never paid) —
+// idempotent on source_ref via the ERP's adjust ledger.
+export async function refundTbsPoints(phone: string, points: number, sourceRef: string, reason = "web checkout not paid"): Promise<{ ok: boolean; error?: string }> {
+  const r = await partnerPost("/adjust", { phone, points, source_ref: sourceRef, reason });
+  if (r && r.ok) return { ok: true };
+  return { ok: false, error: (r && (r.error || r.message)) || "refund failed" };
+}
+
 // Stock lookup for a basket: always fetches each variant's BASE sku too (the
 // shared pool for cross-pack checks) and chunks past the ERP's 60-SKU cap.
 // Returns the merged entry array, or null if any chunk failed.
