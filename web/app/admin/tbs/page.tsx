@@ -123,6 +123,31 @@ export default function AdminTbsPage() {
               </div>
             </div>
 
+            {/* customer demand — out-of-stock 'notify me' requests */}
+            {(data.demand || []).length ? (
+              <section style={{ ...card, marginTop: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <h2 style={{ fontSize: 16, fontWeight: 800, color: COLORS.black, margin: 0 }}>🔔 High customer demand (out of stock)</h2>
+                  <span style={{ fontSize: 12, color: COLORS.muted }}>Most-requested unavailable items — restock candidates</span>
+                </div>
+                <div style={{ overflowX: "auto", marginTop: 8 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead><tr style={{ borderBottom: "1px solid rgba(0,0,0,0.1)", textAlign: "left", color: COLORS.muted, fontSize: 11 }}>
+                      <th style={{ padding: 6 }}>Product</th><th style={{ padding: 6 }}>Store</th><th style={{ padding: 6, textAlign: "right" }}>Requests</th><th style={{ padding: 6, textAlign: "right" }}>Will notify</th>
+                    </tr></thead>
+                    <tbody>{(data.demand || []).map((d: any, i: number) => (
+                      <tr key={i} style={{ borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
+                        <td style={{ padding: 6, fontWeight: 600 }}>{d.name}</td>
+                        <td style={{ padding: 6 }}>{d.store}</td>
+                        <td style={{ padding: 6, textAlign: "right", fontWeight: 800 }}>{d.requests}</td>
+                        <td style={{ padding: 6, textAlign: "right", color: "#0f6e56" }}>{d.withPhone}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </section>
+            ) : null}
+
             {/* recent orders + push status */}
             <section style={{ ...card, marginTop: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>

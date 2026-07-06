@@ -32,6 +32,7 @@ export default function TbsProductPage() {
   const [added, setAdded] = useState(false);
   const [tab, setTab] = useState<"desc" | "details">("desc");
   const [otherStores, setOtherStores] = useState(false);
+  const [notified, setNotified] = useState(false);
 
   useEffect(() => { setStore(localStorage.getItem("tbs_store") || "TBS-RCV"); }, []);
 
@@ -179,16 +180,30 @@ export default function TbsProductPage() {
                   </div>
                 </div>
 
+                {out || selOut ? (
+                  <div style={{ marginTop: 12 }}>
+                    <button onClick={async () => {
+                      if (notified) return; setNotified(true);
+                      const { notifyMe } = await import("../../shared");
+                      await notifyMe(store, selKey || data.product.sku, selName || data.product.name);
+                    }}
+                      style={{ width: "100%", border: `1.5px solid ${GREEN}`, borderRadius: 10, padding: "14px 16px", fontWeight: 800, fontSize: 14.5, cursor: notified ? "default" : "pointer", background: notified ? "#EAF3E7" : "#fff", color: GREEN }}>
+                      {notified ? tr("notify.done") : tr("notify.me")}
+                    </button>
+                    <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 6 }}>{tr("notify.soldOut")} — {tr("notify.me").replace("🔔 ", "")}.</p>
+                  </div>
+                ) : (
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  <button onClick={addToBasket} disabled={out || selOut}
-                    style={{ flex: 1.4, border: "none", borderRadius: 10, padding: "14px 16px", fontWeight: 800, fontSize: 14.5, cursor: out || selOut ? "default" : "pointer", background: out || selOut ? "#eee" : added ? GREEN : "#7CB342", color: out || selOut ? "#aaa" : "#fff", transition: "background .2s" }}>
-                    {out || selOut ? "Out of stock" : added ? "✓ Added" : "Add to basket"}
+                  <button onClick={addToBasket}
+                    style={{ flex: 1.4, border: "none", borderRadius: 10, padding: "14px 16px", fontWeight: 800, fontSize: 14.5, cursor: "pointer", background: added ? GREEN : "#7CB342", color: "#fff", transition: "background .2s" }}>
+                    {added ? tr("p.added") : tr("p.addToBasket")}
                   </button>
-                  <button onClick={buyNow} disabled={out || selOut}
-                    style={{ flex: 1, border: `1.5px solid ${GREEN}`, borderRadius: 10, padding: "14px 12px", fontWeight: 800, fontSize: 14.5, cursor: out || selOut ? "default" : "pointer", background: "#fff", color: out || selOut ? "#aaa" : GREEN }}>
-                    Buy now
+                  <button onClick={buyNow}
+                    style={{ flex: 1, border: `1.5px solid ${GREEN}`, borderRadius: 10, padding: "14px 12px", fontWeight: 800, fontSize: 14.5, cursor: "pointer", background: "#fff", color: GREEN }}>
+                    {tr("p.buyNow")}
                   </button>
                 </div>
+                )}
               </div>
             </section>
 

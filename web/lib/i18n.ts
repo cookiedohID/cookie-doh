@@ -62,6 +62,11 @@ const D: Record<string, { id: string; en: string }> = {
   "basket.addMore": { id: "+ tambah lagi", en: "+ add more" },
   "basket.shipsTogether": { id: "dari {store} — dikirim bersama kukismu", en: "from {store} — ships together with your cookies" },
   "basket.subtotal": { id: "Subtotal TotalBuahStore", en: "TotalBuahStore subtotal" },
+  // ---- notify me (out of stock) ----
+  "notify.me": { id: "🔔 Ingatkan saya", en: "🔔 Notify me" },
+  "notify.short": { id: "🔔 Kabari", en: "🔔 Notify" },
+  "notify.done": { id: "Kami akan kabari! 🔔", en: "We'll let you know! 🔔" },
+  "notify.soldOut": { id: "Stok habis", en: "Sold out" },
   // ---- product page ----
   "p.chooseOption": { id: "Pilih varian", en: "Choose an option" },
   "p.soldOut": { id: "(Habis)", en: "(Sold out)" },

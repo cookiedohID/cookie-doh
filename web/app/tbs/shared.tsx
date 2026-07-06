@@ -5,6 +5,18 @@
 // product detail pages.
 import { useEffect, useState } from "react";
 import { useLang } from "@/lib/i18n";
+
+// Record "notify me" interest for an out-of-stock item (demand signal + ping).
+export async function notifyMe(store: string, sku: string, name: string, authToken?: string | null): Promise<boolean> {
+  try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (authToken) headers.Authorization = `Bearer ${authToken}`;
+    const r = await fetch("/api/tbs/notify-me", { method: "POST", headers, body: JSON.stringify({ store, sku, name }) });
+    const j = await r.json().catch(() => ({}));
+    return Boolean(j?.ok);
+  } catch { return false; }
+}
+
 import Link from "next/link";
 
 export const RED = "#9c1216";
@@ -165,8 +177,11 @@ export type CatalogItem = { sku: string; name: string; category: string | null; 
 export function TbsProductCard({ it, inBasket, onAdd, width }: {
   it: CatalogItem; inBasket: number; onAdd: (it: CatalogItem, delta: number) => void; width?: number | string;
 }) {
+  const { t: tr } = useLang();
   const t = tileColors(it.category);
   const out = it.status === "out_of_stock";
+  const [notified, setNotified] = useState(false);
+  const store = (typeof window !== "undefined" && localStorage.getItem("tbs_store")) || "";
   const cap = it.status === "in_stock" ? Math.max(0, it.stock) : 99;
   const canMore = !out && inBasket < cap;
   const circle = (filled: boolean): React.CSSProperties => ({
@@ -180,6 +195,9 @@ export function TbsProductCard({ it, inBasket, onAdd, width }: {
         <div style={{ height: 168, display: "grid", placeItems: "center" }}>
           <span style={{ fontSize: 44, opacity: 0.9 }}>{catEmoji(it.category)}</span>
         </div>
+        {out ? (
+          <span style={{ position: "absolute", top: 8, left: 8, fontSize: 10.5, fontWeight: 800, background: "rgba(0,0,0,0.55)", color: "#fff", borderRadius: 999, padding: "2px 9px" }}>{tr("notify.soldOut")}</span>
+        ) : null}
         {inBasket > 0 ? (
           <span aria-label={`${inBasket} in basket`} style={{ position: "absolute", top: 8, right: 8, minWidth: 24, height: 24, padding: "0 7px", borderRadius: 999, background: GREEN, color: "#fff", fontWeight: 900, fontSize: 13, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.18)" }}>{inBasket}</span>
         ) : null}
@@ -192,7 +210,13 @@ export function TbsProductCard({ it, inBasket, onAdd, width }: {
             <div style={{ fontSize: 14.5, fontWeight: 500, color: "#191919", whiteSpace: "nowrap" }}>{rp(it.price)}</div>
             <div style={{ fontSize: 11, color: "#999", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>per {it.unit}</div>
           </div>
-          {inBasket === 0 ? (
+          {out ? (
+            <button onClick={async (e) => { e.preventDefault(); if (notified) return; setNotified(true); await notifyMe(store, it.sku, it.name); }}
+              aria-label={`Notify ${it.name}`}
+              style={{ border: `1.4px solid ${GREEN}`, background: notified ? "#EAF3E7" : "#fff", color: GREEN, borderRadius: 999, padding: "6px 11px", fontWeight: 800, fontSize: 11.5, cursor: notified ? "default" : "pointer", whiteSpace: "nowrap", flex: "0 0 auto" }}>
+              {notified ? tr("notify.done") : tr("notify.short")}
+            </button>
+          ) : inBasket === 0 ? (
             <button disabled={!canMore} onClick={() => canMore && onAdd(it, +1)} aria-label={`Add ${it.name}`}
               style={{ ...circle(true), opacity: canMore ? 1 : 0.35, cursor: canMore ? "pointer" : "default" }}>+</button>
           ) : null}

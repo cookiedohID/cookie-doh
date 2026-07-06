@@ -337,3 +337,13 @@ create table if not exists public.order_ratings (
   updated_at timestamptz not null default now()
 );
 alter table public.order_ratings enable row level security;
+
+
+-- TBS out-of-stock demand + back-in-stock reminders (created live 2026-07-06).
+create table if not exists public.tbs_stock_interest (
+  id uuid primary key default gen_random_uuid(),
+  sku text not null, store text not null, name text, phone text,
+  created_at timestamptz not null default now(), notified_at timestamptz
+);
+create index if not exists tbs_interest_sku_idx on public.tbs_stock_interest (sku, store);
+alter table public.tbs_stock_interest enable row level security;

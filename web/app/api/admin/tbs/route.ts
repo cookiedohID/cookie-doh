@@ -69,8 +69,24 @@ export async function GET() {
       };
     });
 
+    // demand signal — top out-of-stock SKUs customers asked about (open requests)
+    let demand: any[] = [];
+    try {
+      const { data: interest } = await supa
+        .from("tbs_stock_interest").select("sku, store, name, phone, notified_at")
+        .is("notified_at", null).limit(5000);
+      const byKey: Record<string, { sku: string; store: string; name: string; requests: number; withPhone: number }> = {};
+      for (const r of interest || []) {
+        const k = `${r.store}|${r.sku}`;
+        const g = (byKey[k] ||= { sku: r.sku, store: r.store, name: r.name || r.sku, requests: 0, withPhone: 0 });
+        g.requests += 1; if (r.phone) g.withPhone += 1;
+      }
+      demand = Object.values(byKey).sort((a, b) => b.requests - a.requests).slice(0, 50);
+    } catch { /* table optional */ }
+
     return NextResponse.json({
       ok: true,
+      demand,
       shop: { public: pub, preview_key: TBS_PREVIEW_KEY, fee_pct: feePct },
       backoffice_url: tbsBackofficeOrigin(),
       stores: Array.isArray(storesRes?.stores) ? storesRes.stores : Array.isArray(storesRes) ? storesRes : null,
