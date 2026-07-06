@@ -259,7 +259,7 @@ export default function TbsShopPage() {
           {!cat && !q ? (
             <div style={{ marginTop: 14 }}>
               <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                <h2 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>Shop by category</h2>
+                <h2 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>{t("shop.shopByCategory")}</h2>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 12, padding: "12px 2px 6px" }}>
                 {cats.map((c) => c.id ? (
@@ -283,7 +283,7 @@ export default function TbsShopPage() {
         </div>
 
         <h2 id="tbs-shop" style={{ margin: "18px 0 0", fontSize: 17, fontWeight: 900, color: "#191919", textTransform: "uppercase", letterSpacing: 0.4 }}>
-          {q ? `Results for “${q}”` : cat ? catLabel(cat) : "Featured products"}
+          {q ? `${t("shop.results")} “${q}”` : cat ? catLabel(cat) : t("shop.featured")}
         </h2>
 
         {/* product grid */}

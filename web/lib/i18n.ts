@@ -17,8 +17,9 @@ const D: Record<string, { id: string; en: string }> = {
   // ---- shop chrome ----
   "shop.searchPlaceholder": { id: "Cari buah, camilan, kebutuhan harian…", en: "Search fruit, snacks, groceries…" },
   "shop.bestSellers": { id: "⭐ Terlaris", en: "⭐ Best sellers" },
-  "shop.shopByCategory": { id: "BELANJA PER KATEGORI", en: "SHOP BY CATEGORY" },
-  "shop.featured": { id: "PRODUK PILIHAN", en: "FEATURED PRODUCTS" },
+  "shop.shopByCategory": { id: "Belanja per kategori", en: "Shop by category" },
+  "shop.featured": { id: "Produk pilihan", en: "Featured products" },
+  "shop.results": { id: "Hasil untuk", en: "Results for" },
   "shop.nothingFound": { id: "Tidak ditemukan", en: "Nothing found" },
   "shop.unreachable": { id: "Toko sedang tidak terjangkau — mungkin sedang bangun.", en: "The store is unreachable right now — it may be waking up." },
   "shop.tryAgain": { id: "Coba lagi", en: "Try again" },
