@@ -325,6 +325,14 @@ export async function POST(req: Request) {
           .from("orders")
           .update({ meta: { ...curMeta, tbs_points: { ...tp, redeemed: res.ok, redeem_error: res.ok ? null : res.error } } })
           .eq("id", order.id);
+        if (!res.ok) {
+          // charged the discount but points didn't deduct (member spent them
+          // cross-channel between checkout and pay) — surface it, never silent.
+          try {
+            const { sendWhatsApp } = await import("@/lib/whatsapp");
+            await sendWhatsApp({ message: `⚠️ TBS points redeem FAILED after charge on order ${order.order_no || order.id} — customer got Rp${Math.round(Number(tp.discount)||0).toLocaleString("id-ID")} off but points weren't deducted (${res.error||"?"}). Reconcile with the member.` });
+          } catch { /* alert best-effort */ }
+        }
       }
     } catch (e) {
       console.error("TBS points redeem failed:", e);

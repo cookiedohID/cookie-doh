@@ -42,11 +42,11 @@ function openHoursElapsedMs(fromIso: string, now: number, OPEN_H = 10, CLOSE_H =
   return total;
 }
 
-const num = async (supa: any, key: string, env: string | undefined, dflt: number) => {
-  const s = Number(await getSetting(supa, key));
-  if (Number.isFinite(s) && s > 0) return s;
-  const e = Number(env);
-  return Number.isFinite(e) && e > 0 ? e : dflt;
+const num = async (supa: any, key: string, env: string | undefined, dflt: number, allowZero = false) => {
+  const raw = await getSetting(supa, key);
+  if (raw != null && raw !== "" && Number.isFinite(Number(raw)) && (allowZero || Number(raw) > 0)) return Number(raw);
+  if (env != null && env !== "" && Number.isFinite(Number(env)) && (allowZero || Number(env) > 0)) return Number(env);
+  return dflt;
 };
 
 export async function GET(req: Request) {
@@ -55,8 +55,11 @@ export async function GET(req: Request) {
     const supa = supaAdmin();
     const hours = await num(supa, "tbs_promise_hours", process.env.TBS_PROMISE_HOURS, 3);
     const voucher = await num(supa, "tbs_promise_voucher_idr", process.env.TBS_PROMISE_VOUCHER_IDR, 10000);
-    const openH = await num(supa, "tbs_open_hour", process.env.TBS_OPEN_HOUR, 10);
-    const closeH = await num(supa, "tbs_close_hour", process.env.TBS_CLOSE_HOUR, 21);
+    let openH = await num(supa, "tbs_open_hour", process.env.TBS_OPEN_HOUR, 10, true);
+    let closeH = await num(supa, "tbs_close_hour", process.env.TBS_CLOSE_HOUR, 21);
+    // a transposed/invalid window (close <= open) would silently disable the
+    // promise entirely — fall back to the sane default hours
+    if (!(closeH > openH) || openH < 0 || closeH > 24) { openH = 10; closeH = 21; }
     const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
 
     // paid TBS orders past the promise window, not yet compensated
@@ -86,7 +89,7 @@ export async function GET(req: Request) {
       const stage = stageById.get(String(o.id));
       if (!stage || stage === "ready" || stage === "completed" || stage === "cancelled") continue;
 
-      const code = `SORRY-${String(o.id).slice(0, 6).toUpperCase()}`;
+      const code = `SORRY-${String(o.id).replace(/-/g, "").slice(0, 12).toUpperCase()}`;
       const { error: insErr } = await supa.from("promo_codes").insert({
         code, type: "fixed", value: Math.round(voucher), min_subtotal: 0,
         usage_limit: 1, per_customer_limit: 1,

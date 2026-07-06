@@ -146,8 +146,17 @@ export async function GET(req: Request) {
         if (!t) {
           try {
             const { randomUUID } = await import("crypto");
-            t = randomUUID().replace(/-/g, "");
-            await supa.from("orders").update({ nudge_token: t }).eq("id", o.id).is("nudge_token", null);
+            const candidate = randomUUID().replace(/-/g, "");
+            // race-safe: only OUR update (won the null guard) may hand out a link;
+            // a concurrent mint sets its own token, so re-read to use the winner
+            const { data: won } = await supa.from("orders")
+              .update({ nudge_token: candidate }).eq("id", o.id).is("nudge_token", null)
+              .select("nudge_token").maybeSingle();
+            if (won?.nudge_token) t = won.nudge_token;
+            else {
+              const { data: cur } = await supa.from("orders").select("nudge_token").eq("id", o.id).maybeSingle();
+              t = cur?.nudge_token || null;
+            }
           } catch { t = null; }
         }
         if (t) o.payUrl = `/pay/${o.id}?t=${t}`;

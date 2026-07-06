@@ -324,3 +324,16 @@ create table if not exists public.app_settings (
   updated_at timestamptz not null default now()
 );
 alter table public.app_settings enable row level security;
+
+
+-- Order ratings (Shopee 'Nilai') — created live on prod 2026-07-05/06.
+create table if not exists public.order_ratings (
+  order_id uuid primary key,
+  phone text not null,
+  stars int not null check (stars between 1 and 5),
+  comment text,
+  points_granted boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.order_ratings enable row level security;

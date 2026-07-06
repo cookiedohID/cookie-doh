@@ -309,7 +309,22 @@ export async function POST(req: Request) {
       }
       const { tbsPointsBalance } = await import("@/lib/tbsShop");
       const balance = await tbsPointsBalance(verifiedPhone);
-      const cap = Math.max(0, Math.min(balance, tbsSubtotal, finalTotal - 1000));
+      // Guard concurrent double-spend: points this member has already committed
+      // to OTHER still-unpaid orders (each stamps meta.tbs_points.discount) are
+      // not spendable again. Subtract them from the live balance before capping.
+      let committedElsewhere = 0;
+      try {
+        const { data: pend } = await supabase
+          .from("orders").select("meta")
+          .eq("customer_phone", verifiedPhone).eq("payment_status", "PENDING")
+          .gte("created_at", new Date(Date.now() - 24 * 3600 * 1000).toISOString()).limit(50);
+        for (const o of pend || []) {
+          const d = Number((o as any)?.meta?.tbs_points?.discount);
+          if (Number.isFinite(d) && d > 0) committedElsewhere += d;
+        }
+      } catch { /* best-effort netting */ }
+      const spendable = Math.max(0, balance - committedElsewhere);
+      const cap = Math.max(0, Math.min(spendable, tbsSubtotal, finalTotal - 1000));
       if (cap > 0) {
         finalTotal -= cap;
         tbsPointsMeta = { phone: verifiedPhone, discount: cap, redeemed: false };

@@ -37,7 +37,7 @@ export async function GET(req: Request) {
     const value = await getSetting(supaAdmin(), key);
     return NextResponse.json({ ok: true, key, value });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });
+    console.error("route error:", e); return NextResponse.json({ ok: false, error: "Something went wrong." }, { status: 500 });
   }
 }
 
@@ -55,6 +55,6 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ ok });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });
+    console.error("route error:", e); return NextResponse.json({ ok: false, error: "Something went wrong." }, { status: 500 });
   }
 }

@@ -28,9 +28,11 @@ export async function getTbsFeePct(supa: any, override?: string | null): Promise
   const clamp = (n: number) => Math.min(50, Math.max(0, n));
   const o = Number(override);
   if (override != null && override !== "" && Number.isFinite(o)) return clamp(o);
-  const saved = Number(await getSetting(supa, "tbs_marketplace_fee_pct"));
-  if (Number.isFinite(saved) && saved > 0) return clamp(saved);
-  const env = Number(process.env.TBS_MARKETPLACE_FEE_PCT);
-  if (Number.isFinite(env) && env > 0) return clamp(env);
+  // distinguish an explicit saved "0" from "unset" (getSetting returns null) —
+  // a 0% fee must be honoured, not silently bumped to the 5% default
+  const savedRaw = await getSetting(supa, "tbs_marketplace_fee_pct");
+  if (savedRaw != null && savedRaw !== "" && Number.isFinite(Number(savedRaw))) return clamp(Number(savedRaw));
+  const envRaw = process.env.TBS_MARKETPLACE_FEE_PCT;
+  if (envRaw != null && envRaw !== "" && Number.isFinite(Number(envRaw))) return clamp(Number(envRaw));
   return 5;
 }

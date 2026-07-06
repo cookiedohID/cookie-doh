@@ -63,6 +63,6 @@ export async function POST(req: Request) {
     const res = await sendWhatsApp({ to: phone, message });
     return NextResponse.json(res.ok ? { ok: true } : { ok: false, error: res.error || "send failed" }, { status: res.ok ? 200 : 502 });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });
+    console.error("route error:", e); return NextResponse.json({ ok: false, error: "Something went wrong." }, { status: 500 });
   }
 }
