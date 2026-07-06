@@ -120,10 +120,31 @@ export async function tbsPointsBalance(phone: string): Promise<number> {
 }
 
 // Spend points (1 point = Rp1) — idempotent on source_ref (ERP ledger unique).
-export async function redeemTbsPoints(phone: string, points: number, sourceRef: string): Promise<{ ok: boolean; error?: string }> {
+// Distinguishes a DEFINITIVE not-held (insufficient balance — no debit
+// happened) from an INDETERMINATE result (timeout/network — the debit MAY have
+// committed even though we got no response). The caller must treat these
+// differently (indeterminate must never be assumed as "no debit").
+export async function redeemTbsPoints(phone: string, points: number, sourceRef: string): Promise<{ ok: boolean; insufficient?: boolean; indeterminate?: boolean; error?: string }> {
   const r = await partnerPost("/redeem", { phone, points, source_ref: sourceRef });
-  if (r && r.ok) return { ok: true };
-  return { ok: false, error: (r && (r.error || r.message)) || "redeem failed" };
+  if (r === null) return { ok: false, indeterminate: true, error: "no response" };
+  if (r.ok === true) return { ok: true };
+  const err = String(r.error || r.message || "redeem failed");
+  if (/insufficient/i.test(err)) return { ok: false, insufficient: true, error: err };
+  return { ok: false, indeterminate: true, error: err };
+}
+
+// Hold points with bounded retry: redeem is idempotent on source_ref, so
+// re-attempting after a timeout safely CONFIRMS a debit that committed but
+// whose response was lost (returns ok) or reveals it never landed
+// (insufficient). Only an exhausted-retry against a truly-unreachable ERP stays
+// indeterminate.
+export async function redeemTbsPointsHold(phone: string, points: number, sourceRef: string, attempts = 3): Promise<{ ok: boolean; insufficient?: boolean; indeterminate?: boolean; error?: string }> {
+  let last: any = { ok: false, indeterminate: true };
+  for (let i = 0; i < Math.max(1, attempts); i++) {
+    last = await redeemTbsPoints(phone, points, sourceRef);
+    if (last.ok || last.insufficient) return last; // definitive
+  }
+  return last; // exhausted → indeterminate
 }
 
 // Give points BACK (order held points at checkout but was never paid) —
