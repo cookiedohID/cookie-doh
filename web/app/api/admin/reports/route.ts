@@ -262,6 +262,19 @@ export async function GET(req: Request) {
       ratings, ratingsAvg,
       locations: LOCATIONS.map((l) => ({ id: l.id, name: l.short })),
       summary: { orders: orders.length, revenue: totalRevenue, freeCookies, freeDrinks },
+      loyaltyCost: await (async () => {
+        const { getSetting } = await import("@/lib/settings");
+        const ck = Number(await getSetting(supa, "loyalty_free_cookie_cost"));
+        const dk = Number(await getSetting(supa, "loyalty_free_drink_cost"));
+        const cookieCost = Number.isFinite(ck) && ck >= 0 ? ck : 0;
+        const drinkCost = Number.isFinite(dk) && dk >= 0 ? dk : 0;
+        return {
+          freeCookies, freeDrinks, cookieCost, drinkCost,
+          cookieExpense: freeCookies * cookieCost,
+          drinkExpense: freeDrinks * drinkCost,
+          totalExpense: freeCookies * cookieCost + freeDrinks * drinkCost,
+        };
+      })(),
       daily, dailyDetail, items, byLocation, redemptions, inventory, movements, tbsSettlement,
       tbsDaily,
       tbsProducts,
