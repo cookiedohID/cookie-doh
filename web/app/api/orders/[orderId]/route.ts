@@ -25,12 +25,19 @@ export async function GET(
     const sb = supabaseAdmin();
 
     let order: any = null;
+    // Did the caller prove knowledge of the unguessable order UUID (a v4 UUID =
+    // 122 random bits, so it works as a per-order capability token)? The
+    // midtrans_order_id is short + guessable (CD-YYYYMMDD-<6 hex>), so a request
+    // that resolves via THAT path must not disclose customer PII — otherwise
+    // anyone can enumerate order ids and harvest name / phone / address.
+    let viaUuid = false;
 
     // 1) If it's a UUID, lookup by orders.id
     if (isUuid(orderId)) {
       const r = await sb.from("orders").select("*").eq("id", orderId).maybeSingle();
       if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
       order = r.data;
+      viaUuid = Boolean(order);
     }
 
     // 2) Fallback: lookup by midtrans_order_id
@@ -83,10 +90,11 @@ export async function GET(
       pickup_point_name: pick?.pointName ?? null,
       pickup_point_address: pick?.pointAddress ?? null,
 
-      // customer & address
-      customer_name: order.customer_name,
-      customer_phone: order.customer_phone,
-      shipping_address: order.shipping_address,
+      // customer & address — PII only on the capability-token (UUID) path;
+      // the guessable midtrans_order_id path returns null (no enumeration leak).
+      customer_name: viaUuid ? order.customer_name : null,
+      customer_phone: viaUuid ? order.customer_phone : null,
+      shipping_address: viaUuid ? order.shipping_address : null,
 
       // totals & items
       total_idr: order.total_idr,

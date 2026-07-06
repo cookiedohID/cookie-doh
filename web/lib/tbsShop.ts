@@ -41,8 +41,11 @@ function adminToken(): string | null {
 }
 
 // Shareable preview password (soft gate for early viewers the owner invites).
-// Visiting /api/tbs/preview?key=<this> sets a 30-day cookie. Change it here.
-export const TBS_PREVIEW_KEY = "buahsegar100";
+// Visiting /api/tbs/preview?key=<this> sets a 30-day cookie. Prefer the env var;
+// the literal is only a fallback so the gate keeps working until TBS_PREVIEW_KEY
+// is set in the deploy env — set it, then drop the literal. (Soft gate, not a
+// security boundary.)
+export const TBS_PREVIEW_KEY = process.env.TBS_PREVIEW_KEY || "buahsegar100";
 function previewCookieValue(): string {
   return createHash("sha256").update(`tbs-preview::${TBS_PREVIEW_KEY}`).digest("hex");
 }

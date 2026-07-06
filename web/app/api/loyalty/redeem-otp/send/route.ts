@@ -35,14 +35,29 @@ export async function POST(req: Request) {
     // Throttle: one code per 45s per number.
     const { data: existing } = await supa
       .from("redemption_otps")
-      .select("last_sent_at")
+      .select("last_sent_at, expires_at, attempts")
       .eq("phone", phone)
       .maybeSingle();
     if (existing?.last_sent_at && Date.now() - new Date(existing.last_sent_at).getTime() < 45_000) {
       return NextResponse.json({ ok: false, error: "Please wait a moment before requesting another code." }, { status: 429 });
     }
+    // Lockout: if the current code is still valid and already burned its 5
+    // attempts, refuse to mint a fresh one. Otherwise an attacker loops
+    // "5 guesses → resend (resets attempts) → 5 guesses" forever. They must now
+    // wait out the 5-min expiry, capping brute-force to 5 tries / 5 min.
+    if (
+      existing &&
+      Number(existing.attempts) >= 5 &&
+      existing.expires_at &&
+      new Date(existing.expires_at).getTime() > Date.now()
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Too many attempts on the current code. Wait a few minutes and try again." },
+        { status: 429 }
+      );
+    }
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = String(crypto.randomInt(100000, 1000000));
     const now = new Date();
     const expires = new Date(now.getTime() + 5 * 60_000);
 

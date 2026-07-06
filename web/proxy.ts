@@ -53,24 +53,40 @@ export default async function proxy(req: NextRequest) {
   // ✅ Always allow Next assets and everything else (go-live safe mode)
   if (isPublicAsset(pathname)) return NextResponse.next();
 
-  // 🔒 Admin gate — protect every /admin page and /api/admin route behind a
-  // password. No-op until ADMIN_PASSWORD is set (so deploying never locks you out).
-  const isAdminArea = pathname.startsWith("/admin") || pathname.startsWith("/api/admin");
+  // 🔒 Staff gate — protect every staff surface behind the admin password:
+  //   • /admin + /api/admin      — the back-office console
+  //   • /cafe + /api/loyalty/*   — the in-store POS and the member-reward /
+  //     redemption-OTP APIs it calls (these return member PII + apply free
+  //     rewards, so they must never be reachable by the public internet).
+  // The POS runs in a staff browser; same-origin fetches automatically carry the
+  // httpOnly cd_admin cookie, so the POS keeps working once staff sign in once.
+  const isStaffArea =
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api/admin") ||
+    pathname === "/cafe" ||
+    pathname.startsWith("/cafe/") ||
+    pathname.startsWith("/api/loyalty");
   const isLogin = pathname === "/admin/login" || pathname.startsWith("/api/admin/login");
-  if (isAdminArea && !isLogin) {
+  if (isStaffArea && !isLogin) {
     const password = process.env.ADMIN_BASIC_PASS || process.env.ADMIN_PASSWORD;
+    const denied = (): NextResponse => {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ ok: false, error: "Staff sign-in required." }, { status: 401 });
+      }
+      const url = req.nextUrl.clone();
+      url.pathname = "/admin/login";
+      url.searchParams.set("next", pathname);
+      return NextResponse.redirect(url);
+    };
     if (password) {
       const cookie = req.cookies.get(COOKIE)?.value;
       const ok = Boolean(cookie) && cookie === (await expectedToken(password));
-      if (!ok) {
-        if (pathname.startsWith("/api/")) {
-          return NextResponse.json({ ok: false, error: "Admin sign-in required." }, { status: 401 });
-        }
-        const url = req.nextUrl.clone();
-        url.pathname = "/admin/login";
-        url.searchParams.set("next", pathname);
-        return NextResponse.redirect(url);
-      }
+      if (!ok) return denied();
+    } else if (process.env.NODE_ENV === "production") {
+      // FAIL CLOSED in production: if no admin password is configured, deny the
+      // whole staff surface rather than exposing it. (Local dev stays open so a
+      // developer without the env var isn't locked out.)
+      return denied();
     }
   }
 

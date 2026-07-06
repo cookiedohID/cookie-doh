@@ -4,6 +4,14 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Escape customer-controlled text before putting it in the HTML email body.
+// Without this a customer name like `<img src=x onerror=…>` or a phishing
+// `<a>` renders in the owner's inbox (stored HTML injection).
+const esc = (s: unknown): string =>
+  String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string)
+  );
+
 export async function sendNewOrderEmail(params: {
   orderNo: string;
   customerName?: string | null;
@@ -36,11 +44,12 @@ export async function sendNewOrderEmail(params: {
     <div style="font-family:Arial,sans-serif;padding:20px;color:#111;">
       <h2 style="margin-top:0;">🍪 New Cookie Doh Order</h2>
 
-      <p><strong>Order:</strong> ${params.orderNo}</p>
-      <p><strong>Customer:</strong> ${params.customerName || "-"}</p>
-      <p><strong>Phone:</strong> ${params.customerPhone || "-"}</p>
-      <p><strong>Fulfilment:</strong> ${params.fulfilment || "-"}</p>
+      <p><strong>Order:</strong> ${esc(params.orderNo)}</p>
+      <p><strong>Customer:</strong> ${esc(params.customerName) || "-"}</p>
+      <p><strong>Phone:</strong> ${esc(params.customerPhone) || "-"}</p>
+      <p><strong>Fulfilment:</strong> ${esc(params.fulfilment) || "-"}</p>
       <p><strong>Schedule:</strong> ${[params.scheduleDate, params.scheduleTime]
+        .map(esc)
         .filter(Boolean)
         .join(" • ") || "-"}</p>
       <p><strong>Total:</strong> ${total}</p>
