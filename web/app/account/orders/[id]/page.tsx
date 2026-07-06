@@ -31,6 +31,27 @@ export default function OrderDetailPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    // Fast path: render instantly from the list cache set when you tapped through
+    // from My Orders (avoids re-loading the whole order history — and its live
+    // TotalBuahStore status call — just to view one order). If the cache is fresh
+    // (<60s) we skip the network entirely; otherwise we revalidate in the
+    // background without blocking the view.
+    let renderedFromCache = false;
+    let hadFreshCache = false;
+    try {
+      const raw = sessionStorage.getItem("cd_orders_cache");
+      if (raw) {
+        const c = JSON.parse(raw);
+        const cached = c?.byId?.[id];
+        if (cached) {
+          setOrder(cached);
+          setLoading(false);
+          renderedFromCache = true;
+          hadFreshCache = typeof c?.at === "number" && Date.now() - c.at < 60_000;
+        }
+      }
+    } catch { /* ignore */ }
+    if (hadFreshCache) return; // fresh enough — no network needed
     (async () => {
       try {
         const { data } = await getSupabaseBrowser().auth.getSession();
@@ -40,10 +61,11 @@ export default function OrderDetailPage() {
         const j = await res.json().catch(() => ({}));
         const o = (j?.orders || []).find((x: any) => String(x.id) === id);
         if (o) setOrder(o);
-        else setErr("We couldn't find this order in your account.");
-      } catch { setErr("We couldn't load this order."); }
+        else if (!renderedFromCache) setErr("We couldn't find this order in your account.");
+      } catch { if (!renderedFromCache) setErr("We couldn't load this order."); }
       finally { setLoading(false); }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, router]);
 
   const stage = useMemo(() => {

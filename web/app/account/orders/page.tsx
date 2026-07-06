@@ -103,7 +103,13 @@ export default function MyOrdersPage() {
         const res = await fetch("/api/account/orders", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
         if (res.status === 401) { router.replace("/account/login"); return; }
         const j = await res.json().catch(() => ({}));
-        if (j?.ok) setOrders(Array.isArray(j.orders) ? j.orders : []);
+        if (j?.ok) {
+          const list = Array.isArray(j.orders) ? j.orders : [];
+          setOrders(list);
+          // Cache the loaded orders so tapping into one opens INSTANTLY (the detail
+          // page reads this instead of re-fetching the whole history). See [id]/page.tsx.
+          try { sessionStorage.setItem("cd_orders_cache", JSON.stringify({ at: Date.now(), byId: Object.fromEntries(list.map((o: Order) => [String(o.id), o])) })); } catch { /* private mode */ }
+        }
         else setErr(j?.error || "We couldn't load your orders.");
       } catch {
         setErr("We couldn't load your orders. Please check your connection.");
