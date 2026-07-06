@@ -46,6 +46,23 @@ type TbsData = {
   history: { total: number; offset: number; receipts: TbsReceipt[] };
 };
 
+// ── Instant-render cache (stale-while-revalidate) ────────────────────────────
+// The family page is the hub you bounce back to between menus; re-fetching
+// /api/account/me (+ the federated TBS call) on every visit is what made it feel
+// slow on the live site. We snapshot the loaded member into sessionStorage so a
+// return visit paints immediately, then refresh in the background. Cleared on
+// logout / auth loss so a different user never sees a stale snapshot.
+const ACCT_CACHE_KEY = "cd_account_cache";
+function writeAccountCache(patch: Partial<{ member: Member; email: string; tbs: TbsData | null }>) {
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(ACCT_CACHE_KEY) || "null") || {};
+    sessionStorage.setItem(ACCT_CACHE_KEY, JSON.stringify({ ...prev, ...patch, at: Date.now() }));
+  } catch { /* private mode / quota — caching is best-effort */ }
+}
+function clearAccountCache() {
+  try { sessionStorage.removeItem(ACCT_CACHE_KEY); } catch { /* ignore */ }
+}
+
 function TbsCherry({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={Math.round((size * 30) / 26)} viewBox="0 0 26 30" aria-hidden="true">
@@ -193,43 +210,61 @@ export default function AccountPage() {
     return data.session?.access_token || null;
   }
 
-  async function load() {
-    setLoading(true);
+  // `background` = we already painted a cached view, so don't flash a spinner or
+  // an error (a failed refresh silently keeps the cached content); we still act
+  // on auth loss / needsPhone and update on fresh success.
+  async function load(background = false) {
+    if (!background) setLoading(true);
     setLoadErr("");
     try {
       const t = await token().catch(() => null);
-      if (!t) { router.replace("/account/login"); return; }
+      if (!t) { clearAccountCache(); router.replace("/account/login"); return; }
       // Capture the signed-in identity so the UI can always show WHICH account.
-      try { const { data } = await getSupabaseBrowser().auth.getSession(); setEmail(data.session?.user?.email || ""); } catch {}
+      let signedInEmail = "";
+      try { const { data } = await getSupabaseBrowser().auth.getSession(); signedInEmail = data.session?.user?.email || ""; setEmail(signedInEmail); } catch {}
       // TotalBuahStore rewards — federated, feature-flagged server-side. Best-effort,
       // non-blocking; only surfaces when the proxy is configured AND finds the member.
       setAuthToken(t);
       fetch("/api/account/tbs", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" })
         .then((r) => r.json())
-        .then((j) => { if (j?.configured && j?.found) setTbs(j as TbsData); })
+        .then((j) => { if (j?.configured && j?.found) { setTbs(j as TbsData); writeAccountCache({ tbs: j as TbsData }); } })
         .catch(() => { /* TBS is optional; never blocks the account page */ });
       const timeoutSignal = typeof AbortSignal !== "undefined" && (AbortSignal as any).timeout ? (AbortSignal as any).timeout(12000) : undefined;
       const res = await fetch("/api/account/me", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store", signal: timeoutSignal });
       const j = await res.json().catch(() => ({}));
-      if (res.status === 401) { router.replace("/account/login"); return; }
+      if (res.status === 401) { clearAccountCache(); router.replace("/account/login"); return; }
       if (j?.needsPhone) {
         setNeedsPhone(true);
         if (j?.phone) setPhone(j.phone); // re-verify an existing-but-unverified number
         return;
       }
-      if (j?.member) { setMember(j.member); return; }
+      if (j?.member) { setMember(j.member); writeAccountCache({ member: j.member, email: signedInEmail }); return; }
       // Neither member nor needsPhone (e.g. backend error, or a phone linked to
-      // another account) — surface it instead of rendering a blank page.
-      setLoadErr(j?.error || "We couldn't load your account. Please try again.");
+      // another account) — surface it instead of rendering a blank page (but never
+      // clobber a good cached view on a background refresh).
+      if (!background) setLoadErr(j?.error || "We couldn't load your account. Please try again.");
     } catch {
-      setLoadErr("We couldn't load your account. Please check your connection and try again.");
+      if (!background) setLoadErr("We couldn't load your account. Please check your connection and try again.");
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    // Paint instantly from a recent snapshot, then revalidate in the background.
+    let hydrated = false;
+    try {
+      const c = JSON.parse(sessionStorage.getItem(ACCT_CACHE_KEY) || "null");
+      // guard against a very stale snapshot (30 min); revalidation always follows.
+      if (c?.member && typeof c?.at === "number" && Date.now() - c.at < 30 * 60_000) {
+        setMember(c.member as Member);
+        if (c.email) setEmail(c.email);
+        if (c.tbs) setTbs(c.tbs as TbsData);
+        setLoading(false);
+        hydrated = true;
+      }
+    } catch { /* ignore */ }
+    load(hydrated);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -264,7 +299,7 @@ export default function AccountPage() {
       const j = await res.json().catch(() => ({}));
       if (j?.ok) {
         setBdaySaved(true);
-        await load(); // refresh so the section flips to the locked view
+        await load(true); // background refresh so the section flips to the locked view (no spinner flash)
       } else {
         setBdayErr(j?.error || "Couldn't save your birthday. Please try again.");
       }
@@ -325,6 +360,7 @@ export default function AccountPage() {
   }
 
   async function logout() {
+    clearAccountCache(); // never let the next user see this account's snapshot
     try { await signOutMember(); } catch { /* ignore */ }
     // Belt-and-suspenders: nuke any lingering Supabase auth token so a broken
     // session can never keep you stuck on this page.
@@ -388,7 +424,7 @@ export default function AccountPage() {
           <h1 style={{ fontSize: 22, fontWeight: 800, color: COLORS.black, marginTop: 8 }}>Something went wrong</h1>
           <p style={{ color: COLORS.muted, fontSize: 14, marginTop: 6 }}>{loadErr}</p>
           <div style={{ marginTop: 20, display: "grid", gap: 10 }}>
-            <button onClick={load} style={{ height: 48, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, cursor: "pointer" }}>Try again</button>
+            <button onClick={() => load()} style={{ height: 48, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, cursor: "pointer" }}>Try again</button>
             <button onClick={logout} style={{ height: 46, borderRadius: 999, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, fontWeight: 900, cursor: "pointer" }}>Log out &amp; start over</button>
           </div>
           <p style={{ color: COLORS.muted, fontSize: 12, marginTop: 12, lineHeight: 1.5 }}>Still stuck? Tap “Log out &amp; start over”, then sign in again.</p>
