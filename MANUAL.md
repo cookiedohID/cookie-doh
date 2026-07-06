@@ -490,6 +490,35 @@ A second storefront on cookiedoh.co.id selling TBS groceries, in full TBS brand
 until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
 `/tbs` (a "coming soon" page shows for everyone else).
 
+> ### ✅ Go-live checklist (do these before pressing 🚀)
+> Everything below is BUILT and tested — these are the human steps left before
+> opening the shop to customers. Work top to bottom.
+>
+> 1. **Enter the 4 real product costs** for the placeholder items (Pear / Kiwi /
+>    Plum Jus, Pita Satin) in the TBS back-office master data. Until then those
+>    items earn 0 loyalty points (safe, but under-rewards). See the "Suspicious
+>    costs" SmartList to catch any others (cost < 20% of price).
+> 2. **Physical stock-take (opname)** at cutover — store stock from the old
+>    system is approximate until then. Keep the **"Stock shown online %"** buffer
+>    ≤ 50% (Sales → Web Shop) meanwhile; the Admin → 🍒 TBS advisory shows the
+>    live value. (Nothing oversells to a paid customer regardless — the store
+>    confirms every order at pickup/packing.)
+> 3. **Test-run the points redemption** once end-to-end with a real member + a
+>    sandbox payment (earn → check out spending points → pay → confirm the
+>    balance moved). The money-safety logic is built + audited; this proves the
+>    full journey.
+> 4. **Decide the 952 test-points correction** (Admin → Members, adjust −727 →
+>    real value ~225). Optional; your own test order.
+> 5. **totalbuahstore.com DNS** — point it at cookiedoh.co.id when ready (the
+>    redirect code is live but inert until DNS moves). Your call; the old site
+>    lives there now.
+> 6. **Confirm the fee %** (Admin → 🍒 TBS) — currently 5% of TBS goods.
+> 7. **Launch:** Admin → 🍒 TBS → **🚀 Open shop to everyone**. One tap, reversible.
+>
+> After launch, watch the **daily WhatsApp digest** (TBS orders + fee + ratings +
+> any late-promise vouchers) and **Admin → 🍒 TBS** (order push status, high-demand
+> restock list).
+
 - **Preview it:** log in at `/admin/login` on your phone, then open `/tbs`.
 - **Store first:** the customer picks their TBS store (RC Veteran / Karang
   Tengah / Bekasi); prices + live stock + fulfilment all come from that store.
@@ -553,6 +582,24 @@ until launch: only a logged-in **admin** sees the "TotalBuahStore" nav tab and
   SmartList → POS (Points ledger / by store / flow map / inter-store debt /
   Points given Detail·Header·Summary). Daily WhatsApp digest includes a TBS
   line (orders · goods · fee earned).
+- **🍒 Points spendable online:** logged-in members with TBS items see "Use my
+  TBS points" at checkout (1 point = Rp1, TBS goods only). Points are held the
+  instant they check out and refunded automatically if the order isn't paid.
+- **🔔 Sold-out demand:** out-of-stock items sink to the bottom and show a
+  "Notify me" button. Every tap is a demand signal — **Admin → 🍒 TBS** lists
+  the most-requested unavailable items (your restock shortlist); an hourly robot
+  WhatsApps waiting members when an item is back.
+- **⭐ Ratings & arrival promise:** customers rate paid orders (you read them in
+  Reports → ⭐ Ratings) and earn points for the first rating; if a store misses
+  the "ready within 3 store-hours" promise, the customer auto-gets a Rp10.000
+  voucher + apology.
+- **🌐 Language:** an EN / 🇮🇩 ID toggle in the shop header; default Bahasa,
+  remembered per visitor. Interface only — product names stay as-is.
+- **🧾 Promotion expense:** Reports → Redeemed shows free cookies/drinks given
+  × your cost per item = the promotion expense to book (Dr Promotion expense).
+  TBS points cost/liability = the back-office SmartList "Loyalty points cost".
+- **💳 Continue payment:** an unpaid order keeps a "Continue payment" button in
+  My Orders until its payment window expires.
 
 *(Data flows server-to-server from the TBS ERP's partner API — same token as
 the Member-page TBS rewards tab.)*
