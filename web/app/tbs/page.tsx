@@ -207,15 +207,15 @@ export default function TbsShopPage() {
         <section style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 18, padding: "26px 22px", display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 300px", minWidth: 260 }}>
             <h1 style={{ margin: 0, fontSize: 30, lineHeight: 1.15, fontWeight: 900, color: "#191919", textTransform: "uppercase" }}>
-              Curated with <span style={{ color: RED }}>expertise</span>,<br />delivering to <span style={{ color: GREEN }}>you</span>.
+              {t("hero.line1")}<span style={{ color: RED }}>{t("hero.expertise")}</span>{t("hero.line2")}<br /><span style={{ color: GREEN }}>{t("hero.you")}</span>.
             </h1>
             <p style={{ color: "#666", fontSize: 14, lineHeight: 1.6, margin: "10px 0 16px", maxWidth: 420 }}>
-              Premium imported and local products, handpicked for quality, freshness, and your everyday needs.
+              {t("hero.sub")}
             </p>
             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <a href="#tbs-shop" style={{ textDecoration: "none", background: "#7CB342", color: "#fff", fontWeight: 900, fontSize: 14, padding: "12px 22px", borderRadius: 8, letterSpacing: 0.5 }}>SHOP NOW</a>
+              <a href="#tbs-shop" style={{ textDecoration: "none", background: "#7CB342", color: "#fff", fontWeight: 900, fontSize: 14, padding: "12px 22px", borderRadius: 8, letterSpacing: 0.5 }}>{t("hero.shopNow")}</a>
               <button onClick={() => setPickerOpen(true)} style={{ border: `1.5px solid ${GREEN}`, background: "#fff", color: GREEN, borderRadius: 999, padding: "10px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
-                📍 {store ? storeName : "Choose your store"}
+                📍 {store ? storeName : t("hero.chooseStore")}
               </button>
             </div>
           </div>
@@ -224,12 +224,12 @@ export default function TbsShopPage() {
 
         {/* quality strip */}
         <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginTop: 12 }}>
-          {[["🏅", "Quality guaranteed", "We source only the best for you and your family."],
-            ["🚚", "Pickup & delivery", "Collect at your store or get it sent to your door."],
-            ["🎧", "Expert support", "Our team is here to help you shop with confidence."]].map(([e, t, d]) => (
-            <div key={t} style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 12, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center" }}>
+          {[["🏅", t("strip.qualityT"), t("strip.qualityD")],
+            ["🚚", t("strip.deliveryT"), t("strip.deliveryD")],
+            ["🎧", t("strip.supportT"), t("strip.supportD")]].map(([e, ttl, d]) => (
+            <div key={ttl} style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 12, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center" }}>
               <span style={{ fontSize: 22 }}>{e}</span>
-              <div><div style={{ fontWeight: 800, fontSize: 13, color: "#222" }}>{t}</div>
+              <div><div style={{ fontWeight: 800, fontSize: 13, color: "#222" }}>{ttl}</div>
                 <div style={{ fontSize: 11.5, color: "#888", lineHeight: 1.4 }}>{d}</div></div>
             </div>
           ))}
@@ -237,7 +237,7 @@ export default function TbsShopPage() {
 
         {!stockSynced && store ? (
           <div style={{ marginTop: 10, fontSize: 12, color: "#8a6d3b", background: "#FCF8E3", border: "1px solid #efe4bb", borderRadius: 8, padding: "6px 10px" }}>
-            Live stock is still syncing from the stores — availability shown may lag.
+            {t("shop.stockSyncing")}
           </div>
         ) : null}
 
