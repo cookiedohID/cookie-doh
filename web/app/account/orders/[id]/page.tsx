@@ -10,6 +10,7 @@ import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { useLang } from "@/lib/i18n";
+import { OrderThumb } from "@/lib/orderThumb";
 
 const rupiah = (n: number) => "Rp" + Math.round(n || 0).toLocaleString("id-ID");
 const GREEN = "#135232";
@@ -184,12 +185,9 @@ export default function OrderDetailPage() {
             {/* items */}
             <div style={{ marginTop: 12, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "6px 16px" }}>
               {(order.items || []).map((it: any, i: number) => {
-                const isTbs = (it.href || "").startsWith("/tbs");
                 return (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 10, flex: "0 0 auto", display: "grid", placeItems: "center", fontSize: 20, background: isTbs ? "#EAF3E7" : "#EAF2FF" }}>
-                      {isTbs ? "🍒" : it.href === "/smoothies" ? "🥤" : "🍪"}
-                    </div>
+                    <OrderThumb it={it} size={44} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 13, color: "#222", fontWeight: 600 }}>
                         {it.href ? <Link href={it.href} style={{ color: "#222", textDecoration: "none" }}>{it.name}</Link> : it.name}

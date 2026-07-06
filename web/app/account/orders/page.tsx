@@ -8,6 +8,7 @@ import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { orderStage } from "@/lib/orderStage";
 import { useLang } from "@/lib/i18n";
+import { OrderThumb } from "@/lib/orderThumb";
 
 type Item = { id?: string; sku?: string | null; unit?: string | null; name: string; qty: number; price: number; free: boolean; href?: string | null };
 type TbsBlock = { store: string | null; storeName: string | null; orderNo: string | null; pushed: boolean; stage: string | null; pointsEarned?: number };
@@ -216,16 +217,20 @@ export default function MyOrdersPage() {
                     </div>
                   ) : null}
 
-                  <div style={{ marginTop: 10, display: "grid", gap: 4 }}>
+                  <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
                     {o.items.map((it, i) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#333" }}>
-                        <span>
-                          {it.qty}× {it.href ? (
-                            <Link href={it.href} style={{ color: COLORS.blue, textDecoration: "none", fontWeight: 600 }}>{it.name}</Link>
-                          ) : it.name}
-                          {it.free ? <span style={{ color: COLORS.blue, fontWeight: 700 }}> · free</span> : null}
-                        </span>
-                        <span style={{ color: COLORS.muted }}>{it.free || !it.price ? "—" : rupiah(it.price * it.qty)}</span>
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <OrderThumb it={it} size={46} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: "#333", lineHeight: 1.3 }}>
+                            {it.href ? (
+                              <Link href={it.href} style={{ color: COLORS.blue, textDecoration: "none", fontWeight: 600 }}>{it.name}</Link>
+                            ) : it.name}
+                            {it.free ? <span style={{ color: COLORS.blue, fontWeight: 700 }}> · free</span> : null}
+                          </div>
+                          <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 1 }}>×{it.qty}</div>
+                        </div>
+                        <span style={{ color: COLORS.muted, fontSize: 13, whiteSpace: "nowrap" }}>{it.free || !it.price ? "—" : rupiah(it.price * it.qty)}</span>
                       </div>
                     ))}
                   </div>
