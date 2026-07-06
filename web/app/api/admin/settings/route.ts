@@ -17,6 +17,9 @@ const ALLOWED: Record<string, (v: string) => boolean> = {
   tbs_promise_voucher_idr: (v) => Number.isFinite(Number(v)) && Number(v) >= 1000 && Number(v) <= 1000000,
   // rate-to-earn: TBS points granted on the FIRST rating of an order (0 = off)
   tbs_rating_reward_points: (v) => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 10000,
+  // COGS of a free cookie / drink given as a reward (for booking promo expense)
+  loyalty_free_cookie_cost: (v) => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1000000,
+  loyalty_free_drink_cost: (v) => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 1000000,
   // store opening hours (WIB) used by the arrival-promise clock
   tbs_open_hour: (v) => Number.isFinite(Number(v)) && Number(v) >= 0 && Number(v) <= 23,
   tbs_close_hour: (v) => Number.isFinite(Number(v)) && Number(v) >= 1 && Number(v) <= 24,

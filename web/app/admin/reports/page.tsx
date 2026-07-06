@@ -41,6 +41,8 @@ export default function AdminReportsPage() {
   const [to, setTo] = useState(isoDaysAgo(0));
   const [locationId, setLocationId] = useState("");
   const [tbsFeePct, setTbsFeePct] = useState("");
+  const [ckCost, setCkCost] = useState("");
+  const [dkCost, setDkCost] = useState("");
   const [tab, setTab] = useState<Tab>("daily");
   const [openDay, setOpenDay] = useState<string | null>(null);
   const [data, setData] = useState<Report | null>(null);
@@ -236,6 +238,44 @@ export default function AdminReportsPage() {
             </table>
           )}
         </div>
+
+        {tab === "redemptions" && data?.loyaltyCost ? (
+          <section style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16, marginTop: 14 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 800, color: COLORS.black, margin: 0 }}>🍪 Promotion expense — free items given</h2>
+            <p style={{ fontSize: 12, color: COLORS.muted, margin: "4px 0 10px" }}>
+              The COGS of free cookies &amp; drinks you gave away this period — book as promotion expense. Set your cost per item (what it costs YOU to make one).
+            </p>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+              <div>
+                <div style={{ fontSize: 11.5, color: COLORS.muted, fontWeight: 700 }}>🍪 Free cookies given</div>
+                <div style={{ fontSize: 20, fontWeight: 900 }}>{data.loyaltyCost.freeCookies}</div>
+              </div>
+              <label style={{ fontSize: 11.5, fontWeight: 800, color: COLORS.muted }}>Cost / cookie (Rp)<br />
+                <input value={ckCost} onChange={(e) => setCkCost(e.target.value.replace(/[^\d]/g, ""))} placeholder={String(data.loyaltyCost.cookieCost)}
+                  style={{ width: 90, padding: "7px 10px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.16)" }} /></label>
+              <div>
+                <div style={{ fontSize: 11.5, color: COLORS.muted, fontWeight: 700 }}>🥤 Free drinks given</div>
+                <div style={{ fontSize: 20, fontWeight: 900 }}>{data.loyaltyCost.freeDrinks}</div>
+              </div>
+              <label style={{ fontSize: 11.5, fontWeight: 800, color: COLORS.muted }}>Cost / drink (Rp)<br />
+                <input value={dkCost} onChange={(e) => setDkCost(e.target.value.replace(/[^\d]/g, ""))} placeholder={String(data.loyaltyCost.drinkCost)}
+                  style={{ width: 90, padding: "7px 10px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.16)" }} /></label>
+              <button onClick={async () => {
+                const save = (k: string, v: string) => v.trim() ? fetch("/api/admin/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: k, value: v.trim() }) }) : Promise.resolve();
+                await Promise.all([save("loyalty_free_cookie_cost", ckCost), save("loyalty_free_drink_cost", dkCost)]);
+                setCkCost(""); setDkCost(""); load();
+              }} style={{ border: "none", background: "#135232", color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "9px 16px", borderRadius: 999, cursor: "pointer" }}>💾 Save costs</button>
+            </div>
+            <div style={{ marginTop: 14, borderTop: "1px solid rgba(0,0,0,0.08)", paddingTop: 10, display: "flex", gap: 24, flexWrap: "wrap" }}>
+              <div><span style={{ color: COLORS.muted, fontSize: 12.5 }}>Cookies expense: </span><b>{rupiah(data.loyaltyCost.cookieExpense)}</b></div>
+              <div><span style={{ color: COLORS.muted, fontSize: 12.5 }}>Drinks expense: </span><b>{rupiah(data.loyaltyCost.drinkExpense)}</b></div>
+              <div><span style={{ color: COLORS.muted, fontSize: 12.5, fontWeight: 800 }}>Total to book (Dr Promotion expense): </span><b style={{ color: "#9c1216" }}>{rupiah(data.loyaltyCost.totalExpense)}</b></div>
+            </div>
+            <p style={{ fontSize: 11, color: COLORS.muted, marginTop: 8 }}>
+              (TBS points — a separate reward system — are measured in the TBS back-office SmartList “Loyalty points cost &amp; liability”.)
+            </p>
+          </section>
+        ) : null}
 
         {tab === "tbs" && data ? (
           <section style={{ background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16, marginTop: 14 }}>
