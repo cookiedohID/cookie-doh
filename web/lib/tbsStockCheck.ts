@@ -77,10 +77,15 @@ export function computeTbsStockIssues(lines: TbsLineWant[], items: any[]): Recor
   return issues;
 }
 
-export function tbsIssueText(i: TbsStockIssue): string {
-  if (i.type === "short") return `Only ${i.stock} left — reduce the quantity`;
-  if (i.type === "group") return `Only ${i.stock} in stock across all pack sizes — reduce`;
-  return "Out of stock — please remove";
+export function tbsIssueText(i: TbsStockIssue, lang: "id" | "en" = "id"): string {
+  if (lang === "en") {
+    if (i.type === "short") return `Only ${i.stock} left — reduce the quantity`;
+    if (i.type === "group") return `Only ${i.stock} in stock across all pack sizes — reduce`;
+    return "Out of stock — please remove";
+  }
+  if (i.type === "short") return `Sisa ${i.stock} — kurangi jumlahnya`;
+  if (i.type === "group") return `Total stok ${i.stock} untuk semua ukuran kemasan — kurangi`;
+  return "Stok habis — mohon hapus";
 }
 
 // A line is dead (dim it, only removal makes sense) vs fixable by reducing.

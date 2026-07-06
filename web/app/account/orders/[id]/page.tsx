@@ -9,6 +9,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { useLang } from "@/lib/i18n";
 
 const rupiah = (n: number) => "Rp" + Math.round(n || 0).toLocaleString("id-ID");
 const GREEN = "#135232";
@@ -19,6 +20,7 @@ const PAY_LABEL: Record<string, string> = {
 };
 
 export default function OrderDetailPage() {
+  const { t } = useLang();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = String(params?.id || "");
@@ -64,7 +66,7 @@ export default function OrderDetailPage() {
     cancelled: { bg: "#FDECEC", fg: "#C0392B", text: "✗ Cancelled" },
   }[stage] as { bg: string; fg: string; text: string };
 
-  const TIMELINE = ["Paid", "Being prepared", "Ready", "Completed"];
+  const TIMELINE = [t("ord.timeline.paid"), t("ord.timeline.preparing"), t("ord.timeline.ready"), t("ord.timeline.done")];
   const stageIdx = stage === "topay" ? -1 : stage === "preparing" ? 1 : stage === "ready" ? 2 : stage === "done" ? 3 : -1;
 
   const buyAgain = () => {
@@ -154,7 +156,7 @@ export default function OrderDetailPage() {
               <div style={{ marginTop: 12, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "12px 16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#333" }}>🚚 Shipping info</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "#333" }}>{t("ord.shippingInfo")}</div>
                     <div style={{ fontSize: 12.5, color: "#555", marginTop: 3 }}>
                       {order.shipping.courier ? `${order.shipping.courier}: ` : ""}{order.shipping.waybill || "—"}
                     </div>
@@ -162,7 +164,7 @@ export default function OrderDetailPage() {
                   {order.shipping.trackingUrl ? (
                     <a href={order.shipping.trackingUrl} target="_blank" rel="noreferrer"
                       style={{ flex: "0 0 auto", textDecoration: "none", border: `1.5px solid ${GREEN}`, color: GREEN, fontWeight: 800, fontSize: 12.5, padding: "8px 16px", borderRadius: 999 }}>
-                      Track 🛰
+                      {t("ord.track")}
                     </a>
                   ) : null}
                 </div>
@@ -206,19 +208,19 @@ export default function OrderDetailPage() {
             {/* order facts */}
             <div style={{ marginTop: 12, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "12px 16px", fontSize: 13 }}>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0" }}>
-                <span style={{ color: COLORS.muted }}>Order no.</span>
+                <span style={{ color: COLORS.muted }}>{t("ord.orderNo")}</span>
                 <span style={{ fontWeight: 800 }}>
                   {order.orderNo ? `#${order.orderNo}` : id.slice(0, 8)}
-                  <button onClick={copyNo} style={{ marginLeft: 8, border: "1px solid rgba(0,0,0,0.15)", background: "#fff", borderRadius: 8, fontSize: 11, fontWeight: 800, padding: "2px 8px", cursor: "pointer" }}>{copied ? "Copied ✓" : "Copy"}</button>
+                  <button onClick={copyNo} style={{ marginLeft: 8, border: "1px solid rgba(0,0,0,0.15)", background: "#fff", borderRadius: 8, fontSize: 11, fontWeight: 800, padding: "2px 8px", cursor: "pointer" }}>{copied ? t("ord.copied") : t("ord.copy")}</button>
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0" }}>
-                <span style={{ color: COLORS.muted }}>Date</span>
+                <span style={{ color: COLORS.muted }}>{t("ord.date")}</span>
                 <span style={{ fontWeight: 700 }}>{new Date(order.paidAt || order.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
               </div>
               {order.paymentMethod ? (
                 <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0" }}>
-                  <span style={{ color: COLORS.muted }}>Payment</span>
+                  <span style={{ color: COLORS.muted }}>{t("ord.payment")}</span>
                   <span style={{ fontWeight: 700 }}>{PAY_LABEL[order.paymentMethod] || order.paymentMethod}</span>
                 </div>
               ) : null}
@@ -226,7 +228,7 @@ export default function OrderDetailPage() {
 
             {order.payUrl ? (
               <a href={order.payUrl} style={{ display: "block", marginTop: 12, textAlign: "center", textDecoration: "none", background: "#0014A7", color: "#fff", fontWeight: 900, fontSize: 14.5, padding: "13px", borderRadius: 12 }}>
-                💳 Continue payment — {new Intl.NumberFormat("id-ID").format(order.total)} IDR
+                {t("ord.continuePayment")} — {new Intl.NumberFormat("id-ID").format(order.total)} IDR
               </a>
             ) : null}
 
@@ -245,7 +247,7 @@ export default function OrderDetailPage() {
             {/* rating */}
             {String(order.status).toUpperCase() === "PAID" ? (
               <div style={{ marginTop: 12, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 14, padding: "12px 16px" }}>
-                <div style={{ fontSize: 13.5, fontWeight: 800, color: "#333" }}>⭐ Rate this order{!order.rating ? <span style={{ color: GREEN, fontWeight: 800 }}> — earn 100 🍒 points</span> : null}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: "#333" }}>{t("ord.rate")}{!order.rating ? <span style={{ color: GREEN, fontWeight: 800 }}> {t("ord.rateEarn")}</span> : null}</div>
                 <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button key={n} onClick={() => submitRating(n)} aria-label={`${n} stars`}
@@ -254,7 +256,7 @@ export default function OrderDetailPage() {
                   {rateMsg ? <span style={{ alignSelf: "center", fontSize: 12.5, fontWeight: 700, color: GREEN }}>{rateMsg}</span> : null}
                 </div>
                 <textarea value={comment} onChange={(e) => setComment(e.target.value)} onBlur={() => { if (stars > 0) submitRating(stars); }}
-                  placeholder="Tell us more (optional)" rows={2}
+                  placeholder={t("ord.tellMore")} rows={2}
                   style={{ width: "100%", marginTop: 10, padding: "9px 12px", borderRadius: 10, border: "1px solid rgba(0,0,0,0.12)", fontSize: 13, resize: "vertical" }} />
               </div>
             ) : null}
@@ -263,12 +265,12 @@ export default function OrderDetailPage() {
             <div style={{ marginTop: 14, display: "grid", gap: 8 }}>
               {hasTbsItems ? (
                 <button onClick={buyAgain} style={{ border: "none", background: GREEN, color: "#fff", fontWeight: 900, fontSize: 14.5, padding: "13px", borderRadius: 12, cursor: "pointer" }}>
-                  🍒 Buy again — rebuild this basket
+                  {t("ord.buyAgain")}
                 </button>
               ) : null}
               <a href={`https://wa.me/6281932181818?text=${encodeURIComponent(`Hi! About my order ${order.orderNo ? "#" + order.orderNo : id.slice(0, 8)} 🙏`)}`} target="_blank" rel="noreferrer"
                 style={{ textAlign: "center", textDecoration: "none", border: "1px solid rgba(0,0,0,0.15)", background: "#fff", color: "#222", fontWeight: 800, fontSize: 13.5, padding: "12px", borderRadius: 12 }}>
-                💬 Need help? Chat with us
+                {t("ord.needHelp")}
               </a>
             </div>
           </>

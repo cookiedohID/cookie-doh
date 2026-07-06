@@ -9,6 +9,7 @@ import {
   RED, GREEN, CREAM, catLabel, catEmoji, loadBasket, bumpBasket, useTbsGate,
   ComingSoon, TbsProductCard, type CatalogItem, type BasketLine,
 } from "../../shared";
+import { useLang } from "@/lib/i18n";
 
 const SORTS = [
   { id: "popular", label: "Recommended" },
@@ -17,6 +18,7 @@ const SORTS = [
 ];
 
 export default function TbsCategoryPage() {
+  const { t } = useLang();
   const { gate, preview } = useTbsGate();
   const params = useParams<{ cat: string }>();
   const cat = decodeURIComponent(String(params?.cat || ""));
@@ -94,15 +96,15 @@ export default function TbsCategoryPage() {
         {!loading && items.length < total ? (
           <button onClick={() => fetchPage(items.length, true)}
             style={{ display: "block", margin: "16px auto 0", border: `1.5px solid ${RED}`, background: "#fff", color: RED, borderRadius: 999, padding: "10px 22px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
-            Load more ({items.length} of {total})
+            {t("shop.loadMore")} ({items.length}/{total})
           </button>
         ) : null}
         {!loading && fetchErr && items.length === 0 ? (
           <div style={{ textAlign: "center", marginTop: 24 }}>
-            <p style={{ color: "#777", fontSize: 14 }}>The store is unreachable right now — it may be waking up.</p>
+            <p style={{ color: "#777", fontSize: 14 }}>{t("shop.unreachable")}</p>
             <button onClick={() => fetchPage(0, false)}
               style={{ border: `1.5px solid ${RED}`, background: "#fff", color: RED, borderRadius: 999, padding: "10px 22px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
-              Try again
+              {t("shop.tryAgain")}
             </button>
           </div>
         ) : null}

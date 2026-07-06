@@ -374,7 +374,7 @@ export default function TbsShopPage() {
                       style={{ fontSize: 13.5, fontWeight: 700, color: "#222", textDecoration: "none", display: "block" }}>{l.name}</Link>
                     <div style={{ fontSize: 12, color: "#999" }}>{rp(l.price)} / {l.unit}</div>
                     {sheetIssues[l.sku] ? (
-                      <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>{tbsIssueText(sheetIssues[l.sku])}</div>
+                      <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>{tbsIssueText(sheetIssues[l.sku], lang)}</div>
                     ) : null}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>

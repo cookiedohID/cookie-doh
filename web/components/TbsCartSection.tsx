@@ -11,6 +11,7 @@ import {
   RED, GREEN, rp, loadBasket, saveBasket, TBS_FALLBACK_STORES, type BasketLine,
 } from "@/app/tbs/shared";
 import { computeTbsStockIssues, tbsIssueText, tbsIssueDead, type TbsStockIssue } from "@/lib/tbsStockCheck";
+import { useLang } from "@/lib/i18n";
 
 export type BasketIssue = TbsStockIssue;
 
@@ -73,6 +74,7 @@ export function useTbsBasket() {
 }
 
 export default function TbsCartSection({ compact = false }: { compact?: boolean }) {
+  const { lang, t } = useLang();
   const { store, storeName, lines, subtotal, enabled, issues, hasIssues } = useTbsBasket();
   if (!enabled || !store || lines.length === 0) return null;
 
@@ -92,14 +94,14 @@ export default function TbsCartSection({ compact = false }: { compact?: boolean 
       <div style={{ padding: "12px 16px 10px", display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
         <div>
           <span style={{ fontWeight: 900, color: GREEN, fontSize: 15 }}>🍒 TotalBuahStore</span>
-          <span style={{ fontSize: 12, color: "#888", marginLeft: 8 }}>from {storeName} — ships together with your cookies</span>
+          <span style={{ fontSize: 12, color: "#888", marginLeft: 8 }}>{t("basket.shipsTogether", { store: storeName })}</span>
         </div>
-        <Link href="/tbs" style={{ fontSize: 12.5, color: RED, fontWeight: 700, textDecoration: "none" }}>+ add more</Link>
+        <Link href="/tbs" style={{ fontSize: 12.5, color: RED, fontWeight: 700, textDecoration: "none" }}>{t("basket.addMore")}</Link>
       </div>
       <div style={{ padding: "0 16px 12px" }}>
         {hasIssues ? (
           <div style={{ background: "#FBECEA", border: "1px solid #ECC9C5", borderRadius: 10, padding: "8px 12px", fontSize: 12.5, color: "#8c1d18", fontWeight: 700, margin: "4px 0 8px" }}>
-            ⚠️ Some items are no longer available in this quantity — please remove or reduce them to check out.
+            {t("basket.someUnavailable")}
           </div>
         ) : null}
         {lines.map((l) => (
@@ -108,7 +110,7 @@ export default function TbsCartSection({ compact = false }: { compact?: boolean 
               <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`} style={{ textDecoration: "none", color: "#333", lineHeight: 1.35, display: "block" }}>{l.name}</Link>
               <div style={{ fontSize: 12, color: "#999" }}>{rp(l.price)} / {l.unit}</div>
               {issues[l.sku] ? (
-                <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>{tbsIssueText(issues[l.sku])}</div>
+                <div style={{ fontSize: 12, color: "#b3261e", fontWeight: 800, marginTop: 2 }}>{tbsIssueText(issues[l.sku], lang)}</div>
               ) : null}
             </div>
             {compact ? (
@@ -123,7 +125,7 @@ export default function TbsCartSection({ compact = false }: { compact?: boolean 
           </div>
         ))}
         <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 2px", borderTop: "1px solid rgba(0,0,0,0.08)", fontSize: 14 }}>
-          <span style={{ color: "#666" }}>TotalBuahStore subtotal</span>
+          <span style={{ color: "#666" }}>{t("basket.subtotal")}</span>
           <span style={{ fontWeight: 700, color: "#191919" }}>{rp(subtotal)}</span>
         </div>
       </div>

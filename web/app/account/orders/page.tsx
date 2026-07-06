@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLORS } from "@/lib/theme";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import { orderStage, STAGE_LABEL } from "@/lib/orderStage";
+import { orderStage } from "@/lib/orderStage";
+import { useLang } from "@/lib/i18n";
 
 type Item = { id?: string; sku?: string | null; unit?: string | null; name: string; qty: number; price: number; free: boolean; href?: string | null };
 type TbsBlock = { store: string | null; storeName: string | null; orderNo: string | null; pushed: boolean; stage: string | null; pointsEarned?: number };
@@ -80,6 +81,11 @@ function earnedChips(o: Order): string[] {
 }
 
 export default function MyOrdersPage() {
+  const { t } = useLang();
+  const STAGE_LABEL: Record<string, string> = {
+    topay: t("ord.stage.topay"), preparing: t("ord.stage.preparing"), ready: t("ord.stage.ready"),
+    done: t("ord.stage.done"), cancelled: t("ord.stage.cancelled"),
+  };
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -110,12 +116,12 @@ export default function MyOrdersPage() {
     <main style={{ minHeight: "100vh", background: COLORS.bg }}>
       <div style={{ maxWidth: 480, margin: "0 auto", padding: "32px 16px 80px" }}>
         <Link href="/account" style={{ color: COLORS.muted, textDecoration: "none", fontSize: 13, fontWeight: 700 }}>‹ Back to account</Link>
-        <h1 style={{ margin: "8px 0 0", fontSize: 26, fontWeight: 800, color: COLORS.black }}>My Orders</h1>
-        <p style={{ margin: "4px 0 0", color: COLORS.muted, fontSize: 13 }}>Your cafe &amp; online purchases.</p>
+        <h1 style={{ margin: "8px 0 0", fontSize: 26, fontWeight: 800, color: COLORS.black }}>{t("ord.myOrders")}</h1>
+        <p style={{ margin: "4px 0 0", color: COLORS.muted, fontSize: 13 }}>{t("ord.subtitle")}</p>
 
         {!loading && !err && orders.length > 0 ? (
           <div style={{ marginTop: 14, display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
-            {([["all", "All"], ["topay", "To pay"], ["preparing", "Being prepared"], ["ready", "Ready"], ["done", "Completed"]] as [Stage, string][]).map(([k, label]) => (
+            {([["all", t("ord.all")], ["topay", t("ord.toPay")], ["preparing", t("ord.preparing")], ["ready", t("ord.ready")], ["done", t("ord.done")]] as [Stage, string][]).map(([k, label]) => (
               <button key={k} onClick={() => setStage(k)} style={{
                 border: "none", borderBottom: stage === k ? `2.5px solid ${COLORS.blue}` : "2.5px solid transparent",
                 background: "transparent", color: stage === k ? COLORS.blue : COLORS.muted,
@@ -170,7 +176,7 @@ export default function MyOrdersPage() {
                   </div>
                   {(o as any).payUrl ? (
                     <a href={(o as any).payUrl} style={{ display: "inline-block", marginTop: 8, textDecoration: "none", background: "#0014A7", color: "#fff", fontWeight: 800, fontSize: 12.5, padding: "8px 16px", borderRadius: 999 }}>
-                      💳 Continue payment
+                      {t("ord.continuePayment")}
                     </a>
                   ) : null}
                   {o.tbs?.orderNo && o.tbs.stage ? (

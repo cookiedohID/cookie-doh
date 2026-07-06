@@ -11,6 +11,7 @@ import {
   RED, GREEN, CREAM, rp, catLabel, catEmoji, tileColors,
   loadBasket, saveBasket, useTbsGate, ComingSoon, TBS_FALLBACK_STORES, type BasketLine,
 } from "../../shared";
+import { useLang } from "@/lib/i18n";
 
 type Product = { sku: string; name: string; category: string | null; categoryName?: string | null; price: number; unit: string; weighed: boolean };
 type Variant = { uom: string; factor: number; label: string; price: number; stock: number };
@@ -18,6 +19,7 @@ type Avail = { store: string; storeName: string; stock: number; status: "in_stoc
 type Related = { sku: string; name: string; category: string | null; price: number; unit: string };
 
 export default function TbsProductPage() {
+  const { t: tr } = useLang();
   const { gate, preview } = useTbsGate();
   const router = useRouter();
   const params = useParams<{ sku: string }>();
@@ -92,8 +94,8 @@ export default function TbsProductPage() {
     return (
       <main style={{ minHeight: "60vh", display: "grid", placeItems: "center", padding: 20 }}>
         <div style={{ textAlign: "center" }}>
-          <p style={{ fontSize: 15, color: "#666" }}>This product isn&apos;t in the online catalog.</p>
-          <Link href="/tbs" style={{ color: RED, fontWeight: 800, textDecoration: "none" }}>← Back to the shop</Link>
+          <p style={{ fontSize: 15, color: "#666" }}>{tr("p.notInCatalog")}</p>
+          <Link href="/tbs" style={{ color: RED, fontWeight: 800, textDecoration: "none" }}>{tr("p.backToShop")}</Link>
         </div>
       </main>
     );
@@ -148,7 +150,7 @@ export default function TbsProductPage() {
 
                 {data!.variants.length > 1 ? (
                   <div style={{ marginTop: 12 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 6 }}>Choose an option</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#666", marginBottom: 6 }}>{tr("p.chooseOption")}</div>
                     {data!.variants.map((v, i) => {
                       const vOut = Boolean(mineLive && v.stock < 1);
                       const active = sel?.uom === v.uom;
@@ -157,7 +159,7 @@ export default function TbsProductPage() {
                           style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "11px 13px", marginBottom: 6, borderRadius: 8, cursor: vOut ? "default" : "pointer", textAlign: "left",
                             border: active ? `2px solid ${GREEN}` : "1px solid rgba(0,0,0,0.13)",
                             background: vOut ? "#f5f5f5" : active ? "#F0F7EE" : "#fff", color: vOut ? "#aaa" : "#222" }}>
-                          <span style={{ fontSize: 13.5 }}>{vOut ? "(Sold out) " : ""}{v.label}</span>
+                          <span style={{ fontSize: 13.5 }}>{vOut ? `${tr("p.soldOut")} ` : ""}{v.label}</span>
                           <span style={{ fontSize: 13.5, fontWeight: 500, color: vOut ? "#aaa" : "#191919" }}>{rp(v.price)}</span>
                         </button>
                       );
@@ -172,7 +174,7 @@ export default function TbsProductPage() {
                     <button onClick={() => setQty((n) => Math.min(mineLive && sel ? Math.max(1, sel.stock) : 99, n + 1))} aria-label="more" style={{ border: "none", background: "transparent", fontSize: 18, fontWeight: 900, cursor: "pointer", color: GREEN, minWidth: 40, minHeight: 40 }}>+</button>
                   </div>
                   <div style={{ textAlign: "right" }}>
-                    <span style={{ fontSize: 12, color: "#999", marginRight: 8 }}>Total amount</span>
+                    <span style={{ fontSize: 12, color: "#999", marginRight: 8 }}>{tr("p.totalAmount")}</span>
                     <span style={{ fontSize: 20, fontWeight: 700, color: "#191919" }}>{rp(selPrice * qty)}</span>
                   </div>
                 </div>
@@ -219,7 +221,7 @@ export default function TbsProductPage() {
                   {specRow("Fulfilment", "Pickup or delivery from your selected store")}
                   <button onClick={() => setOtherStores((v) => !v)}
                     style={{ display: "block", border: "none", background: "transparent", padding: "14px 0 4px", cursor: "pointer", fontSize: 13.5, fontWeight: 800, color: GREEN }}>
-                    🔎 Find in other stores {otherStores ? "▴" : "▾"}
+                    {tr("p.findOtherStores")} {otherStores ? "▴" : "▾"}
                   </button>
                   {otherStores && data!.availability.map((a) => (
                     <div key={a.store} style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", borderRadius: 8, marginBottom: 3, background: a.store === store ? "#F0F7EE" : "transparent" }}>

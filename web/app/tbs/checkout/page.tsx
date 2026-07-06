@@ -10,12 +10,14 @@ import { useRouter } from "next/navigation";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
 import { useTbsBasket } from "@/components/TbsCartSection";
 import { tbsIssueText, tbsIssueDead } from "@/lib/tbsStockCheck";
+import { useLang } from "@/lib/i18n";
 import {
   RED, GREEN, CREAM, rp, saveBasket, useTbsGate, ComingSoon,
 } from "../shared";
 
 export default function TbsCheckoutPage() {
   const { gate } = useTbsGate();
+  const { lang, t } = useLang();
   const router = useRouter();
   // shared basket hook: same lines the cart shows + live stock validation
   // (auto-refreshes vs the store; hasIssues gates the pay button below)
@@ -79,10 +81,10 @@ export default function TbsCheckoutPage() {
         <nav style={{ fontSize: 12.5, color: "#999", marginBottom: 10 }}>
           <Link href="/tbs" style={{ color: "#999", textDecoration: "none" }}>Shop</Link> · <b style={{ color: GREEN }}>Checkout</b>
         </nav>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#191919" }}>Checkout — <span style={{ color: GREEN }}>{storeName}</span></h1>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: "#191919" }}>{t("co.checkout")} — <span style={{ color: GREEN }}>{storeName}</span></h1>
 
         {lines.length === 0 ? (
-          <p style={{ marginTop: 16, color: "#777" }}>Your basket is empty. <Link href="/tbs" style={{ color: RED, fontWeight: 800 }}>Back to the shop</Link></p>
+          <p style={{ marginTop: 16, color: "#777" }}>{t("co.emptyBasket")} <Link href="/tbs" style={{ color: RED, fontWeight: 800 }}>{t("p.backToShop")}</Link></p>
         ) : (
           <>
             {/* order summary */}
@@ -98,22 +100,22 @@ export default function TbsCheckoutPage() {
                     <Link href={`/tbs/p/${encodeURIComponent(l.sku.split("@")[0])}${l.sku.includes("@") ? `?u=${encodeURIComponent(l.sku.split("@")[1])}` : ""}`}
                       style={{ color: "#333", textDecoration: "none" }}>{l.name}</Link> <span style={{ color: "#999" }}>× {l.qty}</span>
                     {issues[l.sku] ? (
-                      <span style={{ display: "block", color: "#b3261e", fontWeight: 800, fontSize: 12 }}>{tbsIssueText(issues[l.sku])}</span>
+                      <span style={{ display: "block", color: "#b3261e", fontWeight: 800, fontSize: 12 }}>{tbsIssueText(issues[l.sku], lang)}</span>
                     ) : null}
                   </span>
                   <span style={{ fontWeight: 700 }}>{rp(l.qty * l.price)}</span>
                 </div>
               ))}
               <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", fontSize: 14, fontWeight: 900 }}>
-                <span>Subtotal</span><span>{rp(subtotal)}</span>
+                <span>{t("co.subtotal")}</span><span>{rp(subtotal)}</span>
               </div>
             </section>
 
             {/* contact */}
             <section style={{ marginTop: 14, display: "grid", gap: 9 }}>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name"
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("co.yourName")}
                 style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.15)", fontSize: 15, background: "#fff" }} />
-              <input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ""))} placeholder="WhatsApp number (08…)" inputMode="tel"
+              <input value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ""))} placeholder={t("co.whatsapp")} inputMode="tel"
                 style={{ padding: "12px 14px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.15)", fontSize: 15, background: "#fff" }} />
             </section>
 
@@ -123,7 +125,7 @@ export default function TbsCheckoutPage() {
                 {(["pickup", "delivery"] as const).map((f) => (
                   <button key={f} onClick={() => setFulfil(f)}
                     style={{ flex: 1, border: fulfil === f ? `2px solid ${GREEN}` : "1px solid rgba(0,0,0,0.14)", background: fulfil === f ? "#F0F7EE" : "#fff", color: "#222", borderRadius: 12, padding: "12px", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
-                    {f === "pickup" ? "🏬 Pickup at store" : "🛵 Deliver to me"}
+                    {f === "pickup" ? t("co.pickup") : t("co.delivery")}
                   </button>
                 ))}
               </div>
@@ -136,20 +138,20 @@ export default function TbsCheckoutPage() {
                     value={address}
                     onChange={(v: string) => { setAddress(v); setLatLng(null); }}
                     onResolved={(d: any) => { setAddress(d?.address || d?.formatted || address); if (Number.isFinite(d?.lat) && Number.isFinite(d?.lng)) setLatLng({ lat: d.lat, lng: d.lng }); }}
-                    placeholder="Delivery address (pick from suggestions)"
+                    placeholder={t("co.addressPlaceholder")}
                   />
                   <p style={{ fontSize: 12, color: "#999", marginTop: 6 }}>Delivery fee is by distance from {storeName} (max 12 km) — shown before you pay.</p>
                 </div>
               )}
-              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes for the store (optional)" rows={2}
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("co.notes")} rows={2}
                 style={{ width: "100%", marginTop: 10, padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.14)", fontSize: 14, background: "#fff", resize: "vertical" }} />
             </section>
 
             {serverPricing ? (
               <section style={{ marginTop: 12, background: "#F0F7EE", border: `1px solid ${GREEN}33`, borderRadius: 12, padding: "10px 14px", fontSize: 13.5 }}>
-                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Items</span><b>{rp(serverPricing.subtotal)}</b></div>
-                {serverPricing.delivery_fee ? <div style={{ display: "flex", justifyContent: "space-between" }}><span>Delivery{serverPricing.km ? ` (${serverPricing.km} km)` : ""}</span><b>{rp(serverPricing.delivery_fee)}</b></div> : null}
-                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, marginTop: 4 }}><span>Total</span><span style={{ color: RED }}>{rp(serverPricing.total)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span>{t("co.items")}</span><b>{rp(serverPricing.subtotal)}</b></div>
+                {serverPricing.delivery_fee ? <div style={{ display: "flex", justifyContent: "space-between" }}><span>{t("co.deliveryFee")}{serverPricing.km ? ` (${serverPricing.km} km)` : ""}</span><b>{rp(serverPricing.delivery_fee)}</b></div> : null}
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 900, marginTop: 4 }}><span>{t("co.total")}</span><span style={{ color: RED }}>{rp(serverPricing.total)}</span></div>
               </section>
             ) : null}
 
@@ -157,13 +159,13 @@ export default function TbsCheckoutPage() {
 
             <button onClick={pay} disabled={!canPay || busy}
               style={{ width: "100%", marginTop: 14, border: "none", borderRadius: 12, padding: "15px", fontWeight: 900, fontSize: 15.5, cursor: canPay && !busy ? "pointer" : "default", background: canPay && !busy ? "#7CB342" : "#ddd", color: canPay && !busy ? "#fff" : "#999" }}>
-              {busy ? "Opening payment…" : `Pay ${fulfil === "delivery" ? "(items + delivery)" : rp(subtotal)}`}
+              {busy ? t("co.openingPayment") : `${t("co.pay")} ${fulfil === "delivery" ? "" : rp(subtotal)}`}
             </button>
             <p style={{ fontSize: 11.5, color: "#999", textAlign: "center", marginTop: 8 }}>
-              Prices are confirmed by the store at payment time. QRIS / cards via Midtrans.
+              {t("co.pricesConfirmed")}
             </p>
             <p style={{ fontSize: 11.5, color: "#7a5c00", textAlign: "center", marginTop: 4, fontWeight: 700 }}>
-              🛡 Arrival promise: ready within 3 store hours (10:00–21:00) — or we send you a Rp10.000 voucher.
+              {t("co.promise")}
             </p>
           </>
         )}
