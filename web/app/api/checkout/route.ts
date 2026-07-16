@@ -13,6 +13,7 @@ import { serverBoxTotal } from "@/lib/serverPricing";
 import { classifyItem } from "@/lib/loyalty";
 import { getMember } from "@/lib/memberServer";
 import { vipStatusForPhone, loyaltyPerFree } from "@/lib/vip";
+import { holidayActive, HOLIDAY_RETURN_LABEL } from "@/lib/holiday";
 import { FLAVORS } from "@/lib/catalog";
 
 export const runtime = "nodejs";
@@ -105,6 +106,16 @@ function readCookie(req: Request, name: string): string | null {
 
 export async function POST(req: Request) {
   try {
+    // 🏖️ Catalog mode — Cookie Doh online ordering is paused for the upgrade break.
+    // The storefront is browse-only and the checkout page shows the holiday splash;
+    // this is the server backstop so an order can't slip through (e.g. a stale open
+    // tab). The TotalBuahStore shop checks out via /api/tbs/checkout and is untouched.
+    if (holidayActive()) {
+      return NextResponse.json(
+        { ok: false, error: `We're on a short break to upgrade — online ordering is back in ${HOLIDAY_RETURN_LABEL}. To order now, message us on WhatsApp. 🍪` },
+        { status: 503 },
+      );
+    }
     const payload = await req.json();
     const siteUrl = getSiteUrl();
     const supabase = supaAdmin();

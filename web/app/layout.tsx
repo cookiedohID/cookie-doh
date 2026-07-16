@@ -8,6 +8,8 @@ import "./globals.css";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import Footer from "@/components/Footer";
 import RefCapture from "@/components/RefCapture";
+import HolidayGate from "@/components/HolidayGate";
+import HolidayBanner from "@/components/HolidayBanner";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -47,8 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <RefCapture />
+        <HolidayBanner />
         <SiteHeader />
-        {children}
+        <HolidayGate>{children}</HolidayGate>
         <Footer />
         <WhatsAppButton />
       </body>

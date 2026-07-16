@@ -3,6 +3,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { holidayActive } from "@/lib/holiday";
 
 export default function WhatsAppButton() {
   const pathname = usePathname();
@@ -11,7 +12,12 @@ export default function WhatsAppButton() {
   if (pathname?.startsWith("/cafe") || pathname === "/subscribe") return null;
 
   const phone = "6281932181818";
-  const message = encodeURIComponent("Hi Cookie Doh 👋 I’d like to order cookies 🍪");
+  // The button stays, but during the upgrade break its prefill must NOT invite
+  // ordering (we're taking no orders) — just a friendly hello. Reverts to the
+  // "I'd like to order" prompt automatically once we reopen.
+  const message = encodeURIComponent(
+    holidayActive() ? "Hi Cookie Doh 👋" : "Hi Cookie Doh 👋 I’d like to order cookies 🍪",
+  );
 
   return (
     <a
