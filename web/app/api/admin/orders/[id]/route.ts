@@ -1,6 +1,6 @@
 // web/app/api/admin/orders/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 
 export const runtime = "nodejs";
 
@@ -11,12 +11,7 @@ function isUuid(id: unknown): id is string {
   );
 }
 
-const supabaseAdmin = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env vars");
-  return createClient(url, key, { auth: { persistSession: false } });
-};
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 type PatchBody = {
   payment_status?: "PENDING" | "PAID" | string;
@@ -40,7 +35,7 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "Missing order identifier" }, { status: 400 });
     }
 
-    const sb = supabaseAdmin();
+    const sb = supaAdmin();
     const q = sb.from("orders").select("*").limit(1);
 
     // UUID -> query by primary key id
@@ -98,7 +93,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
-    const sb = supabaseAdmin();
+    const sb = supaAdmin();
 
     let { data, error } = await sb.from("orders").update(update).eq("id", id).select("*").single();
 
@@ -134,7 +129,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
 export async function DELETE(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
-    const supabase = supabaseAdmin();
+    const supabase = supaAdmin();
 
     // Resolve to the order's uuid.
     let orderId = isUuid(id) ? id : null;

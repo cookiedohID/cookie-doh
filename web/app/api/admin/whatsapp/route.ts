@@ -1,6 +1,6 @@
 // web/app/api/admin/whatsapp/route.ts — list WhatsApp chats + mute/unmute the bot per customer.
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 import { canonicalPhone } from "@/lib/phone";
 
 export const runtime = "nodejs";
@@ -9,12 +9,7 @@ export const runtime = "nodejs";
 // rolls it forward (kept in sync with PAUSE_IDLE_HOURS in /api/whatsapp/inbound).
 const MUTE_HOURS = 2;
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 export async function GET() {
   try {
@@ -39,7 +34,7 @@ export async function GET() {
       supa.from("wa_state").select("phone, auto_paused_until").in("phone", keys),
       supa.from("customers").select("phone, name").in("phone", keys),
     ]);
-    const stateMap = new Map((stateRes.data || []).map((s: any) => [s.phone, s.auto_paused_until]));
+    const stateMap = new Map<string, any>((stateRes.data || []).map((s: any) => [s.phone, s.auto_paused_until]));
     const nameMap = new Map((custRes.data || []).map((c: any) => [c.phone, c.name]));
 
     const now = Date.now();

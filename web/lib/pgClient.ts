@@ -12,7 +12,7 @@
 import { query } from "@/lib/db";
 
 type Row = Record<string, any>;
-type Result<T = any> = { data: T; error: { message: string; code?: string } | null };
+type Result<T = any> = { data: T; error: { message: string; code?: string } | null; count?: number | null };
 
 // Translate an identifier that may carry a JSON arrow path.
 //   "id"            -> "id"
@@ -56,14 +56,17 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
   private _set: Row | null = null; // update
   private _onConflict: string | null = null;
   private _single: "one" | "maybe" | null = null;
+  private _count = false;   // supabase .select(cols, { count })
+  private _head = false;    // supabase .select(cols, { head: true }) → count only, no rows
 
   constructor(table: string) { this._table = table; }
 
   // ── shape ───────────────────────────────────────────────────────────────
-  select(cols?: string) {
+  select(cols?: string, opts?: { count?: "exact" | "planned" | "estimated"; head?: boolean }) {
     if (this._action === "select") this._cols = cols && cols.trim() ? cols : "*";
     else this._returning = true; // .insert(...).select() etc → RETURNING
     if (cols && /\(/.test(cols)) throw new Error(`pgClient: embedded select not supported yet ("${cols}") on ${this._table}`);
+    if (opts?.count) { this._count = true; this._head = opts.head === true; }
     return this;
   }
   insert(rows: Row | Row[]) { this._action = "insert"; this._values = Array.isArray(rows) ? rows : [rows]; return this; }
@@ -116,20 +119,25 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
   maybeSingle() { this._single = "maybe"; return this; }
 
   // ── build + run ───────────────────────────────────────────────────────────
+  // WHERE clause, appending bound params to the caller's array (so ordering
+  // composes with any preceding SET/VALUES params). Reused by build() + count.
+  private whereSql(params: any[]): string {
+    const p = (v: any) => { params.push(v); return "$" + params.length; };
+    if (!this._filters.length) return "";
+    const clauses = this._filters.map((f) => {
+      if (f.kind === "isRaw") return `${col(f.col)} is ${f.neg ? "not " : ""}${f.val}`;
+      if (f.kind === "raw") { let s = f.sql; f.params.forEach((v, i) => { s = s.replace("$OR" + i, p(v)); }); return s; }
+      if (f.op === "in") return `${col(f.col)} = any(${p(f.val)})`;
+      if (f.op.startsWith("not:")) { const o = f.op.slice(4); return `not (${col(f.col)} ${OP_SQL[o]} ${p(f.val)})`; }
+      return `${col(f.col)} ${OP_SQL[f.op]} ${p(f.val)}`;
+    });
+    return " where " + clauses.join(" and ");
+  }
+
   private build(): { text: string; params: any[] } {
     const params: any[] = [];
     const p = (v: any) => { params.push(v); return "$" + params.length; };
-    const where = () => {
-      if (!this._filters.length) return "";
-      const clauses = this._filters.map((f) => {
-        if (f.kind === "isRaw") return `${col(f.col)} is ${f.neg ? "not " : ""}${f.val}`;
-        if (f.kind === "raw") { let s = f.sql; f.params.forEach((v, i) => { s = s.replace("$OR" + i, p(v)); }); return s; }
-        if (f.op === "in") return `${col(f.col)} = any(${p(f.val)})`;
-        if (f.op.startsWith("not:")) { const o = f.op.slice(4); return `not (${col(f.col)} ${OP_SQL[o]} ${p(f.val)})`; }
-        return `${col(f.col)} ${OP_SQL[f.op]} ${p(f.val)}`;
-      });
-      return " where " + clauses.join(" and ");
-    };
+    const where = () => this.whereSql(params);
     const T = q(this._table);
     const ret = () => (this._action !== "select" && (this._returning || this._single) ? " returning *" : "");
 
@@ -159,6 +167,22 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
   }
 
   private async run(): Promise<Result<T>> {
+    // Count mode — supabase .select(cols, { count, head }). Returns { count } and,
+    // unless head:true, the rows too.
+    if (this._count) {
+      try {
+        const cparams: any[] = [];
+        const w = this.whereSql(cparams);
+        const cr = await query(`select count(*)::int as c from ${q(this._table)}${w}`, cparams);
+        const count = (cr.rows[0] as any)?.c ?? 0;
+        if (this._head) return { data: [] as any, error: null, count };
+        const b = this.build();
+        const rr = await query(b.text, b.params);
+        return { data: rr.rows as any, error: null, count };
+      } catch (e: any) {
+        return { data: null as any, error: { message: e?.message || "count error", code: e?.code }, count: null };
+      }
+    }
     let built: { text: string; params: any[] };
     try { built = this.build(); } catch (e: any) { return { data: null as any, error: { message: e?.message || "build error" } }; }
     try {
