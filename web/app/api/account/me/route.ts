@@ -1,6 +1,6 @@
 // web/app/api/account/me/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 import { canonicalPhone, phoneSignificant } from "@/lib/phone";
 import { loyaltyFromOrders } from "@/lib/loyalty";
 import { grantsForPhone } from "@/lib/loyaltyGrants";
@@ -9,12 +9,7 @@ import { subscriptionRewardBalance } from "@/lib/subscriptionRewards";
 
 export const runtime = "nodejs";
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim); .auth still → Supabase (P3). See lib/supaAdmin.
 
 function bearer(req: Request): string | null {
   const h = req.headers.get("authorization") || "";
