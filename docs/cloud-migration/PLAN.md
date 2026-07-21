@@ -34,9 +34,14 @@ Prove the pattern on 2–3 read routes against the live DB.
 > beats 305 error-prone hand conversions. Server-side first (service-role routes); the browser
 > client is auth-only and goes with P3.
 
-**P2 — Convert the 305 supabase-js call sites → pg** (69 files, route-by-route, each
-re-tested). Bulk mechanical work; 64/71 routes use the service role so there's no RLS to
-port. Best done as a fan-out once P1's pattern is locked.
+**P2 — Convert the service routes → pg. ✅ DONE 2026-07-07.** All 64/64 API routes swapped
+from a local Supabase service client to the shared `supaAdmin()` (data → pg shim, .auth →
+Supabase until P3), via an 8-way fan-out. Shim extended with the `.select(cols,{count,head})`
+count option. Verified: full typecheck clean; count + JSON-arrow (`meta->` `.not`/`.is`)
+filters return correct rows against the live DB. (One dead `/*…*/` block in lalamove still
+name-drops createClient — harmless, commented out.) Only supabase-js left: auth (P3) + the
+keep-awake ping. NOTE: not yet cut over — DATABASE_URL still points at Supabase Postgres for
+differential testing; P4 repoints it to Cloud SQL.
 
 **P3 — Replace Supabase Auth.** Stand up Auth.js (NextAuth) on Cloud SQL: Google provider +
 email/password (bcrypt) + our existing phone-OTP. Migrate the 8 members (bcrypt hashes
