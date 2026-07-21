@@ -43,10 +43,21 @@ name-drops createClient — harmless, commented out.) Only supabase-js left: aut
 keep-awake ping. NOTE: not yet cut over — DATABASE_URL still points at Supabase Postgres for
 differential testing; P4 repoints it to Cloud SQL.
 
-**P3 — Replace Supabase Auth.** Stand up Auth.js (NextAuth) on Cloud SQL: Google provider +
-email/password (bcrypt) + our existing phone-OTP. Migrate the 8 members (bcrypt hashes
-export cleanly; Google users re-link by email). Per G's 2026-07-04 ruling, key the member to
-`tbs_retail.member` via the TBS partner API — authenticate here, identity lives there.
+**P3 — Replace Supabase Auth.** 🔨 IN PROGRESS.
+- ✅ FOUNDATION (tested): `lib/memberSession` — jose HS256 JWT issue/verify returning the
+  EXACT Supabase user shape `{id,email,user_metadata:{name,phone}}`, so memberServer + the 12
+  `supaAdmin().auth.getUser` sites stay unchanged when the hybrid `.auth` is repointed here.
+  jose + bcryptjs installed. AUTH_SESSION_SECRET (≥32 chars) — dev one in .env.local; PROD one
+  must be set as a Vercel env var at cutover (route via infra).
+- MEASURED auth reality (8 users): **7 use Google**, 2 have bcrypt passwords, 4 have phone in
+  metadata, 4 customers carry auth_user_id. So Google is the primary path.
+- TODO: (a) `auth_user` table (id=SAME uuid as Supabase so customers.auth_user_id / phone_otps
+  links survive; email, password_hash, name, phone, google_sub); (b) migrate the 8 users
+  (export auth.users hashes + auth.identities google subs — verified readable via DATABASE_URL);
+  (c) login API routes — email/pw (bcrypt) + Google (verify Google ID token via Google JWKS with
+  jose) + reset; (d) repoint hybrid `.auth` → memberSession; (e) client: session store + swap the
+  8 browser-auth files + login/reset pages + Google Identity Services button. Per G's 2026-07-04
+  ruling, key the member to `tbs_retail.member` via the partner API.
 
 **P4 — Cutover** (during holiday). Freeze → final `pg_dump` of data → load into Cloud SQL →
 flip env (`DATABASE_URL` + drop Supabase keys) → deploy → smoke-test. ~1–2h window.
