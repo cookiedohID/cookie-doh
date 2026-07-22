@@ -4,7 +4,7 @@
 // can't touch auth_user (RLS-locked), only the service role here.
 import bcrypt from "bcryptjs";
 import { supaAdmin } from "@/lib/supaAdmin";
-import { issueSession, type SessionUser } from "@/lib/memberSession";
+import { issueSession, issueResetToken, verifyResetToken, type SessionUser } from "@/lib/memberSession";
 import { verifyGoogleIdToken } from "@/lib/googleAuth";
 import { canonicalPhone } from "@/lib/phone";
 
@@ -65,4 +65,40 @@ export async function signupWithPassword(email: string, password: string, name: 
   const { error } = await supa.from("auth_user").insert({ id, email: email.trim(), password_hash, name: name?.trim() || null, phone: cphone });
   if (error) return { error: "Couldn't create your account. Please try again." };
   return { token: await issueSession({ id, email: email.trim(), user_metadata: { name: name?.trim() || null, phone: cphone } }) };
+}
+
+/** Email a reset link. Best-effort + always silent (never reveals whether the
+ *  email exists); only password accounts get a link (Google-only have nothing to reset). */
+export async function requestPasswordReset(email: string): Promise<void> {
+  if (!emailValid(email)) return;
+  const supa = supaAdmin();
+  const row = await findByEmail(supa, email);
+  if (!row?.email || !row.password_hash) return;
+  const token = await issueResetToken(String(row.id));
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "https://www.cookiedoh.co.id";
+  const link = `${base}/account/reset?token=${encodeURIComponent(token)}`;
+  try {
+    const { Resend } = await import("resend");
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || "Cookie Doh <onboarding@resend.dev>",
+      to: row.email,
+      subject: "Reset your Cookie Doh password 🍪",
+      html: `<p>Tap below to set a new password (valid for 30 minutes):</p><p><a href="${link}">${link}</a></p><p>If you didn't ask for this, you can ignore this email.</p>`,
+    });
+  } catch { /* email is best-effort */ }
+}
+
+/** Set a new password from a valid reset token → returns a fresh session (auto-login). */
+export async function setPasswordWithResetToken(token: string, password: string): Promise<{ token?: string; error?: string }> {
+  if (!password || password.length < 6) return { error: "Password must be at least 6 characters." };
+  const userId = await verifyResetToken(token);
+  if (!userId) return { error: "This reset link is invalid or has expired — request a new one." };
+  const supa = supaAdmin();
+  const password_hash = await bcrypt.hash(password, 10);
+  const { error } = await supa.from("auth_user").update({ password_hash, updated_at: new Date().toISOString() }).eq("id", userId);
+  if (error) return { error: "Couldn't update your password. Please try again." };
+  const { data } = await supa.from("auth_user").select("*").eq("id", userId).limit(1);
+  const row = data?.[0];
+  return { token: row ? await issueSession(toSessionUser(row)) : undefined };
 }

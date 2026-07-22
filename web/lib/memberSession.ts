@@ -43,6 +43,31 @@ export async function issueSession(u: SessionUser, maxAgeSec = DEFAULT_MAX_AGE_S
     .sign(secret());
 }
 
+const RESET_AUD = "cookiedoh-reset";
+
+/** Short-lived (30 min) password-reset token — emailed as a link, single purpose. */
+export async function issueResetToken(userId: string): Promise<string> {
+  return new SignJWT({})
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(userId)
+    .setIssuer(ISSUER)
+    .setAudience(RESET_AUD)
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(Date.now() / 1000) + 30 * 60)
+    .sign(secret());
+}
+
+/** Verify a reset token → userId, or null. Never throws. */
+export async function verifyResetToken(token: string | null): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, secret(), { issuer: ISSUER, audience: RESET_AUD });
+    return payload.sub ? String(payload.sub) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Verify a session token → Supabase-shaped user, or null. Never throws. */
 export async function verifySession(token: string | null): Promise<SessionUser | null> {
   if (!token) return null;
