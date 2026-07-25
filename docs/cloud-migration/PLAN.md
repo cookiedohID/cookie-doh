@@ -1,3 +1,10 @@
+> **STATUS 2026-07 — BUILD COMPLETE + SECURITY-HARDENED, CUTOVER-READY.**
+> Data layer (64 routes → pg) ✅ · Auth (server+client, flag-gated) ✅ · 8-user migration
+> (UUIDs preserved) ✅ · adversarial security review → 9 findings fixed + tested ✅ ·
+> production build green ✅ · data-dump dry-run (orders 41/customers 8) ✅.
+> Waiting ONLY on: G's 2 steps (Google OAuth client + Vercel env) → then coordinated
+> cutover (infra data-load → deploy → smoke-test). Nothing live; all behind AUTH_SELFHOSTED.
+
 # cookiedoh.co.id → Cloud SQL — execution plan
 
 **Status:** STARTED 2026-07-07 (G said "do it now", during the holiday break).
