@@ -30,6 +30,7 @@ during the holiday break. Data is tiny (100 KB), so the copy is minutes.
    - `DATABASE_URL = postgresql://cookiedoh_app:<secret>@34.101.241.32:5432/cookiedoh?sslmode=require`
    - `AUTH_SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
    - `AUTH_SELFHOSTED=1`, `NEXT_PUBLIC_AUTH_SELFHOSTED=1`
+   - `PG_CA_CERT` = the Cloud SQL instance server-ca.pem (infra provides) — REQUIRED for validated TLS
 5. **Infra: enforce SSL** server-side on the instance (public-facing app password).
 6. **Deploy** — merge `cloud-migration` → `main` (or deploy the branch). Note: main
    already carries the security hardening (c478055) + keep-awake; the merge is clean.

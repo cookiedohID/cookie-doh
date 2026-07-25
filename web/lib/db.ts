@@ -22,16 +22,27 @@ export function pool(): Pool {
   if (_pool) return _pool;
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is not set");
-  // SSL is required by both Supabase and Cloud SQL (public IP, sslmode=require).
-  // rejectUnauthorized:false accepts the managed server cert without shipping a
-  // CA bundle; TODO at cutover: pin the Cloud SQL server CA and flip this to true.
+  // SSL: validate the server cert (prevents a MITM from harvesting password
+  // hashes + customer PII over the public-IP connection). When PG_CA_CERT is set
+  // (the Cloud SQL instance's server-ca.pem — REQUIRED at cutover per CUTOVER.md),
+  // pin it and reject anything it doesn't sign. Without it (local dev vs Supabase),
+  // fall back to unvalidated TLS with a loud warning — never in production.
   const needsSsl = /sslmode=require/.test(connectionString) || /supabase\.|\.cloudsql\.|34\.101\./.test(connectionString);
+  let ssl: any = undefined;
+  if (needsSsl) {
+    const ca = process.env.PG_CA_CERT;
+    if (ca) ssl = { ca, rejectUnauthorized: true };
+    else {
+      if (process.env.NODE_ENV === "production") console.error("SECURITY: PG_CA_CERT unset in production — TLS server cert is NOT validated. Set it to the Cloud SQL server CA.");
+      ssl = { rejectUnauthorized: false };
+    }
+  }
   _pool = new Pool({
     connectionString,
     max: Number(process.env.PG_POOL_MAX || 10),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
-    ssl: needsSsl ? { rejectUnauthorized: false } : undefined,
+    ssl,
   });
   _pool.on("error", (e) => console.error("pg pool error:", e?.message || e));
   return _pool;

@@ -29,9 +29,19 @@ function selfHostedAuth(pg: ReturnType<typeof pgClient>) {
   return {
     async getUser(token?: string) {
       const user = await verifySession(token || null);
-      return user
-        ? { data: { user }, error: null }
-        : { data: { user: null }, error: { message: "invalid or expired token" } };
+      if (!user) return { data: { user: null }, error: { message: "invalid or expired token" } };
+      // Revocation: reject if the account's token_version moved past the token's
+      // (password reset / sign-out-everywhere). Fail-open on a DB blip — the JWT
+      // signature already passed, so this is a secondary control.
+      try {
+        const { data } = await pg.from("auth_user").select("token_version").eq("id", user.id).limit(1);
+        const currentTv = Number(data?.[0]?.token_version ?? 0);
+        if (data?.[0] && currentTv !== (user as any)._tv) {
+          return { data: { user: null }, error: { message: "session revoked" } };
+        }
+      } catch { /* fail-open */ }
+      const { _tv, ...clean } = user as any;
+      return { data: { user: clean }, error: null };
     },
     admin: {
       async updateUserById(id: string, attrs: any) {
@@ -39,7 +49,12 @@ function selfHostedAuth(pg: ReturnType<typeof pgClient>) {
         const patch: any = { updated_at: new Date().toISOString() };
         if (md.phone !== undefined) patch.phone = md.phone;
         if (md.name !== undefined) patch.name = md.name;
-        if (attrs?.password) patch.password_hash = await (await import("bcryptjs")).default.hash(String(attrs.password), 10);
+        if (attrs?.password) {
+          patch.password_hash = await (await import("bcryptjs")).default.hash(String(attrs.password), 10);
+          // any password change invalidates outstanding sessions/reset tokens
+          const { data } = await pg.from("auth_user").select("token_version").eq("id", id).limit(1);
+          patch.token_version = Number(data?.[0]?.token_version ?? 0) + 1;
+        }
         const { error } = await pg.from("auth_user").update(patch).eq("id", id);
         return { data: { user: { id } }, error };
       },

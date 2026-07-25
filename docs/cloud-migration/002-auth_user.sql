@@ -12,6 +12,7 @@ create table if not exists public.auth_user (
   name          text,
   phone         text,
   google_sub    text,                      -- Google 'sub' (identities.provider_id); null for password-only
+  token_version integer not null default 0, -- bumped on password change → single-use reset tokens + session revocation
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -35,3 +36,12 @@ select
   u.created_at
 from auth.users u
 on conflict (id) do nothing;
+
+-- Rate-limit bucket store for the self-hosted auth routes (login/signup/reset).
+-- Ephemeral — no data migration needed. RLS on for parity (service role bypasses).
+create table if not exists public.auth_throttle (
+  bucket   text primary key,
+  hits     integer not null default 0,
+  reset_at timestamptz not null
+);
+alter table public.auth_throttle enable row level security;

@@ -27,12 +27,14 @@ export type SessionUser = {
   user_metadata: { name: string | null; phone: string | null };
 };
 
-/** Sign a session token for a member. */
-export async function issueSession(u: SessionUser, maxAgeSec = DEFAULT_MAX_AGE_SEC): Promise<string> {
+/** Sign a session token for a member. `tv` = the account's current token_version;
+ *  getUser rejects the token once the DB version moves past it (revocation). */
+export async function issueSession(u: SessionUser, tokenVersion = 0, maxAgeSec = DEFAULT_MAX_AGE_SEC): Promise<string> {
   return new SignJWT({
     email: u.email || undefined,
     name: u.user_metadata?.name || undefined,
     phone: u.user_metadata?.phone || undefined,
+    tv: tokenVersion,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(u.id)
@@ -45,9 +47,11 @@ export async function issueSession(u: SessionUser, maxAgeSec = DEFAULT_MAX_AGE_S
 
 const RESET_AUD = "cookiedoh-reset";
 
-/** Short-lived (30 min) password-reset token — emailed as a link, single purpose. */
-export async function issueResetToken(userId: string): Promise<string> {
-  return new SignJWT({})
+/** Short-lived (30 min) password-reset token — emailed as a link. Carries the
+ *  account's token_version at issue time; the setter rejects it if the version has
+ *  moved (i.e. the password was already changed), making it effectively single-use. */
+export async function issueResetToken(userId: string, tokenVersion = 0): Promise<string> {
+  return new SignJWT({ tv: tokenVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuer(ISSUER)
@@ -57,19 +61,21 @@ export async function issueResetToken(userId: string): Promise<string> {
     .sign(secret());
 }
 
-/** Verify a reset token → userId, or null. Never throws. */
-export async function verifyResetToken(token: string | null): Promise<string | null> {
+/** Verify a reset token → { userId, tv }, or null. Never throws. */
+export async function verifyResetToken(token: string | null): Promise<{ userId: string; tv: number } | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret(), { issuer: ISSUER, audience: RESET_AUD });
-    return payload.sub ? String(payload.sub) : null;
+    if (!payload.sub) return null;
+    return { userId: String(payload.sub), tv: Number(payload.tv ?? 0) };
   } catch {
     return null;
   }
 }
 
-/** Verify a session token → Supabase-shaped user, or null. Never throws. */
-export async function verifySession(token: string | null): Promise<SessionUser | null> {
+/** Verify a session token → Supabase-shaped user (plus `_tv` for the revocation
+ *  check in the getUser shim), or null. Never throws. */
+export async function verifySession(token: string | null): Promise<(SessionUser & { _tv: number }) | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret(), { issuer: ISSUER, audience: AUD });
@@ -78,6 +84,7 @@ export async function verifySession(token: string | null): Promise<SessionUser |
       id: String(payload.sub),
       email: (payload.email as string) || null,
       user_metadata: { name: (payload.name as string) || null, phone: (payload.phone as string) || null },
+      _tv: Number(payload.tv ?? 0),
     };
   } catch {
     return null;
