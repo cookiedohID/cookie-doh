@@ -4,17 +4,12 @@
 //   POST { kind: "on_the_way" }   -> "on its way" + tracking link; also marks the
 //                                    order accepted + fulfilment 'sent'
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 import { notifyCustomerOrderConfirmed, notifyCustomerOnTheWay } from "@/lib/orderComms";
 
 export const runtime = "nodejs";
 
-function supabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env vars");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   try {
@@ -23,7 +18,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     const body = await req.json().catch(() => ({}));
     const kind = String(body?.kind || "");
 
-    const sb = supabaseAdmin();
+    const sb = supaAdmin();
     const { data: order } = await sb.from("orders").select("*").eq("id", id).maybeSingle();
     if (!order) return NextResponse.json({ ok: false, error: "Order not found" }, { status: 404 });
 

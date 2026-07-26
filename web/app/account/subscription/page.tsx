@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { FLAVORS } from "@/lib/catalog";
 import { COLORS, RADIUS } from "@/lib/theme";
-import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { getAccessToken } from "@/lib/memberBrowser";
 import {
   SUB_PLAN_BOX_OPTIONS, SUB_FREQUENCIES, FREQUENCY_LABEL, subPlanGrandTotal, subBoxPrice,
   type SubFrequency, type SubMode,
@@ -52,8 +52,7 @@ export default function MySubscriptionPage() {
   const [renewing, setRenewing] = useState<Sub | null>(null);
 
   const token = useCallback(async () => {
-    const { data } = await getSupabaseBrowser().auth.getSession();
-    return data.session?.access_token || null;
+    return await getAccessToken();
   }, []);
 
   const load = useCallback(async () => {

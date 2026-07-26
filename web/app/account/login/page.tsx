@@ -1,11 +1,15 @@
 "use client";
 
 // web/app/account/login/page.tsx
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { COLORS } from "@/lib/theme";
-import { signInWithEmail, signUpWithEmail, signInWithGoogle, requestPasswordReset } from "@/lib/memberAuth";
+import { signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithGoogleToken, requestPasswordReset } from "@/lib/memberAuth";
 import { canonicalPhone } from "@/lib/phone";
+
+// Self-hosted Google (Google Identity Services). OFF → Supabase OAuth redirect.
+const SELF_AUTH = process.env.NEXT_PUBLIC_AUTH_SELFHOSTED === "1";
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 const field: React.CSSProperties = {
   width: "100%",
@@ -30,6 +34,36 @@ export default function MemberLoginPage() {
   const [note, setNote] = useState("");
 
   function emailValid(e: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+
+  // Google Identity Services button (self-hosted mode). Loads the GIS script,
+  // renders Google's official button, and exchanges the returned ID token for a
+  // member session. Inert unless AUTH_SELFHOSTED=1 and a client id is configured.
+  const gbtnRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!SELF_AUTH || !GOOGLE_CLIENT_ID) return;
+    const onCredential = async (resp: any) => {
+      setErr("");
+      const r = await signInWithGoogleToken(resp?.credential || "");
+      if ((r as any)?.error) setErr((r as any).error);
+      else router.push("/account");
+    };
+    const init = () => {
+      const g = (window as any).google;
+      if (!g?.accounts?.id) return false;
+      g.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onCredential });
+      if (gbtnRef.current) {
+        gbtnRef.current.innerHTML = "";
+        g.accounts.id.renderButton(gbtnRef.current, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width: 320 });
+      }
+      return true;
+    };
+    if (init()) return;
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true; s.defer = true;
+    s.onload = () => init();
+    document.head.appendChild(s);
+  }, [router]);
 
   async function sendCode() {
     const res = await fetch("/api/account/otp/send", {
@@ -185,10 +219,14 @@ export default function MemberLoginPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "18px 0", color: COLORS.muted, fontSize: 12 }}>
               <div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.12)" }} />or<div style={{ flex: 1, height: 1, background: "rgba(0,0,0,0.12)" }} />
             </div>
-            <button type="button" onClick={google}
-              style={{ width: "100%", height: 50, borderRadius: 999, border: "1px solid rgba(0,0,0,0.18)", background: "#fff", color: COLORS.black, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>
-              Continue with Google
-            </button>
+            {SELF_AUTH && GOOGLE_CLIENT_ID ? (
+              <div ref={gbtnRef} style={{ display: "flex", justifyContent: "center", minHeight: 44 }} />
+            ) : (
+              <button type="button" onClick={google}
+                style={{ width: "100%", height: 50, borderRadius: 999, border: "1px solid rgba(0,0,0,0.18)", background: "#fff", color: COLORS.black, fontWeight: 800, fontSize: 15, cursor: "pointer" }}>
+                Continue with Google
+              </button>
+            )}
 
             <div style={{ marginTop: 20, textAlign: "center", fontSize: 14, color: COLORS.muted }}>
               {mode === "login" ? "New to the family?" : "Already part of the family?"}{" "}

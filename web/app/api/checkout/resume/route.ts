@@ -5,18 +5,13 @@
 // Access requires BOTH the order id AND the matching nudge_token (the ?t= in the
 // /pay link), so knowing an order id alone is not enough to fetch the payment token.
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 
 export const runtime = "nodejs";
 
 const TERMINAL_TX = new Set(["deny", "cancel", "expire", "failure"]);
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 function firstName(name: string | null): string | null {
   const n = (name || "").trim();

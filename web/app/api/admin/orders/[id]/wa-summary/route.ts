@@ -1,7 +1,7 @@
 //web/app/api/admin/orders/[id]/wa-summary/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 
 export const runtime = "nodejs";
 
@@ -12,12 +12,7 @@ function isUuid(id: unknown): id is string {
   );
 }
 
-const supabaseAdmin = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env vars");
-  return createClient(url, key, { auth: { persistSession: false } });
-};
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 function formatIDR(n: number) {
   return `Rp ${n.toLocaleString("id-ID")}`;
@@ -98,7 +93,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "Invalid order id" }, { status: 400 });
     }
 
-    const sb = supabaseAdmin();
+    const sb = supaAdmin();
 
     const { data: order, error } = await sb
       .from("orders")

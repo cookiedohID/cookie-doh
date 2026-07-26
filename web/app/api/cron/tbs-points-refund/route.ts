@@ -9,7 +9,7 @@
 // it settle would give the customer the discount AND their points back.
 // Idempotent on source_ref = order.id:refund.
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 import midtransClient from "midtrans-client";
 import { cronAuthorized } from "@/lib/cron";
 import { refundTbsPoints } from "@/lib/tbsShop";
@@ -18,12 +18,7 @@ export const runtime = "nodejs";
 
 const TERMINAL = new Set(["expire", "cancel", "deny", "failure"]);
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 export async function GET(req: Request) {
   if (!cronAuthorized(req)) return NextResponse.json({ ok: false }, { status: 401 });

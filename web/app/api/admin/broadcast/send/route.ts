@@ -2,7 +2,7 @@
 // segment. Admin-only (gated by proxy.ts). Recipients are recomputed here (never
 // trusted from the client). Personalises {name} and appends an opt-out footer.
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { getBroadcastRecipients, buildBroadcastText, type Segment } from "@/lib/broadcast";
 
@@ -12,12 +12,7 @@ export const maxDuration = 60;
 const MAX_PER_SEND = 600; // safety cap so one send can't run forever
 const BATCH = 5;
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 export async function POST(req: Request) {
   try {

@@ -5,7 +5,7 @@
 //   POST { subscription_id, action:"reserve", flavour_id }
 //   POST { subscription_id, action:"release", index }   // remove a queued reward
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 import { getMember } from "@/lib/memberServer";
 import { subscriptionRewardBalance } from "@/lib/subscriptionRewards";
 import { FLAVORS } from "@/lib/catalog";
@@ -14,12 +14,7 @@ export const runtime = "nodejs";
 
 const COOKIE = new Map(FLAVORS.filter((f: any) => !f.soldOut).map((f: any) => [String(f.id), f.name]));
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 export async function POST(req: Request) {
   try {
