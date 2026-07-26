@@ -7,7 +7,7 @@
 // tbs_promise_voucher_idr (10000). Idempotent: meta.promise_voucher marks an
 // order handled; the voucher code embeds the order id so retries can't double-issue.
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { cronAuthorized } from "@/lib/cron";
 import { partnerGet } from "@/lib/tbsShop";
 import { getSetting } from "@/lib/settings";
@@ -15,7 +15,12 @@ import { sendWhatsApp } from "@/lib/whatsapp";
 
 export const runtime = "nodejs";
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supaAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 // Elapsed time counting ONLY store-open hours (10:00-21:00 WIB) — an order
 // paid at 20:00 isn't 'late' at 23:00 while the store is closed; its clock

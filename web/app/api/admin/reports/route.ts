@@ -3,14 +3,19 @@
 // Returns: daily sales, per-item sales, per-location comparison, current inventory
 // + movement history, and redeemed items. Read-only; gated by the admin token.
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { LOCATIONS, getLocation, locationForOrder } from "@/lib/locations";
 import { classifyItem } from "@/lib/loyalty";
 import { getTbsFeePct } from "@/lib/settings";
 
 export const runtime = "nodejs";
 
-// data client → Cloud SQL (pg shim) via the shared factory; see lib/supaAdmin.
+function supaAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 // Optional token gate (same pattern as /api/admin/flavors/availability). If
 // ADMIN_TOKEN is unset it allows through — set ADMIN_TOKEN + NEXT_PUBLIC_ADMIN_TOKEN

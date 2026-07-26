@@ -6,14 +6,19 @@
 //   POST { action:"refund_paid", subscription_id }     -> mark a refund settled
 //   POST { action:"run_cron" }                         -> trigger today's autopilot
 import { NextResponse } from "next/server";
-import { supaAdmin as supabaseAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { runSubscriptionCron } from "@/lib/subscriptionMaterialize";
 import { addDays, todayIso } from "@/lib/subscriptions";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supabaseAdmin() {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env vars");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 export async function GET() {
   try {

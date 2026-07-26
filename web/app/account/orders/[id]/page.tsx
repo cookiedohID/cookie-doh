@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLORS } from "@/lib/theme";
-import { getAccessToken } from "@/lib/memberBrowser";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { useLang } from "@/lib/i18n";
 import { OrderThumb } from "@/lib/orderThumb";
 
@@ -54,7 +54,8 @@ export default function OrderDetailPage() {
     if (hadFreshCache) return; // fresh enough — no network needed
     (async () => {
       try {
-        const t = await getAccessToken();
+        const { data } = await getSupabaseBrowser().auth.getSession();
+        const t = data.session?.access_token;
         if (!t) { router.replace("/account/login"); return; }
         const res = await fetch("/api/account/orders", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
         const j = await res.json().catch(() => ({}));
@@ -125,7 +126,8 @@ export default function OrderDetailPage() {
   const submitRating = async (n: number) => {
     setStars(n);
     try {
-      const t = await getAccessToken();
+      const { data } = await getSupabaseBrowser().auth.getSession();
+      const t = data.session?.access_token;
       if (!t) return;
       const r = await fetch("/api/account/orders/rate", {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },

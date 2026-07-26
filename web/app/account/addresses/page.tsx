@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLORS } from "@/lib/theme";
-import { getAccessToken } from "@/lib/memberBrowser";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
 
 type Address = {
@@ -54,7 +54,8 @@ export default function AddressesPage() {
   const [makeDefault, setMakeDefault] = useState(false);
 
   async function token() {
-    return await getAccessToken();
+    const { data } = await getSupabaseBrowser().auth.getSession();
+    return data.session?.access_token || null;
   }
 
   async function load() {

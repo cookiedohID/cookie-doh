@@ -2,17 +2,22 @@
 // Owner accepts a paid order -> stamps accepted_at, which stops the hourly
 // "please accept" reminder. Behind the proxy.ts admin gate. Idempotent.
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env vars");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 export async function POST(_req: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
     if (!id) return NextResponse.json({ ok: false, error: "Missing id" }, { status: 400 });
-    const sb = supaAdmin();
+    const sb = supabaseAdmin();
     // Only stamp if not already accepted (keep the first acceptance time).
     const { data } = await sb
       .from("orders")

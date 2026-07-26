@@ -3,7 +3,7 @@
 // them into `customers` by canonical phone. Cursor lives in app_settings
 // (tbs_member_sync_since). Hourly via GitHub Actions (x-cron-key).
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { cronAuthorized } from "@/lib/cron";
 import { partnerGet } from "@/lib/tbsShop";
 import { getSetting, setSetting } from "@/lib/settings";
@@ -11,7 +11,12 @@ import { canonicalPhone } from "@/lib/phone";
 
 export const runtime = "nodejs";
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supaAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 export async function GET(req: Request) {
   if (!cronAuthorized(req)) return NextResponse.json({ ok: false }, { status: 401 });

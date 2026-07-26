@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+const supabaseAdmin = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env vars");
+  return createClient(url, key, { auth: { persistSession: false } });
+};
 
 function isUuid(id: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -17,7 +22,7 @@ export async function GET(
 ) {
   try {
     const { orderId } = await context.params;
-    const sb = supaAdmin();
+    const sb = supabaseAdmin();
 
     let order: any = null;
     // Did the caller prove knowledge of the unguessable order UUID (a v4 UUID =

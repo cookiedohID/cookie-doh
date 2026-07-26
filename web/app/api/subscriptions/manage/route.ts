@@ -3,13 +3,18 @@
 // cancel | edit. AUTH REQUIRED; ownership is verified before any mutation.
 // (Renew is a fresh payment via /api/subscriptions/checkout with renew_subscription_id.)
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { getMember } from "@/lib/memberServer";
 import { skipNext, pause, resume, cancel, editConfig } from "@/lib/subscriptionManage";
 
 export const runtime = "nodejs";
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supaAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 export async function POST(req: Request) {
   try {

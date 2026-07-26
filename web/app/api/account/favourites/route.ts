@@ -4,7 +4,7 @@
 // REQUIRED; matched by the member's OTP-verified phone (same significant-digit
 // match as loyalty). Free/bonus lines and discontinued items are ignored.
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { getMember } from "@/lib/memberServer";
 import { phoneSignificant } from "@/lib/phone";
 import { classifyItem } from "@/lib/loyalty";
@@ -20,7 +20,12 @@ const COOKIE_IMG = new Map(FLAVORS.map((f: any) => [String(f.id), f.image]));
 // Match a bundle by its (cookies, drinks) shape, e.g. "3x2" -> Sweet Sharer.
 const BUNDLE_BY_SHAPE = new Map(BUNDLES.map((b) => [`${b.cookies}x${b.drinks}`, b]));
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supaAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 function topN(tally: Record<string, number>, label: (id: string) => string, extra?: (id: string) => any, n = 8) {
   return Object.entries(tally)

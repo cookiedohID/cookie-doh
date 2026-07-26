@@ -12,14 +12,19 @@
 //      (the ?key=... is only needed if WA_INBOUND_SECRET is set.)
 
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { canonicalPhone } from "@/lib/phone";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { runWaBot, type WaTurn } from "@/lib/waBot";
 
 export const runtime = "nodejs";
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supaAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 // The bot stays muted for a number while it's being handled by a human (a
 // handoff, or the owner muting it in admin), and auto-resumes once the chat has

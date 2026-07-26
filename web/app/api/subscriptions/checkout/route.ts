@@ -10,7 +10,7 @@
 //   • amount is server-computed (N × box price); the client never sends a price.
 //   • midtrans_order_id is server-generated; a client-supplied one is ignored.
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { createSnapToken, midtransEnv } from "@/lib/midtrans";
 import { canonicalPhone } from "@/lib/phone";
 import {
@@ -23,7 +23,12 @@ export const runtime = "nodejs";
 function getSiteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 }
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supaAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 function bearer(req: Request): string | null {
   const h = req.headers.get("authorization") || "";
   return h.toLowerCase().startsWith("bearer ") ? h.slice(7).trim() : null;

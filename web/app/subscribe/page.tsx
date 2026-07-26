@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { FLAVORS } from "@/lib/catalog";
 import { COLORS, RADIUS } from "@/lib/theme";
-import { getAccessToken } from "@/lib/memberBrowser";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import {
   SUB_PLAN_BOX_OPTIONS, SUB_BOX_SIZES, SUB_FREQUENCIES, FREQUENCY_LABEL,
   subBoxPrice, subPlanAmount, subFreeCookies, subDeliveryFeePerBox,
@@ -58,8 +58,8 @@ export default function SubscribePage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    (async () => {
-      const t = await getAccessToken();
+    getSupabaseBrowser().auth.getSession().then(async ({ data }) => {
+      const t = data.session?.access_token;
       setSignedIn(!!t);
       if (!t) return;
       // Pull the member's most-ordered cookies for the "use my favourites" quick-fill.
@@ -72,7 +72,7 @@ export default function SubscribePage() {
       } catch {
         /* favourites are a nicety — ignore failures */
       }
-    })();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -139,7 +139,8 @@ export default function SubscribePage() {
 
     setLoading(true);
     try {
-      const accessToken = await getAccessToken();
+      const { data } = await getSupabaseBrowser().auth.getSession();
+      const accessToken = data.session?.access_token;
       if (!accessToken) {
         router.push("/account?next=/subscribe");
         return;

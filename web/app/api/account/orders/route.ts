@@ -4,13 +4,18 @@
 // for that phone must belong to this user — so a signed-in user can never read
 // another member's orders. Read-only; never touches checkout/webhook code.
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { canonicalPhone, phoneSignificant } from "@/lib/phone";
 import { classifyItem } from "@/lib/loyalty";
 
 export const runtime = "nodejs";
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supaAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 function bearer(req: Request): string | null {
   const h = req.headers.get("authorization") || "";
@@ -164,7 +169,7 @@ export async function GET(req: Request) {
       const ids = orders.map((o: any) => o.id);
       if (ids.length) {
         const { data: rat } = await supa.from("order_ratings").select("order_id, stars, comment").in("order_id", ids);
-        const byId = new Map<string, any>((rat || []).map((r: any) => [String(r.order_id), r]));
+        const byId = new Map((rat || []).map((r: any) => [String(r.order_id), r]));
         for (const o of orders as any[]) {
           const r = byId.get(String(o.id));
           o.rating = r ? { stars: Number(r.stars), comment: r.comment || null } : null;

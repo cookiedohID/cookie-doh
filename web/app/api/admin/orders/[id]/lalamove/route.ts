@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { createLalamoveOrder } from "@/lib/lalamove";
 
 export const runtime = "nodejs";
@@ -18,7 +18,12 @@ const toE164ID = (p: string) => {
   return `+62${raw.replace(/^0/, "")}`;
 };
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+const supabaseAdmin = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env vars");
+  return createClient(url, key, { auth: { persistSession: false } });
+};
 
 function parseMeta(meta: any) {
   if (!meta) return null;
@@ -62,7 +67,7 @@ export async function POST(
     const { id } = await context.params;
     if (!isUuid(id)) return NextResponse.json({ ok: false, error: "Invalid order id" }, { status: 400 });
 
-    const sb = supaAdmin();
+    const sb = supabaseAdmin();
 
     const { data: order, error: oErr } = await sb.from("orders").select("*").eq("id", id).single();
     if (oErr) return NextResponse.json({ ok: false, error: oErr.message }, { status: 500 });

@@ -4,14 +4,19 @@
 //          can override the suggested amounts before committing; each flavour
 //          bumps location_stock, clears sold-out, and logs a stock_movements row.
 import { NextResponse } from "next/server";
-import { supaAdmin } from "@/lib/supaAdmin";
+import { createClient } from "@supabase/supabase-js";
 import { computeProductionPlan, BASE_OF } from "@/lib/production";
 import { LOCATIONS } from "@/lib/locations";
 import { aggSoldOut, notifyBackInStock } from "@/lib/stockAlerts";
 
 export const runtime = "nodejs";
 
-// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
+function supaAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase env");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
 
 export async function GET(req: Request) {
   try {
