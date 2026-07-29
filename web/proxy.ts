@@ -58,13 +58,29 @@ export default async function proxy(req: NextRequest) {
   //   • /cafe + /api/loyalty/*   — the in-store POS and the member-reward /
   //     redemption-OTP APIs it calls (these return member PII + apply free
   //     rewards, so they must never be reachable by the public internet).
+  //   • /api/cafe/checkout       — see below.
   // The POS runs in a staff browser; same-origin fetches automatically carry the
   // httpOnly cd_admin cookie, so the POS keeps working once staff sign in once.
+  //
+  // /api/cafe/checkout WAS PUBLIC (fixed 2026-07-29, security audit). The list above
+  // intends to protect the POS, but "/cafe" and "/cafe/" do not match "/api/cafe/…",
+  // so the register's own checkout endpoint sat open to the internet with no auth of
+  // any kind in its 259 lines. It accepts a memberPhone plus items flagged free and,
+  // although it DOES verify the free lines against that member's real reward balance
+  // (so nothing can be minted from nothing), it never proves the CALLER is that member
+  // — anyone knowing a customer's phone number could drain the rewards they had earned,
+  // and staff would be handed a normal paid-order ticket to fulfil.
+  // Matched exactly, NOT as a /api/cafe/* prefix: /api/cafe/print-queue must stay out of
+  // this gate because the local print agent polls it from outside a browser and carries
+  // no cd_admin cookie — it has its own PRINT_AGENT_TOKEN shared-secret check instead.
+  // The only caller of checkout is app/cafe/page.tsx, which already sits behind this
+  // gate, so its same-origin fetch carries the cookie and the register is unaffected.
   const isStaffArea =
     pathname.startsWith("/admin") ||
     pathname.startsWith("/api/admin") ||
     pathname === "/cafe" ||
     pathname.startsWith("/cafe/") ||
+    pathname === "/api/cafe/checkout" ||
     pathname.startsWith("/api/loyalty");
   const isLogin = pathname === "/admin/login" || pathname.startsWith("/api/admin/login");
   if (isStaffArea && !isLogin) {
