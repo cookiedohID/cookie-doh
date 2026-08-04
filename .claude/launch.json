@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "web-dev-3001", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--prefix", "web", "--", "-p", "3001"], "port": 3001 },
+    { "name": "kurly-verify", "runtimeExecutable": "env", "runtimeArgs": ["KURLY_DEMO_DB=kurly_real", "node", "/Users/angeltan/Kurly x TBS/webdemo/server.js"], "port": 4321, "autoPort": true }
+  ]
+}

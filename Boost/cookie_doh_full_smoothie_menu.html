@@ -1,0 +1,369 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#1a2744;color:#fff;padding:16px;min-height:100vh}
+h1{font-size:15px;font-weight:700;margin-bottom:2px;color:#fff}
+.sub{font-size:11px;color:#93c5fd;margin-bottom:16px}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tab{font-size:10px;font-weight:600;padding:5px 12px;border-radius:20px;cursor:pointer;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);background:transparent;transition:all 0.2s}
+.tab.active{background:#fff;color:#1a2744;border-color:#fff}
+.card{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;margin-bottom:10px;overflow:hidden}
+.card-head{padding:12px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start}
+.card-head:hover{background:rgba(255,255,255,0.04)}
+.card-left{flex:1}
+.cd-name{font-size:14px;font-weight:700;color:#fff;margin-bottom:2px}
+.boost-name{font-size:10px;color:rgba(255,255,255,0.4);font-style:italic}
+.card-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px}
+.berry-badge{background:#be185d;color:#fce7f3}
+.tropical-badge{background:#b45309;color:#fef3c7}
+.choc-badge{background:#3d1a00;color:#fcd34d;border:1px solid #92400e}
+.protein-badge{background:#1e3a8a;color:#bfdbfe}
+.card-body{padding:0 14px 14px;display:none}
+.card-body.open{display:block}
+.section-title{font-size:10px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:.1em;margin:10px 0 6px}
+.ing-grid{display:grid;grid-template-columns:1fr auto;gap:2px 12px}
+.ing-name{font-size:11px;color:rgba(255,255,255,0.7);padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+.ing-amt{font-size:11px;color:#fcd34d;text-align:right;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-variant-numeric:tabular-nums}
+.total-row{display:flex;justify-content:space-between;padding:6px 0 0;font-size:11px;font-weight:600;color:#fff;margin-top:2px}
+.steps{margin-top:8px}
+.step{font-size:11px;color:rgba(255,255,255,0.6);padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);line-height:1.5}
+.step:last-child{border-bottom:none}
+.step span{color:#fcd34d;font-weight:600;margin-right:4px}
+.base-tag{font-size:9px;padding:1px 7px;border-radius:10px;margin-top:3px;display:inline-block}
+.strawberry-base{background:#be185d;color:#fce7f3}
+.neutral-base{background:#065f46;color:#d1fae5}
+.icecream-base{background:#78350f;color:#fef3c7}
+.kj-tag{font-size:10px;color:rgba(255,255,255,0.4)}
+.price-row{display:flex;justify-content:space-between;margin-top:8px;padding:8px;background:rgba(255,255,255,0.05);border-radius:8px}
+.price-item{text-align:center}
+.price-label{font-size:9px;color:rgba(255,255,255,0.4)}
+.price-value{font-size:13px;font-weight:700;color:#fcd34d}
+.filter-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filter{font-size:10px;padding:3px 10px;border-radius:10px;cursor:pointer;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);background:transparent}
+.filter.on{background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.3)}
+</style>
+
+<h1>🍪 Cookie Doh Smoothie Menu</h1>
+<p class="sub">All recipes at 300g yield · Inspired by Boost 2026 menu</p>
+
+<div class="tabs">
+  <div class="tab active" onclick="showCat('all',this)">All</div>
+  <div class="tab" onclick="showCat('berry',this)">🍓 Berry</div>
+  <div class="tab" onclick="showCat('tropical',this)">🥭 Tropical</div>
+  <div class="tab" onclick="showCat('choc',this)">🍫 Choc</div>
+</div>
+
+<div id="menu"></div>
+
+<script>
+const drinks = [
+  {
+    cat: "berry",
+    cdName: "Wild Berry Blast",
+    boostName: "All Berry Bang",
+    badge: "berry-badge", badgeText: "Berry",
+    base: "strawberry-base", baseText: "Strawberry Yogurt Base",
+    kj: "~900 kJ",
+    ingredients: [
+      ["Apple juice", "170ml"],
+      ["Frozen strawberry", "35g"],
+      ["Frozen blueberry", "25g"],
+      ["Frozen raspberry", "25g"],
+      ["Strawberry yogurt concentrate", "45g"],
+      ["Ice", "45g"],
+    ],
+    steps: [
+      "Pour apple juice into blender first",
+      "Add all frozen berries directly from frozen",
+      "Scoop strawberry yogurt concentrate on top",
+      "Add ice last",
+      "Blend 20–25 seconds on high until completely smooth",
+      "Check: deep purple-red colour, thick, no ice chunks",
+    ],
+    cost: "Rp 7.500",
+    sell: "Rp 40.000",
+    margin: "75%",
+  },
+  {
+    cat: "berry",
+    cdName: "Strawberry Sunrise",
+    boostName: "Strawberry Squeeze",
+    badge: "berry-badge", badgeText: "Berry",
+    base: "strawberry-base", baseText: "Strawberry Yogurt Base",
+    kj: "~950 kJ",
+    ingredients: [
+      ["Apple juice", "160ml"],
+      ["Frozen strawberry", "60g"],
+      ["Frozen banana (ripe)", "35g"],
+      ["Strawberry yogurt concentrate", "45g"],
+      ["Ice", "45g"],
+    ],
+    steps: [
+      "Pour apple juice into blender first",
+      "Add frozen strawberry and banana",
+      "Scoop strawberry yogurt concentrate",
+      "Add ice last",
+      "Blend 20–25 seconds until smooth",
+      "Check: bright pink, naturally creamy from banana",
+    ],
+    cost: "Rp 5.500",
+    sell: "Rp 38.000",
+    margin: "78%",
+  },
+  {
+    cat: "berry",
+    cdName: "Pink Dragon",
+    boostName: "Pink Paradise",
+    badge: "berry-badge", badgeText: "Berry",
+    base: "strawberry-base", baseText: "Strawberry Yogurt Base",
+    kj: "~920 kJ",
+    ingredients: [
+      ["Mango nectar or mango juice", "150ml"],
+      ["Frozen pink dragon fruit", "70g"],
+      ["Frozen mango", "35g"],
+      ["Strawberry yogurt concentrate", "45g"],
+      ["Ice", "45g"],
+    ],
+    steps: [
+      "Pour mango nectar into blender first",
+      "Add frozen dragon fruit and mango",
+      "Scoop strawberry yogurt concentrate",
+      "Add ice and blend 20–25 seconds",
+      "Check: vivid pink-magenta colour — naturally stunning",
+    ],
+    cost: "Rp 7.000",
+    sell: "Rp 40.000",
+    margin: "76%",
+  },
+  {
+    cat: "berry",
+    cdName: "Pink Lemon Pop",
+    boostName: "Pink Lemonade",
+    badge: "berry-badge", badgeText: "Berry",
+    base: "neutral-base", baseText: "Neutral Yogurt Base",
+    kj: "~700 kJ",
+    ingredients: [
+      ["Fresh squeezed lemon juice", "40ml"],
+      ["Fresh squeezed apple juice", "100ml"],
+      ["Frozen strawberry", "50g"],
+      ["Frozen raspberry", "20g"],
+      ["Neutral yogurt concentrate", "45g"],
+      ["Ice", "45g"],
+    ],
+    steps: [
+      "Squeeze lemon and apple juice fresh per order",
+      "Pour juices into blender first",
+      "Add frozen berries",
+      "Scoop neutral concentrate",
+      "Add ice and blend 20 seconds",
+      "Check: bright pink, refreshing tart-sweet balance",
+    ],
+    cost: "Rp 6.000",
+    sell: "Rp 38.000",
+    margin: "77%",
+  },
+  {
+    cat: "tropical",
+    cdName: "Mango Tango",
+    boostName: "Mango Tango Crush",
+    badge: "tropical-badge", badgeText: "Tropical",
+    base: "neutral-base", baseText: "Neutral Yogurt Base",
+    kj: "~840 kJ",
+    ingredients: [
+      ["Apple juice or orange juice", "150ml"],
+      ["Frozen mango", "90g"],
+      ["Neutral yogurt concentrate", "45g"],
+      ["Ice", "45g"],
+    ],
+    steps: [
+      "Pour juice into blender first",
+      "Add frozen mango directly from frozen",
+      "Scoop neutral concentrate",
+      "Add ice and blend 20–25 seconds",
+      "Check: clean yellow-orange, thick, mango forward",
+    ],
+    cost: "Rp 5.500",
+    sell: "Rp 38.000",
+    margin: "80%",
+  },
+  {
+    cat: "tropical",
+    cdName: "Passion Mango",
+    boostName: "Passion Mango",
+    badge: "tropical-badge", badgeText: "Tropical",
+    base: "neutral-base", baseText: "Neutral Yogurt Base",
+    kj: "~1100 kJ",
+    ingredients: [
+      ["Tropical juice or mango nectar", "130ml"],
+      ["Frozen mango", "60g"],
+      ["Frozen passionfruit pulp", "20g"],
+      ["Neutral yogurt concentrate", "45g"],
+      ["Ice", "45g"],
+    ],
+    steps: [
+      "Pour tropical juice or mango nectar first",
+      "Add frozen mango and passionfruit",
+      "Scoop neutral concentrate",
+      "Add ice and blend 20–25 seconds",
+      "Check: golden yellow, fragrant, tropical tang",
+    ],
+    cost: "Rp 6.500",
+    sell: "Rp 40.000",
+    margin: "76%",
+  },
+  {
+    cat: "tropical",
+    cdName: "Tropical Bliss",
+    boostName: "Tropical Crush",
+    badge: "tropical-badge", badgeText: "Tropical",
+    base: "neutral-base", baseText: "Neutral Yogurt Base",
+    kj: "~650 kJ",
+    ingredients: [
+      ["Tropical juice", "130ml"],
+      ["Frozen mango", "60g"],
+      ["Frozen banana", "65g"],
+      ["Neutral yogurt concentrate", "45g"],
+      ["Ice", "45g"],
+    ],
+    steps: [
+      "Pour tropical juice first",
+      "Add frozen mango and banana",
+      "Scoop neutral concentrate",
+      "Add ice and blend 20–25 seconds",
+      "Check: creamy yellow, banana-mango balance, thick",
+    ],
+    cost: "Rp 5.000",
+    sell: "Rp 35.000",
+    margin: "80%",
+  },
+  {
+    cat: "tropical",
+    cdName: "Watermelon Wave",
+    boostName: "Watermelon Crush",
+    badge: "tropical-badge", badgeText: "Tropical",
+    base: "neutral-base", baseText: "Neutral Yogurt Base",
+    kj: "~560 kJ",
+    ingredients: [
+      ["Freshly juiced watermelon", "200ml"],
+      ["Tropical juice", "10ml"],
+      ["Neutral yogurt concentrate", "45g"],
+      ["Ice", "45g"],
+    ],
+    steps: [
+      "Juice fresh watermelon per order — this is your selling point",
+      "Pour watermelon juice and tropical juice first",
+      "Scoop neutral concentrate",
+      "Add ice and blend 15–20 seconds — don't over blend",
+      "Check: vivid red-pink, refreshing, light texture",
+      "Lowest kJ on menu — great for health-conscious customers",
+    ],
+    cost: "Rp 4.000",
+    sell: "Rp 35.000",
+    margin: "83%",
+  },
+  {
+    cat: "choc",
+    cdName: "Cookie Doh Shake",
+    boostName: "Inspired by Cookies & Crème",
+    badge: "choc-badge", badgeText: "Signature",
+    base: "icecream-base", baseText: "Caramel Ice Cream Base",
+    kj: "~1300 kJ",
+    ingredients: [
+      ["Full fat cold milk", "150ml"],
+      ["Cookie Doh ice cream concentrate", "75g"],
+      ["Crushed Cookie Doh cookie crumbles (topping)", "10g"],
+      ["Ice", "65g"],
+    ],
+    steps: [
+      "Pour cold milk into blender first",
+      "Scoop caramel ice cream concentrate",
+      "Add ice and blend 20 seconds",
+      "Pour into cup",
+      "Top with crushed Cookie Doh cookie crumbles",
+      "This is your signature — the topping ties it to the brand",
+    ],
+    cost: "Rp 9.500",
+    sell: "Rp 40.000",
+    margin: "67%",
+  },
+  {
+    cat: "choc",
+    cdName: "Midnight Choco",
+    boostName: "King William Chocolate",
+    badge: "choc-badge", badgeText: "Choc",
+    base: "icecream-base", baseText: "Caramel Ice Cream Base",
+    kj: "~1100 kJ",
+    ingredients: [
+      ["Full fat cold milk", "120ml"],
+      ["Cookie Doh ice cream concentrate", "75g"],
+      ["Dark chocolate powder (100%)", "15g"],
+      ["Frozen banana", "45g"],
+      ["Ice", "45g"],
+    ],
+    steps: [
+      "Pour cold milk first",
+      "Add chocolate powder and blend with milk 5 seconds before adding rest",
+      "Add ice cream concentrate, banana and ice",
+      "Blend 20–25 seconds until smooth",
+      "Check: deep chocolate brown, thick, rich",
+    ],
+    cost: "Rp 9.000",
+    sell: "Rp 40.000",
+    margin: "68%",
+  },
+];
+
+let currentCat = 'all';
+
+function showCat(cat, el) {
+  currentCat = cat;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+function toggle(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('open');
+}
+
+function render() {
+  const filtered = currentCat === 'all' ? drinks : drinks.filter(d => d.cat === currentCat);
+  const container = document.getElementById('menu');
+  container.innerHTML = filtered.map((d, i) => `
+    <div class="card">
+      <div class="card-head" onclick="toggle('body_${i}')">
+        <div class="card-left">
+          <div class="cd-name">${d.cdName}</div>
+          <div class="boost-name">inspired by ${d.boostName}</div>
+          <span class="base-tag ${d.base}">${d.baseText}</span>
+        </div>
+        <div class="card-right">
+          <span class="badge ${d.badge}">${d.badgeText}</span>
+          <span class="kj-tag">${d.kj}</span>
+        </div>
+      </div>
+      <div class="card-body" id="body_${i}">
+        <div class="section-title">Ingredients — 300g yield</div>
+        <div class="ing-grid">
+          ${d.ingredients.map(([n,a]) => `<div class="ing-name">${n}</div><div class="ing-amt">${a}</div>`).join('')}
+          <div class="ing-name" style="font-weight:600;color:#fff;border-top:1px solid rgba(255,255,255,0.2);padding-top:4px;margin-top:2px">Total</div>
+          <div class="ing-amt" style="font-weight:600;color:#fff;border-top:1px solid rgba(255,255,255,0.2);padding-top:4px;margin-top:2px">300g</div>
+        </div>
+        <div class="section-title">Bar Steps</div>
+        <div class="steps">
+          ${d.steps.map((s,j) => `<div class="step"><span>${j+1}.</span>${s}</div>`).join('')}
+        </div>
+        <div class="price-row">
+          <div class="price-item"><div class="price-label">Ingredient cost</div><div class="price-value">${d.cost}</div></div>
+          <div class="price-item"><div class="price-label">Sell price</div><div class="price-value">${d.sell}</div></div>
+          <div class="price-item"><div class="price-label">Gross margin</div><div class="price-value">${d.margin}</div></div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+render();
+</script>
