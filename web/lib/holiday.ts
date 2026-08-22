@@ -7,8 +7,9 @@
 //
 // It LIFTS ITSELF automatically on the return date below — no action needed to
 // reopen in September. To reopen EARLY, set HOLIDAY_ENABLED to false and redeploy.
+// REOPENED EARLY by the owner, 2026-08-22 ("please reopen the cookiedoh web to business").
 
-export const HOLIDAY_ENABLED = true;
+export const HOLIDAY_ENABLED = false;
 
 // Warm label shown to customers, and the exact moment the shop reopens (WIB).
 export const HOLIDAY_RETURN_LABEL = "September 2026";

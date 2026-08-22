@@ -6,6 +6,10 @@
 
 export const SMOOTHIE_PRICE = 39000;
 
+// COMING SOON (owner 2026-08-22): smoothies delivery is not ready — cards show a badge and the
+// Add button is disabled everywhere. Flip to false when delivery starts.
+export const SMOOTHIES_COMING_SOON = true;
+
 export const SMOOTHIE_CATEGORIES = [
   "Berries",
   "Tropical",

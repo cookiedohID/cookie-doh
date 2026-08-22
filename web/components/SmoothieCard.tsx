@@ -4,7 +4,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { COLORS } from "@/lib/theme";
-import { SMOOTHIE_PRICE, type Smoothie } from "@/lib/smoothies";
+import { SMOOTHIE_PRICE, SMOOTHIES_COMING_SOON, type Smoothie } from "@/lib/smoothies";
 import { addUpsellSingle, decUpsellSingle, getCart, looseSingleQty } from "@/lib/cart";
 import styles from "./SmoothieCard.module.css";
 
@@ -36,7 +36,24 @@ export default function SmoothieCard({ item }: { item: Smoothie }) {
           />
         ) : null}
 
-        {item.badges?.length ? (
+        {SMOOTHIES_COMING_SOON ? (
+          <span
+            style={{
+              position: "absolute",
+              top: 10,
+              left: 10,
+              padding: "5px 11px",
+              borderRadius: 999,
+              background: "rgba(0,20,167,0.92)",
+              color: "#fff",
+              fontSize: 11.5,
+              fontWeight: 800,
+              letterSpacing: "0.03em",
+            }}
+          >
+            COMING SOON
+          </span>
+        ) : item.badges?.length ? (
           <span
             style={{
               position: "absolute",
@@ -81,7 +98,9 @@ export default function SmoothieCard({ item }: { item: Smoothie }) {
         ) : null}
 
         <div style={{ marginTop: "auto", paddingTop: 8 }}>
-          {item.soldOut ? (
+          {SMOOTHIES_COMING_SOON ? (
+            <button type="button" disabled style={{ width: "100%", border: "none", borderRadius: 999, padding: "10px 18px", fontWeight: 900, fontSize: 14, cursor: "not-allowed", background: "#E8E8E8", color: "#9a9a9a" }}>Coming soon 🍹</button>
+          ) : item.soldOut ? (
             <span style={{ fontSize: 12, fontWeight: 800, color: COLORS.muted }}>Sold out</span>
           ) : qty > 0 ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
