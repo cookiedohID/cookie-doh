@@ -13,11 +13,16 @@ create index if not exists wa_messages_phone_idx on public.wa_messages (phone, c
 
 -- Per-number state: pause the bot after a human takeover, and dedupe inbound.
 create table if not exists public.wa_state (
-  phone text primary key,                      -- canonical 62xxxxxxxxxx
+  phone text primary key,                      -- canonical "+62XXXXXXXXXX"
   auto_paused_until timestamptz,               -- bot stays quiet until this time (human handling)
+  bot_excluded boolean not null default false,  -- PERMANENT opt-out (suppliers, partners, our own lines)
   last_inbound_id text,                         -- Fonnte message id, for dedupe
   updated_at timestamptz not null default now()
 );
+
+-- For databases created before the column existed.
+alter table public.wa_state
+  add column if not exists bot_excluded boolean not null default false;
 
 alter table public.wa_messages enable row level security;
 alter table public.wa_state enable row level security;

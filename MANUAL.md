@@ -369,6 +369,14 @@ window forward, so an active back-and-forth stays muted). You can **Unmute** any
 *(Note: replies you type on your phone aren't visible to the system — WhatsApp doesn't forward your
 outgoing messages — which is why muting is a tap here rather than automatic.)*
 
+**Never replying to a number (`/admin` → 💬 WhatsApp chats → Never reply).** Muting is for a customer
+you're handling *right now* — it expires. For a number that is **never** a customer (a supplier, a
+partner atelier, one of your own business lines), tap **Never reply** instead: the bot goes silent for
+that number permanently and never escalates it to you either. Their messages still show up in this
+list, so nothing is hidden. Tap **Turn bot back on** to undo it.
+*(Set up for OSO Lampshade Atelier / Istana Lampion, +62 812-4934-7535, on 26 Aug 2026 — the bot had
+been answering their invoice messages with "sepertinya ada kesalahpahaman".)*
+
 It runs on **Claude Haiku** (chosen for low cost on high message volume) and keeps replies short.
 
 ### Setup (one-time)

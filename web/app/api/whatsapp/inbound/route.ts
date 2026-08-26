@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     // Dedupe Fonnte retries by message id.
     const { data: state } = await supa
       .from("wa_state")
-      .select("auto_paused_until, last_inbound_id")
+      .select("auto_paused_until, bot_excluded, last_inbound_id")
       .eq("phone", sender)
       .maybeSingle();
     if (inboundId && state?.last_inbound_id === inboundId) {
@@ -91,6 +91,19 @@ export async function POST(req: Request) {
 
     // Always record the customer's message (for context + so the owner can read it).
     await supa.from("wa_messages").insert({ phone: sender, role: "user", text });
+
+    // Permanently excluded (a supplier, a partner, one of our own lines) — never
+    // reply and never escalate. Unlike the mute below this does NOT expire, so
+    // it is checked first and takes no notice of the idle window. The message is
+    // already recorded above, so the chat still reads normally in /admin/whatsapp.
+    if (state?.bot_excluded) {
+      await supa.from("wa_state").upsert({
+        phone: sender,
+        last_inbound_id: inboundId || null,
+        updated_at: new Date().toISOString(),
+      });
+      return NextResponse.json({ ok: true, excluded: true });
+    }
 
     const pausedUntil = state?.auto_paused_until ? new Date(state.auto_paused_until).getTime() : 0;
     const isPaused = pausedUntil > Date.now();

@@ -1,4 +1,5 @@
-// web/app/api/admin/whatsapp/route.ts — list WhatsApp chats + mute/unmute the bot per customer.
+// web/app/api/admin/whatsapp/route.ts — list WhatsApp chats, mute/unmute the bot per
+// customer (temporary), and exclude/include a number permanently (suppliers, partners).
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { canonicalPhone } from "@/lib/phone";
@@ -36,19 +37,25 @@ export async function GET() {
     const keys = phones.length ? phones : ["__none__"];
 
     const [stateRes, custRes] = await Promise.all([
-      supa.from("wa_state").select("phone, auto_paused_until").in("phone", keys),
+      supa.from("wa_state").select("phone, auto_paused_until, bot_excluded").in("phone", keys),
       supa.from("customers").select("phone, name").in("phone", keys),
     ]);
-    const stateMap = new Map((stateRes.data || []).map((s: any) => [s.phone, s.auto_paused_until]));
+    const stateMap = new Map((stateRes.data || []).map((s: any) => [s.phone, s]));
     const nameMap = new Map((custRes.data || []).map((c: any) => [c.phone, c.name]));
 
     const now = Date.now();
     const chats = phones
       .map((p) => {
         const r = byPhone.get(p);
-        const pu = stateMap.get(p);
+        const st: any = stateMap.get(p);
+        const pu = st?.auto_paused_until || null;
         const muted = pu ? new Date(pu).getTime() > now : false;
-        return { ...r, name: nameMap.get(p) || null, mutedUntil: muted ? pu : null };
+        return {
+          ...r,
+          name: nameMap.get(p) || null,
+          mutedUntil: muted ? pu : null,
+          excluded: !!st?.bot_excluded,
+        };
       })
       .sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1));
 
@@ -62,11 +69,26 @@ export async function POST(req: Request) {
   try {
     const b = await req.json().catch(() => ({}));
     const phone = canonicalPhone(b?.phone);
-    const mute = b?.mute === true;
     if (!phone) return NextResponse.json({ ok: false, error: "No phone." }, { status: 400 });
     const supa = supaAdmin();
-    const auto_paused_until = mute ? new Date(Date.now() + MUTE_HOURS * 3600 * 1000).toISOString() : null;
-    const { error } = await supa.from("wa_state").upsert({ phone, auto_paused_until, updated_at: new Date().toISOString() });
+
+    // Two different switches, and only ever one per request — writing both would
+    // let a mute toggle silently clear a permanent exclusion (the upsert sets
+    // every column it is given).
+    //   exclude: permanent opt-out, never expires  — suppliers, partners, our own lines
+    //   mute:    temporary, lifts after MUTE_HOURS of quiet — a teammate is on it now
+    const row: Record<string, any> = { phone, updated_at: new Date().toISOString() };
+    if (typeof b?.exclude === "boolean") {
+      row.bot_excluded = b.exclude;
+      // Excluding supersedes a running mute; there is nothing left to resume to.
+      if (b.exclude) row.auto_paused_until = null;
+    } else {
+      row.auto_paused_until = b?.mute === true
+        ? new Date(Date.now() + MUTE_HOURS * 3600 * 1000).toISOString()
+        : null;
+    }
+
+    const { error } = await supa.from("wa_state").upsert(row);
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
