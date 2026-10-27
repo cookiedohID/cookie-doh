@@ -1,54 +1,85 @@
 # cookiedoh.co.id → Cloud SQL — CUTOVER RUNBOOK
 
-All code is built + tested + committed on branch `cloud-migration` (off `main`).
+All code is built + tested + committed on branch `cloud-migration-v2` (off `main`).
 Everything is flag-gated: with the flags OFF the live site is 100% Supabase (today).
-Cutover = load data + set env/flags + deploy + test, in one off-peak window (~1–2h)
-during the holiday break. Data is tiny (100 KB), so the copy is minutes.
+Cutover = load data + set env/flags + deploy + test, in one off-peak window (~1h)
+during the holiday break. Data is tiny (~230 KB), so the copy is minutes.
+
+## Architecture (as of 2026-10-27 — supersedes the July direct-IP plan)
+- The webstore gets its **OWN** Cloud SQL instance: `cookiedoh-db`
+  (`tbs-group-500303:asia-southeast2:cookiedoh-db`, db-g1-small, PG18, ~$35/mo),
+  credential-isolated from the ERP's `tbs-retail-db`. The `cookiedoh-web` service
+  account can reach ONLY `cookiedoh-db` (403 on `tbs-retail-db` — verified).
+- The app connects through the **Cloud SQL Language Connector** (IAM + a short-lived
+  client cert on :3307). **No public IP, no authorized-network, no firewall rule, no
+  PG_CA_CERT, no server-side SSL config** — the connector owns TLS. This is what
+  removes the July blocker (serverless could not reach the public IP).
+- Membership stays in `tbs_retail.member` (SSOT); the webstore reads it only via the
+  token-gated partner API, never a direct cross-DB read.
 
 ## Prerequisites (do BEFORE the window — no downtime)
-- [ ] **A. Google OAuth client** (owner/infra — needs the Google account). In Google
-      Cloud Console → Credentials → Create OAuth client ID → **Web application**.
-      Authorized JavaScript origins: `https://www.cookiedoh.co.id`, `https://cookiedoh.co.id`.
-      → yields a **Client ID** (public; goes in env as GOOGLE_CLIENT_ID + NEXT_PUBLIC_GOOGLE_CLIENT_ID).
-- [ ] **B. AUTH_SESSION_SECRET** — generate ≥32 random chars (e.g. `openssl rand -base64 36`).
-      Set as a Vercel encrypted env var (never in chat/commits).
-- [ ] **C. Cloud SQL `cookiedoh` db** — schema of the 28 tables already loaded (infra ✅).
-      Apply the `auth_user` TABLE DDL (the CREATE TABLE + indexes + RLS block of
-      `002-auth_user.sql`; SKIP the `insert … from auth.users` — that ran on Supabase;
-      Cloud SQL gets the rows from the data dump in step 2).
-- [ ] **D. pg_cron instance restart** — provision/cutover AFTER it (per ERP room), so a
-      restart doesn't bounce the load. Confirm with the Kurly switchboard.
+- [ ] **A. Google OAuth client** (owner/infra — needs the Google account). Google Cloud
+      Console → Credentials → Create OAuth client ID → **Web application**.
+      Authorized JS origins: `https://www.cookiedoh.co.id`, `https://cookiedoh.co.id`.
+      → **Client ID** (public; env GOOGLE_CLIENT_ID + NEXT_PUBLIC_GOOGLE_CLIENT_ID).
+- [ ] **B. AUTH_SESSION_SECRET** — ≥32 random chars (`openssl rand -base64 36`), set as
+      a Vercel encrypted env var (never in chat/commits).
+- [ ] **C. `cookiedoh-db` ready** (infra): instance RUNNABLE; `cookiedoh` db + the 28
+      storefront tables loaded (`cookiedoh-schema.sql`); `auth_user` table DDL applied
+      (CREATE TABLE + indexes + RLS from `002-auth_user.sql` — SKIP the
+      `insert … from auth.users`; rows come from the data dump). App role
+      `cookiedoh_app` owns/can read-write every table. Backups + PITR ON.
+- [ ] **D. Secrets staged in Secret Manager** (infra): `cookiedoh-web-sa-key-b64`
+      (base64 SA key), `cookiedoh-db-password`. Owner copies values into Vercel.
 
 ## Window (off-peak, infra on standby)
 1. **Freeze writes.** Storefront is already holiday/catalog (no orders). Confirm no
    in-flight admin writes. (Optional: brief maintenance flag.)
-2. **Final data dump** from Supabase — ALL public tables incl auth_user + wa_messages:
-   `pg_dump "$SUPABASE_DATABASE_URL" --data-only --schema=public --no-owner --no-privileges -f cd-data.sql`
-3. **Load into Cloud SQL** as `cookiedoh_app` (infra runs / supervises, off-peak):
-   `psql "cookiedoh_app@…/cookiedoh" -f cd-data.sql`  → verify counts (orders 41, customers 8, auth_user 8).
-4. **Set Vercel env** (infra, encrypted):
-   - `DATABASE_URL = postgresql://cookiedoh_app:<secret>@34.101.241.32:5432/cookiedoh?sslmode=require`
+2. **Final data dump** from Supabase — all public tables incl auth_user, auth_throttle
+   excluded:
+   `pg_dump "$SUPABASE_DATABASE_URL" --data-only --schema=public --no-owner --no-privileges --exclude-table=auth_throttle -f cd-data.sql`
+   (Last dump 2026-10-27: 47 orders / 13 customers / 8 auth_user; both sequences
+   `orders_order_no_seq` + `stock_movements_id_seq` carry a setval.)
+3. **Load into `cookiedoh-db`** as `cookiedoh_app` (infra runs/supervises, off-peak).
+   Verify: counts match the dump AND each sequence `last_value` ≥ max(id).
+4. **Set Vercel env** (owner, pasting Secret Manager values — infra does NOT paste):
+   - `INSTANCE_CONNECTION_NAME = tbs-group-500303:asia-southeast2:cookiedoh-db`
+   - `GCP_SA_KEY` = base64 SA key (Sensitive) — from `cookiedoh-web-sa-key-b64`
+   - `DB_USER = cookiedoh_app`
+   - `DB_PASSWORD` = from `cookiedoh-db-password` (Sensitive)
+   - `DB_NAME = cookiedoh`
    - `AUTH_SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
    - `AUTH_SELFHOSTED=1`, `NEXT_PUBLIC_AUTH_SELFHOSTED=1`
-   - `PG_CA_CERT` = the Cloud SQL instance server-ca.pem (infra provides) — REQUIRED for validated TLS
-5. **Infra: enforce SSL** server-side on the instance (public-facing app password).
-6. **Deploy** — merge `cloud-migration` → `main` (or deploy the branch). Note: main
-   already carries the security hardening (c478055) + keep-awake; the merge is clean.
-7. **E2E test** (staff first, then a real member):
-   - browse catalog · member sign-in (Google **and** password) · /account loads · My Orders
-     loads · checkout shows holiday splash · admin loads + an order edit writes to Cloud SQL.
-   - Confirm reads/writes hit Cloud SQL (not Supabase). Confirm a login issues a memberSession
-     token (not a Supabase token).
-8. **Post-cutover:** remove the `keep-awake` cron (Cloud SQL never pauses); leave Supabase
-   read-only for a few days as a safety net, then decommission. Reconcile: cherry-pick any
-   remaining app-gate bits already handled; branch `security/leak-rls-and-hardening` is merged.
+   - (NO DATABASE_URL, NO PG_CA_CERT — the connector path does not use them in prod.)
+5. **Deploy** — merge `cloud-migration-v2` → `main`. `vercel.json` pins functions to
+   `sin1` (Singapore, nearest to asia-southeast2). Main already carries the security
+   hardening + the holiday/catalog state; the merge is clean.
+6. **E2E test** (staff first, then a real member):
+   - browse catalog · member sign-in (Google **and** password) · /account loads ·
+     My Orders loads · checkout shows holiday splash · admin loads + an order edit
+     writes to Cloud SQL.
+   - Confirm reads/writes hit `cookiedoh-db` (not Supabase). Confirm a login issues a
+     memberSession JWT (not a Supabase token).
+7. **Post-cutover:** remove the `keep-awake` cron (Cloud SQL never pauses); leave
+   Supabase read-only for a few days as a safety net, then decommission.
 
-## Rollback (if step 7 fails)
-Flip the 3 env groups back — `DATABASE_URL` → Supabase, `AUTH_SELFHOSTED` +
-`NEXT_PUBLIC_AUTH_SELFHOSTED` unset — and redeploy. Because writes were frozen, no data
-diverged; the site returns to exactly today's state.
+## Rollback (if step 6 fails)
+Unset `INSTANCE_CONNECTION_NAME` (code falls back to `DATABASE_URL` → Supabase) and
+unset `AUTH_SELFHOSTED` + `NEXT_PUBLIC_AUTH_SELFHOSTED`, then redeploy. Because writes
+were frozen, no data diverged; the site returns to exactly today's state.
+
+## Durable watch-items (do not let these silently drift)
+- **IAM scope** — `cookiedoh-web`'s grant must stay pinned to `cookiedoh-db` only.
+  If it ever widens to a project-level Cloud SQL role, the credential isolation from
+  `tbs-retail-db` is gone. Re-verify after any IAM change.
+- **Backups + PITR** — must stay ON per-instance on `cookiedoh-db` (it is in infra's
+  create command). This is the owner's "backup database also" requirement.
+- **SA key rotation** — two never-rotated keys to track with an owner + rotation date:
+  `tbs-till` and `cookiedoh-web`.
 
 ## What's already DONE (code)
-Data layer: 64 routes on the pg shim (P2) · Auth: auth_user + 8-user migration (UUIDs
-preserved), memberSession JWT, login/signup/google/reset routes, GIS button, 7 client files
-swapped — all flag-gated, full app typechecks, server auth roundtrip tested.
+Data layer: 64 routes on the pg shim · Cloud SQL Connector path in `lib/db.ts`
+(+ DATABASE_URL dev fallback) · `vercel.json` sin1 pin · Auth: auth_user + 8-user
+migration (UUIDs preserved), memberSession JWT (token_version revocation),
+login/signup/google/reset routes hardened (9 vulns fixed), GIS button, client files
+swapped — all flag-gated, full app typechecks (0 errors) + production build passes.
