@@ -4,17 +4,12 @@
 //   GET  -> paid cafe orders not yet printed, enriched for the 3 docs
 //   POST -> mark an order printed { id }
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 import { SMOOTHIES } from "@/lib/smoothies";
 
 export const runtime = "nodejs";
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 // Shared-secret auth — the agent sends this token; never expose orders publicly.
 function authed(req: Request) {

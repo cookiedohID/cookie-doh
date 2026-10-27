@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { COLORS } from "@/lib/theme";
-import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { getAccessToken, getSessionEmail } from "@/lib/memberBrowser";
 import { signOutMember } from "@/lib/memberAuth";
 import { canonicalPhone } from "@/lib/phone";
 
@@ -98,7 +98,7 @@ function TbsRewards({ data, authToken }: { data: TbsData; authToken: string | nu
     try {
       // Use a FRESH token — the one captured at page load may have expired on a long-open tab.
       let t = authToken;
-      try { const { data } = await getSupabaseBrowser().auth.getSession(); t = data.session?.access_token || authToken; } catch { /* fall back to stored */ }
+      try { t = (await getAccessToken()) || authToken; } catch { /* fall back to stored */ }
       if (!t) return;
       const r = await fetch(`/api/account/tbs?offset=${receipts.length}&limit=20`, { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
       const j = await r.json();
@@ -206,8 +206,7 @@ export default function AccountPage() {
   const [authToken, setAuthToken] = useState<string | null>(null);
 
   async function token() {
-    const { data } = await getSupabaseBrowser().auth.getSession();
-    return data.session?.access_token || null;
+    return (await getAccessToken()) || null;
   }
 
   // `background` = we already painted a cached view, so don't flash a spinner or
@@ -221,7 +220,7 @@ export default function AccountPage() {
       if (!t) { clearAccountCache(); router.replace("/account/login"); return; }
       // Capture the signed-in identity so the UI can always show WHICH account.
       let signedInEmail = "";
-      try { const { data } = await getSupabaseBrowser().auth.getSession(); signedInEmail = data.session?.user?.email || ""; setEmail(signedInEmail); } catch {}
+      try { signedInEmail = (await getSessionEmail()) || ""; setEmail(signedInEmail); } catch {}
       // TotalBuahStore rewards — federated, feature-flagged server-side. Best-effort,
       // non-blocking; only surfaces when the proxy is configured AND finds the member.
       setAuthToken(t);

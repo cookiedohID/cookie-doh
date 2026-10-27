@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import GoogleAddressInput from "@/components/GoogleAddressInput";
 import { clearCart, getCart, CART_KEY } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
-import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { getAccessToken, onAuthChange } from "@/lib/memberBrowser";
 import { FLAVORS } from "@/lib/catalog";
 import { SMOOTHIES } from "@/lib/smoothies";
 import { classifyItem } from "@/lib/loyalty";
@@ -327,7 +327,6 @@ export default function CheckoutPage() {
   useEffect(() => {
     let cancelled = false;
     let hydrated = false;
-    const supabase = getSupabaseBrowser();
 
     async function hydrate(token: string) {
       if (hydrated || cancelled) return;
@@ -360,15 +359,15 @@ export default function CheckoutPage() {
 
     // Try immediately, and again when auth state resolves (handles the case where
     // the session isn't hydrated the instant this effect first runs).
-    supabase.auth.getSession().then(({ data }) => {
-      const t = data.session?.access_token;
+    getAccessToken().then((t) => {
       if (t) hydrate(t);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      const t = session?.access_token;
-      if (t) hydrate(t);
+    const unsub = onAuthChange(() => {
+      getAccessToken().then((t) => {
+        if (t) hydrate(t);
+      });
     });
-    return () => { cancelled = true; sub.subscription.unsubscribe(); };
+    return () => { cancelled = true; unsub(); };
   }, []);
 
   function applySavedAddress(a: any) {
@@ -399,8 +398,7 @@ export default function CheckoutPage() {
     if (!tbsBasket.lines.length) { setTbsPoints(0); return; }
     (async () => {
       try {
-        const { data } = await getSupabaseBrowser().auth.getSession();
-        const t = data.session?.access_token;
+        const t = await getAccessToken();
         if (!t) return;
         const j = await (await fetch("/api/account/tbs", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" })).json();
         const bal = Number(j?.points?.balance);
@@ -813,8 +811,7 @@ export default function CheckoutPage() {
       // no session → no header → treated as non-member.
       const checkoutHeaders: Record<string, string> = { "Content-Type": "application/json" };
       try {
-        const { data: sess } = await getSupabaseBrowser().auth.getSession();
-        const tk = sess?.session?.access_token;
+        const tk = await getAccessToken();
         if (tk) checkoutHeaders.Authorization = `Bearer ${tk}`;
       } catch { /* guest checkout */ }
 

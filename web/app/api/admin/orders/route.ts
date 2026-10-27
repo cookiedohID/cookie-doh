@@ -1,14 +1,9 @@
 // web/app/api/admin/orders/route.ts
  
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 
-const supabaseAdmin = () => {
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env vars");
-  return createClient(url, key, { auth: { persistSession: false } });
-};
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 export async function GET(req: Request) {
   try {
@@ -16,7 +11,7 @@ export async function GET(req: Request) {
     const limitRaw = searchParams.get("limit");
     const limit = Math.min(Math.max(Number(limitRaw || "80") || 80, 1), 200);
 
-    const sb = supabaseAdmin();
+    const sb = supaAdmin();
 
     const { data, error } = await sb
       .from("orders")

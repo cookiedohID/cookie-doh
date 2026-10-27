@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { COLORS } from "@/lib/theme";
-import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { getAccessToken } from "@/lib/memberBrowser";
 import { orderStage } from "@/lib/orderStage";
 import { useLang } from "@/lib/i18n";
 import { OrderThumb } from "@/lib/orderThumb";
@@ -97,8 +97,7 @@ export default function MyOrdersPage() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await getSupabaseBrowser().auth.getSession();
-        const t = data.session?.access_token;
+        const t = await getAccessToken();
         if (!t) { router.replace("/account/login"); return; }
         const res = await fetch("/api/account/orders", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store" });
         if (res.status === 401) { router.replace("/account/login"); return; }
