@@ -60,6 +60,10 @@ during the holiday break. Data is tiny (~230 KB), so the copy is minutes.
 5. **Deploy** — merge `cloud-migration-v2` → `main`. `vercel.json` pins functions to
    `sin1` (Singapore, nearest to asia-southeast2). Main already carries the security
    hardening + the holiday/catalog state; the merge is clean.
+   - `order_no` TZ re-test caveat: if you ever re-verify the date in `CD-YYYYMMDD-NNNN`,
+     do it **17:00–24:00 UTC (00:00–07:00 WIB)** — that is the ONLY window where a stray
+     Jakarta timezone flag would diverge from UTC; any other hour the test passes while
+     proving nothing. (Confirmed live: next number is CD-20261027-0149, after 148.)
 6. **E2E test** (staff first, then a real member):
    - browse catalog · member sign-in (Google **and** password) · /account loads ·
      My Orders loads · checkout shows holiday splash · admin loads + an order edit
@@ -94,9 +98,15 @@ instance's config. (Proven: the server accepts the options string and reports th
 Pre-freeze parity checklist (infra — all cheap verifications, no code):
 - [x] `cookiedoh_app` owns all 30 tables (RLS-on/zero-policy tables return 0 rows to non-owners) — verified.
 - [x] sequences setval'd after data load (`orders_order_no_seq` 148, `stock_movements_id_seq` 6) — verified.
-- [ ] collation: live is `en_US.UTF-8` ver **153.120**; Cloud SQL/PG18 on a different OS
-      image will report a different version — **expected and harmless** given the fresh
-      load (indexes built on 18). No action unless a non-ASCII `lower()` collision shows.
+- [x] collation: Supabase `en_US.UTF-8` ver **153.120** (glibc) vs Cloud SQL
+      `en_US.UTF8` ver **2.19** — different providers, not drifted versions; harmless
+      given the fresh load (indexes born on 18). Name spelled without the hyphen on
+      purpose, to match `tbs_retail`/`postgres` on the till instance. Data-reachability
+      checked: auth_user.email 8 rows / 0 non-ASCII / 8 distinct `lower(email)`;
+      customers.name 13 / 0 non-ASCII. The UNIQUE `auth_user_email_key` on `lower(email)`
+      is the ONLY object a collation diff could fail a load on — **re-run
+      `select count(*)=count(distinct lower(email)) from auth_user where email is not null`
+      on the FINAL dump** if any non-ASCII email signs up before the window.
 - [ ] (optional, not a cutover regression) the 3 `phone_otps` verified-lookup `.limit(1)`
       picks have no tiebreaker — pre-existing nondeterminism, identical on 17 and 18; add
       a `.order('id')` someday for cleanliness. Not blocking.
