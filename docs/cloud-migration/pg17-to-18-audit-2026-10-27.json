@@ -1,0 +1,516 @@
+{
+  "summary": "Audit the Cookie Doh storefront runtime SQL for PG17.6→18.6 behavioral differences before the Cloud SQL cutover",
+  "agentCount": 5,
+  "logs": [],
+  "result": {
+    "reports": [
+      {
+        "lens": "LENS 1 — the SQL-generation shim (web/lib/pgClient.ts + web/lib/db.ts driver layer)",
+        "summary": "pgClient.ts emits a small, fixed vocabulary of SQL and binds every value as an untyped $n parameter; none of those constructs changed PARSE/RESULT/TYPE semantics from PG17.6 to 18.6. The one genuine cutover exposure is ORDERING, not syntax: the shim only ever appends ORDER BY when a caller calls .order(), and it never adds a tiebreaker or COLLATE. PG18's new planner paths (B-tree skip scan, revised index costing, async I/O) change which physical plan wins, so any query whose row order is unspecified — every .limit(1)/.single()/.maybeSingle() with a non-unique predicate, and every .order(key).limit(N) where key has ties — can legitimately return a different row/row-order on 18 than it did on 17. That is the top risk (HIGH), followed by tie-break drift under ORDER BY+LIMIT (MEDIUM). Text-collation drift from the host move exists in principle but is dormant: zero .order() calls target a text column. Everything else — identifier quoting, $n binding, =ANY(array) for .in(), ON CONFLICT/excluded, RETURNING *, ILIKE/LIKE, IS NULL/TRUE/FALSE, NOT, OR groups, jsonb ->/->> (unused), count(*)::int, multi-row INSERT, UPDATE SET, RPC named-args, and the OID-keyed type parsers in db.ts — is provably identical across 17→18. .range() and jsonb-path (->) are emitted by the shim but exercised by no call site today. Overall cutover risk from this file: LOW-to-MEDIUM, concentrated entirely in reliance on unspecified result order, which the upgrade is the exact moment to expose.",
+        "findings": [
+          {
+            "construct": "LIMIT with no ORDER BY, feeding .single()/.maybeSingle()/.limit(1) — build() appends `limit N` (line 147) and run() then takes rows[0] (lines 191-197). When the WHERE predicate is NOT unique, which single row is returned is entirely plan-dependent.",
+            "file": "web/lib/pgClient.ts",
+            "line": 147,
+            "risk": "high",
+            "pg17_vs_18": "Result SET is identical, but result ORDER of an unordered query is unspecified in both versions. PG18 adds B-tree skip scan, revised index-path costing and asynchronous I/O (io_method), any of which can select a different physical plan/scan order than 17 chose for the same query against the freshly loaded tables. So a non-unique `.limit(1)` can surface a DIFFERENT row, and `.single()` can even flip between 'ok' and the PGRST116 'expected 1 row' error if the plan changes row visibility order. Not a semantic change in 18 per se — it is that the cutover is exactly when an unspecified order changes.",
+            "recommendation": "Audit the ~65 `.limit(...)` / 10 `.single()` call sites. The ones filtered on a unique/PK column (e.g. .eq('auth_user_id', id).limit(1), .eq('id', ...)) are SAFE — one-row set regardless of plan. Fix the non-unique ones by adding a deterministic .order() before .limit(1): concretely phone_otps 'verified' lookups (web/lib/memberServer.ts:32, web/app/api/subscriptions/checkout/route.ts:48, web/app/api/account/tbs/route.ts:40) and auth_throttle (web/lib/authThrottle.ts:20). Prefer ordering by a unique/created_at+id key."
+          },
+          {
+            "construct": "ORDER BY a non-unique key + LIMIT, with no tiebreaker — order() pushes `\"col\" dir` (line 114) and build() emits `order by ... limit N` (lines 146-147). Rows tied on the sort key are ordered by plan.",
+            "file": "web/lib/pgClient.ts",
+            "line": 146,
+            "risk": "medium",
+            "pg17_vs_18": "ORDER BY on the key is honored identically; the ordering AMONG rows that tie on that key is unspecified in both 17 and 18. PG18's plan changes can break those ties in a different sequence, which (a) reorders tied rows within a page and (b) shifts exactly which rows fall on the LIMIT boundary, so a capped list can gain/drop a row at the edge. created_at (timestamptz) ties are common with batch/same-second inserts.",
+            "recommendation": "Add a unique tiebreaker to the ORDER BY at the capped sites: e.g. web/app/api/admin/reports/route.ts:149 `.order('created_at',{ascending:false}).limit(500)` and :235 `.order('updated_at',...).limit(300)` → add `.order('id', {ascending:false})` as a secondary key. Since the shim supports chained .order(), this is a per-call-site fix, not a shim change."
+          },
+          {
+            "construct": "Bare `order by \"col\" asc|desc` with no COLLATE clause (line 114) — text ordering would inherit the database's default collation.",
+            "file": "web/lib/pgClient.ts",
+            "line": 114,
+            "risk": "low",
+            "pg17_vs_18": "libc collation for a text sort depends on the host's glibc/ICU version, not on the PG major version. Both servers are en_US.UTF8, but Supabase and Cloud SQL run different OS images, so the default collation VERSION can differ and reorder strings (case, punctuation, accents). This is a host-move risk, not strictly 17→18. DORMANT today: every single .order() in the codebase targets created_at/scheduled_for/paid_at/updated_at/last_order_at (timestamptz), seq (int), threshold_idr/reach_annual_idr (numeric) or is_default (bool) — ZERO text-column orders — none of which are collation-sensitive.",
+            "recommendation": "No action needed for current queries. If a future caller adds `.order()` on a text column (name/sku/email/code), pin it with an explicit collation (e.g. `COLLATE \"C\"` for stable byte order) or verify Cloud SQL's collation version matches Supabase's. Post-cutover, run a REINDEX only if text b-tree indexes exist with a changed collation version (Cloud SQL will warn)."
+          },
+          {
+            "construct": "Identifier quoting — q() double-quotes table/column names (line 35-37) and col() builds `\"meta\"->'k'` paths (line 22-33). All table/column identifiers are emitted double-quoted.",
+            "file": "web/lib/pgClient.ts",
+            "line": 35,
+            "risk": "none",
+            "pg17_vs_18": "Double-quoted identifier semantics are unchanged 17→18. Because every identifier is quoted, any keyword newly reserved in PG18 cannot collide with a column/table name — the quoting makes the shim immune to reserved-word changes (a point in its favor).",
+            "recommendation": "None."
+          },
+          {
+            "construct": "Untyped bound parameters $1..$n — whereSql()/build() push JS values and emit `$n` (lines 125,139); db.ts query() hands them to node-postgres (pg ^8.22.0, wire protocol 3.0) which sends them as text with no type OID.",
+            "file": "web/lib/pgClient.ts",
+            "line": 125,
+            "risk": "none",
+            "pg17_vs_18": "Postgres infers each $n's type from operator/column context (`col = $1` → col's type; `col = any($1)` → col-element array). This context-based inference of unknown-typed parameters is unchanged in 18 — no broad implicit-cast removal or stricter unknown-literal rule landed in 18 that affects these simple `col OP $n` shapes. pg_type OIDs the driver relies on are stable.",
+            "recommendation": "None. (Note unrelated to versions: JS boolean/null are serialized by the driver to 't'/'f'/NULL — identical on both servers.)"
+          },
+          {
+            "construct": ".in(col, arr) → `\"col\" = any($1)` with the JS array as one bound param (line 130).",
+            "file": "web/lib/pgClient.ts",
+            "line": 130,
+            "risk": "none",
+            "pg17_vs_18": "= ANY(array) with the element type inferred from the left operand is unchanged 17→18; empty array yields no rows, NULL elements behave the same (never match via =). 14 call sites, all safe.",
+            "recommendation": "None."
+          },
+          {
+            "construct": "ON CONFLICT (cols) DO UPDATE SET col = excluded.col / DO NOTHING (lines 160-164), from .upsert().",
+            "file": "web/lib/pgClient.ts",
+            "line": 163,
+            "risk": "none",
+            "pg17_vs_18": "INSERT ... ON CONFLICT and the `excluded` pseudo-row are unchanged in 18. Arbiter-index inference from the conflict column list behaves identically. 18 upsert call sites.",
+            "recommendation": "None."
+          },
+          {
+            "construct": "RETURNING * on insert/update/upsert/delete (ret(), line 142).",
+            "file": "web/lib/pgClient.ts",
+            "line": 142,
+            "risk": "none",
+            "pg17_vs_18": "PG18 ADDED optional `RETURNING old.* / new.*` aliases, but bare `RETURNING *` still returns the NEW/affected row exactly as in 17. No behavioral change for the `*` form the shim emits.",
+            "recommendation": "None."
+          },
+          {
+            "construct": "ILIKE / LIKE operators (OP_SQL line 42; emitted at line 132 and in .or()).",
+            "file": "web/lib/pgClient.ts",
+            "line": 42,
+            "risk": "none",
+            "pg17_vs_18": "Pattern-match semantics and ILIKE case-folding (Unicode-based for UTF8) are unchanged 17→18 at the identical en_US.UTF8 locale. No pattern result differences.",
+            "recommendation": "None."
+          },
+          {
+            "construct": "IS [NOT] NULL / IS TRUE / IS FALSE (isRaw, line 128) and NOT (expr) wrapping (line 131).",
+            "file": "web/lib/pgClient.ts",
+            "line": 128,
+            "risk": "none",
+            "pg17_vs_18": "Three-valued boolean logic and the IS predicates are unchanged 17→18.",
+            "recommendation": "None."
+          },
+          {
+            "construct": ".or() → `(colA op $OR0 or colB op $OR1)` with literals rebound as $n (lines 97-107, 129).",
+            "file": "web/lib/pgClient.ts",
+            "line": 105,
+            "risk": "none",
+            "pg17_vs_18": "The emitted OR disjunction evaluates identically on 17 and 18; PG18 may transform OR→=ANY during planning, but that is a plan optimization — result set is identical (only unordered row order could shift, already covered by the ordering findings). 2 call sites.",
+            "recommendation": "None for the 17→18 axis. (Separate, version-independent latent bug: the string .replace('$OR'+i,...) replaces only the first match and $OR1 is a prefix of $OR10 — out of scope here but worth a cleanup ticket.)"
+          },
+          {
+            "construct": "jsonb path operators -> and ->> built by col() (lines 22-33).",
+            "file": "web/lib/pgClient.ts",
+            "line": 30,
+            "risk": "none",
+            "pg17_vs_18": "-> (object) and ->> (text) operator semantics are unchanged 17→18. DORMANT: zero call sites pass a '->'-containing identifier, so this path is never exercised today.",
+            "recommendation": "None."
+          },
+          {
+            "construct": "count(*)::int as c for .select(..,{count}) (line 176).",
+            "file": "web/lib/pgClient.ts",
+            "line": 176,
+            "risk": "none",
+            "pg17_vs_18": "count(*) aggregate and the ::int cast are unchanged 17→18 (count returns int8; cast to int4 overflows >2.1B rows and errors identically on both). No table here is near that size.",
+            "recommendation": "None."
+          },
+          {
+            "construct": "Multi-row INSERT ... VALUES with column union and undefined→NULL (lines 157-159); UPDATE ... SET col=$n (lines 152-154).",
+            "file": "web/lib/pgClient.ts",
+            "line": 158,
+            "risk": "none",
+            "pg17_vs_18": "Standard INSERT VALUES and UPDATE SET are unchanged 17→18. Column defaults fill where a value is absent in all rows; explicit NULLs behave identically.",
+            "recommendation": "None."
+          },
+          {
+            "construct": "RPC: `select * from \"fn\"(argname => $n)` named-argument function call (lines 226-228).",
+            "file": "web/lib/pgClient.ts",
+            "line": 226,
+            "risk": "none",
+            "pg17_vs_18": "Named-argument (=>) notation and function overload resolution are unchanged 17→18. `select * from fn(...)` expands set/record returns the same way. (Arg names are emitted unquoted — a pre-existing, version-independent trait, not a 17/18 concern; function name itself is quoted.)",
+            "recommendation": "None."
+          },
+          {
+            "construct": "Driver type parsers keyed by OID in db.ts: 1184 timestamptz, 1114 timestamp, 1082 date, 20 int8 (lines 16-19), returning ISO strings / Number to mimic supabase-js.",
+            "file": "web/lib/db.ts",
+            "line": 16,
+            "risk": "none",
+            "pg17_vs_18": "These are built-in pg_type OIDs, stable across all modern majors including 18 — the parsers still bind to the right types. The server's text rendering of timestamptz under the default ISO DateStyle (e.g. `2026-10-27 12:00:00+00`) is unchanged in 18, so the isoTs regex (replace space→T, append :00 to a 2-digit offset) still produces the same string. Type REPRESENTATION is preserved end-to-end.",
+            "recommendation": "None. (Confirm Cloud SQL's TimeZone/DateStyle GUCs match Supabase — e.g. both UTC/ISO,MDY — so the offset the regex rewrites stays 2-digit; this is a config check, not a version behavior.)"
+          }
+        ]
+      },
+      {
+        "lens": "LENS 2 — type/wire text representation (web/lib/db.ts type parsers)",
+        "summary": "For the type/wire layer the version bump itself is safe: PG18.6's DEFAULT TEXT output for every type this app actually puts on the wire — timestamptz (×49), date (×2), bigint (×3), boolean (×17), double precision/float8 (×4, lat/lng), jsonb (×17) — is byte-identical to 17.6. All of these are governed by GUCs (DateStyle, extra_float_digits, bytea_output, IntervalStyle) whose defaults PG18 did NOT change, and the bool/float8/jsonb parsing is done client-side by pg-types 2.2.0 regardless of server version. The schema has NO numeric/decimal/money/bytea/array columns and NO interval columns (money is `integer`/`bigint` IDR; `interval` appears only as a literal inside reserve_rewards), so the scientific-notation / precision questions are moot — numeric text never appears on the wire. The one real cutover risk in this file is NOT a 17-vs-18 semantic: the entire timestamptz layer and the isoTs function render an offset that is a pure function of the server TimeZone GUC, which this connection never pins (no SET TIMEZONE, no options string). Cloud SQL commonly defaults TimeZone=UTC; if Supabase was set to Asia/Jakarta, every timestamptz on the wire flips from +07 to +00 at cutover. isoTs still yields valid ISO for any whole-hour/minute offset and downstream new Date()+toLocaleString({timeZone:'Asia/Jakarta'}) is instant-correct, so DISPLAY survives — but the wire bytes change and any consumer trusting the literal local wall-clock/offset would shift. Pin TimeZone + DateStyle on connect to make pre/post-cutover output identical. The 1114 (timestamp-without-tz) parser is defensive and unused; the int8→Number() parser has a latent >2^53 precision loss that is identical on both versions.",
+        "findings": [
+          {
+            "construct": "isoTs() + setTypeParser(1184 timestamptz) — offset rendering depends entirely on the server TimeZone GUC, which this connection never pins (no SET TIMEZONE / options string anywhere in web/app/lib/sql). 49 timestamptz columns flow through this parser.",
+            "file": "web/lib/db.ts",
+            "line": 16,
+            "pg17_vs_18": "PG18 renders timestamptz byte-identically to PG17 for a GIVEN TimeZone/DateStyle (DateStyle=ISO,MDY default unchanged in 18). This is therefore NOT a version-semantic difference. The real exposure is the cutover itself: Cloud SQL's default TimeZone is typically UTC while a Supabase project may be set to Asia/Jakarta. The same timestamptz then serializes as '...+00' instead of '...+07' — a different wire byte string for the same instant — and the code pins nothing to prevent it.",
+            "risk": "medium",
+            "recommendation": "Make the wire output version/host-independent: set TimeZone=Asia/Jakarta and DateStyle=ISO,MDY explicitly — via the connection `options` string ('-c TimeZone=Asia/Jakarta -c DateStyle=ISO,MDY') or a `SET` on each new pool client — and verify the Cloud SQL instance's `timezone` flag matches the old Supabase value before cutover. Low JS impact today (new Date()+toLocaleString(Asia/Jakarta) is instant-correct), but pinning removes an entire class of silent offset drift."
+          },
+          {
+            "construct": "isoTs = v.replace(\" \",\"T\").replace(/([+-]\\d\\d)$/, \"$1:00\") — appends ':00' only to a trailing 2-digit (whole-hour) offset.",
+            "file": "web/lib/db.ts",
+            "line": 15,
+            "pg17_vs_18": "Byte-identical behavior on 17 and 18. For Asia/Jakarta (+07, no DST, stable) PG emits '...+07' on both versions → isoTs → '...+07:00' (valid ISO). The regex correctly LEAVES already-qualified offsets ('+05:30', '+00') untouched, and a UTC server's '+00' becomes a valid '+00:00'. No PG18 change touches this shape.",
+            "risk": "low",
+            "recommendation": "No change required for this app's data. The only shape the regex cannot repair is a sub-minute historical offset like '+07:07' (pre-1900 LMT), which new Date() would reject as Invalid Date — but a storefront stores no such ancient timestamps, and the behavior is identical on both versions. Leave as-is; optionally harden later with a full ISO offset-normalizer if historical dates ever enter."
+          },
+          {
+            "construct": "Default text output of timestamptz, date (setTypeParser 1082 identity), bigint (20→Number), boolean, double precision/float8 (lat/lng), and jsonb (3802→JSON.parse). double precision at schema lines 142-143/217-218; bigint at 329/459/466; date at 522/572.",
+            "file": "docs/cloud-migration/cookiedoh-schema.sql",
+            "line": 142,
+            "pg17_vs_18": "Byte-identical on 18.6 vs 17.6. date = 'YYYY-MM-DD' (ISO, unchanged); bigint = plain decimal digits (unchanged); boolean = 't'/'f' (unchanged, parsed client-side by pg-types 2.2.0); float8 = shortest round-trip representation (Ryu since PG12, extra_float_digits default 0 unchanged — lat/lng stay plain decimal, never scientific); jsonb canonical serialization (keys sorted length-then-bytewise, ': '/', ' whitespace, number normalization) is unchanged in 18. None of these are affected by any PG18 release change.",
+            "risk": "none",
+            "recommendation": "No action. These types are safe across the bump; client-side pg-types parsing makes bool/float8/jsonb independent of server version entirely."
+          },
+          {
+            "construct": "Absence of numeric/decimal/money/bytea/array/interval COLUMNS. Money is modeled as `integer`/`bigint` IDR (unit_price_idr, total_idr, amount, …); `interval` appears only as the literal `now() - interval '30 minutes'` inside reserve_rewards; no numeric/bytea/_array/text[] columns exist.",
+            "file": "docs/cloud-migration/cookiedoh-schema.sql",
+            "line": 67,
+            "pg17_vs_18": "N/A — these types never reach the wire, so their text-format questions (numeric scientific notation, bytea hex/escape, IntervalStyle, array element quoting) cannot affect this app. Money as integer rupiah has exact text output identical on both versions. For completeness: PG18 did not change numeric (always plain decimal, never sci), bytea_output=hex, or IntervalStyle=postgres defaults anyway.",
+            "risk": "none",
+            "recommendation": "No action. If a numeric/money column is ever added, note pg-types returns numeric as a STRING (OID 1700, unparsed) — deliberate, to avoid float precision loss — and any Number()/parseFloat on it would truncate; handle as string/BigInt-decimal."
+          },
+          {
+            "construct": "setTypeParser(20, int8/bigint → Number(v)). Columns: subscription_delivery id, order_no, payments amount.",
+            "file": "web/lib/db.ts",
+            "line": 19,
+            "pg17_vs_18": "Identical on both versions — the bigint TEXT output is the same decimal string on 17 and 18; the precision loss is entirely in the JS Number() cast, not in Postgres. Values above 2^53 (~9.0e15) lose integer precision on BOTH databases equally.",
+            "risk": "none",
+            "recommendation": "Not a cutover concern. Latent app bug only if a bigint ever exceeds 2^53 (serial ids and IDR amounts realistically won't). If that becomes possible, parse those OID-20 columns as BigInt or leave as string."
+          },
+          {
+            "construct": "setTypeParser(1114, isoTs) for timestamp WITHOUT time zone.",
+            "file": "web/lib/db.ts",
+            "line": 17,
+            "pg17_vs_18": "Identical and moot: the schema has zero `timestamp without time zone` columns and the only function (reserve_rewards) returns boolean, so no query emits OID 1114. Defensive registration only.",
+            "risk": "none",
+            "recommendation": "No action. Harmless dead parser; keep for safety against future bare-timestamp columns (its isoTs output would be correct — no trailing offset to repair)."
+          }
+        ]
+      },
+      {
+        "findings": [
+          {
+            "construct": "perform pg_advisory_xact_lock(hashtext(p_phone)) — per-member checkout serialization lock",
+            "file": "docs/cloud-migration/cookiedoh-schema.sql",
+            "line": 60,
+            "risk": "none",
+            "pg17_vs_18": "Identical. hashtext(text) output is frozen across major versions (hash functions must stay stable for hash indexes / hash partitioning compatibility), and PG 18 makes no change to it. hashtext returns int4, sign-extended to the bigint pg_advisory_xact_lock(bigint) overload the same way on both. Decisively: even if the hash value DID differ, it would not matter — advisory locks live inside one running server and the cutover switches all traffic to 18 at once, so the two servers never share a lock namespace; correctness only needs the hash to be deterministic within one server, which holds on both.",
+            "recommendation": "No action. Do not treat the hash value as portable across the two instances (it isn't meant to be) — the lock still serializes correctly post-cutover."
+          },
+          {
+            "construct": "coalesce(sum(cookies), 0), coalesce(sum(drinks), 0) INTO integer vars",
+            "file": "docs/cloud-migration/cookiedoh-schema.sql",
+            "line": 62,
+            "risk": "none",
+            "pg17_vs_18": "Identical. sum(int4) returns bigint on both versions; coalesce(bigint, 0) stays bigint; the ungrouped aggregate always returns exactly one row (NULL sum when zero matching rows, folded to 0 by coalesce), then down-assigned into the integer PL/pgSQL variables. Aggregate return types, NULL-coalescing, and the implicit bigint→int4 assignment cast are unchanged in 18. Values are tiny reward counts, so no overflow either.",
+            "recommendation": "No action."
+          },
+          {
+            "construct": "created_at > now() - interval '30 minutes' — abandoned-reservation cutoff",
+            "file": "docs/cloud-migration/cookiedoh-schema.sql",
+            "line": 67,
+            "risk": "none",
+            "pg17_vs_18": "Identical. now() = transaction_timestamp() returns timestamptz on both; the interval literal '30 minutes' parses the same; timestamptz - interval and the > comparison are unchanged in 18. No interval-input or timestamp-comparison semantics changed between 17 and 18.",
+            "recommendation": "No action."
+          },
+          {
+            "construct": "insert into public.loyalty_redemptions (... status) values (..., 'reserved') — relies on DDL defaults gen_random_uuid() + now()",
+            "file": "docs/cloud-migration/cookiedoh-schema.sql",
+            "line": 74,
+            "risk": "none",
+            "pg17_vs_18": "Identical. The column defaults (id = gen_random_uuid(), created_at = now()) live in the table DDL, not the function, and are unchanged: gen_random_uuid() is still built-in in 18 (18 only ADDS uuidv4()/uuidv7(), it does not alter or remove gen_random_uuid). Plain single-row INSERT with literal 'reserved' has no version-sensitive behavior.",
+            "recommendation": "No action."
+          },
+          {
+            "construct": "Driver path: shim builds `select * from public.reserve_rewards(p_phone => $1, ...)` (named-arg call) and returns the boolean scalar",
+            "file": "web/lib/pgClient.ts",
+            "line": 225,
+            "risk": "none",
+            "pg17_vs_18": "No version delta. Named-argument `=>` call syntax, the result shape of `select * from <scalar-returning function>()` (one row, one column named reserve_rewards), and boolean wire representation are all identical on 17 and 18. NOTE (not a version issue, flagged only because the lens names driver code): the shim returns r.rows (an array like [{reserve_rewards:true}]) as `data`, while both checkout callers test `reserved === false` on that array — so the false-path reservation guard is effectively dead on BOTH servers. This is a pre-existing Supabase-RPC-vs-pg-shim shape mismatch, not something the 18 cutover changes.",
+            "recommendation": "No version action. Separately (outside this cutover) fix the callers to read data[0].reserve_rewards, or have the shim unwrap single-column scalar RPC results, so the reserve_rewards=false double-spend guard actually fires."
+          },
+          {
+            "construct": "web/sql/*.sql corpus (23 files) — cutover run-classification",
+            "file": "web/sql/_RUN_ALL_IN_PRODUCTION.sql",
+            "line": 1,
+            "risk": "none",
+            "pg17_vs_18": "All 23 files are idempotent, one-time setup DDL ('Run once in the Supabase SQL editor'): CREATE TABLE/INDEX IF NOT EXISTS, ALTER TABLE ADD COLUMN, RLS ENABLE/policies, and one ON CONFLICT DO NOTHING seed (_RUN_locations.sql). They are historical/dev-only for the cutover and are superseded by the regenerated dump (DDL re-runs not planned). No cron/admin path executes any of them at runtime. The only runtime-executed object they define is reserve_rewards, duplicated verbatim at _RUN_ALL_IN_PRODUCTION.sql:125 and loyalty_redemptions.sql:43 (same body audited above). No DISTINCT ON, no ORDER-BY-dependent result sets, no views, no triggers, no generated columns, no version-sensitive operators anywhere in the set.",
+            "recommendation": "Treat all web/sql files as superseded setup scripts; do not re-run them against Cloud SQL. The runtime query/ordering behavior that PG 18's planner changes (e.g. b-tree skip scan altering implicit row order) could touch lives in the TypeScript app queries, not these files — audit those under a different lens if desired."
+          },
+          {
+            "construct": "_RUN_rls_fix_orders.sql — RLS policies FOR SELECT/ALL TO public + reliance on service_role RLS-bypass",
+            "file": "web/sql/_RUN_rls_fix_orders.sql",
+            "line": 20,
+            "risk": "none",
+            "pg17_vs_18": "No version delta: RLS enforcement and owner/BYPASSRLS-role bypass semantics are identical in 17 and 18. The real hazard here is platform/role, not version: this file references Supabase-specific roles (service_role, anon, authenticated) and the lockdown 'RLS on + zero policies = deny-all to anon, service_role bypasses' depends on the app connecting as a bypassing role. On vanilla Cloud SQL those roles do not exist, so re-running this file would error, and whether the shim's connection role bypasses RLS (owner/superuser) vs is blocked (RLS enforced, no policies) determines whether queries silently return zero rows — but that behaves the same on 17 and 18.",
+            "recommendation": "No version action. As a cutover (not-version) check: confirm the pg-shim connection role is the table owner or has BYPASSRLS so RLS-enabled/zero-policy tables (orders, customers, phone_otps, loyalty_redemptions, etc.) remain readable; do not re-run this Supabase-role-specific script on Cloud SQL."
+          }
+        ],
+        "lens": "LENS 3 — stored function (public.reserve_rewards) + web/sql/*.sql behavioral audit, PostgreSQL 17.6 → 18.6",
+        "summary": "Net result: PostgreSQL 17.6→18.6 introduces NO behavioral difference in any construct this lens covers — every finding is risk \"none\", and that is the honest answer, not a gap in the audit. (a) reserve_rewards (docs/cloud-migration/cookiedoh-schema.sql:52-77): all four flagged constructs are version-stable. pg_advisory_xact_lock(hashtext(p_phone)) (line 60): hashtext output is frozen across majors for hash-index compatibility, and advisory locks are per-server anyway — the cutover moves all traffic to 18 at once, so the hash value never needs to agree across the two instances; serialization stays correct. coalesce(sum(...),0) (line 62): sum(int4)→bigint→coalesce→assigned to integer var, unchanged. now() - interval '30 minutes' (line 67): timestamptz/interval math unchanged. The INSERT (line 74) relies on DDL defaults gen_random_uuid()/now(), both unchanged in 18 (18 only ADDS uuidv4/uuidv7). (b) web/sql: all 23 files are idempotent one-time setup DDL (\"run once in the Supabase SQL editor\"), superseded by the regenerated dump and NOT executed by any cron/admin path at runtime; the only runtime object they define is reserve_rewards (duplicated verbatim in _RUN_ALL_IN_PRODUCTION.sql:125 and loyalty_redemptions.sql:43). No views/triggers/generated columns/DISTINCT ON/implicit-ordering queries exist in the set. The genuinely load-bearing cutover risks I found are NOT version deltas and the reader should not read \"none\" as \"nothing to check\": (1) the pg-shim returns reserve_rewards as a rows array while both checkout callers test `reserved === false`, so the double-spend guard is effectively dead on BOTH 17 and 18 (web/lib/pgClient.ts:228 vs web/app/api/checkout/route.ts:397 and web/app/api/cafe/checkout/route.ts); (2) _RUN_rls_fix_orders.sql's lockdown depends on Supabase roles (service_role/anon) that do not exist on Cloud SQL — verify the shim's connection role bypasses RLS or RLS-enabled/zero-policy tables will silently return no rows. Both deserve attention at cutover but belong to the Supabase→pg-shim translation, not to PG 18."
+      },
+      {
+        "lens": "LENS 4 — result semantics across the storefront routes (web/app, web/lib): ordering, collation/ctype, ILIKE folding, jsonb comparisons, float formatting, LIMIT-without-total-ORDER, implicit row order, date/interval math — PostgreSQL 17.6 → 18.6, identical UTF8 / en_US.UTF-8 / template0 locale.",
+        "summary": "Behavioral exposure for this cutover is LOW. The storefront treats Postgres as a row store: every money, loyalty, stock and rating column is `integer` (the only `double precision` columns are location lat/lng), and all arithmetic, summation, DISTINCT and sorting of values happens in JS after the rows are fetched — there is no SQL GROUP BY, DISTINCT, SUM/AVG, or float cast in any route. That removes the usual PG-version aggregation/float-format surface entirely. The money webhook path is keyed on a unique id with .single() (deterministic). The only version-sensitive engine behaviors with any surface are: (1) two lower() functional indexes (auth_user email uniqueness, customers name) that depend on libc LC_CTYPE — the sole ctype touchpoint, de-risked because the data is ASCII-dominant and the schema is a FRESH load on 18 (so there is no silent glibc-reindex corruption hazard, unlike an in-place pg_upgrade); (2) several ORDER BY <timestamp> LIMIT N and bare LIMIT 1 picks whose tie/boundary order is undefined and could be surfaced differently by PG18's new plans (skip scan), but these are already nondeterministic on 17 and carry trivial impact for a cookie shop. The lens's specific asks resolve clean: the 23 ILIKE uses are on phone digits (folding is a no-op, with an authoritative JS phoneSignificant() filter) or ASCII email/name, so en_US.UTF-8 case-folding is effectively unchanged 17→18; the 6 jsonb uses are all ->/->>/is-null (byte-identical across versions, no @> containment), and the one ->> text range compares fixed-format toISOString() Z-strings where the first differing char is always a digit, so collation cannot reorder it. No text-column ORDER BY exists in any route, so the collation-version reorder risk has essentially no query surface. Recommended pre-cutover check: compare pg_database.datcollversion / datctype between the two instances and, if they differ, spot-check for any non-ASCII email/name rows before trusting the lower() unique index — otherwise no code change is needed for this lens.",
+        "findings": [
+          {
+            "construct": "UNIQUE INDEX auth_user_email_key ON (lower(email)) WHERE email IS NOT NULL, and INDEX customers_name_idx ON (lower(name)); login lookup findByEmail() does .ilike(\"email\", esc).limit(1)",
+            "file": "docs/cloud-migration/cookiedoh-schema.sql",
+            "line": 980,
+            "risk": "low",
+            "pg17_vs_18": "lower() and ILIKE case-folding both resolve through the database LC_CTYPE, which for the libc provider is derived from the host glibc. A glibc major change between the Supabase 17 host and the Cloud SQL 18 host could alter how NON-ASCII letters fold, changing which rows the email-uniqueness index treats as equal and which rows ILIKE matches. For ASCII A-Z<->a-z (all emails and nearly all names here) folding is version- and locale-invariant, so results are identical. Because the schema is loaded FRESH on 18 (not pg_upgrade'd in place), the index is rebuilt with 18's ctype and is internally consistent — there is no silent corruption / mandatory-REINDEX hazard. The task states the data already loaded clean, which means no case-collision surfaced during load.",
+            "recommendation": "Treat as the single ctype-dependent construct. Before/after cutover compare pg_database.datctype and datcollversion on both instances; if they differ, run a one-off check for non-ASCII characters in auth_user.email and customers.name and confirm no two rows collapse to the same lower() value under 18. No application change otherwise. Runtime file: web/lib/memberAuthServer.ts:40."
+          },
+          {
+            "construct": "ORDER BY <timestamp> ... LIMIT N on a non-unique sort key (no unique tiebreak)",
+            "file": "web/app/api/account/orders/route.ts",
+            "line": 58,
+            "risk": "low",
+            "pg17_vs_18": "order history is `order by created_at desc limit 200`; reports use `order by paid_at desc/asc limit 5000` (web/app/api/admin/reports/route.ts:61,176) and `order by created_at desc limit 500` (reports:149/235); whatsapp history `order by created_at desc limit HISTORY_TURNS+1` then slices/reverses (web/app/api/whatsapp/inbound/route.ts:111); cron abandoned-cart/tbs-backinstock also order-by-created_at+limit. created_at/paid_at are timestamptz (numeric compare, NOT collation-sensitive), so the sort VALUE order is identical 17->18. The only nondeterminism is the relative order of ROWS THAT SHARE an identical timestamp, and which tied rows survive the LIMIT boundary. That tie order is engine/plan-defined and already undefined on 17; PG18's new plan shapes (e.g. B-tree skip scan) could surface a different tie order or drop a different tied row at the LIMIT cutoff.",
+            "recommendation": "Impact is trivial for this volume (a customer rarely has 200+ orders; a report rarely has 5000+ in-window at identical paid_at). If exact, stable pagination/ordering ever matters, append a unique tiebreak to the sort (e.g. .order(\"created_at\",{ascending:false}).order(\"id\")). No action required for cutover correctness."
+          },
+          {
+            "construct": ".limit(1) with no .order() on a non-unique filter (arbitrary-row pick)",
+            "file": "web/app/api/checkout/route.ts",
+            "line": 307,
+            "risk": "low",
+            "pg17_vs_18": "picks the member's phone via `.eq(auth_user_id).eq(phone_verified,true).limit(1)` (same pattern in web/app/api/subscriptions/checkout/route.ts:44,48 and web/lib/memberServer.ts:28,32; and findByEmail at memberAuthServer.ts:40). When more than one row matches, which row is returned is plan/heap-defined and could differ between 17 and 18. In normal data exactly one row matches (one verified customer per user; email is case-insensitively unique via the lower(email) index), so the pick is effectively deterministic; it only becomes observable if duplicate verified-phone rows per user exist.",
+            "recommendation": "Already nondeterministic on 17, so not a migration regression. If you want to be defensive, add a deterministic .order() (e.g. by created_at, or phone_verified desc then created_at) before .limit(1) on the phone-pick queries. The money webhook lookup by contrast is safe: web/app/api/midtrans/notification/route.ts:195 keys on unique midtrans_order_id with .single()."
+          },
+          {
+            "construct": "ILIKE case-folding across 23 call sites (.ilike)",
+            "file": "web/lib/pgClient.ts",
+            "line": 88,
+            "risk": "none",
+            "pg17_vs_18": "18 of the 23 ILIKE uses match customer_phone/phone against `%<significant digits>%` (web/app/api/loyalty/lookup:23, account/orders:57, account/me:83, admin/customers/[id]:34, lib/waBot:39,68, vip:47, loyaltyGrants:16, referrals:68, subscriptionRewards:34, orderComms:106, etc.) — digits have no case, so folding is a no-op, and each call pairs the loose ILIKE prefilter with an AUTHORITATIVE JS phoneSignificant()===sig exact filter, so the DB folding cannot change the result set at all. The remaining uses are on ASCII email (memberAuthServer:40, backed by the ci-unique index) and admin `name` search (admin/customers:21). ASCII A-Z<->a-z folding is identical in every en_US.UTF-8 libc version, so ILIKE results are unchanged 17->18.",
+            "recommendation": "Confirmed non-issue. No change. (The theoretical residual — non-ASCII folding drift — is the same libc/ctype concern already captured by the lower(email) finding.)"
+          },
+          {
+            "construct": "jsonb ->/->> comparisons and `is null` on jsonb paths (6 uses; no @> containment anywhere)",
+            "file": "web/app/api/cron/daily-digest/route.ts",
+            "line": 151,
+            "risk": "none",
+            "pg17_vs_18": "the six jsonb uses are: `->>'pushed' = 'claiming'/'false'` (midtrans/notification:312, a claim-guard), `.not(meta->tbs,is,null)` (admin/tbs:54, cron/tbs-promise:65), `.is(meta->promise_voucher,null)` (tbs-promise:66), `.not(meta->tbs_points,is,null)` (tbs-points-refund:38), and `.not(meta->promise_voucher,is,null)` + `->>'at'` gte/lte range (daily-digest:150-151). The ->, ->>, and `is [not] null` operators, and ->>'s coercion of a jsonb boolean/string to text, are byte-identical in 17 and 18. The only value comparison, the ->>'at' text range, is compared against fromIso/toIso produced by Date.toISOString() (fixed-width '...Z' format); two such strings first differ at a digit position, and digit ordering is identical across all en_US.UTF-8 collation versions, so collation cannot reorder the range. No @> is used.",
+            "recommendation": "Confirmed non-issue. If you later store meta.promise_voucher.at in a non-Z offset format, that text range would need re-checking — but that would be a pre-existing format bug, not a 17->18 regression."
+          },
+          {
+            "construct": "Float/double text formatting, SQL aggregation, and the reserve_rewards RPC",
+            "file": "docs/cloud-migration/cookiedoh-schema.sql",
+            "line": 52,
+            "risk": "none",
+            "pg17_vs_18": "All money (total_idr/subtotal_idr/threshold_idr/reach_annual_idr), loyalty (cookies/drinks), location_stock.stock and order_ratings.stars are `integer`; the only `double precision` columns are location lat/lng (schema:142-143,217-218), which are cosmetic coordinates. float8 wire output uses shortest round-trip representation (unchanged since PG12), so parseFloat yields identical values 17->18. There is NO SQL GROUP BY / DISTINCT / SUM / AVG / float cast in any route — every total, average (daily-digest ratings), sort-by-need (production.ts) and dedup (broadcast.ts Map) is computed in JS over fetched rows, which removes PG-side aggregation/ordering differences. The lone money-path DB function reserve_rewards is integer-only, uses coalesce(sum(...),0) (order-independent), `now() - interval '30 minutes'` (version-stable timestamptz math), and hashtext() only as an advisory-lock key (self-consistent on a single instance).",
+            "recommendation": "No action. This JS-side-everything architecture is why the overall cutover risk for result semantics is low; keep money/stock columns integer to preserve it."
+          }
+        ]
+      }
+    ],
+    "critic": {
+      "construct": "n/a",
+      "lens": "LENS 5 — adversarial completeness critic: surfaces the four lenses did not read (orders DEFAULT expression, function search_path, extensions, driver/auth, GUC/timeout parity, sequences, residual supabase-js), plus contested rankings. Static analysis from /Users/angeltan/cookie-doh/.claude/worktrees/cloudmig-v2.",
+      "summary": "BOTTOM LINE: clean go on the VERSION axis, conditional on a cheap config-parity checklist in the freeze window. I found NO PostgreSQL 17.6->18.6 SEMANTIC change that will alter a result, ordering, error, or type representation for any construct this app actually executes. I independently confirmed the lenses' load-bearing dismissals: every one of the ~38 .order() call sites targets timestamptz/numeric/int/bool (ZERO text-column ORDER BY, so the collation-reorder class has no query surface); no route emits raw SQL outside the shim (only db.ts begin/commit/rollback); there is NO CREATE EXTENSION anywhere, and gen_random_uuid() resolves to the PG13+ core built-in (unchanged in 18, which only ADDS uuidv4/uuidv7), so no extension dependency breaks on Cloud SQL; the driver is pg ^8.22.0 over the Cloud SQL connector with SCRAM-SHA-256 password auth, all unchanged 17->18. \n\nWHAT THE LENSES MISSED (all low/none on the version axis, but one is a persisted, customer-visible value): (1) orders.order_no DEFAULT bakes to_char(now(),'YYYYMMDD') server-side — a TimeZone-GUC-dependent value none of the four lenses read; it is the same TimeZone root LENS 2 raised but manifests in PERSISTED order numbers, not just wire display. (2) public.reserve_rewards has NO `SET search_path` — I verified the body fully schema-qualifies every object (public.loyalty_redemptions, built-ins), so it is provably safe regardless of the connection role's search_path; worth stating because the lenses asserted it safe without checking. (3) Sequences (orders_order_no_seq, stock_movements_id_seq) must be setval'd after the fresh data load — a migration-completeness duty, not a version delta. (4) Per-role statement_timeout/transaction_timeout parity between Supabase and Cloud SQL is unpinned (config, not version). (5) Several modules still use supabase-js createClient (auth/storage/PostgREST) — out of DB-cutover scope but a completeness flag.\n\nCONTESTED RANKINGS: LENS 1's HIGH for \"unordered LIMIT 1 -> .single()\" is too alarmist. I checked the schema: auth_throttle is PRIMARY KEY (bucket) (line 677), so authThrottle.ts:20 .eq(bucket).limit(1) is PK-keyed and fully deterministic — LENS 1 mis-identified it as non-unique. The remaining phone-pick sites select a column (phone) that is invariant across the tied rows and only tie under a rare data anomaly (a user with two verified phones, or duplicate customer rows). This is pre-existing nondeterminism identical on 17 and 18, not a cutover regression; real impact is LOW, matching LENS 4. LENS 2's MEDIUM for TimeZone is also contingent: both Supabase and Cloud SQL default TimeZone to UTC, so drift occurs only if the old instance was changed from default — likely a non-issue, but the verification is trivial and belongs on the checklist.\n\nPRE-FREEZE CHECKLIST (none require code changes, all are parity verifications): (a) confirm Cloud SQL `timezone` + DateStyle match Supabase (pin TimeZone + DateStyle=ISO,MDY on connect to make order_no and all timestamptz wire bytes host-independent); (b) compare pg_database.datcollversion/datctype across instances and, if different, spot-check non-ASCII auth_user.email/customers.name for lower() collisions; (c) confirm the cookiedoh_app role owns the tables or has BYPASSRLS (RLS-on/zero-policy tables otherwise return zero rows — same on both versions); (d) setval all sequences after data load; (e) verify no per-role statement_timeout surprise on cookiedoh_app. No MEDIUM+ risk is a PG18 behavior; if the checklist passes, this is a clean go.",
+      "findings": [
+        {
+          "construct": "orders.order_no column DEFAULT ((('CD-' || to_char(now(),'YYYYMMDD')) || '-') || lpad(nextval('orders_order_no_seq')::text,4,'0')) — a server-computed, PERSISTED default that embeds the session TimeZone GUC via to_char(now()). None of the four lenses read the orders table DDL default.",
+          "file": "docs/cloud-migration/cookiedoh-schema.sql",
+          "line": 305,
+          "risk": "low",
+          "pg17_vs_18": "to_char(timestamptz,'YYYYMMDD'), now(), lpad, nextval and || are all byte-identical on 17 and 18 — NOT a version semantic change. The exposure is the cutover config: to_char converts now() to local wall-clock using the server TimeZone, so a customer order placed near midnight gets a DIFFERENT date in its persisted order_no if Cloud SQL's TimeZone differs from the old Supabase value. Unlike LENS 2's wire-display concern this value is stored and customer-facing. In practice both platforms default to UTC, so if Supabase was left at default there is no drift.",
+          "recommendation": "Verify the Cloud SQL instance `timezone` flag equals the old Supabase setting (both almost certainly UTC). Pin it explicitly on connect (connection options '-c TimeZone=... -c DateStyle=ISO,MDY') so order_no dates are host-independent. No code change needed if the GUCs match."
+        },
+        {
+          "construct": "CREATE FUNCTION public.reserve_rewards(...) LANGUAGE plpgsql with NO `SET search_path` clause; body references public.loyalty_redemptions (qualified) plus built-ins hashtext/sum/coalesce/now/pg_advisory_xact_lock.",
+          "file": "docs/cloud-migration/cookiedoh-schema.sql",
+          "line": 52,
+          "risk": "none",
+          "pg17_vs_18": "I verified the full body (lines 52-77): every table is schema-qualified (public.loyalty_redemptions) and every function is a core built-in resolved from pg_catalog, which is always on the search_path. So the absence of a per-function SET search_path cannot cause a resolution difference, and PG18 changed nothing here. (Note: the dump restores under set_config('search_path','') at line 28, but that is restore-time only; the function captures no search_path, so it uses the caller's at runtime — harmless because the body is fully qualified.)",
+          "recommendation": "No action for the 17->18 axis. Separately confirm the cookiedoh_app connection role has SELECT+INSERT on public.loyalty_redemptions (the function is SECURITY INVOKER by default), identical requirement on both versions."
+        },
+        {
+          "construct": "Extension dependency surface: there is NO `CREATE EXTENSION` statement anywhere in the schema dump or web/sql/*, and gen_random_uuid() (used as DEFAULT on ~17 tables) is the only crypto-ish function referenced.",
+          "file": "docs/cloud-migration/cookiedoh-schema.sql",
+          "line": 131,
+          "risk": "none",
+          "pg17_vs_18": "gen_random_uuid() has been a CORE built-in since PG13 (no pgcrypto/uuid-ossp needed); PG18 keeps it unchanged and only ADDS uuidv4()/uuidv7(). Because the schema already loaded clean on 18 with no extension, there is no Supabase-specific extension (pg_net, pgjwt, uuid-ossp, pg_graphql, etc.) that Cloud SQL must provide for these runtime paths. Confirms the lenses' implicit assumption — no extension-availability cutover break.",
+          "recommendation": "None. (If any Supabase-only extension were relied on it would have failed the clean load already.)"
+        },
+        {
+          "construct": "Driver/auth path: pg ^8.22.0 pool created over the Cloud SQL Language Connector; DB role auth via DB_USER/DB_PASSWORD (SCRAM-SHA-256), TLS owned by the connector.",
+          "file": "web/lib/db.ts",
+          "line": 43,
+          "risk": "none",
+          "pg17_vs_18": "SCRAM-SHA-256 is the default password_encryption since PG14 and is unchanged in 18; pg 8.22 implements SASL/SCRAM and channel binding fine. Wire protocol 3.0, OID-keyed type parsers, and the connector's TLS are all version-independent. No PG18 auth/protocol change (e.g. no md5 removal that would bite — md5 is only deprecated-with-warning, and Cloud SQL provisions scram by default).",
+          "recommendation": "None. Ensure cookiedoh_app's password is stored scram-encoded on Cloud SQL (default); do not create it with md5."
+        },
+        {
+          "construct": "Per-role statement_timeout / transaction_timeout / idle_in_transaction_session_timeout parity. The dump SETs transaction_timeout=0 and idle_in_transaction_session_timeout=0 (restore-session only); runtime values for the cookiedoh_app role are unpinned.",
+          "file": "web/lib/db.ts",
+          "line": 39,
+          "risk": "low",
+          "pg17_vs_18": "transaction_timeout is a PG17 GUC and exists with the same default (0) on 18 — not a version behavior difference. The cutover risk is config: Supabase sets statement_timeout per built-in role (e.g. 8s for anon/authenticated); a custom cookiedoh_app role typically inherits none, but if the old deployment relied on a role-level timeout (or Cloud SQL has an instance-level statement_timeout flag set), long cron/report queries could start erroring or start hanging differently.",
+          "recommendation": "Check SHOW statement_timeout / ALTER ROLE cookiedoh_app on both instances; set them equal. Not a version issue; cheap parity check."
+        },
+        {
+          "construct": "Sequences orders_order_no_seq and stock_movements_id_seq consumed at runtime by DEFAULT nextval(); fresh schema load starts them at 1.",
+          "file": "docs/cloud-migration/cookiedoh-schema.sql",
+          "line": 291,
+          "risk": "low",
+          "pg17_vs_18": "Sequence allocation, caching, and nextval semantics are unchanged 17->18. The only hazard is migration completeness, not version: after loading row data into orders/stock_movements, the sequences must be setval'd past the max existing value or the first new order_no (CD-YYYYMMDD-0001) and stock_movement id will collide with restored rows (duplicate-key / duplicate order_no).",
+          "recommendation": "After the data dump loads, run setval() on both sequences (pg_dump data-with-schema normally emits this via pg_catalog.setval; verify it ran since schema and data are dumped separately here per the header note)."
+        },
+        {
+          "construct": "Residual supabase-js createClient usage on server paths (auth/storage/PostgREST), separate from the pg-shim data path the lenses audited.",
+          "file": "web/lib/supaAdmin.ts",
+          "line": 15,
+          "risk": "none",
+          "pg17_vs_18": "Out of scope for PG17->18 DB behavior — these clients talk to Supabase GoTrue/Storage/PostgREST, not the migrating Postgres via pg. Flagged for completeness: supaAdmin.ts is a hybrid (data via pgClient() line 73, auth via supabase-js), gated by AUTH_SELFHOSTED. supabaseServer/Browser/Admin, tbsShop, cron, and the lalamove/keep-awake routes still instantiate Supabase clients.",
+          "recommendation": "No version action. As a cutover-completeness check, confirm whether auth/storage stay on Supabase post-DB-cutover (intended, via AUTH_SELFHOSTED flag) or must be repointed; unrelated to PG18."
+        },
+        {
+          "construct": "CONTESTED — LENS 1 ranks 'LIMIT with no ORDER BY feeding .single()/.limit(1)' as HIGH, citing authThrottle.ts:20, memberServer.ts:32, subscriptions/checkout:48, account/tbs:40 as non-unique picks needing a deterministic .order().",
+          "file": "web/lib/authThrottle.ts",
+          "line": 20,
+          "risk": "low",
+          "pg17_vs_18": "Mis-ranked. (a) authThrottle.ts:20 .eq('bucket',bucket).limit(1) is on the PRIMARY KEY auth_throttle_pkey(bucket) (schema line 677) — exactly one row, fully deterministic on both versions; LENS 1 wrongly classed it non-unique. (b) The phone_otps pick (.eq(auth_user_id).eq(verified,true).limit(1)) and customers pick (.eq(auth_user_id).limit(1)) SELECT the phone column, which is identical across any tied rows unless a user has two verified phones or a duplicate customer row — rare anomalies, and the result VALUE is stable even when the row isn't. (c) Most importantly this is pre-existing unspecified-order nondeterminism present identically on 17 and 18 — the cutover may re-roll an already-undefined choice, which is not a 17->18 semantic regression. Net real cutover impact is LOW, not HIGH.",
+          "recommendation": "Re-rank to LOW (agreeing with LENS 4). The genuinely defensible hardening is to add a deterministic .order() to the phone_otps pick only (where tied rows can hold different phone values); auth_throttle needs nothing. No pre-freeze blocker."
+        },
+        {
+          "construct": "CONTESTED — LENS 2 ranks the timestamptz/isoTs TimeZone exposure as MEDIUM ('Cloud SQL defaults UTC while Supabase may be Asia/Jakarta').",
+          "file": "web/lib/db.ts",
+          "line": 16,
+          "risk": "low",
+          "pg17_vs_18": "Not a version difference at all (correctly stated by LENS 2) and the MEDIUM is contingent on a premise that is usually false: Supabase Postgres defaults TimeZone to UTC, as does Cloud SQL, so for a default-configured source there is NO drift — the app also stores UTC and converts in JS (vip.ts WIB_OFFSET). Drift only if someone changed the Supabase timezone from default. The verification is a one-line SHOW timezone comparison.",
+          "recommendation": "Keep on the pre-freeze checklist but rank the actual drift LOW; pin TimeZone+DateStyle on connect to close it permanently and make order_no/timestamptz output host-independent regardless of either instance's default."
+        }
+      ]
+    }
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Sweep"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Critic"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "lens:pg-shim",
+      "phaseIndex": 1,
+      "phaseTitle": "Sweep",
+      "agentId": "a93d1892257fe10ed",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1793107806619,
+      "queuedAt": 1793107806590,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "LENS 1 — the SQL-generation shim (web/lib/pgClient.ts + web…",
+      "promptPreview": "You are auditing a Next.js storefront (\"Cookie Doh\") that is about to move its Postgres from Supabase (server 17.6) to Google Cloud SQL (server 18.6). The schema already loaded clean on 18 and a 603-fact catalog diff is empty, so DDL is NOT your concern. Your job is purely BEHAVIORAL: find places where the SAME query/function/driver code could return a DIFFERENT result, ordering, error, or type re…",
+      "promptFramed": true,
+      "lastProgressAt": 1793108106138,
+      "tokens": 76466,
+      "toolCalls": 10,
+      "durationMs": 299519,
+      "resultPreview": "{\"lens\":\"LENS 1 — the SQL-generation shim (web/lib/pgClient.ts + web/lib/db.ts driver layer)\",\"summary\":\"pgClient.ts emits a small, fixed vocabulary of SQL and binds every value as an untyped $n parameter; none of those constructs changed PARSE/RESULT/TYPE semantics from PG17.6 to 18.6. The one genuine cutover exposure is ORDERING, not syntax: the shim only ever appends ORDER BY when a caller call…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "lens:type-wire",
+      "phaseIndex": 1,
+      "phaseTitle": "Sweep",
+      "agentId": "ad11e4cbc2c09a9c7",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1793107806619,
+      "queuedAt": 1793107806590,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "LENS 2 — type/wire text representation (web/lib/db.ts type …",
+      "promptPreview": "You are auditing a Next.js storefront (\"Cookie Doh\") that is about to move its Postgres from Supabase (server 17.6) to Google Cloud SQL (server 18.6). The schema already loaded clean on 18 and a 603-fact catalog diff is empty, so DDL is NOT your concern. Your job is purely BEHAVIORAL: find places where the SAME query/function/driver code could return a DIFFERENT result, ordering, error, or type re…",
+      "promptFramed": true,
+      "lastProgressAt": 1793108057157,
+      "tokens": 70241,
+      "toolCalls": 6,
+      "durationMs": 249001,
+      "resultPreview": "{\"lens\":\"LENS 2 — type/wire text representation (web/lib/db.ts type parsers)\",\"summary\":\"For the type/wire layer the version bump itself is safe: PG18.6's DEFAULT TEXT output for every type this app actually puts on the wire — timestamptz (×49), date (×2), bigint (×3), boolean (×17), double precision/float8 (×4, lat/lng), jsonb (×17) — is byte-identical to 17.6. All of these are governed by GUCs (…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "lens:functions-migrations",
+      "phaseIndex": 1,
+      "phaseTitle": "Sweep",
+      "agentId": "a16fb8d55904f2cb2",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1793107806619,
+      "queuedAt": 1793107806590,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "LENS 3 — stored function (public.reserve_rewards) + web/sql…",
+      "promptPreview": "You are auditing a Next.js storefront (\"Cookie Doh\") that is about to move its Postgres from Supabase (server 17.6) to Google Cloud SQL (server 18.6). The schema already loaded clean on 18 and a 603-fact catalog diff is empty, so DDL is NOT your concern. Your job is purely BEHAVIORAL: find places where the SAME query/function/driver code could return a DIFFERENT result, ordering, error, or type re…",
+      "promptFramed": true,
+      "lastProgressAt": 1793108074117,
+      "tokens": 87085,
+      "toolCalls": 16,
+      "durationMs": 265961,
+      "resultPreview": "{\"findings\":[{\"construct\":\"perform pg_advisory_xact_lock(hashtext(p_phone)) — per-member checkout serialization lock\",\"file\":\"docs/cloud-migration/cookiedoh-schema.sql\",\"line\":60,\"risk\":\"none\",\"pg17_vs_18\":\"Identical. hashtext(text) output is frozen across major versions (hash functions must stay stable for hash indexes / hash partitioning compatibility), and PG 18 makes no change to it. hashtext …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "lens:query-semantics",
+      "phaseIndex": 1,
+      "phaseTitle": "Sweep",
+      "agentId": "a52c69e28baa4f5e9",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1793107806619,
+      "queuedAt": 1793107806590,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "LENS 4 — result semantics across the storefront routes (web…",
+      "promptPreview": "You are auditing a Next.js storefront (\"Cookie Doh\") that is about to move its Postgres from Supabase (server 17.6) to Google Cloud SQL (server 18.6). The schema already loaded clean on 18 and a 603-fact catalog diff is empty, so DDL is NOT your concern. Your job is purely BEHAVIORAL: find places where the SAME query/function/driver code could return a DIFFERENT result, ordering, error, or type re…",
+      "promptFramed": true,
+      "lastProgressAt": 1793108164128,
+      "tokens": 111270,
+      "toolCalls": 19,
+      "durationMs": 355971,
+      "resultPreview": "{\"lens\":\"LENS 4 — result semantics across the storefront routes (web/app, web/lib): ordering, collation/ctype, ILIKE folding, jsonb comparisons, float formatting, LIMIT-without-total-ORDER, implicit row order, date/interval math — PostgreSQL 17.6 → 18.6, identical UTF8 / en_US.UTF-8 / template0 locale.\",\"summary\":\"Behavioral exposure for this cutover is LOW. The storefront treats Postgres as a row…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "critic:completeness",
+      "phaseIndex": 2,
+      "phaseTitle": "Critic",
+      "agentId": "a743ae3f95cd841f8",
+      "model": "claude-opus-4-8",
+      "state": "done",
+      "startedAt": 1793108164132,
+      "queuedAt": 1793108164130,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "n/a",
+      "promptPreview": "You are auditing a Next.js storefront (\"Cookie Doh\") that is about to move its Postgres from Supabase (server 17.6) to Google Cloud SQL (server 18.6). The schema already loaded clean on 18 and a 603-fact catalog diff is empty, so DDL is NOT your concern. Your job is purely BEHAVIORAL: find places where the SAME query/function/driver code could return a DIFFERENT result, ordering, error, or type re…",
+      "promptFramed": true,
+      "lastProgressAt": 1793108455350,
+      "tokens": 95799,
+      "toolCalls": 9,
+      "durationMs": 291217,
+      "resultPreview": "{\"construct\":\"n/a\",\"lens\":\"LENS 5 — adversarial completeness critic: surfaces the four lenses did not read (orders DEFAULT expression, function search_path, extensions, driver/auth, GUC/timeout parity, sequences, residual supabase-js), plus contested rankings. Static analysis from /Users/angeltan/cookie-doh/.claude/worktrees/cloudmig-v2.\",\"summary\":\"BOTTOM LINE: clean go on the VERSION axis, condi…"
+    }
+  ],
+  "totalTokens": 440861,
+  "totalToolCalls": 60
+}

@@ -18,6 +18,18 @@ types.setTypeParser(1114, isoTs as any); // timestamp (no tz)
 types.setTypeParser(1082, (v) => v);     // date → keep "YYYY-MM-DD" string
 types.setTypeParser(20, (v) => (v == null ? v : Number(v))); // int8/bigint → number
 
+// Pin session GUCs on every connection so behavior is byte-identical to the old
+// Supabase host and independent of either instance's server/role config:
+//   • TimeZone=UTC       — orders.order_no bakes to_char(now(),'YYYYMMDD') server-side;
+//                          Supabase runs UTC, so pinning UTC keeps order-number dates
+//                          unchanged (Asia/Jakarta would shift early-morning orders a day).
+//   • DateStyle=ISO,MDY  — the wire text form db.ts's type parsers expect.
+//   • statement_timeout  — 120000ms = 2min, matching live Supabase exactly.
+// Verified against live Supabase 2026-10-27 (TimeZone=UTC, DateStyle="ISO, MDY",
+// statement_timeout=2min). This also closes the only PG17→18 cutover exposures the
+// version-sweep surfaced (all config-parity, not code/semantic).
+const SESSION_OPTIONS = "-c TimeZone=UTC -c DateStyle=ISO,MDY -c statement_timeout=120000";
+
 let _poolPromise: Promise<Pool> | null = null;
 
 async function createPool(): Promise<Pool> {
@@ -41,6 +53,7 @@ async function createPool(): Promise<Pool> {
       user: process.env.DB_USER || "cookiedoh_app",
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME || "cookiedoh",
+      options: SESSION_OPTIONS,
       max: Number(process.env.PG_POOL_MAX || 5),
       connectionTimeoutMillis: 5000,
     });
@@ -54,6 +67,7 @@ async function createPool(): Promise<Pool> {
   const needsSsl = /sslmode=require/.test(connectionString) || /supabase\.|\.cloudsql\./.test(connectionString);
   const p = new Pool({
     connectionString,
+    options: SESSION_OPTIONS,
     max: Number(process.env.PG_POOL_MAX || 10),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,

@@ -74,6 +74,33 @@ Unset `INSTANCE_CONNECTION_NAME` (code falls back to `DATABASE_URL` → Supabase
 unset `AUTH_SELFHOSTED` + `NEXT_PUBLIC_AUTH_SELFHOSTED`, then redeploy. Because writes
 were frozen, no data diverged; the site returns to exactly today's state.
 
+## PG 17.6 → 18.6 version audit (2026-10-27) — CLEAN GO on the version axis
+A 4-lens + adversarial-critic sweep of the app's runtime SQL (pg shim, type parsers,
+`reserve_rewards`, every route's query semantics) found **no PG17→18 semantic change**
+that alters a result, ordering, error or type representation for anything this app runs.
+Driver (pg 8.22, SCRAM), `gen_random_uuid()` (core since PG13), ON CONFLICT, RETURNING *,
+`=ANY($1)`, ILIKE, jsonb ops, and every OID type parser are version-stable. No extension
+dependency (schema loaded clean on 18 with none). Zero text-column `ORDER BY` in the
+codebase, so the collation-reorder class has no query surface — and because infra
+drop/recreates and loads fresh on 18, all indexes are born with 18's collation (no stale
+-index/version-mismatch warning).
+
+Everything real reduced to **config parity**, now closed in code: `lib/db.ts` pins
+`TimeZone=UTC`, `DateStyle=ISO,MDY`, `statement_timeout=120000` (=2min) on every
+connection — the exact live Supabase values (measured 2026-10-27), so `order_no`
+dating and all timestamptz wire bytes are identical to today, independent of either
+instance's config. (Proven: the server accepts the options string and reports those GUCs.)
+
+Pre-freeze parity checklist (infra — all cheap verifications, no code):
+- [x] `cookiedoh_app` owns all 30 tables (RLS-on/zero-policy tables return 0 rows to non-owners) — verified.
+- [x] sequences setval'd after data load (`orders_order_no_seq` 148, `stock_movements_id_seq` 6) — verified.
+- [ ] collation: live is `en_US.UTF-8` ver **153.120**; Cloud SQL/PG18 on a different OS
+      image will report a different version — **expected and harmless** given the fresh
+      load (indexes built on 18). No action unless a non-ASCII `lower()` collision shows.
+- [ ] (optional, not a cutover regression) the 3 `phone_otps` verified-lookup `.limit(1)`
+      picks have no tiebreaker — pre-existing nondeterminism, identical on 17 and 18; add
+      a `.order('id')` someday for cleanliness. Not blocking.
+
 ## Durable watch-items (do not let these silently drift)
 - **IAM scope** — `cookiedoh-web`'s grant must stay pinned to `cookiedoh-db` only.
   If it ever widens to a project-level Cloud SQL role, the credential isolation from
