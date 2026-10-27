@@ -1,8 +1,20 @@
+-- cookiedoh-schema.sql — AUTHORITATIVE storefront schema for Cloud SQL `cookiedoh-db`.
+-- Regenerated schema-only from LIVE Supabase on 2026-10-27 (pg_dump --schema-only
+-- --schema=public --no-owner --no-privileges). Supersedes the old 28-table file AND
+-- the DDL half of 002-auth_user.sql: this now contains ALL 30 public tables incl.
+-- auth_user + auth_throttle (both still ship with RLS enabled + zero policies = owner-
+-- only). Verified self-hosted-safe: 0 GRANT/REVOKE, 0 auth.* refs, 0 Supabase role
+-- refs (anon/authenticated/service_role), 0 extensions; the 3 policies are all
+-- `USING (true)` public-read; reserve_rewards() is plain plpgsql over public tables.
+-- DRIFT FIXED vs the July file: wa_state.bot_excluded is boolean NOT NULL DEFAULT false
+-- (confirmed against live: is_nullable=NO). 002-auth_user.sql is kept only for the
+-- one-time insert-from-auth.users note; do NOT re-run its DDL — load THIS file.
+-- Row data still comes from the separate data dump at cutover (auth_throttle excluded).
 --
 -- PostgreSQL database dump
 --
 
-\restrict 7aoyawSmer7SfOPSMZmjeGrf1OX4ffZaCnpIi4b5DOtcolAk6zNjIDWuRJvx7PH
+\restrict i0cRRgrNbh8SO9PS5mAQUUTcMwZTxyR4aO6SEe10KhVDVcURlFmM18CNH9pr0dd
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.4 (Homebrew)
@@ -80,6 +92,34 @@ CREATE TABLE public.app_settings (
     key text NOT NULL,
     value text NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: auth_throttle; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.auth_throttle (
+    bucket text NOT NULL,
+    hits integer DEFAULT 0 NOT NULL,
+    reset_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: auth_user; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.auth_user (
+    id uuid NOT NULL,
+    email text,
+    password_hash text,
+    name text,
+    phone text,
+    google_sub text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    token_version integer DEFAULT 0 NOT NULL
 );
 
 
@@ -602,8 +642,16 @@ CREATE TABLE public.wa_state (
     phone text NOT NULL,
     auto_paused_until timestamp with time zone,
     last_inbound_id text,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    bot_excluded boolean DEFAULT false NOT NULL
 );
+
+
+--
+-- Name: COLUMN wa_state.bot_excluded; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.wa_state.bot_excluded IS 'Permanent opt-out from the auto-reply (suppliers, partners, our own lines). Unlike auto_paused_until this never expires. Inbound messages are still stored.';
 
 
 --
@@ -619,6 +667,22 @@ ALTER TABLE ONLY public.stock_movements ALTER COLUMN id SET DEFAULT nextval('pub
 
 ALTER TABLE ONLY public.app_settings
     ADD CONSTRAINT app_settings_pkey PRIMARY KEY (key);
+
+
+--
+-- Name: auth_throttle auth_throttle_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.auth_throttle
+    ADD CONSTRAINT auth_throttle_pkey PRIMARY KEY (bucket);
+
+
+--
+-- Name: auth_user auth_user_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.auth_user
+    ADD CONSTRAINT auth_user_pkey PRIMARY KEY (id);
 
 
 --
@@ -910,6 +974,20 @@ ALTER TABLE ONLY public.wa_state
 
 
 --
+-- Name: auth_user_email_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX auth_user_email_key ON public.auth_user USING btree (lower(email)) WHERE (email IS NOT NULL);
+
+
+--
+-- Name: auth_user_google_sub_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX auth_user_google_sub_key ON public.auth_user USING btree (google_sub) WHERE (google_sub IS NOT NULL);
+
+
+--
 -- Name: customer_addresses_one_default_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1194,6 +1272,18 @@ ALTER TABLE ONLY public.subscription_plans
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: auth_throttle; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.auth_throttle ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: auth_user; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.auth_user ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: customer_addresses; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -1380,5 +1470,5 @@ ALTER TABLE public.wa_state ENABLE ROW LEVEL SECURITY;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 7aoyawSmer7SfOPSMZmjeGrf1OX4ffZaCnpIi4b5DOtcolAk6zNjIDWuRJvx7PH
+\unrestrict i0cRRgrNbh8SO9PS5mAQUUTcMwZTxyR4aO6SEe10KhVDVcURlFmM18CNH9pr0dd
 

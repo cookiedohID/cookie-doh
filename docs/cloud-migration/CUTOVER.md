@@ -24,13 +24,16 @@ during the holiday break. Data is tiny (~230 KB), so the copy is minutes.
       → **Client ID** (public; env GOOGLE_CLIENT_ID + NEXT_PUBLIC_GOOGLE_CLIENT_ID).
 - [ ] **B. AUTH_SESSION_SECRET** — ≥32 random chars (`openssl rand -base64 36`), set as
       a Vercel encrypted env var (never in chat/commits).
-- [ ] **C. `cookiedoh-db` ready** (infra): instance RUNNABLE; `cookiedoh` db + the 28
-      storefront tables loaded (`cookiedoh-schema.sql`); `auth_user` table DDL applied
-      (CREATE TABLE + indexes + RLS from `002-auth_user.sql` — SKIP the
-      `insert … from auth.users`; rows come from the data dump). App role
-      `cookiedoh_app` owns/can read-write every table. Backups + PITR ON.
-- [ ] **D. Secrets staged in Secret Manager** (infra): `cookiedoh-web-sa-key-b64`
-      (base64 SA key), `cookiedoh-db-password`. Owner copies values into Vercel.
+- [ ] **C. `cookiedoh-db` ready** (infra ✅ 2026-10-27): instance RUNNABLE; `cookiedoh`
+      db + all 30 tables loaded from the ONE authoritative `cookiedoh-schema.sql`
+      (regenerated from live — includes auth_user + auth_throttle with RLS; do NOT
+      re-run `002-auth_user.sql`'s DDL). App role `cookiedoh_app` owns every table.
+      Backups ON (30 retained, 01:00 WIB) + PITR ON (7 days). `connectorEnforcement
+      =REQUIRED` + `sslMode=ENCRYPTED_ONLY` + `cloudsql.iam_authentication=on` live —
+      so a plain connection string is refused; the connector is the only way in.
+- [ ] **D. Secrets staged in Secret Manager** (infra ✅): `cookiedoh-web-sa-key-b64`
+      (base64 SA key), `cookiedoh-db-app-password` (32-char app password),
+      `cookiedoh-db-postgres-password` (admin). Owner copies the first two into Vercel.
 
 ## Window (off-peak, infra on standby)
 1. **Freeze writes.** Storefront is already holiday/catalog (no orders). Confirm no
@@ -41,12 +44,15 @@ during the holiday break. Data is tiny (~230 KB), so the copy is minutes.
    (Last dump 2026-10-27: 47 orders / 13 customers / 8 auth_user; both sequences
    `orders_order_no_seq` + `stock_movements_id_seq` carry a setval.)
 3. **Load into `cookiedoh-db`** as `cookiedoh_app` (infra runs/supervises, off-peak).
-   Verify: counts match the dump AND each sequence `last_value` ≥ max(id).
+   Verify: counts match the dump AND each sequence `last_value` ≥ max(id). NOTE the
+   `orders_order_no_seq` trap: `order_no` is TEXT (`CD-20261015-0148`) and the sequence
+   feeds only the trailing 4 digits — compare `right(order_no,4)::int`, NOT a naive
+   all-digits strip (that reads `202610150148` and cries false collision).
 4. **Set Vercel env** (owner, pasting Secret Manager values — infra does NOT paste):
    - `INSTANCE_CONNECTION_NAME = tbs-group-500303:asia-southeast2:cookiedoh-db`
    - `GCP_SA_KEY` = base64 SA key (Sensitive) — from `cookiedoh-web-sa-key-b64`
    - `DB_USER = cookiedoh_app`
-   - `DB_PASSWORD` = from `cookiedoh-db-password` (Sensitive)
+   - `DB_PASSWORD` = from `cookiedoh-db-app-password` (Sensitive)
    - `DB_NAME = cookiedoh`
    - `AUTH_SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
    - `AUTH_SELFHOSTED=1`, `NEXT_PUBLIC_AUTH_SELFHOSTED=1`
