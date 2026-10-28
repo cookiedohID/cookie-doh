@@ -28,7 +28,7 @@ The login secret + Google sign-in (3) — the Google ones need the **Google step
 
 | Name | Value | Where the value comes from |
 |------|-------|----------------------------|
-| `AUTH_SESSION_SECRET` | ‹secret› mark **Sensitive** | Secret Manager (ask infra for the exact name) |
+| `AUTH_SESSION_SECRET` | ‹secret› mark **Sensitive** | Secret Manager `cookiedoh-auth-session-secret` |
 | `GOOGLE_CLIENT_ID` | ‹the Client ID from the Google step› | the Google step below |
 | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | ‹the SAME Client ID› | the Google step below |
 
@@ -51,10 +51,11 @@ today's shop with nothing lost.
 
 ---
 
-## The Google step (only needed for "Sign in with Google")
+## The Google step (REQUIRED — do not skip)
 
-If this isn't done yet, members can still sign in with **email + password** at go-live;
-Google sign-in just won't work until it is. You need the Cookie Doh Google account.
+⚠️ **6 of your 8 members sign in with Google only** (they have no password). If this
+step isn't done before go-live, those 6 cannot log in until they do a password reset.
+So we set this up. You need the Cookie Doh Google account.
 
 1. https://console.cloud.google.com/apis/credentials → project `tbs-group-500303`.
 2. **+ CREATE CREDENTIALS → OAuth client ID** → type *Web application*, name `Cookie Doh web`.
