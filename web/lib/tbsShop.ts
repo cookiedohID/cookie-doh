@@ -160,12 +160,33 @@ export async function refundTbsPoints(phone: string, points: number, sourceRef: 
 // Returns the merged entry array, or null if any chunk failed.
 export async function partnerGetStock(store: string, skus: string[]): Promise<any[] | null> {
   const { expandTbsSkus } = await import("@/lib/tbsStockCheck");
-  const list = expandTbsSkus(skus).slice(0, 180);
+  const { parseBundleKey, bundlePrice, bundleLabel } = await import("@/lib/tbsBundle");
+  const { bundleDiscountLive } = await import("@/lib/tbsContent");
+  // "<sku>#5" / "<sku>#10" bundle keys are a CD construct — the ERP only knows the
+  // base SKU; price the bundle here from the base entry (lib/tbsBundle rule).
+  const bundles = skus.map((k) => parseBundleKey(String(k || "").trim())).filter((b) => b.size);
+  const list = expandTbsSkus(skus).filter((k) => !parseBundleKey(k).size).slice(0, 180);
   const chunks: string[][] = [];
   for (let i = 0; i < list.length; i += 60) chunks.push(list.slice(i, i + 60));
   const parts = await Promise.all(chunks.map((c) => partnerGet("/stock", { store, skus: c.join(",") })));
   if (parts.some((d) => !Array.isArray(d))) return null;
-  return (parts as any[][]).flat();
+  const out = (parts as any[][]).flat();
+  if (bundles.length) {
+    const live = await bundleDiscountLive();
+    const byBase = new Map(out.map((x: any) => [String(x.sku), x]));
+    for (const b of bundles) {
+      const base: any = byBase.get(b.base);
+      if (!base || !(Number(base.price) > 0) || !b.size) continue;
+      const pr = bundlePrice(Math.round(Number(base.price)), b.size, live);
+      const baseStock = Number.isFinite(Number(base.baseStock)) ? Number(base.baseStock) : Number(base.stock) || 0;
+      out.push({
+        sku: `${b.base}#${b.size}`, name: `${base.name} — ${bundleLabel(b.size, String(base.unit || "pcs"))}`,
+        price: pr.price, full_price: pr.full, save: pr.save, unit: "pack", factor: b.size,
+        stock: Math.max(0, Math.floor(baseStock / b.size)), baseStock, stockLive: base.stockLive,
+      });
+    }
+  }
+  return out;
 }
 
 export async function partnerGet(path: string, params: Record<string, string>): Promise<any | null> {
@@ -221,7 +242,7 @@ export async function pushTbsOrder(input: {
   event_id: string; store: string; fulfil: "pickup" | "delivery";
   customer: { name: string; phone: string }; address?: string | null; notes?: string | null;
   lines: { sku: string; qty: number; price: number; amount: number }[];
-  subtotal: number; delivery_fee: number; total: number;
+  subtotal: number; discount?: number; delivery_fee: number; total: number;
 }): Promise<{ ok: boolean; order_no?: string; error?: string }> {
   const raw = process.env.TBS_PARTNER_API_URL || "";
   const token = process.env.TBS_PARTNER_API_TOKEN || "";
