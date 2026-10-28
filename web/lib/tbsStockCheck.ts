@@ -14,6 +14,9 @@ export type TbsStockIssue = { type: "out" | "short" | "gone" | "group"; stock: n
 // back to the ERP-generated "(Box of N)" name suffix; 0 = unknown (skip the
 // aggregate for that line).
 export function boxFactor(entry: { name?: unknown; factor?: unknown }, sku: string): number {
+  // "<sku>#5" / "<sku>#10" = a TBS bundle of 5/10 base units (lib/tbsBundle)
+  const b = /#(5|10)$/.exec(sku);
+  if (b) return parseInt(b[1], 10);
   if (!sku.includes("@")) return 1;
   const f = Math.round(Number(entry?.factor));
   if (Number.isFinite(f) && f >= 1) return f;
@@ -29,7 +32,7 @@ export function expandTbsSkus(skus: string[]): string[] {
     const t = String(s || "").trim();
     if (!t) continue;
     out.add(t);
-    const base = t.split("@")[0];
+    const base = t.split("@")[0].split("#")[0];
     if (base) out.add(base);
   }
   return [...out];
@@ -56,7 +59,7 @@ export function computeTbsStockIssues(lines: TbsLineWant[], items: any[]): Recor
       if (issues[l.sku]?.type === "gone") continue;
       const x: any = bySku.get(l.sku);
       if (!x) continue;
-      const base = l.sku.split("@")[0];
+      const base = l.sku.split("@")[0].split("#")[0];
       const baseEntry: any = bySku.get(base);
       // explicit baseStock (new ERP contract) beats deriving from the base entry
       const bs = Number.isFinite(Number(x.baseStock)) ? Math.max(0, Number(x.baseStock))

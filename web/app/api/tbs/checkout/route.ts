@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     if (!Array.isArray(priced)) return NextResponse.json({ ok: false, error: "The store is unreachable right now — please try again in a minute." }, { status: 200 });
     const bySku = new Map<string, any>(priced.map((p: any) => [String(p.sku), p]));
 
-    const lines: { sku: string; name: string; qty: number; price: number; amount: number; unit: string }[] = [];
+    const lines: { sku: string; name: string; qty: number; price: number; amount: number; unit: string; bundle?: number; full_price?: number }[] = [];
     const problems: string[] = [];
     for (const [sku, qty] of wanted) {
       const p = bySku.get(sku);
@@ -76,7 +76,9 @@ export async function POST(req: Request) {
       // stock feed down for this store → the store confirms; still cap the order size
       if (p.stockLive === false && qty > 20) { problems.push(`${p.name}: max 20 per order while stock is syncing`); continue; }
       const price = Math.round(priceNum);
-      lines.push({ sku, name: String(p.name || sku), qty, price, amount: price * qty, unit: String(p.unit || "pcs") });
+      const bundle = Number(p.factor) > 1 && /#(5|10)$/.test(sku) ? Number(p.factor) : undefined;
+      lines.push({ sku, name: String(p.name || sku), qty, price, amount: price * qty, unit: String(p.unit || "pcs"),
+        ...(bundle ? { bundle, full_price: Math.round(Number(p.full_price) || price) } : {}) });
     }
     // Cross-pack aggregate: singles + boxes of the SAME product must together
     // fit the base stock (per-line checks can't see the shared pool).
@@ -124,7 +126,8 @@ export async function POST(req: Request) {
     // ---- create the order + charge --------------------------------------
     const supa = supaAdmin();
     const midtransOrderId = `TBS-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
-    const items = lines.map((l) => ({ id: `tbs:${l.sku}`, name: l.name, quantity: l.qty, price: l.price, kind: "tbs", sku: l.sku, unit: l.unit }));
+    const items = lines.map((l) => ({ id: `tbs:${l.sku}`, name: l.name, quantity: l.qty, price: l.price, kind: "tbs", sku: l.sku, unit: l.unit,
+      ...(l.bundle ? { bundle: l.bundle, full_price: l.full_price } : {}) }));
 
     const { data: order, error: e1 } = await supa
       .from("orders")
