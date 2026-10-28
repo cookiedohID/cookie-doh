@@ -29,8 +29,8 @@ The login secret + Google sign-in (3) — the Google ones need the **Google step
 | Name | Value | Where the value comes from |
 |------|-------|----------------------------|
 | `AUTH_SESSION_SECRET` | ‹secret› mark **Sensitive** | Secret Manager `cookiedoh-auth-session-secret` |
-| `GOOGLE_CLIENT_ID` | ‹the Client ID from the Google step› | the Google step below |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | ‹the SAME Client ID› | the Google step below |
+| `GOOGLE_CLIENT_ID` | `434566381838-1g3admc26s35grujibnp4591679u6mfn.apps.googleusercontent.com` | the "Cookie Doh Web" client (done ✓) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | `434566381838-1g3admc26s35grujibnp4591679u6mfn.apps.googleusercontent.com` (the SAME value) | the "Cookie Doh Web" client (done ✓) |
 
 ---
 
@@ -51,23 +51,21 @@ today's shop with nothing lost.
 
 ---
 
-## The Google step (REQUIRED — do not skip)
+## The Google step — ✅ DONE (2026-10-28)
 
-⚠️ **6 of your 8 members sign in with Google only** (they have no password). If this
-step isn't done before go-live, those 6 cannot log in until they do a password reset.
-So we set this up. You need the Cookie Doh Google account.
+The existing **"Cookie Doh Web"** OAuth client (in the "My First Project" Google project,
+the same one Supabase uses) was reused. Added `https://www.cookiedoh.co.id` and
+`https://cookiedoh.co.id` to its **Authorized JavaScript origins**. Client ID is filled
+into the two Google rows above. (Google settings can take a few minutes to propagate.)
 
-1. https://console.cloud.google.com/apis/credentials → project `tbs-group-500303`.
-2. **+ CREATE CREDENTIALS → OAuth client ID** → type *Web application*, name `Cookie Doh web`.
-3. **Authorized JavaScript origins** — add both: `https://www.cookiedoh.co.id` and
-   `https://cookiedoh.co.id`.
-4. **Create** → copy the **Client ID** (ends `.apps.googleusercontent.com`) into the two
-   `GOOGLE_CLIENT_ID` rows above. (You do NOT need the client secret.)
+Why it mattered: **6 of your 8 members sign in with Google only** — without this they'd be
+locked out until a password reset.
 
 ---
 
 ## Then
 
-Tell me when your data should be frozen for the ~20-min window. I hand infra the final
-data dump → they load it → I walk you through the 3 switches + redeploy → we test every
-login and data path before anything is public. If anything's off, we flip back instantly.
+The new database is already loaded and verified byte-for-byte against live (all 37 tables,
+2026-10-28). Once you've pasted the vars above, tell me — I do a final data refresh to
+catch anything that changed in the last few minutes, take the code live, and test every
+login + data path before anything is public. If anything's off, we flip back instantly.
