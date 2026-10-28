@@ -223,8 +223,10 @@ export default function SiteHeader() {
   // ── TotalBuahStore takeover ─────────────────────────────────────────────
   // On /tbs the WHOLE header becomes TBS (owner decision 2026-07-04): TBS logo,
   // tagline strip, its own nav — and Cookie Doh becomes just a menu tab.
+  // /tbs draws its own header + nav in the owner's totalbuahstore.com design
+  // (app/tbs/layout.tsx + design/Chrome.tsx); the site header steps aside.
   if (pathname?.startsWith("/tbs")) {
-    return <TbsHeader pathname={pathname} />;
+    return null;
   }
 
   // Admin mode: show admin functions instead of the storefront nav. The logo
