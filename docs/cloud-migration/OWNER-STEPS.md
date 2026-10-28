@@ -1,63 +1,72 @@
-# Go-live: your 2 setup steps (≈15 minutes, one time)
+# Go-live: what YOU paste into Vercel
 
-The whole Google Cloud migration is built and tested. These are the only 2 steps
-that a **person** must do, because they involve your **passwords / accounts** — for
-security, the assistants (me + infra) are not allowed to enter credentials or create
-accounts. You can do this yourself following the clicks below, or hand this page to a
-developer you trust. When both are done, message **"staged"** and I do the rest
-(copy the data → go live → test every login).
+Everything is built, tested and verified. The only things a person must do are the ones
+that touch your passwords/accounts — for security the assistants cannot enter secrets or
+create accounts. Hand this page to a developer you trust if you'd rather not.
 
-> 🔒 Do NOT paste any of these values into chat. Type them straight into the websites below.
+🔒 Never paste a secret value into chat. Copy it straight from Secret Manager into Vercel.
 
----
-
-## STEP 1 — Turn on "Sign in with Google" for the new system  (~7 min)
-
-1. Open **https://console.cloud.google.com/apis/credentials** and sign in with the
-   **Cookie Doh Google account**.
-2. Top bar: make sure the **project** is the Cloud project for the site
-   (if unsure, ask infra — it's `tbs-group-500303`).
-3. If it says you must configure a **consent screen** first: choose **External**,
-   app name **Cookie Doh**, put your email in the required fields, **Save and continue**
-   through to the end.
-4. Click **+ CREATE CREDENTIALS → OAuth client ID**.
-5. **Application type:** *Web application*. **Name:** `Cookie Doh web`.
-6. Under **Authorized JavaScript origins**, click **+ ADD URI** twice and add BOTH:
-   - `https://www.cookiedoh.co.id`
-   - `https://cookiedoh.co.id`
-7. Click **Create**. A box shows a **Client ID** — a long string ending in
-   `.apps.googleusercontent.com`. **Copy it** and keep it for Step 2.
-   *(You do NOT need the "client secret".)*
+There are **8 settings**. They split into two groups:
 
 ---
 
-## STEP 2 — Add the settings to the hosting dashboard (Vercel)  (~8 min)
+## GROUP A — safe to paste ANY TIME (they do nothing until go-live)
 
-1. Open **https://vercel.com** → the **Cookie Doh** project → **Settings → Environment
-   Variables**.
-2. Add ONLY these THREE now, for **Production** (left = Name, right = Value). They're
-   **inert** — they change nothing on your live site until go-live:
+In Vercel → the **Cookie Doh** project → **Settings → Environment Variables**, add these
+for **Production**. Pasting them changes NOTHING on the live site yet.
 
-   | Name | Value |
-   |------|-------|
-   | `AUTH_SESSION_SECRET` | ‹the value from Secret Manager `cookiedoh-auth-session-secret`› |
-   | `GOOGLE_CLIENT_ID` | ‹the Client ID from Step 1› |
-   | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | ‹the SAME Client ID from Step 1› |
+The database connection (4):
 
-   - `AUTH_SESSION_SECRET`: run `gcloud secrets versions access latest --secret=cookiedoh-auth-session-secret`
-     (or ask infra to read it to you) and paste the result. **Never paste it into chat.**
+| Name | Value | Where the value comes from |
+|------|-------|----------------------------|
+| `GCP_SA_KEY` | ‹secret› mark **Sensitive** | Secret Manager `cookiedoh-web-sa-key-b64` |
+| `DB_USER` | `cookiedoh_app` | type it |
+| `DB_PASSWORD` | ‹secret› mark **Sensitive** | Secret Manager `cookiedoh-db-app-password` |
+| `DB_NAME` | `cookiedoh` | type it |
 
-   > 🚫 **Do NOT touch these THREE yet — they are the go-live switches, we flip them
-   > TOGETHER at the end (with me), right after your data is copied into the new database:**
-   > `DATABASE_URL`, `AUTH_SELFHOSTED`, `NEXT_PUBLIC_AUTH_SELFHOSTED`.
-   > `DATABASE_URL` already exists (your current Supabase one) — **leave it exactly as-is.**
-   > If it changed now, a stray deploy could point the live shop at the still-empty new
-   > database. So we edit it only at the go-live moment.
+The login secret + Google sign-in (3) — the Google ones need the **Google step** below first:
 
-3. **Save the three.** Then message me **"staged"**. I confirm data is loaded, then walk you
-   through the final 3 switches + redeploy, and test every login before anything goes public.
-   (If anything's off, we flip back and nothing is lost.)
+| Name | Value | Where the value comes from |
+|------|-------|----------------------------|
+| `AUTH_SESSION_SECRET` | ‹secret› mark **Sensitive** | Secret Manager (ask infra for the exact name) |
+| `GOOGLE_CLIENT_ID` | ‹the Client ID from the Google step› | the Google step below |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | ‹the SAME Client ID› | the Google step below |
 
 ---
 
-That's it. Everything else — copying your data, the go-live, and testing — is on me + infra.
+## GROUP B — the 3 GO-LIVE SWITCHES (we flip these TOGETHER at the end)
+
+Do NOT add these until your data is loaded into the new database and I say go. The first
+one, the moment it exists, points the live shop at the new database — so it waits.
+
+| Name | Value |
+|------|-------|
+| `INSTANCE_CONNECTION_NAME` | `tbs-group-500303:asia-southeast2:cookiedoh-db` |
+| `AUTH_SELFHOSTED` | `1` |
+| `NEXT_PUBLIC_AUTH_SELFHOSTED` | `1` |
+
+Leave your existing `DATABASE_URL` (the current Supabase one) exactly as-is — it is the
+instant rollback: if anything looks wrong, we remove the 3 switches and you're back to
+today's shop with nothing lost.
+
+---
+
+## The Google step (only needed for "Sign in with Google")
+
+If this isn't done yet, members can still sign in with **email + password** at go-live;
+Google sign-in just won't work until it is. You need the Cookie Doh Google account.
+
+1. https://console.cloud.google.com/apis/credentials → project `tbs-group-500303`.
+2. **+ CREATE CREDENTIALS → OAuth client ID** → type *Web application*, name `Cookie Doh web`.
+3. **Authorized JavaScript origins** — add both: `https://www.cookiedoh.co.id` and
+   `https://cookiedoh.co.id`.
+4. **Create** → copy the **Client ID** (ends `.apps.googleusercontent.com`) into the two
+   `GOOGLE_CLIENT_ID` rows above. (You do NOT need the client secret.)
+
+---
+
+## Then
+
+Tell me when your data should be frozen for the ~20-min window. I hand infra the final
+data dump → they load it → I walk you through the 3 switches + redeploy → we test every
+login and data path before anything is public. If anything's off, we flip back instantly.
