@@ -317,17 +317,32 @@ export async function POST(req: Request) {
       if (tbsClaimed) {
         const { pushTbsOrder } = await import("@/lib/tbsShop");
         const items = Array.isArray(order.items_json) ? order.items_json : [];
+        // A bundle line ("<sku>#5", 2 sets at the bundle price) reaches the ERP as
+        // the BASE sku × (sets × size) at the full unit price, and the bundle
+        // saving goes in `discount` (the ERP recomputes every line from its own
+        // catalogue and verifies total = subtotal − discount + delivery).
+        let bundleDiscount = 0;
         const lines = items
           .filter((it: any) => it?.kind === "tbs" && it?.sku)
-          .map((it: any) => ({
-            sku: String(it.sku),
-            qty: Math.max(1, Math.round(Number(it.quantity) || 1)),
-            price: Math.round(Number(it.price) || 0),
-            amount: Math.round((Number(it.price) || 0) * (Number(it.quantity) || 1)),
-          }));
+          .map((it: any) => {
+            const sets = Math.max(1, Math.round(Number(it.quantity) || 1));
+            const size = Math.round(Number(it.bundle) || 0);
+            if (size > 1) {
+              const full = Math.round(Number(it.full_price) || 0);
+              const paid = Math.round(Number(it.price) || 0);
+              bundleDiscount += Math.max(0, full - paid) * sets;
+              const unitPrice = Math.round(full / size);
+              return { sku: String(it.sku).split("#")[0], qty: sets * size, price: unitPrice, amount: full * sets };
+            }
+            return {
+              sku: String(it.sku), qty: sets,
+              price: Math.round(Number(it.price) || 0),
+              amount: Math.round((Number(it.price) || 0) * sets),
+            };
+          });
         // Money for the STORE = the TBS lines only (a mixed order also carries
         // Cookie Doh items the store isn't owed for).
-        const tbsLinesSum = lines.reduce((n: number, l: any) => n + (Number(l.amount) || 0), 0);
+        const tbsLinesSum = lines.reduce((n: number, l: any) => n + (Number(l.amount) || 0), 0) - bundleDiscount;
         const tbsFee = tbsMeta.mixed ? 0 : Math.round(Number(order.shipping_cost_idr) || 0);
         const res = await pushTbsOrder({
           event_id: String(order.id),
@@ -338,6 +353,7 @@ export async function POST(req: Request) {
           notes: (order as any).notes || null,
           lines,
           subtotal: tbsLinesSum,
+          discount: bundleDiscount,
           delivery_fee: tbsFee,
           total: tbsLinesSum + tbsFee,
         });

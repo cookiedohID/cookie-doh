@@ -1472,3 +1472,369 @@ ALTER TABLE public.wa_state ENABLE ROW LEVEL SECURITY;
 
 \unrestrict i0cRRgrNbh8SO9PS5mAQUUTcMwZTxyR4aO6SEe10KhVDVcURlFmM18CNH9pr0dd
 
+
+-- ======================================================================
+-- TBS product-pages content tables (tbs_content_*) — appended 2026-10-28.
+-- These 7 tables were added to live AFTER the 2026-10-27 regen above and
+-- were missing from this file (and from the standby, until reconciled).
+-- RLS-enabled, zero policies: the app connects as owner (cookiedoh_app),
+-- which bypasses RLS — identical read semantics to live. No role deps.
+-- ======================================================================
+CREATE TABLE public.tbs_content_block (
+    block_key text NOT NULL,
+    section text,
+    heading text,
+    body text,
+    review_status text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: tbs_content_category; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tbs_content_category (
+    code text NOT NULL,
+    name text NOT NULL,
+    icon text,
+    icon_id text,
+    display_order integer DEFAULT 999 NOT NULL,
+    subcategories jsonb DEFAULT '[]'::jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: tbs_content_fact; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tbs_content_fact (
+    id bigint NOT NULL,
+    product_id text NOT NULL,
+    kind text NOT NULL,
+    display_order integer DEFAULT 1 NOT NULL,
+    title text NOT NULL,
+    description text,
+    source_name text,
+    source_url text,
+    checked_date text,
+    review_status text
+);
+
+
+--
+-- Name: tbs_content_fact_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tbs_content_fact_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tbs_content_fact_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tbs_content_fact_id_seq OWNED BY public.tbs_content_fact.id;
+
+
+--
+-- Name: tbs_content_load; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tbs_content_load (
+    id bigint NOT NULL,
+    loaded_at timestamp with time zone DEFAULT now() NOT NULL,
+    source text,
+    products integer,
+    variants integer,
+    recipes integer,
+    images integer,
+    orphans integer,
+    notes text
+);
+
+
+--
+-- Name: tbs_content_load_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.tbs_content_load_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: tbs_content_load_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.tbs_content_load_id_seq OWNED BY public.tbs_content_load.id;
+
+
+--
+-- Name: tbs_content_product; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tbs_content_product (
+    product_id text NOT NULL,
+    sku text,
+    name text NOT NULL,
+    slug text,
+    category_code text,
+    category_label text,
+    subcategory_code text,
+    record_type text DEFAULT 'Existing'::text NOT NULL,
+    listed boolean DEFAULT true NOT NULL,
+    tagline text,
+    price_note text,
+    origin text,
+    weight_contents text,
+    storage text,
+    notice text,
+    story_heading text,
+    story_intro text,
+    description text,
+    detail_heading text,
+    checkpoints text[] DEFAULT '{}'::text[] NOT NULL,
+    tip text,
+    note text,
+    content_status text,
+    copy_review text,
+    sheet_price integer,
+    primary_unit text,
+    has_bundles boolean DEFAULT false NOT NULL,
+    images jsonb DEFAULT '[]'::jsonb NOT NULL,
+    drive_folder_url text,
+    barcodes text[] DEFAULT '{}'::text[] NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: tbs_content_recipe; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tbs_content_recipe (
+    recipe_id text NOT NULL,
+    product_id text NOT NULL,
+    display_order integer DEFAULT 1 NOT NULL,
+    title text NOT NULL,
+    serving_note text,
+    ingredients text[] DEFAULT '{}'::text[] NOT NULL,
+    steps text[] DEFAULT '{}'::text[] NOT NULL,
+    tbs_note text,
+    source_name text,
+    source_url text,
+    review_status text,
+    image_url text,
+    image_alt text,
+    shopping jsonb DEFAULT '[]'::jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: tbs_content_variant; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.tbs_content_variant (
+    variant_id text NOT NULL,
+    product_id text NOT NULL,
+    variant_name text,
+    variant_type text,
+    price integer,
+    discounted_price numeric,
+    pos_item_number text,
+    barcode text,
+    base_uom text,
+    base_qty integer,
+    bundle_discount numeric,
+    base_barcode text,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: tbs_content_fact id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_fact ALTER COLUMN id SET DEFAULT nextval('public.tbs_content_fact_id_seq'::regclass);
+
+
+--
+-- Name: tbs_content_load id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_load ALTER COLUMN id SET DEFAULT nextval('public.tbs_content_load_id_seq'::regclass);
+
+
+--
+-- Name: tbs_content_block tbs_content_block_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_block
+    ADD CONSTRAINT tbs_content_block_pkey PRIMARY KEY (block_key);
+
+
+--
+-- Name: tbs_content_category tbs_content_category_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_category
+    ADD CONSTRAINT tbs_content_category_pkey PRIMARY KEY (code);
+
+
+--
+-- Name: tbs_content_fact tbs_content_fact_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_fact
+    ADD CONSTRAINT tbs_content_fact_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tbs_content_load tbs_content_load_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_load
+    ADD CONSTRAINT tbs_content_load_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: tbs_content_product tbs_content_product_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_product
+    ADD CONSTRAINT tbs_content_product_pkey PRIMARY KEY (product_id);
+
+
+--
+-- Name: tbs_content_recipe tbs_content_recipe_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_recipe
+    ADD CONSTRAINT tbs_content_recipe_pkey PRIMARY KEY (recipe_id);
+
+
+--
+-- Name: tbs_content_variant tbs_content_variant_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_variant
+    ADD CONSTRAINT tbs_content_variant_pkey PRIMARY KEY (variant_id);
+
+
+--
+-- Name: tbs_content_fact_product; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tbs_content_fact_product ON public.tbs_content_fact USING btree (product_id);
+
+
+--
+-- Name: tbs_content_product_cat; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tbs_content_product_cat ON public.tbs_content_product USING btree (category_code) WHERE listed;
+
+
+--
+-- Name: tbs_content_product_sku; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tbs_content_product_sku ON public.tbs_content_product USING btree (sku);
+
+
+--
+-- Name: tbs_content_recipe_product; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tbs_content_recipe_product ON public.tbs_content_recipe USING btree (product_id);
+
+
+--
+-- Name: tbs_content_variant_product; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tbs_content_variant_product ON public.tbs_content_variant USING btree (product_id);
+
+
+--
+-- Name: tbs_content_fact tbs_content_fact_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_fact
+    ADD CONSTRAINT tbs_content_fact_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.tbs_content_product(product_id) ON DELETE CASCADE;
+
+
+--
+-- Name: tbs_content_recipe tbs_content_recipe_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_recipe
+    ADD CONSTRAINT tbs_content_recipe_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.tbs_content_product(product_id) ON DELETE CASCADE;
+
+
+--
+-- Name: tbs_content_variant tbs_content_variant_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tbs_content_variant
+    ADD CONSTRAINT tbs_content_variant_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.tbs_content_product(product_id) ON DELETE CASCADE;
+
+
+--
+-- Name: tbs_content_block; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tbs_content_block ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tbs_content_category; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tbs_content_category ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tbs_content_fact; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tbs_content_fact ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tbs_content_load; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tbs_content_load ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tbs_content_product; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tbs_content_product ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tbs_content_recipe; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tbs_content_recipe ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: tbs_content_variant; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.tbs_content_variant ENABLE ROW LEVEL SECURITY;
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict PcTe3FMqpkBXqUWbJG0ufQkfUEGZVhRHNbpH6GwVeyvh6TnJBAyIkrmX990fU1Y
+
