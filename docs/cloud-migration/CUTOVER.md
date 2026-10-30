@@ -120,6 +120,18 @@ Pre-freeze parity checklist (infra — all cheap verifications, no code):
 - **SA key rotation** — two never-rotated keys to track with an owner + rotation date:
   `tbs-till` and `cookiedoh-web`.
 
+## TBS shop content (2026-10-30)
+
+- `/tbs` reads (`web/lib/tbsContent.ts`) and the shop gate (`tbsShopPublic` in `web/lib/tbsShop.ts`) now go through `supaAdmin()` → pg shim, so they follow the flip with no further code change. Verified against `cookiedoh-db` through a proxy.
+- `pgClient.or()` gained `col.is.null|true|false` (literal, not a parameter), which the catalogue filter needs.
+- Cloud SQL `tbs_content_*` loaded 2026-10-30 08:26 UTC, same sheet as Supabase (858 listed, 2 family rows, 1 337 visible recipes). The 10-30 columns are applied there and appended to `cookiedoh-schema.sql`.
+- At cutover: the generic data dump also copies `tbs_content_*`, so nothing extra. Between now and then, if the sheet changes, re-run the loader once per database:
+
+```bash
+cloud-sql-proxy --port 5434 tbs-group-500303:asia-southeast2:cookiedoh-db
+python3 -I web/scripts/tbs-content-load.py --xlsx "<sheet>" --database-url "postgresql://cookiedoh_app:<pw>@127.0.0.1:5434/cookiedoh"
+```
+
 ## What's already DONE (code)
 Data layer: 64 routes on the pg shim · Cloud SQL Connector path in `lib/db.ts`
 (+ DATABASE_URL dev fallback) · `vercel.json` sin1 pin · Auth: auth_user + 8-user

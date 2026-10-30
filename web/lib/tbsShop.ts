@@ -20,14 +20,10 @@ export async function tbsShopPublic(): Promise<boolean> {
   if (PUB_CACHE && Date.now() - PUB_CACHE.at < 10_000) return PUB_CACHE.value;
   let v = TBS_SHOP_PUBLIC;
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (url && key) {
-      const { createClient } = await import("@supabase/supabase-js");
-      const supa = createClient(url, key, { auth: { persistSession: false } });
-      const { data } = await supa.from("app_settings").select("value").eq("key", "tbs_shop_public").maybeSingle();
-      if (data?.value === "true" || data?.value === "false") v = data.value === "true";
-    }
+    // shared data client (Cloud SQL once INSTANCE_CONNECTION_NAME exists, else DATABASE_URL)
+    const { supaAdmin } = await import("@/lib/supaAdmin");
+    const { data } = await supaAdmin().from("app_settings").select("value").eq("key", "tbs_shop_public").maybeSingle();
+    if (data?.value === "true" || data?.value === "false") v = data.value === "true";
   } catch { /* fall back to the const */ }
   PUB_CACHE = { at: Date.now(), value: v };
   return v;

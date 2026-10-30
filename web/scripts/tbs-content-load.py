@@ -191,6 +191,7 @@ def main():
     ap.add_argument("--public-dir", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public", "tbs", "products"))
     ap.add_argument("--recipes-dir", default=None, help="folder of recipe illustration files (<slug>.webp) to copy into public/tbs/recipes")
     ap.add_argument("--env", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env.local"))
+    ap.add_argument("--database-url", default=None, help="target database (default: DATABASE_URL from --env). Cloud SQL: run cloud-sql-proxy and pass postgresql://cookiedoh_app:<pw>@127.0.0.1:<port>/cookiedoh")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--prune", action="store_true", help="set listed=false for products no longer in the sheet")
     a = ap.parse_args()
@@ -415,12 +416,14 @@ def main():
         open(out, "w").write("\n".join(sql))
         print("dry run — SQL written to", out)
         return
-    dburl = None
-    for line in open(a.env):
-        if line.startswith("DATABASE_URL="):
-            dburl = line.split("=", 1)[1].strip().strip('"')
+    dburl = a.database_url
     if not dburl:
-        sys.exit("DATABASE_URL missing in " + a.env)
+        for line in open(a.env):
+            if line.startswith("DATABASE_URL="):
+                dburl = line.split("=", 1)[1].strip().strip('"')
+    if not dburl:
+        sys.exit("DATABASE_URL missing in " + a.env + " (or pass --database-url)")
+    print("target:", re.sub(r"//[^@]*@", "//…@", dburl))
     r = subprocess.run(["psql", dburl, "-v", "ON_ERROR_STOP=1", "-q"], input="\n".join(sql), text=True, capture_output=True)
     if r.returncode != 0:
         print(r.stderr[-3000:], file=sys.stderr); sys.exit("psql failed")

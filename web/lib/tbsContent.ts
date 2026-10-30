@@ -8,19 +8,14 @@
 // A product the ERP does not list (its web catalogue is a curated top-80%
 // subset) still renders — with the sheet price as a fallback and no add-to-
 // basket, so the shop never charges a price the ERP would not honour.
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { partnerGet, partnerGetStock } from "@/lib/tbsShop";
 import { bundlePrice, BUNDLE_SIZES } from "@/lib/tbsBundle";
+import { supaAdmin } from "@/lib/supaAdmin";
 
-let client: SupabaseClient | null = null;
-export function supa(): SupabaseClient {
-  if (client) return client;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  client = createClient(url, key, { auth: { persistSession: false } });
-  return client;
-}
+// Data client = the shared pg shim (lib/supaAdmin → lib/pgClient → lib/db): Cloud SQL via
+// the connector when INSTANCE_CONNECTION_NAME is set, else DATABASE_URL. Same query
+// surface as supabase-js, so the reads below are backend-agnostic (2026-10-30).
+export function supa(): any { return supaAdmin(); }
 
 export type ContentImage = { role: "hero_portrait" | "landscape_banner" | "detail" | "size_reference"; src_id: string; url: string; url_small: string; w: number | null; h: number | null; alt: string };
 export type CardItem = {
@@ -170,7 +165,7 @@ export async function productDetail(idOrSku: string, store: string) {
   let family: { id: string; name: string; members: (CardItem & { current: boolean })[] } | null = null;
   if (p.family_id) {
     const { data: mem } = await s.from("tbs_content_product").select(CARD_COLS).eq("family_id", p.family_id).eq("listed", true).order("flavour");
-    const cards = await overlayLive(store, (mem || []).map((m) => ({ ...m, family_primary: false })), catNames);
+    const cards = await overlayLive(store, (mem || []).map((m: any) => ({ ...m, family_primary: false })), catNames);
     family = { id: p.family_id, name: p.family_name || p.name, members: cards.map((c) => ({ ...c, current: c.id === p.product_id })) };
   }
   // related: same category (other families count once), with a photo first
@@ -201,7 +196,7 @@ export async function productDetail(idOrSku: string, store: string) {
     pricing: { unit_price: unitPrice, unit, source: found ? "live" : p.sheet_price ? "sheet" : "none", bundles, bundle_discount_live: discountLive },
     live: found ? { product: live.product, availability: live.availability || [], variants: live.variants || [] } : null,
     sellable: found,
-    recipes: (recipes || []).map((r) => ({ ...r, shopping: (r.shopping || []).map((it: any) => ({ ...it, product: it?.product_id ? ingProducts[String(it.product_id)] || null : null })) })),
+    recipes: (recipes || []).map((r: any) => ({ ...r, shopping: (r.shopping || []).map((it: any) => ({ ...it, product: it?.product_id ? ingProducts[String(it.product_id)] || null : null })) })),
     facts: facts || [],
     sheet_variants: variants || [],
     blocks: blocks || [],
