@@ -16,6 +16,17 @@ cookiedoh.co.id/tbs now **looks like the ChatGPT version** and runs on our own d
 
 Loaded 2026-10-28 from the 19:10 sheet: 855 listed products (135 with photos), 2 242 variants, 1 491 recipes, 33 categories, 18 service text blocks.
 
+## 2026-10-30 — product families (one page, several flavours)
+
+The sheet now carries `Product family ID`, `Product family name` and `Flavour`. The loader reads them; nothing to do on your side beyond filling those three columns for the flavours that belong together.
+
+- Catalogue shows **one card per family** (family name, cheapest flavour's price, "2 rasa · Manis · Coklat").
+- The product page shows the family name as the title and a **Pilih rasa** picker; each flavour keeps its own barcode, price, photos, story and checkpoints. Live price/stock per flavour from the ERP as usual.
+- `Additional main image URL` is now the 4th gallery photo ("referensi ukuran"); recipes marked `Web visibility = Hidden` are no longer shown.
+- The loader finds the preview site by itself (newest host in the sheet's `Webpage URL` column), so a ChatGPT re-host needs no flag.
+
+Loaded 2026-10-30 from the 13:57 sheet: 858 listed products / 857 cards, 161 with photos (155 new photos pulled from Drive), 1 337 visible recipes.
+
 ## When ChatGPT changes the sheet again
 
 Run this (nothing else to do; it downloads any new Drive photos itself):
