@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { COLORS } from "@/lib/theme";
-import { getAccessToken, getSessionEmail } from "@/lib/memberBrowser";
+import { getAccessToken, getSessionEmail, setMemberToken } from "@/lib/memberBrowser";
 import { signOutMember } from "@/lib/memberAuth";
 import { canonicalPhone } from "@/lib/phone";
 
@@ -182,6 +182,80 @@ function TbsRewards({ data, authToken }: { data: TbsData; authToken: string | nu
   );
 }
 
+// Set / change the signed-in member's password. Shown in both the full account
+// view and the "link your WhatsApp" view, since identity comes from the session
+// (so a Google-only account can add a FIRST password here — "forgot password"
+// can't, as there's nothing to reset). Keeps the session alive after the change
+// by swapping in the fresh token the API returns (the change bumps token_version).
+function PasswordCard({ hasPassword, getToken, onPasswordSet }: { hasPassword: boolean; getToken: () => Promise<string | null>; onPasswordSet: () => void }) {
+  const [open, setOpen] = useState(!hasPassword); // first-timers see the form; changers get a button
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState(false);
+
+  const input: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.18)", fontSize: 15 };
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr("");
+    if (next.length < 6) { setErr("Password must be at least 6 characters."); return; }
+    if (next !== confirm) { setErr("The two passwords don't match."); return; }
+    setBusy(true);
+    try {
+      const t = await getToken();
+      const res = await fetch("/api/account/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${t}` },
+        body: JSON.stringify({ password: next, ...(hasPassword ? { currentPassword: cur } : {}) }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!j?.ok) { setErr(j?.error || "Couldn't update your password."); return; }
+      if (j?.token) setMemberToken(j.token); // the change bumped token_version — keep THIS session valid
+      setCur(""); setNext(""); setConfirm("");
+      setDone(true); setOpen(false);
+      onPasswordSet();
+    } catch {
+      setErr("Couldn't update your password. Please check your connection.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
+      <div style={{ fontWeight: 800, color: COLORS.black, fontSize: 16 }}>🔑 {hasPassword ? "Password" : "Set a password"}</div>
+      <div style={{ marginTop: 4, fontSize: 13, color: COLORS.muted, lineHeight: 1.5 }}>
+        {hasPassword
+          ? "Change the password you use to sign in with your email."
+          : "Add a password so you can sign in with your email + password — not just Google. (You can still use Google any time.)"}
+      </div>
+      {done ? (
+        <div style={{ marginTop: 10, fontSize: 13, fontWeight: 800, color: "#1d9e75" }}>✓ Password saved — you can now sign in with your email &amp; password.</div>
+      ) : null}
+      {open ? (
+        <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          {hasPassword ? (
+            <input style={input} type="password" placeholder="Current password" autoComplete="current-password" value={cur} onChange={(e) => { setCur(e.target.value); setDone(false); }} />
+          ) : null}
+          <input style={input} type="password" placeholder="New password (min 6 characters)" autoComplete="new-password" value={next} onChange={(e) => { setNext(e.target.value); setDone(false); }} />
+          <input style={input} type="password" placeholder="Confirm new password" autoComplete="new-password" value={confirm} onChange={(e) => { setConfirm(e.target.value); setDone(false); }} />
+          {err ? <div style={{ color: "crimson", fontSize: 13, fontWeight: 700 }}>{err}</div> : null}
+          <button type="submit" disabled={busy} style={{ height: 46, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, cursor: busy ? "not-allowed" : "pointer" }}>
+            {busy ? "…" : hasPassword ? "Update password" : "Set password"}
+          </button>
+        </form>
+      ) : (
+        <button onClick={() => { setOpen(true); setDone(false); }} style={{ marginTop: 10, border: `1px solid ${COLORS.blue}`, background: "#fff", color: COLORS.blue, borderRadius: 999, padding: "9px 16px", fontWeight: 800, fontSize: 13, cursor: "pointer" }}>
+          Change password
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function AccountPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -204,6 +278,7 @@ export default function AccountPage() {
   const [email, setEmail] = useState("");
   const [tbs, setTbs] = useState<TbsData | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [hasPassword, setHasPassword] = useState(false);
 
   async function token() {
     return (await getAccessToken()) || null;
@@ -232,6 +307,7 @@ export default function AccountPage() {
       const res = await fetch("/api/account/me", { headers: { Authorization: `Bearer ${t}` }, cache: "no-store", signal: timeoutSignal });
       const j = await res.json().catch(() => ({}));
       if (res.status === 401) { clearAccountCache(); router.replace("/account/login"); return; }
+      if (typeof j?.hasPassword === "boolean") setHasPassword(j.hasPassword);
       if (j?.needsPhone) {
         setNeedsPhone(true);
         if (j?.phone) setPhone(j.phone); // re-verify an existing-but-unverified number
@@ -409,6 +485,7 @@ export default function AccountPage() {
               <button type="button" onClick={() => { setOtpStep("phone"); setErr(""); setNote(""); setCode(""); }} style={{ border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer", fontSize: 13 }}>← Change number</button>
             </form>
           )}
+          <PasswordCard hasPassword={hasPassword} getToken={token} onPasswordSet={() => setHasPassword(true)} />
           <button onClick={logout} style={{ marginTop: 14, border: "none", background: "none", color: COLORS.muted, fontWeight: 700, cursor: "pointer" }}>Log out</button>
         </div>
       </main>
@@ -619,6 +696,9 @@ export default function AccountPage() {
             </>
           )}
         </div>
+
+        {/* Account — set / change the email+password sign-in credential */}
+        <PasswordCard hasPassword={hasPassword} getToken={token} onPasswordSet={() => setHasPassword(true)} />
 
         {/* Refer a friend */}
         <div id="sec-refer" style={{ marginTop: 18, background: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 16, padding: 16 }}>
