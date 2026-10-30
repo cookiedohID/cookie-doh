@@ -29,8 +29,8 @@ The login secret + Google sign-in (3) — the Google ones need the **Google step
 | Name | Value | Where the value comes from |
 |------|-------|----------------------------|
 | `AUTH_SESSION_SECRET` | ‹secret› mark **Sensitive** | Secret Manager `cookiedoh-auth-session-secret` |
-| `GOOGLE_CLIENT_ID` | `434566381838-1g3admc26s35grujibnp4591679u6mfn.apps.googleusercontent.com` | the "Cookie Doh Web" client (done ✓) |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | `434566381838-1g3admc26s35grujibnp4591679u6mfn.apps.googleusercontent.com` (the SAME value) | the "Cookie Doh Web" client (done ✓) |
+| `GOOGLE_CLIENT_ID` | `1013588068326-lcgj7406sp1n19fd99fc21v8354f37co.apps.googleusercontent.com` | the "Cookie Doh web" client in the **TBS-Retail** project (done ✓) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | `1013588068326-lcgj7406sp1n19fd99fc21v8354f37co.apps.googleusercontent.com` (the SAME value) | the "Cookie Doh web" client in the **TBS-Retail** project (done ✓) |
 
 ---
 
@@ -51,12 +51,18 @@ today's shop with nothing lost.
 
 ---
 
-## The Google step — ✅ DONE (2026-10-28)
+## The Google step — ✅ DONE (2026-10-29, corrected)
 
-The existing **"Cookie Doh Web"** OAuth client (in the "My First Project" Google project,
-the same one Supabase uses) was reused. Added `https://www.cookiedoh.co.id` and
-`https://cookiedoh.co.id` to its **Authorized JavaScript origins**. Client ID is filled
-into the two Google rows above. (Google settings can take a few minutes to propagate.)
+The live OAuth client is **"Cookie Doh web"** in the **TBS-Retail** Google project
+(Client ID `1013588068326-lcgj7406sp1n19fd99fc21v8354f37co.apps.googleusercontent.com`),
+Enabled, with `https://www.cookiedoh.co.id` and `https://cookiedoh.co.id` already in its
+**Authorized JavaScript origins**.
+
+⚠️ An earlier draft baked in a *different, dead* client
+(`434566381838-…` in "My First Project"), which gave Google **"invalid_client / OAuth client
+was not found"** on sign-in. Corrected 2026-10-29 by pointing both Google env vars at the
+TBS-Retail client above and redeploying. Verified live: the login page now serves the
+`1013…` client and `verifyGoogleIdToken` checks that same audience.
 
 Why it mattered: **6 of your 8 members sign in with Google only** — without this they'd be
 locked out until a password reset.

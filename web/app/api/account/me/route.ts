@@ -204,6 +204,11 @@ export async function GET(req: Request) {
     const user = await getUser(supa, bearer(req));
     if (!user) return NextResponse.json({ ok: false, error: "Not signed in" }, { status: 401 });
 
+    // Does this account have a password? Lets the UI offer "Set a password"
+    // (Google-only accounts) vs "Change password". Cheap PK lookup.
+    const { data: pwData } = await supa.from("auth_user").select("password_hash").eq("id", user.id).limit(1);
+    const hasPassword = Boolean(pwData?.[0]?.password_hash);
+
     let phone = phoneFromUser(user);
     let recovered = false;
     if (!phone) {
@@ -214,7 +219,7 @@ export async function GET(req: Request) {
     }
     if (!phone) {
       // Genuinely no phone on file (e.g. a fresh Google user) — ask them to add one.
-      return NextResponse.json({ ok: true, needsPhone: true, email: user.email || null });
+      return NextResponse.json({ ok: true, needsPhone: true, email: user.email || null, hasPassword });
     }
     const r = await buildMember(supa, user, phone);
     if (r.kind === "ownedByOther") {
@@ -222,7 +227,7 @@ export async function GET(req: Request) {
     }
     if (r.kind === "needsVerify") {
       // Phone on file but not OTP-verified (e.g. a legacy/Google link) — re-verify.
-      return NextResponse.json({ ok: true, needsPhone: true, needsVerify: true, phone: r.phone, email: user.email || null });
+      return NextResponse.json({ ok: true, needsPhone: true, needsVerify: true, phone: r.phone, email: user.email || null, hasPassword });
     }
     // Self-heal: if we recovered the phone from the DB (metadata was empty), persist
     // it onto the auth user so future loads resolve instantly without the fallback.
@@ -235,7 +240,7 @@ export async function GET(req: Request) {
         /* non-fatal — the DB fallback still resolves it next time */
       }
     }
-    return NextResponse.json({ ok: true, member: r.member });
+    return NextResponse.json({ ok: true, member: r.member, hasPassword });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "Error" }, { status: 200 });
   }

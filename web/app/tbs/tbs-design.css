@@ -801,3 +801,18 @@
 .tbsx .ingredient-preview-shell .footer{padding-inline:20px}
 }
 
+
+/* ---- family.css (preview site, 2026-10-30): flavour picker on a product-family page ---- */
+.tbsx .flavour-picker{max-width:400px;margin:22px 0}
+.tbsx .flavour-picker h2{font-size:14px;margin:0 0 10px;color:var(--ink)}
+.tbsx .flavour-picker h2 span{font-weight:400;margin-left:10px;color:var(--sample-forest-green)}
+.tbsx .flavour-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tbsx .flavour-option{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;color:var(--ink);text-decoration:none;min-width:0}
+.tbsx .flavour-option img{width:36px;height:48px;object-fit:cover;border-radius:3px}
+.tbsx .flavour-option strong{font-size:14px;display:block}
+.tbsx .flavour-option small{display:block;font-size:11px;margin-top:5px;color:var(--muted);white-space:nowrap}
+.tbsx .flavour-option[aria-current=true]{border:2px solid var(--brand-green);padding:9px;background:var(--surface-green);color:var(--sample-forest-green)}
+.tbsx .flavour-check{margin-left:auto;font-size:15px;font-weight:bold;color:var(--brand-green)}
+.tbsx .flavour-option:focus-visible{outline:2px solid var(--action);outline-offset:3px}
+@media(max-width:760px){.tbsx .flavour-picker{max-width:none}.tbsx .flavour-option{gap:8px}}
+

@@ -1838,3 +1838,15 @@ ALTER TABLE public.tbs_content_variant ENABLE ROW LEVEL SECURITY;
 
 \unrestrict PcTe3FMqpkBXqUWbJG0ufQkfUEGZVhRHNbpH6GwVeyvh6TnJBAyIkrmX990fU1Y
 
+
+--
+-- 2026-10-30 (after the 2026-10-28 regeneration): TBS product families, 4th gallery image, recipe web visibility
+-- (web/sql/tbs_content.sql carries the same block; idempotent)
+--
+ALTER TABLE public.tbs_content_product
+  ADD COLUMN IF NOT EXISTS family_id text,
+  ADD COLUMN IF NOT EXISTS family_name text,
+  ADD COLUMN IF NOT EXISTS flavour text,
+  ADD COLUMN IF NOT EXISTS family_primary boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS tbs_content_product_family ON public.tbs_content_product USING btree (family_id) WHERE (family_id IS NOT NULL);
+ALTER TABLE public.tbs_content_recipe ADD COLUMN IF NOT EXISTS web_visible boolean NOT NULL DEFAULT true;

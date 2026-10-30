@@ -99,10 +99,20 @@ class Builder<T = any> implements PromiseLike<Result<T>> {
     const parts = expr.split(",").map((seg) => {
       const [c, o, ...rest] = seg.split(".");
       const raw = rest.join(".");
+      // "col.is.null" / "col.is.true" / "col.is.false" — a literal, never a parameter
+      if (o === "is") {
+        if (!["null", "true", "false"].includes(raw)) throw new Error(`pgClient: unsupported .or value for "is": "${raw}"`);
+        return { c, sql: "is", raw, literal: true };
+      }
       const sql = OP_SQL[o]; if (!sql) throw new Error(`pgClient: unsupported .or operator "${o}"`);
-      return { c, sql, raw };
+      return { c, sql, raw, literal: false };
     });
-    this._filters.push({ kind: "raw", sql: "(" + parts.map((p, i) => `${col(p.c)} ${p.sql} $OR${i}`).join(" or ") + ")", params: parts.map((p) => p.raw) });
+    const params: any[] = [];
+    const sqlParts = parts.map((p) => {
+      if (p.literal) return `${col(p.c)} is ${p.raw}`;
+      params.push(p.raw); return `${col(p.c)} ${p.sql} $OR${params.length - 1}`;
+    });
+    this._filters.push({ kind: "raw", sql: "(" + sqlParts.join(" or ") + ")", params });
     return this;
   }
   private _f(op: string, c: string, v: any) { this._filters.push({ kind: "op", col: c, op, val: v }); return this; }

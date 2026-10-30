@@ -16,12 +16,42 @@ cookiedoh.co.id/tbs now **looks like the ChatGPT version** and runs on our own d
 
 Loaded 2026-10-28 from the 19:10 sheet: 855 listed products (135 with photos), 2 242 variants, 1 491 recipes, 33 categories, 18 service text blocks.
 
-## When ChatGPT changes the sheet again
+## 2026-10-30 — product families (one page, several flavours)
+
+The sheet now carries `Product family ID`, `Product family name` and `Flavour`. The loader reads them; nothing to do on your side beyond filling those three columns for the flavours that belong together.
+
+- Catalogue shows **one card per family** (family name, cheapest flavour's price, "2 rasa · Manis · Coklat").
+- The product page shows the family name as the title and a **Pilih rasa** picker; each flavour keeps its own barcode, price, photos, story and checkpoints. Live price/stock per flavour from the ERP as usual.
+- `Additional main image URL` is now the 4th gallery photo ("referensi ukuran"); recipes marked `Web visibility = Hidden` are no longer shown.
+- The loader finds the preview site by itself (newest host in the sheet's `Webpage URL` column), so a ChatGPT re-host needs no flag.
+
+Loaded 2026-10-30 from the 13:57 sheet: 858 listed products / 857 cards, 161 with photos (155 new photos pulled from Drive), 1 337 visible recipes.
+
+## Automatic sync (since 2026-10-30)
+
+Nothing to do: the Claude scheduled task **"TBS shop: sync ChatGPT product sheet"** runs every hour at about :25 and calls `web/scripts/tbs-sync.sh`. When ChatGPT has changed `Total-Buah-Product-Master.xlsx`, it loads the sheet into production (Cloud SQL) and pushes new product photos and recipe pictures to main, which Vercel deploys. Unchanged sheet = no work.
+
+- Runs only while the Claude app is open and the Mac is awake; a missed hour catches up on the next run.
+- Result of the last run: `~/.tbs-sync/status`. Full log: `~/.tbs-sync/sync.log`.
+- First run 2026-10-30 16:29: 220 recipe pictures added (334 of 338 now live; the other 4 are not on the preview site yet).
+- A plain macOS background job cannot do this: macOS blocks background shells from reading `~/Documents`.
+- Every run reloads **every** product in the sheet, so edits to existing pages sync too, not only new ones.
+- Photos ChatGPT replaces on Drive under the same link are caught by a re-check every 6 hours.
+- If ChatGPT adds a sheet column the shop does not understand yet, the run's status says **WARN NEW SHEET COLUMNS** and you get a phone notification. Then ask Claude to map it. (2026-10-30: "Family image URL" was missed this way for about two hours.)
+- Design changes ChatGPT makes on its preview site (outside the sheet) cannot sync, but they are **watched**: every run fingerprints the preview's 11 design files and 4 page templates (`web/scripts/tbs-design-watch.py`). A change gives status **WARN DESIGN CHANGED** and a phone notification; the before-copies sit in `~/.tbs-sync/design-snapshots/` so Claude can diff and port it. Baseline set 2026-10-30 17:57, when the shop matched the preview.
+
+## When ChatGPT changes the sheet again (manual, only if the hourly sync is off)
 
 Run this (nothing else to do; it downloads any new Drive photos itself):
 
+Production runs on **Cloud SQL** (since 2026-10-28), so load there, through the proxy:
+
 ```bash
-cd /Users/angeltan/cookie-doh/web && python3 -I scripts/tbs-content-load.py --xlsx "/Users/angeltan/Documents/ChatGPT/totalbuahstore.com/outputs/01a167a8-dad0-72f2-b731-70319217e8fc/Total-Buah-Product-Master.xlsx"
+cloud-sql-proxy --port 5434 tbs-group-500303:asia-southeast2:cookiedoh-db
+```
+
+```bash
+cd /Users/angeltan/cookie-doh/web && python3 -I scripts/tbs-content-load.py --xlsx "/Users/angeltan/Documents/ChatGPT/totalbuahstore.com/outputs/01a167a8-dad0-72f2-b731-70319217e8fc/Total-Buah-Product-Master.xlsx" --database-url "postgresql://cookiedoh_app:<password from Secret Manager cookiedoh-db-app-password>@127.0.0.1:5434/cookiedoh"
 ```
 
 Then `git add web/public/tbs && git commit` so the new photos deploy.
