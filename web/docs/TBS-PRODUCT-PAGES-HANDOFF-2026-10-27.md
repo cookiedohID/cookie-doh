@@ -38,7 +38,7 @@ Nothing to do: the Claude scheduled task **"TBS shop: sync ChatGPT product sheet
 - Every run reloads **every** product in the sheet, so edits to existing pages sync too, not only new ones.
 - Photos ChatGPT replaces on Drive under the same link are caught by a re-check every 6 hours.
 - If ChatGPT adds a sheet column the shop does not understand yet, the run's status says **WARN NEW SHEET COLUMNS** and you get a phone notification. Then ask Claude to map it. (2026-10-30: "Family image URL" was missed this way for about two hours.)
-- Not synced: design changes ChatGPT makes only on its preview site, outside the sheet. Those need a code change here.
+- Design changes ChatGPT makes on its preview site (outside the sheet) cannot sync, but they are **watched**: every run fingerprints the preview's 11 design files and 4 page templates (`web/scripts/tbs-design-watch.py`). A change gives status **WARN DESIGN CHANGED** and a phone notification; the before-copies sit in `~/.tbs-sync/design-snapshots/` so Claude can diff and port it. Baseline set 2026-10-30 17:57, when the shop matched the preview.
 
 ## When ChatGPT changes the sheet again (manual, only if the hourly sync is off)
 

@@ -42,12 +42,25 @@ if [ -z "$SHEET" ]; then status "ERROR no Total-Buah-Product-Master.xlsx under ~
 # never read a file ChatGPT is still writing
 AGE=$(( $(date +%s) - $(stat -f %m "$SHEET") ))
 if [ "$AGE" -lt 120 ]; then say "sheet modified ${AGE}s ago — wait for the next run"; exit 0; fi
+# DESIGN watch (every run, cheap): ChatGPT's layout/design changes live on its preview site,
+# not in the sheet, so they cannot sync — but they must not go unnoticed.
+DESIGN=$(python3 -I "$REPO/web/scripts/tbs-design-watch.py" --xlsx "$SHEET" --state "$STATE" 2>&1 | tail -n 1)
+DWARN=""
+case "$DESIGN" in
+  "DESIGN CHANGED"*) say "$DESIGN"; DWARN=" — WARN $DESIGN — ask Claude to port it" ;;
+  "DESIGN OK") ;;
+  *) say "$DESIGN" ;;
+esac
+
 HASH=$(shasum -a 256 "$SHEET" | cut -d' ' -f1)
 # ChatGPT also swaps photos IN PLACE on Drive (same link, new picture) without touching the
 # sheet — so even an unchanged sheet gets a photo re-check every 6 hours
 PHOTO_DUE=0
 if [ -z "$(find "$STATE/last-photo-check" -mmin -360 2>/dev/null)" ]; then PHOTO_DUE=1; fi
-if [ "$FORCE" = 0 ] && [ "$HASH" = "$(cat "$STATE/last-hash" 2>/dev/null)" ] && [ "$PHOTO_DUE" = 0 ]; then exit 0; fi
+if [ "$FORCE" = 0 ] && [ "$HASH" = "$(cat "$STATE/last-hash" 2>/dev/null)" ] && [ "$PHOTO_DUE" = 0 ]; then
+  [ -n "$DWARN" ] && status "OK sheet unchanged$DWARN"
+  exit 0
+fi
 if [ "$HASH" != "$(cat "$STATE/last-hash" 2>/dev/null)" ]; then say "sheet changed: $SHEET"; else say "6-hourly photo re-check"; fi
 
 # private worktree at origin/main
@@ -82,6 +95,7 @@ touch "$STATE/last-photo-check"
 # the loader prints this when ChatGPT added columns nobody maps yet → surface it in the status
 WARN=$(tail -n 60 "$STATE/sync.log" | grep -m1 '^NEW SHEET COLUMNS' || true)
 [ -n "$WARN" ] && WARN=" — WARN $WARN"
+WARN="$WARN$DWARN"
 
 # new photos → main → Vercel
 git -C "$WT" add web/public/tbs
