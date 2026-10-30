@@ -35,6 +35,10 @@ Nothing to do: the Claude scheduled task **"TBS shop: sync ChatGPT product sheet
 - Result of the last run: `~/.tbs-sync/status`. Full log: `~/.tbs-sync/sync.log`.
 - First run 2026-10-30 16:29: 220 recipe pictures added (334 of 338 now live; the other 4 are not on the preview site yet).
 - A plain macOS background job cannot do this: macOS blocks background shells from reading `~/Documents`.
+- Every run reloads **every** product in the sheet, so edits to existing pages sync too, not only new ones.
+- Photos ChatGPT replaces on Drive under the same link are caught by a re-check every 6 hours.
+- If ChatGPT adds a sheet column the shop does not understand yet, the run's status says **WARN NEW SHEET COLUMNS** and you get a phone notification. Then ask Claude to map it. (2026-10-30: "Family image URL" was missed this way for about two hours.)
+- Not synced: design changes ChatGPT makes only on its preview site, outside the sheet. Those need a code change here.
 
 ## When ChatGPT changes the sheet again (manual, only if the hourly sync is off)
 
