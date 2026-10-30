@@ -27,7 +27,16 @@ The sheet now carries `Product family ID`, `Product family name` and `Flavour`. 
 
 Loaded 2026-10-30 from the 13:57 sheet: 858 listed products / 857 cards, 161 with photos (155 new photos pulled from Drive), 1 337 visible recipes.
 
-## When ChatGPT changes the sheet again
+## Automatic sync (since 2026-10-30)
+
+Nothing to do: the Claude scheduled task **"TBS shop: sync ChatGPT product sheet"** runs every hour at about :25 and calls `web/scripts/tbs-sync.sh`. When ChatGPT has changed `Total-Buah-Product-Master.xlsx`, it loads the sheet into production (Cloud SQL) and pushes new product photos and recipe pictures to main, which Vercel deploys. Unchanged sheet = no work.
+
+- Runs only while the Claude app is open and the Mac is awake; a missed hour catches up on the next run.
+- Result of the last run: `~/.tbs-sync/status`. Full log: `~/.tbs-sync/sync.log`.
+- First run 2026-10-30 16:29: 220 recipe pictures added (334 of 338 now live; the other 4 are not on the preview site yet).
+- A plain macOS background job cannot do this: macOS blocks background shells from reading `~/Documents`.
+
+## When ChatGPT changes the sheet again (manual, only if the hourly sync is off)
 
 Run this (nothing else to do; it downloads any new Drive photos itself):
 
