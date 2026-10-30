@@ -20,6 +20,8 @@ import { supaAdmin } from "@/lib/supaAdmin";
 import { issueSession, issueResetToken, verifyResetToken, type SessionUser } from "@/lib/memberSession";
 import { verifyGoogleIdToken } from "@/lib/googleAuth";
 import { canonicalPhone } from "@/lib/phone";
+import { sendWhatsApp } from "@/lib/whatsapp";
+import crypto from "crypto";
 
 const emailValid = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e || "");
 // Fixed hash to compare against when no account matches, so response time doesn't
@@ -133,4 +135,72 @@ export async function setPasswordWithResetToken(token: string, password: string)
   const { error } = await supa.from("auth_user").update({ password_hash, token_version: nextTv, updated_at: new Date().toISOString() }).eq("id", r.userId);
   if (error) return { error: "Couldn't update your password. Please try again." };
   return { token: await issueSession(toSessionUser(row), nextTv) };
+}
+
+// ── Password reset via WhatsApp OTP ──────────────────────────────────────────
+// Phone is the membership key (mandatory; email is optional), so a WhatsApp code
+// is the primary recovery path. Both halves reuse the signup OTP store
+// (phone_otps) and end at the SAME single-use reset token the email link carries,
+// so /account/reset?token=… and /api/auth/reset/set are shared unchanged.
+
+const shaCode = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
+
+/** Exact match on canonical phone (the membership key). */
+async function findByPhone(supa: any, phone: string) {
+  const { data } = await supa.from("auth_user").select("*").eq("phone", phone).limit(1);
+  return data?.[0] || null;
+}
+
+/** Send a WhatsApp OTP so a PASSWORD account can reset via phone. Silent about
+ *  whether the number maps to an account (privacy); only accounts that actually
+ *  have a password get a code (Google-only / unknown numbers get nothing, so this
+ *  can't be used to spam an arbitrary number). Mirrors the signup OTP send's 45s
+ *  throttle + 5-attempt lockout. */
+export async function requestPhoneReset(phone: string): Promise<{ ok: boolean; throttled?: boolean; error?: string }> {
+  const p = canonicalPhone(phone);
+  if (!p) return { ok: false, error: "Enter a valid phone (08… or +628…)." };
+  if (!process.env.FONNTE_TOKEN) return { ok: false, error: "WhatsApp reset isn't available right now." };
+  const supa = supaAdmin();
+  const row = await findByPhone(supa, p);
+  if (!row?.password_hash) return { ok: true }; // no password account on this number — stay silent
+  const { data: existing } = await supa.from("phone_otps").select("last_sent_at, expires_at, attempts").eq("phone", p).maybeSingle();
+  if (existing?.last_sent_at && Date.now() - new Date(existing.last_sent_at).getTime() < 45_000)
+    return { ok: false, throttled: true, error: "Please wait a moment before requesting another code." };
+  // Don't mint a fresh code while the current one is valid and already burned its
+  // 5 attempts — otherwise "5 guesses → resend → 5 guesses" brute-forces 6 digits.
+  if (existing && Number(existing.attempts) >= 5 && existing.expires_at && new Date(existing.expires_at).getTime() > Date.now())
+    return { ok: false, throttled: true, error: "Too many attempts on the current code. Wait a few minutes and try again." };
+  const code = String(crypto.randomInt(100000, 1000000)); // CSPRNG 6-digit
+  const now = new Date();
+  const { error } = await supa.from("phone_otps").upsert(
+    { phone: p, code_hash: shaCode(code), expires_at: new Date(now.getTime() + 5 * 60_000).toISOString(), verified: false, attempts: 0, last_sent_at: now.toISOString() },
+    { onConflict: "phone" }
+  );
+  if (error) return { ok: false, error: "Couldn't start the reset. Please try again." };
+  const sent = await sendWhatsApp({ to: p, message: `Your Cookie Doh password reset code is ${code}. It expires in 5 minutes. If you didn't request this, ignore this message. 🍪` });
+  if (!sent.ok) return { ok: false, error: "Couldn't send the WhatsApp code. Please try again." };
+  return { ok: true };
+}
+
+/** Verify a WhatsApp reset code → a short-lived reset token (the same token the
+ *  email link carries). The code is consumed on success so it can't mint another;
+ *  the token itself is still single-use (token_version is bumped when the password
+ *  is actually set). */
+export async function verifyPhoneReset(phone: string, code: string): Promise<{ token?: string; error?: string }> {
+  const p = canonicalPhone(phone);
+  const c = String(code || "").trim();
+  if (!p || !/^\d{6}$/.test(c)) return { error: "Enter the 6-digit code." };
+  const supa = supaAdmin();
+  const { data: otp } = await supa.from("phone_otps").select("code_hash, expires_at, attempts").eq("phone", p).maybeSingle();
+  if (!otp) return { error: "Request a code first." };
+  if (new Date(otp.expires_at).getTime() < Date.now()) return { error: "Code expired — request a new one." };
+  if (Number(otp.attempts) >= 5) return { error: "Too many tries — request a new code." };
+  if (shaCode(c) !== otp.code_hash) {
+    await supa.from("phone_otps").update({ attempts: Number(otp.attempts) + 1 }).eq("phone", p);
+    return { error: "Incorrect code." };
+  }
+  const row = await findByPhone(supa, p);
+  await supa.from("phone_otps").delete().eq("phone", p); // consume on success
+  if (!row?.password_hash) return { error: "This reset request is no longer valid — start again." };
+  return { token: await issueResetToken(String(row.id), tvOf(row)) };
 }
