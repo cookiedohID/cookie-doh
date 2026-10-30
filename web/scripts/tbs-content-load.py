@@ -190,9 +190,9 @@ def fetch_recipe_images(recipe_img, hosts, dst, photos_dir):
 
 # sheet column → role; labels = the preview site's thumbnail labels
 IMAGE_ROLES = (("hero_portrait", "Portrait image URL"), ("landscape_banner", "Landscape image URL"), ("detail", "Detail image URL"),
-               ("size_reference", "Size reference image URL"), ("additional_main", "Additional main image URL"), ("family", "Family image URL"))
+               ("size_reference", "Size reference image URL"), ("additional_main", "Additional main image URL"), ("family", "Family image URL"), ("back", "Back image URL"))
 IMAGE_LABEL = {"hero_portrait": "foto utama", "landscape_banner": "foto suasana", "detail": "detail produk",
-               "size_reference": "referensi ukuran", "additional_main": "foto utama tambahan", "family": "foto keluarga"}
+               "size_reference": "referensi ukuran", "additional_main": "foto utama tambahan", "family": "foto keluarga", "back": "foto belakang"}
 
 
 def drive_size(fid):
@@ -272,6 +272,17 @@ def main():
     data = read_xlsx(a.xlsx)
     counts = {k: len(v) for k, v in data.items()}
     print("sheet:", counts)
+    # ALARM for sheet changes this loader does not understand yet (ChatGPT adds columns as it
+    # builds new page features — 2026-10-30 "Family image URL" was silently ignored for hours).
+    # Baseline = scripts/tbs-sheet-columns.json; update it once the new column is mapped.
+    try:
+        known = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "tbs-sheet-columns.json")))
+        new = {k: sorted({c for r in v for c in r.keys()} - set(known.get(k, []))) for k, v in data.items() if v}
+        new = {k: v for k, v in new.items() if v}
+        if new:
+            print("NEW SHEET COLUMNS (not mapped yet): " + "; ".join(f"{k}: {', '.join(v)}" for k, v in new.items()))
+    except FileNotFoundError:
+        pass
 
     cat_model = None
     if a.catalog_json:

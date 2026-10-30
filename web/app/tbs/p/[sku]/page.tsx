@@ -53,12 +53,13 @@ export default function TbsProductPage() {
   const sizeRef = images.find((i) => i.role === "size_reference") || null;
   const extraMain = images.find((i) => i.role === "additional_main") || null;
   const familyImg = images.find((i) => i.role === "family") || null;
+  const backImg = images.find((i) => i.role === "back") || null;
   const family: { id: string; name: string; members: (CardItem & { current: boolean })[] } | null = d?.family || null;
   // thumbnail order + labels as on the preview site: a family page leads with the family
   // photo, then this flavour's own photo, then its size reference; banner/detail stay in the story
   const gallery: (Img & { label: string })[] = (family && familyImg
-    ? [[familyImg, "foto keluarga"], [hero, "foto individu"], [sizeRef, "referensi ukuran"]]
-    : [[hero, "foto utama"], [banner, "foto suasana"], [detail, "detail produk"], [sizeRef, "referensi ukuran"], [extraMain, "foto utama tambahan"]]
+    ? [[familyImg, "foto keluarga"], [hero, "foto individu"], [backImg, "foto belakang"], [sizeRef, "referensi ukuran"]]
+    : [[hero, "foto utama"], [banner, "foto suasana"], [detail, "detail produk"], [sizeRef, "referensi ukuran"], [extraMain, "foto utama tambahan"], [backImg, "foto belakang"]]
   ).filter(([g]) => g).map(([g, label]) => ({ ...(g as Img), label: label as string }));
   const fit = (g?: Img | null) => (g?.role === "size_reference" ? { objectFit: "contain" as const, background: "#fff" } : undefined);
 

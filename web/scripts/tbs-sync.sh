@@ -79,12 +79,15 @@ if ! python3 -I "$WT/web/scripts/tbs-content-load.py" --xlsx "$SHEET" \
 fi
 
 touch "$STATE/last-photo-check"
+# the loader prints this when ChatGPT added columns nobody maps yet → surface it in the status
+WARN=$(tail -n 60 "$STATE/sync.log" | grep -m1 '^NEW SHEET COLUMNS' || true)
+[ -n "$WARN" ] && WARN=" — WARN $WARN"
 
 # new photos → main → Vercel
 git -C "$WT" add web/public/tbs
 if git -C "$WT" diff --cached --quiet; then
   echo "$HASH" > "$STATE/last-hash"
-  status "OK content loaded, no new photos"
+  status "OK content loaded, no new photos$WARN"
   exit 0
 fi
 N=$(git -C "$WT" diff --cached --name-only | wc -l | tr -d ' ')
@@ -92,7 +95,7 @@ git -C "$WT" commit -q -m "tbs-sync: $N new photo files from the product master 
 for attempt in 1 2 3; do
   if git -C "$WT" push -q origin HEAD:main; then
     echo "$HASH" > "$STATE/last-hash"
-    status "OK content loaded, $N photo files pushed (live after the Vercel deploy)"
+    status "OK content loaded, $N photo files pushed (live after the Vercel deploy)$WARN"
     exit 0
   fi
   git -C "$WT" fetch -q origin main && git -C "$WT" rebase -q origin/main || break

@@ -17,7 +17,7 @@ import { supaAdmin } from "@/lib/supaAdmin";
 // surface as supabase-js, so the reads below are backend-agnostic (2026-10-30).
 export function supa(): any { return supaAdmin(); }
 
-export type ContentImage = { role: "hero_portrait" | "landscape_banner" | "detail" | "size_reference" | "additional_main" | "family"; src_id: string; url: string; url_small: string; w: number | null; h: number | null; alt: string };
+export type ContentImage = { role: "hero_portrait" | "landscape_banner" | "detail" | "size_reference" | "additional_main" | "family" | "back"; src_id: string; url: string; url_small: string; w: number | null; h: number | null; alt: string };
 export type CardItem = {
   id: string; sku: string | null; name: string; slug: string | null;
   category_code: string | null; category_name: string | null; subcategory_code: string | null;
