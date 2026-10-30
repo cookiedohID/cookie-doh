@@ -187,6 +187,27 @@ function TbsRewards({ data, authToken }: { data: TbsData; authToken: string | nu
 // (so a Google-only account can add a FIRST password here — "forgot password"
 // can't, as there's nothing to reset). Keeps the session alive after the change
 // by swapping in the fresh token the API returns (the change bumps token_version).
+// A password input with a show/hide eye toggle, so you can check what you typed.
+// Defined at module scope (not inside PasswordCard) so it isn't remounted on every
+// keystroke — that would drop focus and the caret after each character.
+function PwField({ value, onChange, placeholder, autoComplete }: { value: string; onChange: (v: string) => void; placeholder: string; autoComplete: string }) {
+  const [show, setShow] = useState(false);
+  const input: React.CSSProperties = { width: "100%", padding: "11px 46px 11px 13px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.18)", fontSize: 15 };
+  return (
+    <div style={{ position: "relative" }}>
+      <input style={input} type={show ? "text" : "password"} placeholder={placeholder} autoComplete={autoComplete} value={value} onChange={(e) => onChange(e.target.value)} />
+      <button type="button" onClick={() => setShow((s) => !s)} aria-label={show ? "Hide password" : "Show password"} title={show ? "Hide password" : "Show password"}
+        style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", padding: 8, cursor: "pointer", color: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center" }}>
+        {show ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        )}
+      </button>
+    </div>
+  );
+}
+
 function PasswordCard({ hasPassword, getToken, onPasswordSet }: { hasPassword: boolean; getToken: () => Promise<string | null>; onPasswordSet: () => void }) {
   const [open, setOpen] = useState(!hasPassword); // first-timers see the form; changers get a button
   const [cur, setCur] = useState("");
@@ -195,8 +216,6 @@ function PasswordCard({ hasPassword, getToken, onPasswordSet }: { hasPassword: b
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
-
-  const input: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.18)", fontSize: 15 };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -238,10 +257,10 @@ function PasswordCard({ hasPassword, getToken, onPasswordSet }: { hasPassword: b
       {open ? (
         <form onSubmit={submit} style={{ marginTop: 12, display: "grid", gap: 10 }}>
           {hasPassword ? (
-            <input style={input} type="password" placeholder="Current password" autoComplete="current-password" value={cur} onChange={(e) => { setCur(e.target.value); setDone(false); }} />
+            <PwField placeholder="Current password" autoComplete="current-password" value={cur} onChange={(v) => { setCur(v); setDone(false); }} />
           ) : null}
-          <input style={input} type="password" placeholder="New password (min 6 characters)" autoComplete="new-password" value={next} onChange={(e) => { setNext(e.target.value); setDone(false); }} />
-          <input style={input} type="password" placeholder="Confirm new password" autoComplete="new-password" value={confirm} onChange={(e) => { setConfirm(e.target.value); setDone(false); }} />
+          <PwField placeholder="New password (min 6 characters)" autoComplete="new-password" value={next} onChange={(v) => { setNext(v); setDone(false); }} />
+          <PwField placeholder="Confirm new password" autoComplete="new-password" value={confirm} onChange={(v) => { setConfirm(v); setDone(false); }} />
           {err ? <div style={{ color: "crimson", fontSize: 13, fontWeight: 700 }}>{err}</div> : null}
           <button type="submit" disabled={busy} style={{ height: 46, borderRadius: 999, border: "none", background: COLORS.blue, color: "#fff", fontWeight: 900, cursor: busy ? "not-allowed" : "pointer" }}>
             {busy ? "…" : hasPassword ? "Update password" : "Set password"}
