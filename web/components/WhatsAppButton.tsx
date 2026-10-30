@@ -10,6 +10,8 @@ export default function WhatsAppButton() {
   // Hide the floating WhatsApp button on the cafe POS (kiosk mode) and on the
   // /subscribe wizard, whose fixed bottom "Subscribe" bar would clash with it.
   if (pathname?.startsWith("/cafe") || pathname === "/subscribe") return null;
+  // The sign-in page is a self-contained full-screen layout.
+  if (pathname === "/account/login") return null;
 
   const phone = "6281932181818";
   // The button stays, but during the upgrade break its prefill must NOT invite
