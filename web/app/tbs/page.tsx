@@ -187,7 +187,7 @@ function Card({ p }: { p: CardItem }) {
         <span className="card-category">{p.category_name || ""}</span>
         <h3>{p.name}</h3>
         <strong className={`card-price${p.price ? "" : " missing-price"}`}>{p.price ? rp(p.price) : "Harga belum diisi"}</strong>
-        <small className="card-unit">{p.primary_unit ? `Harga untuk ${p.primary_unit}` : p.price_source === "live" ? `Harga untuk 1 ${p.unit}` : ""}</small>
+        <small className="card-unit">{p.family ? `${p.family.count} rasa · ${p.family.flavours.join(" · ")}` : p.primary_unit ? `Harga untuk ${p.primary_unit}` : p.price_source === "live" ? `Harga untuk 1 ${p.unit}` : ""}</small>
         {p.has_bundles ? <span className="bundle-hint">Bundle hemat hingga 5%</span> : null}
         <span className="card-action">Lihat produk <span aria-hidden="true">↗</span></span>
       </div>

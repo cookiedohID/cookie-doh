@@ -10,7 +10,7 @@
 // Secret = CRON_SECRET (or falls back to ADMIN_RETRY_SECRET so there's nothing new
 // to configure). With no secret set, the endpoint is disabled (safe default).
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 import { randomUUID } from "crypto";
 import { sendWhatsApp } from "@/lib/whatsapp";
 import { phoneSignificant } from "@/lib/phone";
@@ -26,12 +26,7 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 function authorized(req: Request): boolean {
   const secret = process.env.CRON_SECRET || process.env.ADMIN_RETRY_SECRET || "";

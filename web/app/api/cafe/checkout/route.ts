@@ -1,6 +1,6 @@
 // web/app/api/cafe/checkout/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supaAdmin } from "@/lib/supaAdmin";
 import { createSnapToken } from "@/lib/midtrans";
 import { notifyNewOrder } from "@/lib/notify";
 import { decrementStockForOrder } from "@/lib/stock";
@@ -19,12 +19,7 @@ const CAFE_COOKIE_PRICE = 32500; // single cookie at the register (matches the P
 const COOKIE_IDS = new Set(FLAVORS.map((f: any) => String(f.id)));
 const DRINK_IDS = new Set(SMOOTHIES.map((s) => String(s.id)));
 
-function supaAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Missing Supabase env");
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+// data client → Cloud SQL (pg shim) via lib/supaAdmin; .auth still Supabase (P3).
 
 function siteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";

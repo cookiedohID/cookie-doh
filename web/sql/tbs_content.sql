@@ -83,3 +83,14 @@ alter table public.tbs_content_fact enable row level security;
 alter table public.tbs_content_block enable row level security;
 alter table public.tbs_content_category enable row level security;
 alter table public.tbs_content_load enable row level security;
+
+-- 2026-10-30: product FAMILIES (one page, several flavours with their own barcode + price —
+-- sheet columns "Product family ID" / "Product family name" / "Flavour"), the 4th gallery image
+-- ("Additional main image URL" → role size_reference) and the recipes' "Web visibility" column.
+alter table public.tbs_content_product
+  add column if not exists family_id text,
+  add column if not exists family_name text,
+  add column if not exists flavour text,
+  add column if not exists family_primary boolean not null default false;  -- the member that stands for the family in the catalogue (cheapest; set by the loader)
+create index if not exists tbs_content_product_family on public.tbs_content_product (family_id) where family_id is not null;
+alter table public.tbs_content_recipe add column if not exists web_visible boolean not null default true;

@@ -50,7 +50,18 @@ export default function TbsProductPage() {
   const hero = images.find((i) => i.role === "hero_portrait") || images[0] || null;
   const banner = images.find((i) => i.role === "landscape_banner") || null;
   const detail = images.find((i) => i.role === "detail") || null;
-  const gallery = [hero, banner, detail].filter(Boolean) as Img[];
+  const sizeRef = images.find((i) => i.role === "size_reference") || null;
+  const extraMain = images.find((i) => i.role === "additional_main") || null;
+  const familyImg = images.find((i) => i.role === "family") || null;
+  const backImg = images.find((i) => i.role === "back") || null;
+  const family: { id: string; name: string; members: (CardItem & { current: boolean })[] } | null = d?.family || null;
+  // thumbnail order + labels as on the preview site: a family page leads with the family
+  // photo, then this flavour's own photo, then its size reference; banner/detail stay in the story
+  const gallery: (Img & { label: string })[] = (family && familyImg
+    ? [[familyImg, "foto keluarga"], [hero, "foto individu"], [backImg, "foto belakang"], [sizeRef, "referensi ukuran"]]
+    : [[hero, "foto utama"], [banner, "foto suasana"], [detail, "detail produk"], [sizeRef, "referensi ukuran"], [extraMain, "foto utama tambahan"], [backImg, "foto belakang"]]
+  ).filter(([g]) => g).map(([g, label]) => ({ ...(g as Img), label: label as string }));
+  const fit = (g?: Img | null) => (g?.role === "size_reference" ? { objectFit: "contain" as const, background: "#fff" } : undefined);
 
   const mine = useMemo(() => (d?.live?.availability || []).find((a: any) => a.store === store), [d, store]);
   const sellable = Boolean(d?.sellable);
@@ -120,7 +131,7 @@ export default function TbsProductPage() {
       <nav className="crumb" aria-label="Breadcrumb">
         <Link href="/tbs" style={{ textDecoration: "none" }}>Katalog</Link><span>/</span>
         {p.category_code ? <><Link href={`/tbs?category=${p.category_code}`} style={{ textDecoration: "none" }}>{p.category_name}</Link><span>/</span></> : null}
-        <b>{p.name}</b>
+        <b>{family ? `${family.name} · ${p.flavour || p.name}` : p.name}</b>
       </nav>
 
       <section className="product" id="produk">
@@ -129,7 +140,7 @@ export default function TbsProductPage() {
             <div className="image-slot hero" data-slot={slot}>
               {gallery[slot] ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={gallery[slot].url} alt={gallery[slot].alt || p.name} fetchPriority="high" />
+                <img src={gallery[slot].url} alt={gallery[slot].alt || p.name} fetchPriority="high" style={fit(gallery[slot])} />
               ) : (
                 <div className="missing"><Icon id="leaf" cls="category-icon" sheet="tbs" /><strong>Foto produk segera hadir</strong><small>{p.name}</small></div>
               )}
@@ -138,9 +149,9 @@ export default function TbsProductPage() {
           {gallery.length > 1 ? (
             <div className="photo-thumbs" aria-label="Foto produk">
               {gallery.map((g, i) => (
-                <button key={g.url} type="button" aria-label={["Lihat foto utama", "Lihat foto suasana", "Lihat detail produk"][i] || "Lihat foto"} aria-pressed={slot === i} onClick={() => setSlot(i)}>
+                <button key={g.url} type="button" aria-label={`Lihat ${g.label}`} aria-pressed={slot === i} onClick={() => setSlot(i)}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={g.url_small || g.url} alt={g.alt || p.name} loading="lazy" />
+                  <img src={g.url_small || g.url} alt={g.alt || p.name} loading="lazy" style={fit(g)} />
                 </button>
               ))}
             </div>
@@ -149,8 +160,25 @@ export default function TbsProductPage() {
 
         <div className="info">
           <span className="fresh-tag"><Icon id="leaf" /><span>{sellable ? "Pilihan TBS" : "Katalog TBS"}</span></span>
-          <h1>{p.name}</h1>
+          <h1>{family ? family.name : p.name}</h1>
           {p.tagline ? <p className="subtitle">{p.tagline}</p> : null}
+          {family && family.members.length > 1 ? (
+            <section className="flavour-picker" aria-labelledby="flavour-title">
+              <h2 id="flavour-title">Pilih rasa <span>{p.flavour || ""}</span></h2>
+              <div className="flavour-options">
+                {family.members.map((m) => (
+                  <Link key={m.id} href={`/tbs/p/${encodeURIComponent(m.id)}`} className="flavour-option" aria-current={m.current ? "true" : undefined} scroll={false}>
+                    {m.image_small ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={m.image_small} alt="" width={36} height={48} />
+                    ) : <span style={{ width: 36, height: 48, borderRadius: 3, background: "var(--surface-green)" }} aria-hidden="true" />}
+                    <span><strong>{m.flavour || m.name}</strong><small>{m.price ? `${rp(m.price)} / ${m.price_source === "live" ? m.unit : (m.primary_unit || m.unit).replace(/^1\s+/, "")}` : "Harga belum diisi"}</small></span>
+                    <span className="flavour-check" aria-hidden="true">{m.current ? "✓" : ""}</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ) : null}
           <div className="fresh-from">
             <label htmlFor="selectedStore">Fresh from TotalBuahStore —</label>
             <select id="selectedStore" aria-label="Toko pilihan Anda" value={store} onChange={(e) => e.target.value && pick(e.target.value)}>

@@ -21,7 +21,7 @@ curl for Drive downloads (folder must be shared "anyone with the link").
 Zero third-party Python deps on purpose (no openpyxl): the xlsx is unzipped and
 its sheet XML read directly.
 """
-import argparse, collections, hashlib, json, os, re, shutil, subprocess, sys, tempfile, urllib.request, zipfile
+import argparse, collections, hashlib, json, os, re, shutil, subprocess, sys, tempfile, time, urllib.parse, urllib.request, zipfile
 import xml.etree.ElementTree as ET
 
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -123,19 +123,103 @@ def fetch_catalog(url):
     """The preview site embeds its catalog model as <script type=application/json>; use it for
     category codes, subcategory and listing (the sheet's Products tab carries only the label)."""
     try:
-        html = urllib.request.urlopen(url, timeout=30).read().decode("utf-8", "replace")
-        m = re.search(r'<script[^>]*type="application/json"[^>]*>(.*?)</script>', html, re.S)
-        return json.loads(m.group(1)) if m else None
+        html = subprocess.run(["curl", "-s", "-L", "-A", "Mozilla/5.0", "--max-time", "40", url],
+                              capture_output=True).stdout.decode("utf-8", "replace")
+        m = (re.search(r'<script[^>]*id="catalog-data"[^>]*>(.*?)</script>', html, re.S)
+             or re.search(r'<script[^>]*type="application/json"[^>]*>(.*?)</script>', html, re.S))
+        model = json.loads(m.group(1)) if m else None
+        return model if isinstance(model, dict) and model.get("products") else None
     except Exception as e:
         print("catalog fetch failed:", e, file=sys.stderr)
         return None
 
 
-def ensure_photo(fid, photos_dir, public_dir, dry):
-    """Download (if needed) + resize one Drive file into public_dir/l and /s. Returns (url_l, url_s, w, h) or None."""
+def catalog_hosts(prods):
+    """ChatGPT re-hosts the preview on every rebuild and only the rows it touched carry the new
+    host in 'Webpage URL' — so the host with the FEWEST rows is the newest. Try them in that order."""
+    c = collections.Counter()
+    for p in prods:
+        m = re.match(r"(https://[^/]+)", (p.get("Webpage URL") or "").strip())
+        if m:
+            c[m.group(1)] += 1
+    return [h for h, _ in sorted(c.items(), key=lambda kv: kv[1])]
+
+
+def fetch_recipe_images(recipe_img, hosts, dst, photos_dir):
+    """Recipe illustrations live only on the preview site (assets/recipes/<base>-web.webp, older
+    builds <base>.webp). Save each as public/tbs/recipes/<slug>.webp — the name the recipe rows
+    already point at. A 404 is remembered for 24 h so the hourly sync does not hammer the site."""
+    os.makedirs(dst, exist_ok=True)
+    miss_file = os.path.join(os.path.dirname(photos_dir.rstrip("/")), "tbs-recipe-misses.json")
+    try:
+        misses = json.load(open(miss_file))
+    except Exception:
+        misses = {}
+    now = int(time.time())
+    got = skipped = failed = 0
+    bases = sorted({os.path.splitext(os.path.basename(p))[0] for (p, _d) in recipe_img.values() if p})
+    for base in bases:
+        out = os.path.join(dst, slugify(base) + ".webp")
+        if os.path.exists(out) and os.path.getsize(out) > 0:
+            continue
+        if now - misses.get(base, 0) < 86400:
+            skipped += 1
+            continue
+        ok = False
+        for host in hosts[:2]:
+            for name in (base + "-web.webp", base + ".webp"):
+                url = f"{host}/assets/recipes/{urllib.parse.quote(name)}"
+                r = subprocess.run(["curl", "-s", "--globoff", "-A", "Mozilla/5.0", "--max-time", "30", "-o", out + ".part", "-w", "%{http_code}", url],
+                                   capture_output=True, text=True)
+                if r.stdout.strip() == "200" and os.path.getsize(out + ".part") > 0 and \
+                        "image" in subprocess.run(["file", "-b", out + ".part"], capture_output=True, text=True).stdout.lower():
+                    os.replace(out + ".part", out); ok = True
+                    break
+            if ok:
+                break
+        if os.path.exists(out + ".part"):
+            os.remove(out + ".part")
+        if ok:
+            got += 1; misses.pop(base, None)
+        else:
+            failed += 1; misses[base] = now
+        time.sleep(0.2)
+    json.dump(misses, open(miss_file, "w"))
+    print(f"recipe images: {got} new, {failed} not on the preview yet, {skipped} skipped (missed < 24 h ago)")
+
+
+# sheet column → role; labels = the preview site's thumbnail labels
+IMAGE_ROLES = (("hero_portrait", "Portrait image URL"), ("landscape_banner", "Landscape image URL"), ("detail", "Detail image URL"),
+               ("size_reference", "Size reference image URL"), ("additional_main", "Additional main image URL"), ("family", "Family image URL"), ("back", "Back image URL"))
+IMAGE_LABEL = {"hero_portrait": "foto utama", "landscape_banner": "foto suasana", "detail": "detail produk",
+               "size_reference": "referensi ukuran", "additional_main": "foto utama tambahan", "family": "foto keluarga", "back": "foto belakang"}
+
+
+def drive_size(fid):
+    """Size Drive reports for the file right now (None if unknown). ChatGPT replaces photos IN PLACE
+    (same file id, new bytes), so a cached original is only good while its size still matches."""
+    r = subprocess.run(["curl", "-s", "-I", "-L", "--max-time", "20", f"https://drive.usercontent.google.com/download?id={fid}&export=download"],
+                       capture_output=True, text=True)
+    sizes = re.findall(r"(?im)^content-length:\s*(\d+)", r.stdout)
+    return int(sizes[-1]) if sizes and "200" in (re.findall(r"(?m)^HTTP/\S+ (\d+)", r.stdout) or [""])[-1] else None
+
+
+REPLACED = []   # file ids whose Drive bytes changed since the last download
+
+
+def ensure_photo(fid, photos_dir, public_dir, dry, check=False):
+    """Download (if needed) + resize one Drive file into public_dir/l and /s. Returns (url_l, url_s, w, h) or None.
+    check=True: also re-download when Drive's size differs from the cached original (photo replaced in place)."""
     if not fid:
         return None
     src = os.path.join(photos_dir, fid)
+    if check and not dry and os.path.exists(src) and os.path.getsize(src) > 0:
+        now_size = drive_size(fid)
+        if now_size and now_size != os.path.getsize(src):
+            REPLACED.append(fid)
+            for f in (src, os.path.join(public_dir, "l", fid + ".jpg"), os.path.join(public_dir, "s", fid + ".jpg")):
+                if os.path.exists(f):
+                    os.remove(f)
     if not os.path.exists(src) or os.path.getsize(src) == 0:
         if dry:
             return None
@@ -153,7 +237,7 @@ def ensure_photo(fid, photos_dir, public_dir, dry):
     os.makedirs(os.path.dirname(out_s), exist_ok=True)
     if not dry:
         if not os.path.exists(out_l):
-            subprocess.run(["sips", "-Z", "1000", "-s", "format", "jpeg", "-s", "formatOptions", "76", src, "--out", out_l],
+            subprocess.run(["sips", "-Z", "900", "-s", "format", "jpeg", "-s", "formatOptions", "70", src, "--out", out_l],
                            capture_output=True)
         if not os.path.exists(out_s):
             subprocess.run(["sips", "-Z", "520", "-s", "format", "jpeg", "-s", "formatOptions", "80", src, "--out", out_s],
@@ -171,12 +255,16 @@ def ensure_photo(fid, photos_dir, public_dir, dry):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--xlsx", required=True)
-    ap.add_argument("--catalog-url", default="https://totalbuah-alpukat-preview.sappyraven128.chatgpt.site/catalog")
+    ap.add_argument("--catalog-url", default="auto", help="preview site's /catalog (default: newest host named in the sheet's 'Webpage URL' column)")
     ap.add_argument("--catalog-json", default=None, help="local copy of the preview's catalog model (skips the fetch)")
     ap.add_argument("--photos-dir", default=os.path.expanduser("~/cookie-doh/image-originals-hires/tbs-drive"))
     ap.add_argument("--public-dir", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "public", "tbs", "products"))
     ap.add_argument("--recipes-dir", default=None, help="folder of recipe illustration files (<slug>.webp) to copy into public/tbs/recipes")
     ap.add_argument("--env", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env.local"))
+    ap.add_argument("--database-url", default=None, help="target database (default: DATABASE_URL from --env). Cloud SQL: run cloud-sql-proxy and pass postgresql://cookiedoh_app:<pw>@127.0.0.1:<port>/cookiedoh")
+    ap.add_argument("--check-photos", action="store_true", help="ask Drive whether each cached photo was replaced in place (same link, new picture) and refresh it")
+    ap.add_argument("--fetch-recipe-images", action="store_true", help="download recipe illustrations that are not in public/tbs/recipes yet from the preview site (misses retried after 24 h)")
+    ap.add_argument("--allow-supabase", action="store_true", help="load into the old Supabase DB anyway (production reads Cloud SQL since 2026-10-28)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--prune", action="store_true", help="set listed=false for products no longer in the sheet")
     a = ap.parse_args()
@@ -184,13 +272,37 @@ def main():
     data = read_xlsx(a.xlsx)
     counts = {k: len(v) for k, v in data.items()}
     print("sheet:", counts)
+    # ALARM for sheet changes this loader does not understand yet (ChatGPT adds columns as it
+    # builds new page features — 2026-10-30 "Family image URL" was silently ignored for hours).
+    # Baseline = scripts/tbs-sheet-columns.json; update it once the new column is mapped.
+    try:
+        known = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "tbs-sheet-columns.json")))
+        new = {k: sorted({c for r in v for c in r.keys()} - set(known.get(k, []))) for k, v in data.items() if v}
+        new = {k: v for k, v in new.items() if v}
+        if new:
+            print("NEW SHEET COLUMNS (not mapped yet): " + "; ".join(f"{k}: {', '.join(v)}" for k, v in new.items()))
+    except FileNotFoundError:
+        pass
 
     cat_model = None
     if a.catalog_json:
         cat_model = json.load(open(a.catalog_json))
+    elif a.catalog_url == "auto":
+        for host in catalog_hosts(data.get("products", [])):
+            cat_model = fetch_catalog(host + "/catalog")
+            if cat_model:
+                print("catalog model from", host)
+                break
     elif a.catalog_url:
         cat_model = fetch_catalog(a.catalog_url)
     model_by_id = {p["id"]: p for p in (cat_model or {}).get("products", [])}
+    # a FAMILY card stands for its members in the model; give every member the card's
+    # category/subcategory/visibility and its own sku/barcodes
+    for card in list(model_by_id.values()):
+        for mem in card.get("familyMembers") or []:
+            if mem.get("id") and mem["id"] not in model_by_id:
+                model_by_id[mem["id"]] = {**card, "id": mem["id"], "sku": mem.get("sku"), "itemNumber": mem.get("itemNumber"),
+                                          "barcodes": mem.get("barcodes") or [], "name": mem.get("name") or card.get("name")}
     model_cats = (cat_model or {}).get("categories", [])
 
     # ---- categories (sheet is the master for names/order; model supplies iconId + subcategories) ----
@@ -253,6 +365,7 @@ def main():
     orphans = 0
     seen_ids = []
     img_cache = {}
+    fam_members = collections.defaultdict(list)   # family id → [(price, name, product id)]
     for p in prods:
         pid = (p.get("Product ID (keep unchanged)") or "").strip()
         name = (p.get("Product name") or "").strip()
@@ -268,16 +381,16 @@ def main():
             listed = rtype == "Existing"
         sku = (p.get("SKU") or m.get("itemNumber") or "").strip() or None
         images = []
-        for role, col in (("hero_portrait", "Portrait image URL"), ("landscape_banner", "Landscape image URL"), ("detail", "Detail image URL")):
+        for role, col in IMAGE_ROLES:
             fid = drive_id(p.get(col))
             if not fid:
                 continue
             if fid not in img_cache:
-                img_cache[fid] = ensure_photo(fid, a.photos_dir, a.public_dir, a.dry_run)
+                img_cache[fid] = ensure_photo(fid, a.photos_dir, a.public_dir, a.dry_run, a.check_photos)
             r = img_cache[fid]
             if r:
                 images.append({"role": role, "src_id": fid, "url": r[0], "url_small": r[1], "w": r[2], "h": r[3],
-                               "alt": f"{name} — " + {"hero_portrait": "foto utama", "landscape_banner": "foto suasana", "detail": "detail produk"}[role]})
+                               "alt": f"{(p.get('Product family name') or name) if role == 'family' else name} — " + IMAGE_LABEL[role]})
                 n_img += 1
         vs = variants.get(pid, [])
         base = next((v for v in vs if (v.get("Variant type") or "") == "base"), None)
@@ -289,6 +402,9 @@ def main():
             barcodes = [str(b) for b in m["barcodes"]]
         if not sku:
             orphans += 1
+        fam_id = (p.get("Product family ID") or "").strip() or None
+        if fam_id:
+            fam_members[fam_id].append((sheet_price or 10**12, name, pid))
         cols = {
             "product_id": sql_str(pid), "sku": sql_str(sku), "name": sql_str(name), "slug": sql_str(slugify(name)),
             "category_code": sql_str(code), "category_label": sql_str(label or None), "subcategory_code": sql_str(m.get("subcategory") or None),
@@ -304,6 +420,8 @@ def main():
             "sheet_price": str(sheet_price) if sheet_price else "null", "primary_unit": sql_str(primary_unit or None),
             "has_bundles": "true" if has_bundles else "false", "images": sql_json(images),
             "drive_folder_url": sql_str(p.get("Drive folder URL") or None), "barcodes": sql_arr(barcodes),
+            "family_id": sql_str(fam_id), "family_name": sql_str((p.get("Product family name") or "").strip() or None),
+            "flavour": sql_str((p.get("Flavour") or "").strip() or None), "family_primary": "false",
             "updated_at": "now()",
         }
         sql.append(f"insert into public.tbs_content_product ({','.join(cols)}) values ({','.join(cols.values())}) "
@@ -336,17 +454,21 @@ def main():
             if img and img[0]:
                 base_name = os.path.splitext(os.path.basename(img[0]))[0]
                 img_url = f"/tbs/recipes/{slugify(base_name)}.webp"   # files are saved by slug (names carry spaces)
-            sql.append("insert into public.tbs_content_recipe (recipe_id, product_id, display_order, title, serving_note, ingredients, steps, tbs_note, source_name, source_url, review_status, image_url, image_alt, shopping) values ("
+            sql.append("insert into public.tbs_content_recipe (recipe_id, product_id, display_order, title, serving_note, ingredients, steps, tbs_note, source_name, source_url, review_status, image_url, image_alt, shopping, web_visible) values ("
                        + ",".join([sql_str(pid + "::" + rid), sql_str(pid), str(to_int(r.get("Display order")) or i + 1), sql_str(title), sql_str(r.get("Serving note") or None),
                                    sql_arr(lines_of(r.get("Ingredients"))), sql_arr(lines_of(r.get("Steps"))), sql_str(r.get("TBS note") or None),
                                    sql_str(r.get("Source name") or None), sql_str(r.get("Source URL") or None), sql_str(r.get("Review status") or None),
-                                   sql_str(img_url), sql_str(img[1] if img else None), sql_json(recipe_shop.get(rid, []))])
-                       + ") on conflict (recipe_id) do update set display_order=excluded.display_order, title=excluded.title, serving_note=excluded.serving_note, ingredients=excluded.ingredients, steps=excluded.steps, tbs_note=excluded.tbs_note, source_name=excluded.source_name, source_url=excluded.source_url, review_status=excluded.review_status, image_url=excluded.image_url, image_alt=excluded.image_alt, shopping=excluded.shopping, updated_at=now();")
+                                   sql_str(img_url), sql_str(img[1] if img else None), sql_json(recipe_shop.get(rid, [])),
+                                   "false" if (r.get("Web visibility") or "").strip().lower() == "hidden" else "true"])
+                       + ") on conflict (recipe_id) do update set display_order=excluded.display_order, title=excluded.title, serving_note=excluded.serving_note, ingredients=excluded.ingredients, steps=excluded.steps, tbs_note=excluded.tbs_note, source_name=excluded.source_name, source_url=excluded.source_url, review_status=excluded.review_status, image_url=excluded.image_url, image_alt=excluded.image_alt, shopping=excluded.shopping, web_visible=excluded.web_visible, updated_at=now();")
         sql.append(f"delete from public.tbs_content_fact where product_id={sql_str(pid)};")
         for (kind, order, title, desc, sname, surl, chk, rev) in facts_by.get(pid, []):
             sql.append("insert into public.tbs_content_fact (product_id, kind, display_order, title, description, source_name, source_url, checked_date, review_status) values ("
                        + ",".join([sql_str(pid), sql_str(kind), str(order), sql_str(title), sql_str(desc or None), sql_str(sname or None), sql_str(surl or None), sql_str(chk or None), sql_str(rev or None)]) + ");")
 
+    for fid, mem in fam_members.items():
+        primary = sorted(mem)[0][2]
+        sql.append(f"update public.tbs_content_product set family_primary=(product_id={sql_str(primary)}) where family_id={sql_str(fid)};")
     for (code, name, icon, iid, order, subs) in cat_rows:
         sql.append(f"insert into public.tbs_content_category (code, name, icon, icon_id, display_order, subcategories, updated_at) values ({sql_str(code)},{sql_str(name)},{sql_str(icon)},{sql_str(iid)},{order},{sql_json(subs)},now()) "
                    "on conflict (code) do update set name=excluded.name, icon=excluded.icon, icon_id=excluded.icon_id, display_order=excluded.display_order, subcategories=excluded.subcategories, updated_at=now();")
@@ -372,18 +494,30 @@ def main():
                 shutil.copy(src, os.path.join(dst, f)); n += 1
         print("recipe images copied:", n)
 
+    if a.fetch_recipe_images and not a.dry_run:
+        fetch_recipe_images(recipe_img, catalog_hosts(data.get("products", [])), os.path.join(os.path.dirname(a.public_dir), "recipes"), a.photos_dir)
+
+    if a.check_photos:
+        print(f"photos replaced in Drive since last download: {len(REPLACED)}" + (f" ({', '.join(REPLACED[:10])}{'…' if len(REPLACED) > 10 else ''})" if REPLACED else ""))
     print(f"products {len(seen_ids)}  variants {sum(len(v) for v in variants.values())}  recipes {n_rec}  images {n_img}  sku-less {orphans}  categories {len(cat_rows)}")
     if a.dry_run:
         out = os.path.join(tempfile.gettempdir(), "tbs-content-load.sql")
         open(out, "w").write("\n".join(sql))
         print("dry run — SQL written to", out)
         return
-    dburl = None
-    for line in open(a.env):
-        if line.startswith("DATABASE_URL="):
-            dburl = line.split("=", 1)[1].strip().strip('"')
+    dburl = a.database_url
     if not dburl:
-        sys.exit("DATABASE_URL missing in " + a.env)
+        for line in open(a.env):
+            if line.startswith("DATABASE_URL="):
+                dburl = line.split("=", 1)[1].strip().strip('"')
+    if not dburl:
+        sys.exit("DATABASE_URL missing in " + a.env + " (or pass --database-url)")
+    print("target:", re.sub(r"//[^@]*@", "//…@", dburl))
+    if "supabase." in dburl and not a.allow_supabase:
+        sys.exit("Production reads Cloud SQL since 2026-10-28 — this target is the OLD Supabase DB.\n"
+                 "Start: cloud-sql-proxy --port 5434 tbs-group-500303:asia-southeast2:cookiedoh-db\n"
+                 "Then:  --database-url postgresql://cookiedoh_app:<pw>@127.0.0.1:5434/cookiedoh  (pw: Secret Manager cookiedoh-db-app-password)\n"
+                 "or pass --allow-supabase to load the old DB on purpose.")
     r = subprocess.run(["psql", dburl, "-v", "ON_ERROR_STOP=1", "-q"], input="\n".join(sql), text=True, capture_output=True)
     if r.returncode != 0:
         print(r.stderr[-3000:], file=sys.stderr); sys.exit("psql failed")

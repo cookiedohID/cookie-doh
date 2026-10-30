@@ -16,6 +16,20 @@
       "port": 3001
     },
     {
+      "name": "cloudmig-smoke",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--prefix",
+        "/Users/angeltan/cookie-doh/.claude/worktrees/cloudmig-v2/web",
+        "--",
+        "-p",
+        "3007"
+      ],
+      "port": 3007
+    },
+    {
       "name": "kurly-verify",
       "runtimeExecutable": "env",
       "runtimeArgs": [
