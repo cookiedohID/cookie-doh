@@ -137,6 +137,32 @@ export async function setPasswordWithResetToken(token: string, password: string)
   return { token: await issueSession(toSessionUser(row), nextTv) };
 }
 
+/** Set or change the password for an ALREADY signed-in member (identity is proven
+ *  by their session, so this is how a Google-only account adds a first password —
+ *  the "forgot password" flow can't, since there's nothing to reset). First-time
+ *  set needs no current password; changing an existing one requires it. Bumps
+ *  token_version (revoking other sessions + any outstanding reset tokens) and
+ *  returns a FRESH session token so the caller stays logged in here. */
+export async function setMemberPassword(userId: string, newPassword: string, currentPassword?: string): Promise<{ token?: string; error?: string }> {
+  if (!newPassword || newPassword.length < 6) return { error: "Password must be at least 6 characters." };
+  const supa = supaAdmin();
+  const { data } = await supa.from("auth_user").select("*").eq("id", userId).limit(1);
+  const row = data?.[0];
+  if (!row) return { error: "Account not found — please sign in again." };
+  if (row.password_hash) {
+    const ok = await bcrypt.compare(currentPassword || "", row.password_hash).catch(() => false);
+    if (!ok) return { error: "Your current password is incorrect." };
+    if (currentPassword === newPassword) return { error: "Choose a password different from your current one." };
+  }
+  const password_hash = await bcrypt.hash(newPassword, 10);
+  const nextTv = tvOf(row) + 1; // revoke other sessions + any outstanding reset tokens
+  const { error } = await supa.from("auth_user")
+    .update({ password_hash, token_version: nextTv, updated_at: new Date().toISOString() })
+    .eq("id", userId);
+  if (error) return { error: "Couldn't update your password. Please try again." };
+  return { token: await issueSession(toSessionUser(row), nextTv) };
+}
+
 // ── Password reset via WhatsApp OTP ──────────────────────────────────────────
 // Phone is the membership key (mandatory; email is optional), so a WhatsApp code
 // is the primary recovery path. Both halves reuse the signup OTP store
