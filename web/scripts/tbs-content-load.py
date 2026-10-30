@@ -21,7 +21,7 @@ curl for Drive downloads (folder must be shared "anyone with the link").
 Zero third-party Python deps on purpose (no openpyxl): the xlsx is unzipped and
 its sheet XML read directly.
 """
-import argparse, collections, hashlib, json, os, re, shutil, subprocess, sys, tempfile, urllib.request, zipfile
+import argparse, collections, hashlib, json, os, re, shutil, subprocess, sys, tempfile, time, urllib.parse, urllib.request, zipfile
 import xml.etree.ElementTree as ET
 
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -145,6 +145,49 @@ def catalog_hosts(prods):
     return [h for h, _ in sorted(c.items(), key=lambda kv: kv[1])]
 
 
+def fetch_recipe_images(recipe_img, hosts, dst, photos_dir):
+    """Recipe illustrations live only on the preview site (assets/recipes/<base>-web.webp, older
+    builds <base>.webp). Save each as public/tbs/recipes/<slug>.webp — the name the recipe rows
+    already point at. A 404 is remembered for 24 h so the hourly sync does not hammer the site."""
+    os.makedirs(dst, exist_ok=True)
+    miss_file = os.path.join(os.path.dirname(photos_dir.rstrip("/")), "tbs-recipe-misses.json")
+    try:
+        misses = json.load(open(miss_file))
+    except Exception:
+        misses = {}
+    now = int(time.time())
+    got = skipped = failed = 0
+    bases = sorted({os.path.splitext(os.path.basename(p))[0] for (p, _d) in recipe_img.values() if p})
+    for base in bases:
+        out = os.path.join(dst, slugify(base) + ".webp")
+        if os.path.exists(out) and os.path.getsize(out) > 0:
+            continue
+        if now - misses.get(base, 0) < 86400:
+            skipped += 1
+            continue
+        ok = False
+        for host in hosts[:2]:
+            for name in (base + "-web.webp", base + ".webp"):
+                url = f"{host}/assets/recipes/{urllib.parse.quote(name)}"
+                r = subprocess.run(["curl", "-s", "--globoff", "-A", "Mozilla/5.0", "--max-time", "30", "-o", out + ".part", "-w", "%{http_code}", url],
+                                   capture_output=True, text=True)
+                if r.stdout.strip() == "200" and os.path.getsize(out + ".part") > 0 and \
+                        "image" in subprocess.run(["file", "-b", out + ".part"], capture_output=True, text=True).stdout.lower():
+                    os.replace(out + ".part", out); ok = True
+                    break
+            if ok:
+                break
+        if os.path.exists(out + ".part"):
+            os.remove(out + ".part")
+        if ok:
+            got += 1; misses.pop(base, None)
+        else:
+            failed += 1; misses[base] = now
+        time.sleep(0.2)
+    json.dump(misses, open(miss_file, "w"))
+    print(f"recipe images: {got} new, {failed} not on the preview yet, {skipped} skipped (missed < 24 h ago)")
+
+
 def ensure_photo(fid, photos_dir, public_dir, dry):
     """Download (if needed) + resize one Drive file into public_dir/l and /s. Returns (url_l, url_s, w, h) or None."""
     if not fid:
@@ -192,6 +235,7 @@ def main():
     ap.add_argument("--recipes-dir", default=None, help="folder of recipe illustration files (<slug>.webp) to copy into public/tbs/recipes")
     ap.add_argument("--env", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env.local"))
     ap.add_argument("--database-url", default=None, help="target database (default: DATABASE_URL from --env). Cloud SQL: run cloud-sql-proxy and pass postgresql://cookiedoh_app:<pw>@127.0.0.1:<port>/cookiedoh")
+    ap.add_argument("--fetch-recipe-images", action="store_true", help="download recipe illustrations that are not in public/tbs/recipes yet from the preview site (misses retried after 24 h)")
     ap.add_argument("--allow-supabase", action="store_true", help="load into the old Supabase DB anyway (production reads Cloud SQL since 2026-10-28)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--prune", action="store_true", help="set listed=false for products no longer in the sheet")
@@ -410,6 +454,9 @@ def main():
             if os.path.getsize(src) > 0 and not os.path.exists(os.path.join(dst, f)):
                 shutil.copy(src, os.path.join(dst, f)); n += 1
         print("recipe images copied:", n)
+
+    if a.fetch_recipe_images and not a.dry_run:
+        fetch_recipe_images(recipe_img, catalog_hosts(data.get("products", [])), os.path.join(os.path.dirname(a.public_dir), "recipes"), a.photos_dir)
 
     print(f"products {len(seen_ids)}  variants {sum(len(v) for v in variants.values())}  recipes {n_rec}  images {n_img}  sku-less {orphans}  categories {len(cat_rows)}")
     if a.dry_run:
