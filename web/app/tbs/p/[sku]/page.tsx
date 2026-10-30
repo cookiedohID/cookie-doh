@@ -51,8 +51,16 @@ export default function TbsProductPage() {
   const banner = images.find((i) => i.role === "landscape_banner") || null;
   const detail = images.find((i) => i.role === "detail") || null;
   const sizeRef = images.find((i) => i.role === "size_reference") || null;
-  const gallery = [hero, banner, detail, sizeRef].filter(Boolean) as Img[];
+  const extraMain = images.find((i) => i.role === "additional_main") || null;
+  const familyImg = images.find((i) => i.role === "family") || null;
   const family: { id: string; name: string; members: (CardItem & { current: boolean })[] } | null = d?.family || null;
+  // thumbnail order + labels as on the preview site: a family page leads with the family
+  // photo, then this flavour's own photo, then its size reference; banner/detail stay in the story
+  const gallery: (Img & { label: string })[] = (family && familyImg
+    ? [[familyImg, "foto keluarga"], [hero, "foto individu"], [sizeRef, "referensi ukuran"]]
+    : [[hero, "foto utama"], [banner, "foto suasana"], [detail, "detail produk"], [sizeRef, "referensi ukuran"], [extraMain, "foto utama tambahan"]]
+  ).filter(([g]) => g).map(([g, label]) => ({ ...(g as Img), label: label as string }));
+  const fit = (g?: Img | null) => (g?.role === "size_reference" ? { objectFit: "contain" as const, background: "#fff" } : undefined);
 
   const mine = useMemo(() => (d?.live?.availability || []).find((a: any) => a.store === store), [d, store]);
   const sellable = Boolean(d?.sellable);
@@ -131,7 +139,7 @@ export default function TbsProductPage() {
             <div className="image-slot hero" data-slot={slot}>
               {gallery[slot] ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={gallery[slot].url} alt={gallery[slot].alt || p.name} fetchPriority="high" />
+                <img src={gallery[slot].url} alt={gallery[slot].alt || p.name} fetchPriority="high" style={fit(gallery[slot])} />
               ) : (
                 <div className="missing"><Icon id="leaf" cls="category-icon" sheet="tbs" /><strong>Foto produk segera hadir</strong><small>{p.name}</small></div>
               )}
@@ -140,9 +148,9 @@ export default function TbsProductPage() {
           {gallery.length > 1 ? (
             <div className="photo-thumbs" aria-label="Foto produk">
               {gallery.map((g, i) => (
-                <button key={g.url} type="button" aria-label={["Lihat foto utama", "Lihat foto suasana", "Lihat detail produk", "Lihat referensi ukuran"][i] || "Lihat foto"} aria-pressed={slot === i} onClick={() => setSlot(i)}>
+                <button key={g.url} type="button" aria-label={`Lihat ${g.label}`} aria-pressed={slot === i} onClick={() => setSlot(i)}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={g.url_small || g.url} alt={g.alt || p.name} loading="lazy" />
+                  <img src={g.url_small || g.url} alt={g.alt || p.name} loading="lazy" style={fit(g)} />
                 </button>
               ))}
             </div>

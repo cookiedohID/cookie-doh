@@ -188,11 +188,38 @@ def fetch_recipe_images(recipe_img, hosts, dst, photos_dir):
     print(f"recipe images: {got} new, {failed} not on the preview yet, {skipped} skipped (missed < 24 h ago)")
 
 
-def ensure_photo(fid, photos_dir, public_dir, dry):
-    """Download (if needed) + resize one Drive file into public_dir/l and /s. Returns (url_l, url_s, w, h) or None."""
+# sheet column → role; labels = the preview site's thumbnail labels
+IMAGE_ROLES = (("hero_portrait", "Portrait image URL"), ("landscape_banner", "Landscape image URL"), ("detail", "Detail image URL"),
+               ("size_reference", "Size reference image URL"), ("additional_main", "Additional main image URL"), ("family", "Family image URL"))
+IMAGE_LABEL = {"hero_portrait": "foto utama", "landscape_banner": "foto suasana", "detail": "detail produk",
+               "size_reference": "referensi ukuran", "additional_main": "foto utama tambahan", "family": "foto keluarga"}
+
+
+def drive_size(fid):
+    """Size Drive reports for the file right now (None if unknown). ChatGPT replaces photos IN PLACE
+    (same file id, new bytes), so a cached original is only good while its size still matches."""
+    r = subprocess.run(["curl", "-s", "-I", "-L", "--max-time", "20", f"https://drive.usercontent.google.com/download?id={fid}&export=download"],
+                       capture_output=True, text=True)
+    sizes = re.findall(r"(?im)^content-length:\s*(\d+)", r.stdout)
+    return int(sizes[-1]) if sizes and "200" in (re.findall(r"(?m)^HTTP/\S+ (\d+)", r.stdout) or [""])[-1] else None
+
+
+REPLACED = []   # file ids whose Drive bytes changed since the last download
+
+
+def ensure_photo(fid, photos_dir, public_dir, dry, check=False):
+    """Download (if needed) + resize one Drive file into public_dir/l and /s. Returns (url_l, url_s, w, h) or None.
+    check=True: also re-download when Drive's size differs from the cached original (photo replaced in place)."""
     if not fid:
         return None
     src = os.path.join(photos_dir, fid)
+    if check and not dry and os.path.exists(src) and os.path.getsize(src) > 0:
+        now_size = drive_size(fid)
+        if now_size and now_size != os.path.getsize(src):
+            REPLACED.append(fid)
+            for f in (src, os.path.join(public_dir, "l", fid + ".jpg"), os.path.join(public_dir, "s", fid + ".jpg")):
+                if os.path.exists(f):
+                    os.remove(f)
     if not os.path.exists(src) or os.path.getsize(src) == 0:
         if dry:
             return None
@@ -235,6 +262,7 @@ def main():
     ap.add_argument("--recipes-dir", default=None, help="folder of recipe illustration files (<slug>.webp) to copy into public/tbs/recipes")
     ap.add_argument("--env", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env.local"))
     ap.add_argument("--database-url", default=None, help="target database (default: DATABASE_URL from --env). Cloud SQL: run cloud-sql-proxy and pass postgresql://cookiedoh_app:<pw>@127.0.0.1:<port>/cookiedoh")
+    ap.add_argument("--check-photos", action="store_true", help="ask Drive whether each cached photo was replaced in place (same link, new picture) and refresh it")
     ap.add_argument("--fetch-recipe-images", action="store_true", help="download recipe illustrations that are not in public/tbs/recipes yet from the preview site (misses retried after 24 h)")
     ap.add_argument("--allow-supabase", action="store_true", help="load into the old Supabase DB anyway (production reads Cloud SQL since 2026-10-28)")
     ap.add_argument("--dry-run", action="store_true")
@@ -342,16 +370,16 @@ def main():
             listed = rtype == "Existing"
         sku = (p.get("SKU") or m.get("itemNumber") or "").strip() or None
         images = []
-        for role, col in (("hero_portrait", "Portrait image URL"), ("landscape_banner", "Landscape image URL"), ("detail", "Detail image URL"), ("size_reference", "Additional main image URL")):
+        for role, col in IMAGE_ROLES:
             fid = drive_id(p.get(col))
             if not fid:
                 continue
             if fid not in img_cache:
-                img_cache[fid] = ensure_photo(fid, a.photos_dir, a.public_dir, a.dry_run)
+                img_cache[fid] = ensure_photo(fid, a.photos_dir, a.public_dir, a.dry_run, a.check_photos)
             r = img_cache[fid]
             if r:
                 images.append({"role": role, "src_id": fid, "url": r[0], "url_small": r[1], "w": r[2], "h": r[3],
-                               "alt": f"{name} — " + {"hero_portrait": "foto utama", "landscape_banner": "foto suasana", "detail": "detail produk", "size_reference": "referensi ukuran"}[role]})
+                               "alt": f"{(p.get('Product family name') or name) if role == 'family' else name} — " + IMAGE_LABEL[role]})
                 n_img += 1
         vs = variants.get(pid, [])
         base = next((v for v in vs if (v.get("Variant type") or "") == "base"), None)
@@ -458,6 +486,8 @@ def main():
     if a.fetch_recipe_images and not a.dry_run:
         fetch_recipe_images(recipe_img, catalog_hosts(data.get("products", [])), os.path.join(os.path.dirname(a.public_dir), "recipes"), a.photos_dir)
 
+    if a.check_photos:
+        print(f"photos replaced in Drive since last download: {len(REPLACED)}" + (f" ({', '.join(REPLACED[:10])}{'…' if len(REPLACED) > 10 else ''})" if REPLACED else ""))
     print(f"products {len(seen_ids)}  variants {sum(len(v) for v in variants.values())}  recipes {n_rec}  images {n_img}  sku-less {orphans}  categories {len(cat_rows)}")
     if a.dry_run:
         out = os.path.join(tempfile.gettempdir(), "tbs-content-load.sql")

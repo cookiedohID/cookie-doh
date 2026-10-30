@@ -17,7 +17,7 @@ import { supaAdmin } from "@/lib/supaAdmin";
 // surface as supabase-js, so the reads below are backend-agnostic (2026-10-30).
 export function supa(): any { return supaAdmin(); }
 
-export type ContentImage = { role: "hero_portrait" | "landscape_banner" | "detail" | "size_reference"; src_id: string; url: string; url_small: string; w: number | null; h: number | null; alt: string };
+export type ContentImage = { role: "hero_portrait" | "landscape_banner" | "detail" | "size_reference" | "additional_main" | "family"; src_id: string; url: string; url_small: string; w: number | null; h: number | null; alt: string };
 export type CardItem = {
   id: string; sku: string | null; name: string; slug: string | null;
   category_code: string | null; category_name: string | null; subcategory_code: string | null;
@@ -54,9 +54,10 @@ export async function categories(): Promise<{ code: string; name: string; icon: 
   return CAT_CACHE.v;
 }
 
-function hero(images: any): { l: string | null; s: string | null } {
+function hero(images: any, family = false): { l: string | null; s: string | null } {
   const list: ContentImage[] = Array.isArray(images) ? images : [];
-  const h = list.find((i) => i.role === "hero_portrait") || list[0];
+  // a family's catalogue card shows the family photo (all flavours together), as on the preview
+  const h = (family && list.find((i) => i.role === "family")) || list.find((i) => i.role === "hero_portrait") || list[0];
   return { l: h?.url || null, s: h?.url_small || h?.url || null };
 }
 
@@ -84,11 +85,11 @@ export async function overlayLive(store: string, rows: any[], catNames: Map<stri
     }
   }
   return rows.map((r) => {
-    const im = hero(r.images);
+    const f = r.family_id && r.family_primary ? fam.get(String(r.family_id)) : null;
+    const im = hero(r.images, Boolean(f));
     const x = r.sku ? live.get(r.sku) : null;
     const liveOk = x && Number(x.price) > 0;
     const stock = liveOk ? Math.max(0, Number(x.stock) || 0) : 0;
-    const f = r.family_id && r.family_primary ? fam.get(String(r.family_id)) : null;
     return {
       id: r.product_id, sku: r.sku || null, name: f ? (r.family_name || r.name) : r.name, slug: r.slug || null,
       category_code: r.category_code || null, category_name: (r.category_code && catNames.get(r.category_code)) || r.category_label || null,

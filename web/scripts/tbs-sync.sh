@@ -43,8 +43,12 @@ if [ -z "$SHEET" ]; then status "ERROR no Total-Buah-Product-Master.xlsx under ~
 AGE=$(( $(date +%s) - $(stat -f %m "$SHEET") ))
 if [ "$AGE" -lt 120 ]; then say "sheet modified ${AGE}s ago — wait for the next run"; exit 0; fi
 HASH=$(shasum -a 256 "$SHEET" | cut -d' ' -f1)
-if [ "$FORCE" = 0 ] && [ "$HASH" = "$(cat "$STATE/last-hash" 2>/dev/null)" ]; then exit 0; fi
-say "sheet changed: $SHEET"
+# ChatGPT also swaps photos IN PLACE on Drive (same link, new picture) without touching the
+# sheet — so even an unchanged sheet gets a photo re-check every 6 hours
+PHOTO_DUE=0
+if [ -z "$(find "$STATE/last-photo-check" -mmin -360 2>/dev/null)" ]; then PHOTO_DUE=1; fi
+if [ "$FORCE" = 0 ] && [ "$HASH" = "$(cat "$STATE/last-hash" 2>/dev/null)" ] && [ "$PHOTO_DUE" = 0 ]; then exit 0; fi
+if [ "$HASH" != "$(cat "$STATE/last-hash" 2>/dev/null)" ]; then say "sheet changed: $SHEET"; else say "6-hourly photo re-check"; fi
 
 # private worktree at origin/main
 git -C "$REPO" fetch -q origin main || { status "ERROR git fetch failed"; exit 1; }
@@ -70,9 +74,11 @@ fi
 say "loading into Cloud SQL…"
 if ! python3 -I "$WT/web/scripts/tbs-content-load.py" --xlsx "$SHEET" \
       --database-url "postgresql://cookiedoh_app@127.0.0.1:$PORT/cookiedoh" \
-      --public-dir "$WT/web/public/tbs/products" --fetch-recipe-images; then
+      --public-dir "$WT/web/public/tbs/products" --fetch-recipe-images --check-photos; then
   status "ERROR loader failed — content NOT updated (details above in sync.log)"; exit 1
 fi
+
+touch "$STATE/last-photo-check"
 
 # new photos → main → Vercel
 git -C "$WT" add web/public/tbs
