@@ -31,8 +31,14 @@ Loaded 2026-10-30 from the 13:57 sheet: 858 listed products / 857 cards, 161 wit
 
 Run this (nothing else to do; it downloads any new Drive photos itself):
 
+Production runs on **Cloud SQL** (since 2026-10-28), so load there, through the proxy:
+
 ```bash
-cd /Users/angeltan/cookie-doh/web && python3 -I scripts/tbs-content-load.py --xlsx "/Users/angeltan/Documents/ChatGPT/totalbuahstore.com/outputs/01a167a8-dad0-72f2-b731-70319217e8fc/Total-Buah-Product-Master.xlsx"
+cloud-sql-proxy --port 5434 tbs-group-500303:asia-southeast2:cookiedoh-db
+```
+
+```bash
+cd /Users/angeltan/cookie-doh/web && python3 -I scripts/tbs-content-load.py --xlsx "/Users/angeltan/Documents/ChatGPT/totalbuahstore.com/outputs/01a167a8-dad0-72f2-b731-70319217e8fc/Total-Buah-Product-Master.xlsx" --database-url "postgresql://cookiedoh_app:<password from Secret Manager cookiedoh-db-app-password>@127.0.0.1:5434/cookiedoh"
 ```
 
 Then `git add web/public/tbs && git commit` so the new photos deploy.

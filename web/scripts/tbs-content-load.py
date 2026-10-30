@@ -192,6 +192,7 @@ def main():
     ap.add_argument("--recipes-dir", default=None, help="folder of recipe illustration files (<slug>.webp) to copy into public/tbs/recipes")
     ap.add_argument("--env", default=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env.local"))
     ap.add_argument("--database-url", default=None, help="target database (default: DATABASE_URL from --env). Cloud SQL: run cloud-sql-proxy and pass postgresql://cookiedoh_app:<pw>@127.0.0.1:<port>/cookiedoh")
+    ap.add_argument("--allow-supabase", action="store_true", help="load into the old Supabase DB anyway (production reads Cloud SQL since 2026-10-28)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--prune", action="store_true", help="set listed=false for products no longer in the sheet")
     a = ap.parse_args()
@@ -424,6 +425,11 @@ def main():
     if not dburl:
         sys.exit("DATABASE_URL missing in " + a.env + " (or pass --database-url)")
     print("target:", re.sub(r"//[^@]*@", "//…@", dburl))
+    if "supabase." in dburl and not a.allow_supabase:
+        sys.exit("Production reads Cloud SQL since 2026-10-28 — this target is the OLD Supabase DB.\n"
+                 "Start: cloud-sql-proxy --port 5434 tbs-group-500303:asia-southeast2:cookiedoh-db\n"
+                 "Then:  --database-url postgresql://cookiedoh_app:<pw>@127.0.0.1:5434/cookiedoh  (pw: Secret Manager cookiedoh-db-app-password)\n"
+                 "or pass --allow-supabase to load the old DB on purpose.")
     r = subprocess.run(["psql", dburl, "-v", "ON_ERROR_STOP=1", "-q"], input="\n".join(sql), text=True, capture_output=True)
     if r.returncode != 0:
         print(r.stderr[-3000:], file=sys.stderr); sys.exit("psql failed")
