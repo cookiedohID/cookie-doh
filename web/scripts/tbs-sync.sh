@@ -1,7 +1,8 @@
 #!/bin/bash
 # web/scripts/tbs-sync.sh — keep cookiedoh.co.id/tbs in step with the ChatGPT product master.
 #
-# Runs hourly from launchd (~/Library/LaunchAgents/id.cookiedoh.tbs-sync.plist). Each run:
+# Runs hourly from the Claude desktop scheduled task `tbs-sheet-sync` (a launchd job cannot: macOS
+# blocks background shells from reading ~/Documents, where ChatGPT saves the sheet). Each run:
 #   1. finds the newest Total-Buah-Product-Master.xlsx under ~/Documents/ChatGPT
 #      (ChatGPT may start a new outputs/<uuid>/ folder; the file name stays the same)
 #   2. stops unless it changed since the last good run (or --force)
