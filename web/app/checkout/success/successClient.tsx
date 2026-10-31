@@ -373,7 +373,7 @@ export default function SuccessClient() {
             {orderNo ? (
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <div style={{ color: "#6B6B6B", fontWeight: 800 }}>Order No</div>
-                <div style={{ fontWeight: 950, color: COLORS.black }}>{orderNo}</div>
+                <div className="allow-copy" style={{ fontWeight: 950, color: COLORS.black }}>{orderNo}</div>
               </div>
             ) : null}
 

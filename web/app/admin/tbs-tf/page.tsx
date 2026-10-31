@@ -94,7 +94,7 @@ export default function TbsTfPage() {
               <div style={{ fontSize: 13, color: "#555", marginTop: 2 }}>Settlement — TotalBuahStore web sales via cookiedoh.co.id</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontWeight: 900, fontSize: 15 }}>{tf.tf_no}</div>
+              <div className="allow-copy" style={{ fontWeight: 900, fontSize: 15 }}>{tf.tf_no}</div>
               <div style={{ fontSize: 12.5, color: "#555" }}>Period: {tf.period.from} — {tf.period.to} (WIB)</div>
             </div>
           </div>

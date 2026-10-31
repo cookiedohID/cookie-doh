@@ -228,7 +228,7 @@ export default function OrderDetailPage() {
               <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0" }}>
                 <span style={{ color: COLORS.muted }}>{t("ord.orderNo")}</span>
                 <span style={{ fontWeight: 800 }}>
-                  {order.orderNo ? `#${order.orderNo}` : id.slice(0, 8)}
+                  <span className="allow-copy">{order.orderNo ? `#${order.orderNo}` : id.slice(0, 8)}</span>
                   <button onClick={copyNo} style={{ marginLeft: 8, border: "1px solid rgba(0,0,0,0.15)", background: "#fff", borderRadius: 8, fontSize: 11, fontWeight: 800, padding: "2px 8px", cursor: "pointer" }}>{copied ? t("ord.copied") : t("ord.copy")}</button>
                 </span>
               </div>

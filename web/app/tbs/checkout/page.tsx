@@ -12,7 +12,7 @@ import { useTbsBasket } from "@/components/TbsCartSection";
 import { tbsIssueText, tbsIssueDead } from "@/lib/tbsStockCheck";
 import { useLang } from "@/lib/i18n";
 import {
-  RED, GREEN, CREAM, rp, saveBasket, useTbsGate, ComingSoon,
+  RED, GREEN, CREAM, rp, saveBasket, useTbsGate, ComingSoon, tbsFetch,
 } from "../shared";
 
 export default function TbsCheckoutPage() {
@@ -44,7 +44,7 @@ export default function TbsCheckoutPage() {
   const pay = async () => {
     setErr(""); setBusy(true); setServerPricing(null);
     try {
-      const r = await fetch("/api/tbs/checkout", {
+      const r = await tbsFetch("/api/tbs/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           store, fulfil, notes,

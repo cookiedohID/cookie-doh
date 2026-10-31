@@ -10,6 +10,7 @@ import Footer from "@/components/Footer";
 import RefCapture from "@/components/RefCapture";
 import HolidayGate from "@/components/HolidayGate";
 import HolidayBanner from "@/components/HolidayBanner";
+import CopyGuard from "@/components/CopyGuard";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        <CopyGuard />
         <RefCapture />
         <HolidayBanner />
         <SiteHeader />

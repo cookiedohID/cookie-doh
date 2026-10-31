@@ -102,7 +102,7 @@ export default function CustomersAdminPage() {
               >
                 <div>
                   <div style={{ fontWeight: 800, color: COLORS.black }}>{c.name || "(no name)"}</div>
-                  <div style={{ fontSize: 12.5, color: "#6B6B6B" }}>{c.phone}{c.email ? ` · ${c.email}` : ""}</div>
+                  <div className="allow-copy" style={{ fontSize: 12.5, color: "#6B6B6B" }}>{c.phone}{c.email ? ` · ${c.email}` : ""}</div>
                 </div>
                 <div style={{ fontSize: 12, color: "#6B6B6B", whiteSpace: "nowrap" }}>
                   Last: {formatDate(c.last_order_at)}
@@ -118,7 +118,7 @@ export default function CustomersAdminPage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
               <div>
                 <div style={{ fontWeight: 900, fontSize: 18, color: COLORS.black }}>{selected.name || "(no name)"}</div>
-                <div style={{ fontSize: 13, color: "#6B6B6B" }}>{selected.phone}{selected.email ? ` · ${selected.email}` : ""}</div>
+                <div className="allow-copy" style={{ fontSize: 13, color: "#6B6B6B" }}>{selected.phone}{selected.email ? ` · ${selected.email}` : ""}</div>
               </div>
               {stats ? (
                 <div style={{ textAlign: "right" }}>
@@ -178,7 +178,7 @@ export default function CustomersAdminPage() {
                     }}
                   >
                     <div>
-                      <div style={{ fontWeight: 800, color: COLORS.black, fontSize: 13.5 }}>{o.order_no || o.id.slice(0, 8)}</div>
+                      <div className="allow-copy" style={{ fontWeight: 800, color: COLORS.black, fontSize: 13.5 }}>{o.order_no || o.id.slice(0, 8)}</div>
                       <div style={{ fontSize: 12, color: "#6B6B6B" }}>{formatDate(o.created_at)}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
