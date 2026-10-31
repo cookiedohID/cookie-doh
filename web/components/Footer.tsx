@@ -7,6 +7,8 @@ export default function Footer() {
   const pathname = usePathname();
   // Hide on the kiosk (same as SiteHeader)
   if (pathname?.startsWith("/cafe")) return null;
+  // The sign-in page and the member dashboard carry their own slim footer.
+  if (pathname === "/account/login" || pathname === "/account") return null;
 
   const year = new Date().getFullYear();
   const link: React.CSSProperties = { color: "rgba(255,255,255,0.85)", textDecoration: "none", fontWeight: 600 };

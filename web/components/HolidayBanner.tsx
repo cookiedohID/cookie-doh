@@ -10,6 +10,8 @@ import { holidayActive, isExemptFromHoliday, isOrderingPath, HOLIDAY_RETURN_LABE
 export default function HolidayBanner() {
   const pathname = usePathname() || "/";
   if (!holidayActive() || isExemptFromHoliday(pathname) || isOrderingPath(pathname)) return null;
+  // The full-screen sign-in page and member dashboard own the viewport — no banner.
+  if (pathname === "/account/login" || pathname === "/account") return null;
   return (
     <div
       style={{

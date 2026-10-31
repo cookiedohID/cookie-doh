@@ -219,6 +219,9 @@ export default function SiteHeader() {
   // Kiosk mode: the cafe POS is a standalone full-screen register — hide the
   // storefront nav so a walk-in customer can't navigate away from it.
   if (pathname?.startsWith("/cafe")) return null;
+  // The account sign-in page and the member dashboard are full-screen takeovers
+  // with their own brand header + sidebar.
+  if (pathname === "/account/login" || pathname === "/account") return null;
 
   // ── TotalBuahStore takeover ─────────────────────────────────────────────
   // On /tbs the WHOLE header becomes TBS (owner decision 2026-07-04): TBS logo,
