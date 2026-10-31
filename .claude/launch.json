@@ -39,6 +39,37 @@
       ],
       "port": 4321,
       "autoPort": true
+    },
+    {
+      "name": "kurly-copyguard",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "KURLY_DEMO_DB=kurly_real",
+        "PORT=4331",
+        "node",
+        "/Users/angeltan/Kurly x TBS/.claude/worktrees/copy-guard/webdemo/server.js"
+      ],
+      "port": 4331
+    },
+    {
+      "name": "pos-copyguard",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "KURLY_DB=kurly_demo",
+        "POS_PORT=4329",
+        "POS_HOST=127.0.0.1",
+        "POS_LOCATION=STORE01",
+        "PGUSER=postgres",
+        "PGPASSWORD=postgres",
+        "PGHOST=127.0.0.1",
+        "PGPORT=5432",
+        "PGSSLMODE=disable",
+        "PILOT_SHOW_OTP=1",
+        "POS_OUTBOX=/private/tmp/claude-501/-Users-angeltan-cookie-doh/9c9ecafd-5712-4c69-9405-f45049221ef6/scratchpad/pos-outbox",
+        "node",
+        "/Users/angeltan/TBS POS/.claude/worktrees/copy-guard/server.js"
+      ],
+      "port": 4329
     }
   ]
 }
