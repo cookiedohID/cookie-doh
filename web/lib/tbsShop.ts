@@ -37,7 +37,7 @@ export async function tbsShopPublic(): Promise<boolean> {
 // the member's SIGNED SESSION (bearer JWT), compared case-insensitively — NOT a
 // cookie, so the old shared "preview password" and the cd_admin/cd_tbs cookies no
 // longer open the shop.
-const FALLBACK_TBS_EMAILS = ["totalbuahstore.id@gmail.com", "angelia.tania@tbs.id", "angelia.tania@gmail.com"];
+const FALLBACK_TBS_EMAILS = ["angelia.tania@tbs.id", "family.ong.id@gmail.com", "totalbuahsegar.id@gmail.com", "angelia.tania@tbsgroup.id"];
 export function tbsAllowedEmails(): Set<string> {
   const raw = (process.env.TBS_ALLOWED_EMAILS || "").trim();
   const list = (raw ? raw.split(",") : FALLBACK_TBS_EMAILS).map((e) => e.trim().toLowerCase()).filter(Boolean);
