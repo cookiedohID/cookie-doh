@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useTbsGate, ComingSoon, loadBasket, saveBasket, type BasketLine } from "../../shared";
+import { useTbsGate, ComingSoon, loadBasket, saveBasket, tbsFetch, type BasketLine } from "../../shared";
 import { Icon, useTbsStore } from "../../design/Chrome";
 import { bundleKey, bundleLabel, type BundleSize } from "@/lib/tbsBundle";
 import type { CardItem } from "@/lib/tbsContent";
@@ -37,7 +37,7 @@ export default function TbsProductPage() {
     if (gate !== "open" || !id) return;
     (async () => {
       try {
-        const j = await (await fetch(`/api/tbs/content/product?id=${encodeURIComponent(id)}${store ? `&store=${encodeURIComponent(store)}` : ""}`, { cache: "no-store" })).json();
+        const j = await (await tbsFetch(`/api/tbs/content/product?id=${encodeURIComponent(id)}${store ? `&store=${encodeURIComponent(store)}` : ""}`, { cache: "no-store" })).json();
         if (j?.ok && j.found) { setD(j); setMissing(false); }
         else setMissing(true);
       } catch { setMissing(true); }

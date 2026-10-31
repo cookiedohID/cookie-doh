@@ -7,7 +7,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { loadBasket, saveBasket, bumpBasket, TBS_FALLBACK_STORES, rp, type BasketLine } from "../shared";
+import { loadBasket, saveBasket, bumpBasket, TBS_FALLBACK_STORES, rp, tbsFetch, useTbsGate, ComingSoon, type BasketLine } from "../shared";
 import { useTbsBasket } from "@/components/TbsCartSection";
 import { tbsIssueText, tbsIssueDead } from "@/lib/tbsStockCheck";
 
@@ -27,6 +27,7 @@ const CatContext = createContext<TbsCategory[]>([]);
 export const useTbsCategories = () => useContext(CatContext);
 
 export function TbsChrome({ children }: { children: React.ReactNode }) {
+  const { gate } = useTbsGate();
   const pathname = usePathname() || "/tbs";
   const router = useRouter();
   const [stores, setStores] = useState<Store[]>(TBS_FALLBACK_STORES);
@@ -38,10 +39,10 @@ export function TbsChrome({ children }: { children: React.ReactNode }) {
   const [n, setN] = useState(0);
 
   useEffect(() => {
-    fetch("/api/tbs/stores", { cache: "no-store" }).then((r) => r.json()).then((j) => {
+    tbsFetch("/api/tbs/stores", { cache: "no-store" }).then((r) => r.json()).then((j) => {
       if (Array.isArray(j?.stores) && j.stores.length) setStores(j.stores);
     }).catch(() => {});
-    fetch("/api/tbs/content/catalog?limit=1", { cache: "no-store" }).then((r) => r.json()).then((j) => {
+    tbsFetch("/api/tbs/content/catalog?limit=1", { cache: "no-store" }).then((r) => r.json()).then((j) => {
       if (j?.ok && Array.isArray(j.categories)) setCats(j.categories);
     }).catch(() => {});
     const readStore = () => setStore(localStorage.getItem("tbs_store") || "");
@@ -94,6 +95,11 @@ export function TbsChrome({ children }: { children: React.ReactNode }) {
     const c = byCode(cat); const s = c?.subcategories.find((x) => x.name.toLowerCase().includes(name.toLowerCase()));
     return s ? `/tbs?category=${cat}&sub=${s.code}` : `/tbs?category=${cat}`;
   };
+
+  // /tbs is restricted to approved member emails — gate the WHOLE shell so a
+  // non-approved visitor gets only the sign-in screen (no header/nav/store picker).
+  if (gate === "loading") return <div style={{ minHeight: "70vh" }} aria-busy="true" />;
+  if (gate === "hidden") return <ComingSoon />;
 
   return (
     <StoreContext.Provider value={ctx}>

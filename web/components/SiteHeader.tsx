@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getCart } from "@/lib/cart";
 import { COLORS } from "@/lib/theme";
-import { CAT_META } from "@/app/tbs/shared";
+import { CAT_META, tbsFetch } from "@/app/tbs/shared";
 import { useLang } from "@/lib/i18n";
 
 type NavItem = { href: string; label: string };
@@ -171,11 +171,13 @@ export default function SiteHeader() {
   const [count, setCount] = useState(0);
   const [tbsShop, setTbsShop] = useState(false);
 
-  // TotalBuahStore shop tab — feature-flagged (admins preview before launch).
+  // TotalBuahStore shop tab — /tbs is now restricted to approved member emails, so
+  // the tab shows only when THIS signed-in member is allowed (enabled, with the
+  // member bearer token via tbsFetch), not for everyone.
   useEffect(() => {
-    fetch("/api/tbs/enabled", { cache: "no-store" })
+    tbsFetch("/api/tbs/enabled", { cache: "no-store" })
       .then((r) => r.json())
-      .then((j) => setTbsShop(Boolean(j?.enabled || j?.tabVisible)))
+      .then((j) => setTbsShop(Boolean(j?.enabled)))
       .catch(() => { /* tab stays hidden */ });
   }, []);
 
