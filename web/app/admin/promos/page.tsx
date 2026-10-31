@@ -125,7 +125,7 @@ export default function PromosPage() {
               {promos.map((p) => (
                 <div key={p.id} style={{ border: "1px solid rgba(0,0,0,0.10)", borderRadius: 12, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, opacity: p.active ? 1 : 0.55 }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 900, color: COLORS.black, fontFamily: "monospace", fontSize: 16 }}>{p.code}</div>
+                    <div className="allow-copy" style={{ fontWeight: 900, color: COLORS.black, fontFamily: "monospace", fontSize: 16 }}>{p.code}</div>
                     <div style={{ fontSize: 12, color: COLORS.muted, marginTop: 2 }}>
                       {p.type === "percent" ? `${p.value}% off` : `${rp(p.value)} off`}
                       {p.min_subtotal ? ` · min ${rp(p.min_subtotal)}` : ""}

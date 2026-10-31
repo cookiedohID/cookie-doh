@@ -1052,7 +1052,7 @@ export default function AccountPage() {
                 <img src={qr} alt="Membership QR" width={168} height={168} style={{ display: "block" }} />
               ) : <div style={{ width: 168, height: 168 }} />}
             </div>
-            <div className="code">{member.memberCode}</div>
+            <div className="code allow-copy">{member.memberCode}</div>
             <p>{member.name || "Cookie Doh family"} · {member.phone}<br />Show this at the counter to earn &amp; redeem.</p>
             <button className="primary" style={{ width: "100%", justifyContent: "center" }} onClick={() => setCardOpen(false)}>Done</button>
           </section>

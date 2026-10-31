@@ -656,7 +656,7 @@ export default function CafePOS() {
         <div style={{ maxWidth: 460, padding: "40px 24px", textAlign: "center" }}>
           <div style={{ fontSize: 56 }}>✅</div>
           <h1 style={{ fontSize: 28, fontWeight: 800, color: COLORS.black, margin: "10px 0 4px" }}>Payment received</h1>
-          <p style={{ color: COLORS.muted, fontSize: 15 }}>Order {paid.orderNo} · {formatIDR(paid.total)}</p>
+          <p className="allow-copy" style={{ color: COLORS.muted, fontSize: 15 }}>Order {paid.orderNo} · {formatIDR(paid.total)}</p>
           <p style={{ marginTop: 18, fontSize: 16, fontWeight: 700, color: COLORS.blue }}>🖨️ Printing your receipt, stickers &amp; recipe…</p>
           <p style={{ color: COLORS.muted, fontSize: 13, marginTop: 6 }}>Please collect them at the counter.</p>
           <button onClick={() => router.replace("/cafe/start")} style={{ ...btn(COLORS.blue), marginTop: 28, width: 220 }}>Done</button>

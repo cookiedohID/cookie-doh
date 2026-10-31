@@ -524,7 +524,7 @@ export default function AdminOrdersPage() {
                     router.push(`/admin/orders/${uuid}`);
                   }}
                 >
-                  <td style={{ padding: 12, fontWeight: 900 }}>{o.order_no || "—"}</td>
+                  <td className="allow-copy" style={{ padding: 12, fontWeight: 900 }}>{o.order_no || "—"}</td>
 
                   <td style={{ padding: 12 }}>
                     <div style={{ fontWeight: 900 }}>{o.customer_name || "—"}</div>

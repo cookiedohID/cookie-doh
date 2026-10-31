@@ -197,7 +197,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
         ← Back to orders
       </Link>
 
-      <h1 style={{ margin: "10px 0 0", fontSize: 20 }}>
+      <h1 className="allow-copy" style={{ margin: "10px 0 0", fontSize: 20 }}>
         Order {order.order_no || order.midtrans_order_id || order.id}
       </h1>
 
@@ -272,7 +272,7 @@ export default function OrderDetailClient({ id }: { id: string }) {
         </section>
       ) : null}
 
-      <section style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, padding: 14 }}>
+      <section className="allow-copy" style={{ marginTop: 14, border: "1px solid rgba(0,0,0,0.10)", borderRadius: 16, padding: 14 }}>
         <div style={{ fontWeight: 900 }}>Customer{order.recipient_phone || order.recipient_name ? " (buyer)" : ""}</div>
         <div style={{ marginTop: 6 }}>
           <div><b>{order.customer_name || "-"}</b></div>
