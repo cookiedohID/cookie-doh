@@ -9,7 +9,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useTbsGate, ComingSoon } from "./shared";
+import { useTbsGate, ComingSoon, tbsFetch } from "./shared";
 import { Icon, useTbsStore, type TbsCategory } from "./design/Chrome";
 import type { CardItem } from "@/lib/tbsContent";
 
@@ -52,7 +52,7 @@ function Catalog() {
       if (sub) p.set("sub", sub);
       if (q) p.set("q", q);
       if (sort === "price") p.set("sort", "price_asc");
-      const j = await (await fetch(`/api/tbs/content/catalog?${p}`, { cache: "no-store" })).json();
+      const j = await (await tbsFetch(`/api/tbs/content/catalog?${p}`, { cache: "no-store" })).json();
       if (!j?.ok) { setErr(true); return; }
       setErr(false);
       setTotal(j.total || 0);

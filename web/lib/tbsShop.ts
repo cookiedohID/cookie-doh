@@ -8,6 +8,7 @@
 // (backoffice.tbsgroup.id/api/partner/*, Bearer TBS_PARTNER_API_TOKEN —
 // the same env vars the unified-rewards tab already uses).
 import { createHash } from "crypto";
+import { verifySession } from "@/lib/memberSession";
 
 // Fallback ONLY — the live switch is the `tbs_shop_public` row in app_settings,
 // toggled from Admin → TBS (10s cache per server instance, so a toggle takes
@@ -29,31 +30,38 @@ export async function tbsShopPublic(): Promise<boolean> {
   return v;
 }
 
-// Same check proxy.ts uses for /admin: cd_admin cookie == sha256("cookie-doh::"+pass).
-function adminToken(): string | null {
-  const pass = process.env.ADMIN_BASIC_PASS;
-  if (!pass) return null;
-  return createHash("sha256").update(`cookie-doh::${pass}`).digest("hex");
+// ── Access control (RESTRICTED) ──────────────────────────────────────────────
+// /tbs is locked to a small allow-list of signed-in member emails (owner's call,
+// 2026-10-31). The list lives in TBS_ALLOWED_EMAILS (comma-separated) so it can be
+// edited without a code change; the literals are the fallback. Access is proven by
+// the member's SIGNED SESSION (bearer JWT), compared case-insensitively — NOT a
+// cookie, so the old shared "preview password" and the cd_admin/cd_tbs cookies no
+// longer open the shop.
+const FALLBACK_TBS_EMAILS = ["totalbuahstore.id@gmail.com", "angelia.tania@tbs.id", "angelia.tania@gmail.com"];
+export function tbsAllowedEmails(): Set<string> {
+  const raw = (process.env.TBS_ALLOWED_EMAILS || "").trim();
+  const list = (raw ? raw.split(",") : FALLBACK_TBS_EMAILS).map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return new Set(list);
+}
+function bearerToken(req: Request): string | null {
+  const h = req.headers.get("authorization") || "";
+  return h.toLowerCase().startsWith("bearer ") ? h.slice(7).trim() : null;
 }
 
-// Shareable preview password (soft gate for early viewers the owner invites).
-// Visiting /api/tbs/preview?key=<this> sets a 30-day cookie. Prefer the env var;
-// the literal is only a fallback so the gate keeps working until TBS_PREVIEW_KEY
-// is set in the deploy env — set it, then drop the literal. (Soft gate, not a
-// security boundary.)
+// Retained only so the admin panel + /api/tbs/preview still compile; the preview
+// password NO LONGER grants access — canSeeTbsShop ignores cookies entirely.
 export const TBS_PREVIEW_KEY = process.env.TBS_PREVIEW_KEY || "buahsegar100";
 function previewCookieValue(): string {
   return createHash("sha256").update(`tbs-preview::${TBS_PREVIEW_KEY}`).digest("hex");
 }
 
 export async function canSeeTbsShop(req: Request): Promise<boolean> {
-  if (await tbsShopPublic()) return true;
-  const cookies = req.headers.get("cookie") || "";
-  const a = /(?:^|;\s*)cd_admin=([^;]+)/.exec(cookies);
-  const expect = adminToken();
-  if (a && expect && decodeURIComponent(a[1]) === expect) return true;
-  const p = /(?:^|;\s*)cd_tbs=([^;]+)/.exec(cookies);
-  return Boolean(p && decodeURIComponent(p[1]) === previewCookieValue());
+  if (await tbsShopPublic()) return true; // owner's public-launch switch (currently off)
+  const token = bearerToken(req);
+  if (!token) return false;
+  const session = await verifySession(token);
+  const email = session?.email?.trim().toLowerCase();
+  return Boolean(email && tbsAllowedEmails().has(email));
 }
 
 // Partner back-office host (for the admin hub's quick link).
